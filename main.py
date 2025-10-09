@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,12 +22,12 @@ app.add_middleware(
 )
 
 class BulletParam(BaseModel):
+    id: Optional[str] = None
     text: str
-    metric: Optional[str] = None
-    tool: Optional[str] = None
-    tense: Optional[str] = "past"
+    params: Optional[Dict[str, str]] = {}
 
 class Section(BaseModel):
+    id: Optional[str] = None
     title: str
     bullets: List[BulletParam] = []
 
@@ -51,6 +51,9 @@ class ExportPayload(BaseModel):
     sections: List[Section] = []
     replacements: Optional[Dict[str, str]] = None
     template: Optional[str] = "clean"
+    two_column_left: Optional[List[str]] = []
+    two_column_right: Optional[List[str]] = []
+    two_column_left_width: Optional[int] = 50
 
 @app.get("/health")
 async def health():
@@ -106,6 +109,56 @@ TEMPLATES = {
             "section_uppercase": True,
             "layout": "single"
         }
+    },
+    "professional": {
+        "name": "Professional",
+        "styles": {
+            "header_align": "left",
+            "header_border": "3px solid #2563eb",
+            "font": "Arial, sans-serif",
+            "section_uppercase": True,
+            "layout": "single"
+        }
+    },
+    "creative": {
+        "name": "Creative",
+        "styles": {
+            "header_align": "left",
+            "header_border": "none",
+            "font": "Verdana, sans-serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "executive": {
+        "name": "Executive",
+        "styles": {
+            "header_align": "center",
+            "header_border": "2px solid #1e40af",
+            "font": "Georgia, serif",
+            "section_uppercase": True,
+            "layout": "single"
+        }
+    },
+    "technical": {
+        "name": "Technical",
+        "styles": {
+            "header_align": "left",
+            "header_border": "1px solid #64748b",
+            "font": "Courier New, monospace",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "academic": {
+        "name": "Academic",
+        "styles": {
+            "header_align": "center",
+            "header_border": "1px solid #000",
+            "font": "Times New Roman, serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
     }
 }
 
@@ -157,10 +210,14 @@ def apply_replacements(text: str, replacements: Dict[str, str]) -> str:
         text = text.replace(key, value)
     return text
 
+def format_bold_text(text: str) -> str:
+    """Convert **text** to <strong>text</strong> for HTML"""
+    return text.replace('**', '<strong>').replace('**', '</strong>')
+
 @app.post("/api/resume/export/pdf")
 async def export_pdf(payload: ExportPayload):
     try:
-        from weasyprint import HTML, CSS
+        from weasyprint import HTML
         from io import BytesIO
         
         replacements = payload.replacements or {}
@@ -168,6 +225,8 @@ async def export_pdf(payload: ExportPayload):
         template_style = TEMPLATES.get(template_id, TEMPLATES["clean"])
         
         logger.info(f"Exporting PDF with template: {template_id}")
+        logger.info(f"Template style: {template_style}")
+        logger.info(f"Two-column settings: left={payload.two_column_left}, right={payload.two_column_right}, width={payload.two_column_left_width}")
         
         font_family = template_style["styles"]["font"]
         header_align = template_style["styles"]["header_align"]
@@ -175,78 +234,116 @@ async def export_pdf(payload: ExportPayload):
         section_uppercase = "text-transform: uppercase;" if template_style["styles"]["section_uppercase"] else ""
         layout = template_style["styles"]["layout"]
         
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                @page {{ size: A4; margin: 2cm; }}
-                body {{ font-family: {font_family}; font-size: 11pt; line-height: 1.4; color: #333; }}
-                .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: 15px; }}
-                .header h1 {{ margin: 0; font-size: 24pt; font-weight: bold; }}
-                .header .title {{ font-size: 14pt; margin: 5px 0; color: #555; }}
-                .header .contact {{ font-size: 10pt; color: #666; margin-top: 5px; }}
-                .summary {{ margin-bottom: 15px; font-size: 10pt; line-height: 1.5; }}
-                .section {{ margin-bottom: 15px; }}
-                .section h2 {{ font-size: 12pt; font-weight: bold; {section_uppercase}
-                               border-bottom: 1px solid #333; padding-bottom: 3px; margin-bottom: 8px; }}
-                .section ul {{ margin: 0; padding-left: 20px; list-style-type: disc; }}
-                .section li {{ margin-bottom: 6px; font-size: 10pt; }}
-                .two-column {{ display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }}
-                .column {{ }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>{apply_replacements(payload.name, replacements)}</h1>
-                <div class="title">{apply_replacements(payload.title, replacements)}</div>
-                <div class="contact">
-                    {apply_replacements(payload.email or '', replacements)}
-                    {' • ' + apply_replacements(payload.phone or '', replacements) if payload.phone else ''}
-                    {' • ' + apply_replacements(payload.location or '', replacements) if payload.location else ''}
-                </div>
-            </div>
+        # Build HTML content sections
+        contact_info = apply_replacements(payload.email or '', replacements)
+        if payload.phone:
+            contact_info += ' • ' + apply_replacements(payload.phone, replacements)
+        if payload.location:
+            contact_info += ' • ' + apply_replacements(payload.location, replacements)
+        
+        # Build sections HTML
+        if layout == 'two-column':
+            left_sections_html = ""
+            right_sections_html = ""
             
-            {f'<div class="summary">{apply_replacements(payload.summary, replacements)}</div>' if payload.summary and layout != 'two-column' else ''}
+            # Summary will be handled as part of section distribution
+            # Don't add it separately here
             
-            {f'''
+            # Use localStorage configuration if provided, otherwise fallback to alternating
+            left_section_ids = set(payload.two_column_left or [])
+            right_section_ids = set(payload.two_column_right or [])
+            
+            # If no configuration provided, use alternating logic
+            if not left_section_ids and not right_section_ids:
+                for i, s in enumerate(payload.sections):
+                    section_html = f'''
+                    <div class="section">
+                        <h2>{apply_replacements(s.title, replacements)}</h2>
+                        <ul>
+                            {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets])}
+                        </ul>
+                    </div>'''
+                    
+                    if i % 2 == 0:
+                        left_sections_html += section_html
+                    else:
+                        right_sections_html += section_html
+            else:
+                # Use provided configuration
+                for s in payload.sections:
+                    section_html = f'''
+                    <div class="section">
+                        <h2>{apply_replacements(s.title, replacements)}</h2>
+                        <ul>
+                            {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets])}
+                        </ul>
+                    </div>'''
+                    
+                    if s.id and s.id in left_section_ids:
+                        left_sections_html += section_html
+                    elif s.id and s.id in right_section_ids:
+                        right_sections_html += section_html
+            
+            # Calculate column widths
+            left_width = payload.two_column_left_width or 50
+            right_width = 100 - left_width
+            
+            content_html = f'''
             <div class="two-column">
-                <div class="column">
-                    {f'<div class="section"><h2>Professional Summary</h2><div class="summary">{apply_replacements(payload.summary, replacements)}</div></div>' if payload.summary else ''}
-                    {''.join([f'''
-                    <div class="section">
-                        <h2>{apply_replacements(s.title, replacements)}</h2>
-                        <ul>
-                            {''.join([f'<li>{apply_replacements(b.text, replacements)}</li>' for b in s.bullets])}
-                        </ul>
-                    </div>
-                    ''' for i, s in enumerate(payload.sections) if i % 2 == 0])}
-                </div>
-                <div class="column">
-                    {''.join([f'''
-                    <div class="section">
-                        <h2>{apply_replacements(s.title, replacements)}</h2>
-                        <ul>
-                            {''.join([f'<li>{apply_replacements(b.text, replacements)}</li>' for b in s.bullets])}
-                        </ul>
-                    </div>
-                    ''' for i, s in enumerate(payload.sections) if i % 2 == 1])}
-                </div>
-            </div>
-            ''' if layout == 'two-column' else ''.join([f'''
+                <div class="column" style="width: {left_width}%;">{left_sections_html}</div>
+                <div class="column" style="width: {right_width}%;">{right_sections_html}</div>
+                <div class="clearfix"></div>
+            </div>'''
+        else:
+            # Single column layout
+            summary_html = f'<div class="summary">{apply_replacements(payload.summary, replacements)}</div>' if payload.summary else ''
+            sections_html = ''.join([f'''
             <div class="section">
                 <h2>{apply_replacements(s.title, replacements)}</h2>
                 <ul>
-                    {''.join([f'<li>{apply_replacements(b.text, replacements)}</li>' for b in s.bullets])}
+                    {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets])}
                 </ul>
-            </div>
-            ''' for s in payload.sections])}
-        </body>
-        </html>
-        """
+            </div>''' for s in payload.sections])
+            content_html = summary_html + sections_html
+        
+        html_content = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {{ size: A4; margin: 2cm; }}
+        body {{ font-family: {font_family}; font-size: 11pt; line-height: 1.4; color: #333; }}
+        .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: 15px; }}
+        .header h1 {{ margin: 0; font-size: 24pt; font-weight: bold; }}
+        .header .title {{ font-size: 14pt; margin: 5px 0; color: #555; }}
+        .header .contact {{ font-size: 10pt; color: #666; margin-top: 5px; }}
+        .summary {{ margin-bottom: 15px; font-size: 10pt; line-height: 1.5; }}
+        .section {{ margin-bottom: 15px; }}
+        .section h2 {{ font-size: 12pt; font-weight: bold; {section_uppercase}
+                       border-bottom: 1px solid #333; padding-bottom: 3px; margin-bottom: 8px; }}
+        .section ul {{ margin: 0; padding-left: 20px; list-style-type: disc; }}
+        .section li {{ margin-bottom: 6px; font-size: 10pt; }}
+        .two-column {{ width: 100%; }}
+        .column {{ width: 48%; float: left; }}
+        .column:first-child {{ margin-right: 4%; }}
+        .clearfix {{ clear: both; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{apply_replacements(payload.name, replacements)}</h1>
+        <div class="title">{apply_replacements(payload.title, replacements)}</div>
+        <div class="contact">{contact_info}</div>
+    </div>
+    {content_html}
+</body>
+</html>'''
+        
+        logger.info(f"Generated HTML length: {len(html_content)}")
+        logger.info(f"Layout type: {layout}")
         
         pdf_bytes = HTML(string=html_content).write_pdf()
+        logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes")
         
         return Response(
             content=pdf_bytes,
@@ -254,7 +351,10 @@ async def export_pdf(payload: ExportPayload):
             headers={"Content-Disposition": f"attachment; filename=resume.pdf"}
         )
     except Exception as e:
-        return {"error": str(e)}
+        logger.error(f"PDF export error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/resume/upload")
 async def upload_resume(file: UploadFile = File(...)):
@@ -487,6 +587,7 @@ async def export_docx(payload: ExportPayload):
         
         logger.info(f"Exporting DOCX with template: {template_id}")
         logger.info(f"Template layout: {template_style['styles']['layout']}")
+        logger.info(f"Two-column settings: left={payload.two_column_left}, right={payload.two_column_right}, width={payload.two_column_left_width}")
         
         layout = template_style["styles"]["layout"]
         
@@ -529,43 +630,82 @@ async def export_docx(payload: ExportPayload):
         
         doc.add_paragraph()
         
-        logger.info(f"Layout decision: {layout == 'two-column'}")
+        logger.info(f"Layout decision: layout='{layout}', is_two_column={layout == 'two-column'}")
         if layout == 'two-column':
+            logger.info("Creating two-column layout")
+            from docx.oxml import OxmlElement
+            from docx.oxml.ns import qn
+            
             # Create a table for two-column layout
             table = doc.add_table(rows=1, cols=2)
             table.autofit = False
             table.allow_autofit = False
             
-            # Set column widths
-            table.columns[0].width = Inches(3.2)
-            table.columns[1].width = Inches(3.2)
+            # Remove table borders
+            tbl = table._element
+            tblPr = tbl.tblPr
+            if tblPr is None:
+                tblPr = OxmlElement('w:tblPr')
+                tbl.insert(0, tblPr)
+            
+            tblBorders = OxmlElement('w:tblBorders')
+            for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
+                border = OxmlElement(f'w:{border_name}')
+                border.set(qn('w:val'), 'none')
+                border.set(qn('w:sz'), '0')
+                border.set(qn('w:space'), '0')
+                border.set(qn('w:color'), 'auto')
+                tblBorders.append(border)
+            tblPr.append(tblBorders)
+            
+            # Set column widths based on user preference
+            left_width_percent = payload.two_column_left_width or 50
+            right_width_percent = 100 - left_width_percent
+            
+            # Convert percentages to inches (assuming 8.5" total width)
+            left_width_inches = (left_width_percent / 100) * 8.5
+            right_width_inches = (right_width_percent / 100) * 8.5
+            
+            table.columns[0].width = Inches(left_width_inches)
+            table.columns[1].width = Inches(right_width_inches)
+            
+            logger.info(f"Column widths: left={left_width_inches:.1f}\", right={right_width_inches:.1f}\"")
             
             # Left column
             left_cell = table.cell(0, 0)
-            left_paragraphs = left_cell.paragraphs
-            left_paragraphs[0].clear()
+            # Clear existing paragraphs in left cell
+            for paragraph in left_cell.paragraphs:
+                paragraph.clear()
             
             # Right column  
             right_cell = table.cell(0, 1)
-            right_paragraphs = right_cell.paragraphs
-            right_paragraphs[0].clear()
+            # Clear existing paragraphs in right cell
+            for paragraph in right_cell.paragraphs:
+                paragraph.clear()
             
-            # Add Professional Summary to left column
-            if payload.summary:
-                summary_para = left_paragraphs[0]
-                summary_run = summary_para.add_run("Professional Summary")
-                summary_run.font.size = Pt(12)
-                summary_run.font.bold = True
-                summary_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
-                
-                summary_text_para = left_cell.add_paragraph()
-                summary_text_run = summary_text_para.add_run(apply_replacements(payload.summary, replacements))
-                summary_text_run.font.size = Pt(10)
-                left_cell.add_paragraph()
+            # Summary will be handled as part of section distribution
+            # Don't add it separately here
             
-            # Distribute sections between columns
-            left_sections = [s for i, s in enumerate(payload.sections) if i % 2 == 0]
-            right_sections = [s for i, s in enumerate(payload.sections) if i % 2 == 1]
+            # Use localStorage configuration if provided, otherwise fallback to alternating
+            left_section_ids = set(payload.two_column_left or [])
+            right_section_ids = set(payload.two_column_right or [])
+            
+            logger.info(f"Section IDs from payload: left={left_section_ids}, right={right_section_ids}")
+            logger.info(f"Available sections: {[s.id for s in payload.sections if s.id]}")  # Only log sections with IDs
+            
+            if not left_section_ids and not right_section_ids:
+                # Use alternating logic if no configuration
+                logger.info("Using alternating logic - no localStorage configuration provided")
+                left_sections = [s for i, s in enumerate(payload.sections) if i % 2 == 0]
+                right_sections = [s for i, s in enumerate(payload.sections) if i % 2 == 1]
+            else:
+                # Use provided configuration
+                logger.info("Using localStorage configuration")
+                left_sections = [s for s in payload.sections if s.id and s.id in left_section_ids]
+                right_sections = [s for s in payload.sections if s.id and s.id in right_section_ids]
+            
+            logger.info(f"Final section distribution: left={[s.title for s in left_sections]}, right={[s.title for s in right_sections]}")
+            logger.info(f"Left sections count: {len(left_sections)}, Right sections count: {len(right_sections)}")
             
             # Add sections to left column
             for s in left_sections:
@@ -580,8 +720,24 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
                 for b in s.bullets:
-                    bullet_para = left_cell.add_paragraph(apply_replacements(b.text, replacements), style='List Bullet')
-                    bullet_para.runs[0].font.size = Pt(10)
+                    bullet_text = apply_replacements(b.text, replacements)
+                    bullet_para = left_cell.add_paragraph()
+                    
+                    # Handle bold text formatting
+                    if '**' in bullet_text:
+                        parts = bullet_text.split('**')
+                        for i, part in enumerate(parts):
+                            if i % 2 == 0:  # Regular text
+                                if part.strip():
+                                    run = bullet_para.add_run(part)
+                                    run.font.size = Pt(10)
+                            else:  # Bold text
+                                run = bullet_para.add_run(part)
+                                run.font.size = Pt(10)
+                                run.font.bold = True
+                    else:
+                        run = bullet_para.add_run(bullet_text)
+                        run.font.size = Pt(10)
                 
                 left_cell.add_paragraph()
             
@@ -598,8 +754,24 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
                 for b in s.bullets:
-                    bullet_para = right_cell.add_paragraph(apply_replacements(b.text, replacements), style='List Bullet')
-                    bullet_para.runs[0].font.size = Pt(10)
+                    bullet_text = apply_replacements(b.text, replacements)
+                    bullet_para = right_cell.add_paragraph()
+                    
+                    # Handle bold text formatting
+                    if '**' in bullet_text:
+                        parts = bullet_text.split('**')
+                        for i, part in enumerate(parts):
+                            if i % 2 == 0:  # Regular text
+                                if part.strip():
+                                    run = bullet_para.add_run(part)
+                                    run.font.size = Pt(10)
+                            else:  # Bold text
+                                run = bullet_para.add_run(part)
+                                run.font.size = Pt(10)
+                                run.font.bold = True
+                    else:
+                        run = bullet_para.add_run(bullet_text)
+                        run.font.size = Pt(10)
                 
                 right_cell.add_paragraph()
         else:
@@ -621,8 +793,24 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
                 for b in s.bullets:
-                    bullet_para = doc.add_paragraph(apply_replacements(b.text, replacements), style='List Bullet')
-                    bullet_para.runs[0].font.size = Pt(10)
+                    bullet_text = apply_replacements(b.text, replacements)
+                    bullet_para = doc.add_paragraph()
+                    
+                    # Handle bold text formatting
+                    if '**' in bullet_text:
+                        parts = bullet_text.split('**')
+                        for i, part in enumerate(parts):
+                            if i % 2 == 0:  # Regular text
+                                if part.strip():
+                                    run = bullet_para.add_run(part)
+                                    run.font.size = Pt(10)
+                            else:  # Bold text
+                                run = bullet_para.add_run(part)
+                                run.font.size = Pt(10)
+                                run.font.bold = True
+                    else:
+                        run = bullet_para.add_run(bullet_text)
+                        run.font.size = Pt(10)
                 
                 doc.add_paragraph()
         
@@ -630,11 +818,17 @@ async def export_docx(payload: ExportPayload):
         doc.save(buffer)
         buffer.seek(0)
         
+        docx_bytes = buffer.getvalue()
+        logger.info(f"DOCX generated successfully, size: {len(docx_bytes)} bytes")
+        
         return Response(
-            content=buffer.getvalue(),
+            content=docx_bytes,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={"Content-Disposition": f"attachment; filename=resume.docx"}
         )
     except Exception as e:
-        return {"error": str(e)}
+        logger.error(f"DOCX export error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
