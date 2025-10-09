@@ -1,34 +1,75 @@
-'use client'
-
 export default function Hero() {
   return (
-    <section className="relative overflow-hidden">
-      <div className="mx-auto max-w-6xl px-6 py-24 grid md:grid-cols-2 gap-12 items-center">
-        <div>
-          <h1 className="text-4xl md:text-5xl font-semibold leading-tight">
-            Edit your resume like code — <span className="text-primary">structured</span>, clean, exportable.
-          </h1>
-          <p className="mt-4 text-lg text-gray-600">
-            Stop fighting Word formatting. Create, version, and export your resume in seconds — as a perfect PDF or DOCX that never breaks.
-          </p>
-          <div className="mt-8 flex gap-3">
-            <a href="/templates" className="rounded-2xl bg-primary px-6 py-3 text-white font-medium shadow-soft hover:bg-primary-dark transition">Choose Template</a>
-            <a href="/editor" className="rounded-2xl border px-6 py-3 font-medium">Start Editing</a>
+    <section className="relative overflow-hidden bg-gradient-to-br from-primary via-blue-600 to-purple-600 py-24 sm:py-32">
+      <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(white,transparent_85%)]" />
+      
+      <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-sm px-4 py-2 text-sm text-white border border-white/20">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            AI-Powered Resume Builder • 100% Free
           </div>
-          <p className="mt-3 text-sm text-gray-500">No signup required • Export instantly</p>
-        </div>
-        <div className="rounded-2xl border shadow-soft p-4">
-          <div className="aspect-[4/3] w-full rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 grid place-items-center">
-            <div className="text-center">
-              <div className="text-sm text-gray-500 mb-2">Live Preview (mock)</div>
-              <div className="font-mono text-xs bg-white border rounded p-3">
-                {`{ name: "Hasan Tutac", title: "DevOps Engineer", bullets: ["Reduced AWS cost 23%", "Automated EKS with Terragrunt"] }`}
-              </div>
+
+          <h1 className="text-5xl sm:text-7xl font-bold text-white tracking-tight mb-6 leading-tight">
+            Create Your Perfect Resume in{' '}
+            <span className="bg-gradient-to-r from-yellow-200 to-pink-200 bg-clip-text text-transparent">
+              Minutes
+            </span>
+          </h1>
+          
+          <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto leading-relaxed">
+            Upload your existing resume, choose from 10+ professional templates, customize with smart parameters, and export to PDF or DOCX instantly.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <a
+              href="/templates"
+              className="group relative inline-flex items-center gap-2 px-8 py-4 bg-white text-primary rounded-xl font-semibold text-lg shadow-2xl hover:shadow-white/50 transition-all hover:scale-105"
+            >
+              Choose Template
+              <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </a>
+            
+            <a
+              href="/editor"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-lg border-2 border-white/20 hover:bg-white/20 transition-all"
+            >
+              Start Editing
+            </a>
+          </div>
+
+          <div className="mt-16 flex items-center justify-center gap-8 text-blue-100">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">No Sign Up</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">100% Free</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">Export PDF/DOCX</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Decorative elements */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+      <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+      <div className="absolute -bottom-8 left-20 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
     </section>
   )
 }
-

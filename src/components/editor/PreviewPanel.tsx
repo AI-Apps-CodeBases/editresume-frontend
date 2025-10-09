@@ -1,4 +1,5 @@
 'use client'
+import { useState, useEffect } from 'react'
 
 interface ResumeData {
   name: string
@@ -38,6 +39,46 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
   const sectionUppercase = template === 'clean' || template === 'compact'
   const fontFamily = template === 'clean' ? 'font-serif' : 'font-sans'
   const isTwoColumn = template === 'two-column'
+  
+  // State for two-column layout configuration
+  const [leftSectionIds, setLeftSectionIds] = useState<string[]>([])
+  const [rightSectionIds, setRightSectionIds] = useState<string[]>([])
+  const [leftWidth, setLeftWidth] = useState(50)
+
+  // Update layout configuration when localStorage changes
+  useEffect(() => {
+    if (isTwoColumn && typeof window !== 'undefined') {
+      const updateLayout = () => {
+        const savedLeft = localStorage.getItem('twoColumnLeft')
+        const savedRight = localStorage.getItem('twoColumnRight')
+        const savedWidth = localStorage.getItem('twoColumnLeftWidth')
+        
+        setLeftSectionIds(savedLeft ? JSON.parse(savedLeft) : [])
+        setRightSectionIds(savedRight ? JSON.parse(savedRight) : [])
+        setLeftWidth(savedWidth ? Number(savedWidth) : 50)
+      }
+      
+      // Initial load
+      updateLayout()
+      
+      // Listen for storage changes (from other tabs/components)
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'twoColumnLeft' || e.key === 'twoColumnRight' || e.key === 'twoColumnLeftWidth') {
+          updateLayout()
+        }
+      }
+      
+      window.addEventListener('storage', handleStorageChange)
+      
+      // Poll for changes (since same-tab localStorage changes don't trigger storage events)
+      const interval = setInterval(updateLayout, 500)
+      
+      return () => {
+        window.removeEventListener('storage', handleStorageChange)
+        clearInterval(interval)
+      }
+    }
+  }, [isTwoColumn])
 
   return (
     <div className="bg-white rounded-2xl border shadow-lg p-8">
@@ -59,7 +100,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
         )}
 
         {isTwoColumn ? (
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid gap-8" style={{ gridTemplateColumns: `${leftWidth}% ${100 - leftWidth}%` }}>
             <div className="space-y-6">
               {data.summary && (
                 <div>
@@ -72,7 +113,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
                 </div>
               )}
 
-              {data.sections.filter((_, index) => index % 2 === 0).map((section) => (
+              {data.sections.filter((s) => leftSectionIds.includes(s.id)).map((section) => (
                 <div key={section.id}>
                   <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
                     {applyReplacements(section.title)}
@@ -81,7 +122,9 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
                     {section.bullets.map((bullet) => (
                       <li key={bullet.id} className="text-sm leading-relaxed flex">
                         <span className="mr-2">•</span>
-                        <span className="flex-1">{applyReplacements(bullet.text)}</span>
+                        <span className="flex-1" dangerouslySetInnerHTML={{ 
+                          __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                        }} />
                       </li>
                     ))}
                   </ul>
@@ -90,7 +133,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
             </div>
             
             <div className="space-y-6">
-              {data.sections.filter((_, index) => index % 2 === 1).map((section) => (
+              {data.sections.filter((s) => rightSectionIds.includes(s.id)).map((section) => (
                 <div key={section.id}>
                   <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
                     {applyReplacements(section.title)}
@@ -99,7 +142,9 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
                     {section.bullets.map((bullet) => (
                       <li key={bullet.id} className="text-sm leading-relaxed flex">
                         <span className="mr-2">•</span>
-                        <span className="flex-1">{applyReplacements(bullet.text)}</span>
+                        <span className="flex-1" dangerouslySetInnerHTML={{ 
+                          __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                        }} />
                       </li>
                     ))}
                   </ul>
@@ -126,7 +171,9 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
                   {section.bullets.map((bullet) => (
                     <li key={bullet.id} className="text-sm leading-relaxed flex">
                       <span className="mr-2">•</span>
-                      <span className="flex-1">{applyReplacements(bullet.text)}</span>
+                      <span className="flex-1" dangerouslySetInnerHTML={{ 
+                        __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                      }} />
                     </li>
                   ))}
                 </ul>

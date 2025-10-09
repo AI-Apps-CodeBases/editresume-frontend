@@ -45,12 +45,47 @@ const TEMPLATES: Template[] = [
     description: 'More content, less space, dense but readable',
     preview: 'Tight spacing, more info per page',
     layout: 'Header → Skills → Experience → Education → Projects'
+  },
+  {
+    id: 'professional',
+    name: 'Professional',
+    description: 'Bold blue accent for polished corporate look',
+    preview: 'Blue header border, uppercase sections, professional font',
+    layout: 'Header (blue accent) → Summary → Experience → Skills'
+  },
+  {
+    id: 'creative',
+    name: 'Creative',
+    description: 'Unique styling for creative industries',
+    preview: 'No borders, creative font, modern layout',
+    layout: 'Header → Portfolio → Experience → Skills → Education'
+  },
+  {
+    id: 'executive',
+    name: 'Executive',
+    description: 'Sophisticated serif font for leadership roles',
+    preview: 'Navy border, centered header, executive presence',
+    layout: 'Header (center) → Summary → Leadership → Experience'
+  },
+  {
+    id: 'technical',
+    name: 'Technical',
+    description: 'Monospace font ideal for developers',
+    preview: 'Code-style font, technical aesthetic',
+    layout: 'Header → Skills → Projects → Experience → Education'
+  },
+  {
+    id: 'academic',
+    name: 'Academic',
+    description: 'Classic format for academic positions',
+    preview: 'Times font, traditional academic style',
+    layout: 'Header → Education → Publications → Experience → Research'
   }
 ]
 
 export default function TemplatesPage() {
   const router = useRouter()
-  const [selectedTemplate, setSelectedTemplate] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
 
   const handleSelectTemplate = (templateId: string) => {
     setSelectedTemplate(templateId)
@@ -77,15 +112,15 @@ export default function TemplatesPage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {TEMPLATES.map((template) => (
             <div
               key={template.id}
-              className="bg-white rounded-2xl border-2 p-6 hover:border-primary cursor-pointer transition shadow-sm"
+              className="bg-white rounded-xl border-2 p-3 hover:border-primary cursor-pointer transition shadow-sm hover:shadow-lg group"
               onClick={() => handleSelectTemplate(template.id)}
             >
-              <div className="mb-4">
-                <div className="aspect-[8.5/11] bg-white rounded-lg border-2 p-4 flex flex-col text-xs overflow-hidden">
+              <div className="mb-3">
+                <div className="aspect-[8.5/11] bg-white rounded-lg border p-3 flex flex-col text-[10px] overflow-hidden">
                   {/* Preview based on template type */}
                   {template.id === 'clean' && (
                     <>
@@ -190,22 +225,88 @@ export default function TemplatesPage() {
                       </div>
                     </>
                   )}
+                  {template.id === 'professional' && (
+                    <>
+                      <div className="border-b-2 border-blue-600 pb-2 mb-2">
+                        <div className="font-bold text-sm">John Doe</div>
+                        <div className="text-xs">Senior Engineer</div>
+                        <div className="text-xs opacity-60">email@example.com</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div>
+                          <div className="font-bold uppercase text-xs">EXPERIENCE</div>
+                          <div className="text-xs opacity-60">• Led team</div>
+                        </div>
+                        <div>
+                          <div className="font-bold uppercase text-xs">SKILLS</div>
+                          <div className="text-xs opacity-60">AWS, Docker</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {template.id === 'creative' && (
+                    <>
+                      <div className="pb-2 mb-2">
+                        <div className="font-bold text-sm text-purple-600">John Doe</div>
+                        <div className="text-xs italic">Creative Professional</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div>
+                          <div className="font-semibold text-xs">Portfolio</div>
+                          <div className="text-xs opacity-60">Award designs</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {template.id === 'executive' && (
+                    <>
+                      <div className="text-center border-b-2 border-blue-800 pb-2 mb-2">
+                        <div className="font-bold text-sm">JOHN DOE</div>
+                        <div className="text-xs font-serif">CEO</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div>
+                          <div className="font-bold uppercase text-xs">LEADERSHIP</div>
+                          <div className="text-xs opacity-60">• 20 years</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {template.id === 'technical' && (
+                    <>
+                      <div className="border-b border-gray-500 pb-2 mb-2 font-mono">
+                        <div className="font-bold text-sm">john_doe</div>
+                        <div className="text-xs">$ developer</div>
+                      </div>
+                      <div className="space-y-1 font-mono">
+                        <div className="text-xs">// projects</div>
+                        <div className="text-xs opacity-60">- microservices</div>
+                      </div>
+                    </>
+                  )}
+                  {template.id === 'academic' && (
+                    <>
+                      <div className="text-center border-b border-black pb-2 mb-2 font-serif">
+                        <div className="font-bold text-sm">Dr. John Doe</div>
+                        <div className="text-xs">Professor</div>
+                      </div>
+                      <div className="space-y-1 font-serif">
+                        <div className="text-xs font-semibold">Education</div>
+                        <div className="text-xs opacity-60">PhD CS</div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              <h3 className="text-lg font-semibold mb-2">{template.name}</h3>
-              <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+              <h3 className="text-sm font-bold mb-1 group-hover:text-primary transition-colors">{template.name}</h3>
+              <p className="text-xs text-gray-500 line-clamp-2 mb-2">{template.description}</p>
               
-              <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-                <strong>Layout:</strong><br/>
-                {template.layout}
-              </div>
-
               <button
                 onClick={() => handleSelectTemplate(template.id)}
-                className="mt-4 w-full py-2 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark"
+                className="w-full py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-primary hover:text-white transition-colors"
               >
-                Use This Template
+                Select
               </button>
             </div>
           ))}
