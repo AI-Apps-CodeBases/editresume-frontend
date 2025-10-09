@@ -2,26 +2,26 @@ export default function Steps() {
   const steps = [
     {
       number: '01',
-      title: 'Upload or Paste',
-      description: 'Start with your existing resume or paste the text. We support PDF, DOCX, and plain text.',
+      title: 'Choose Your Path',
+      description: 'Edit your existing resume (upload PDF/DOCX) or create a brand new one from scratch.',
       color: 'bg-blue-500'
     },
     {
       number: '02',
-      title: 'Choose Template',
-      description: 'Pick from 10+ professionally designed templates. Preview them all before choosing.',
+      title: 'Select Template',
+      description: 'Pick from 10+ professional templates. Single or two-column layouts available.',
       color: 'bg-purple-500'
     },
     {
       number: '03',
-      title: 'Customize Content',
-      description: 'Edit sections, add parameters like {{company}}, reorder content with drag-and-drop.',
+      title: 'Configure & Edit',
+      description: 'Set up your layout, add sections, edit content, and customize everything to perfection.',
       color: 'bg-pink-500'
     },
     {
       number: '04',
-      title: 'Export & Apply',
-      description: 'Download as PDF or DOCX. Use global replacements to customize for each job in seconds.',
+      title: 'Export & Download',
+      description: 'Download as PDF or DOCX. Your resume matches exactly what you see in the preview.',
       color: 'bg-green-500'
     }
   ]
@@ -78,10 +78,10 @@ export default function Steps() {
 
         <div className="text-center mt-16">
           <a
-            href="/templates"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl hover:bg-primary-dark transition-all hover:scale-105"
+            href="/editor"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
           >
-            Get Started Now
+            Start Creating Your Resume
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>

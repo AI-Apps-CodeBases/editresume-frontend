@@ -1,15 +1,14 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ResumeForm from '@/components/editor/ResumeForm'
 import PreviewPanel from '@/components/editor/PreviewPanel'
 import GlobalReplacements from '@/components/editor/GlobalReplacements'
-import UploadResume from '@/components/editor/UploadResume'
-import PasteResume from '@/components/editor/PasteResume'
 import TemplateSelector from '@/components/editor/TemplateSelector'
 import TwoColumnEditor from '@/components/editor/TwoColumnEditor'
+import NewResumeWizard from '@/components/editor/NewResumeWizard'
 
 export default function EditorPage() {
-  const [showUpload, setShowUpload] = useState(true)
+  const [showWizard, setShowWizard] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('selectedTemplate') || 'clean'
@@ -38,8 +37,8 @@ export default function EditorPage() {
   const [replacements, setReplacements] = useState<Record<string, string>>({})
   const [isExporting, setIsExporting] = useState(false)
 
-  const handleUploadSuccess = (data: any) => {
-    console.log('handleUploadSuccess called with:', data)
+  const handleWizardComplete = (data: any, template: string, layoutConfig?: any) => {
+    console.log('Wizard complete:', { data, template, layoutConfig })
     
     const newResumeData = {
       name: data.name || '',
@@ -51,22 +50,30 @@ export default function EditorPage() {
       sections: data.sections || []
     }
     
-    console.log('Setting resume data to:', newResumeData)
     setResumeData(newResumeData)
+    setSelectedTemplate(template)
     
     if (data.detected_variables) {
-      console.log('Setting detected variables:', data.detected_variables)
       setReplacements(data.detected_variables)
     }
+
+    if (layoutConfig && template === 'two-column') {
+      localStorage.setItem('twoColumnLeft', JSON.stringify(layoutConfig.leftSections))
+      localStorage.setItem('twoColumnRight', JSON.stringify(layoutConfig.rightSections))
+      localStorage.setItem('twoColumnLeftWidth', String(layoutConfig.leftWidth))
+    }
     
-    console.log('Hiding upload screen...')
-    setShowUpload(false)
-    console.log('Upload screen hidden, editor should be visible now')
+    setShowWizard(false)
   }
 
-  const handleStartFresh = () => {
-    setShowUpload(false)
-  }
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hasExistingResume = localStorage.getItem('resumeData')
+      if (hasExistingResume) {
+        setShowWizard(false)
+      }
+    }
+  }, [])
 
   const handleExport = async (format: 'pdf' | 'docx') => {
     setIsExporting(true)
@@ -133,50 +140,53 @@ export default function EditorPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <header className="bg-white border-b sticky top-0 z-20 shadow-sm">
-        <div className="mx-auto max-w-[1600px] px-4 py-3 flex items-center justify-between">
-          <a href="/" className="text-xl font-bold text-primary">editresume.io</a>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowUpload(true)}
-              className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50 transition-colors"
-            >
-              📂 New
-            </button>
-            <button 
-              onClick={() => handleExport('docx')}
-              disabled={isExporting || !resumeData.name}
-              className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              📄 DOCX
-            </button>
-            <button 
-              onClick={() => handleExport('pdf')}
-              disabled={isExporting || !resumeData.name}
-              className="text-sm px-4 py-1.5 rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isExporting ? '⏳ Exporting...' : '📥 Export PDF'}
-            </button>
+      {!showWizard && (
+        <header className="bg-white border-b sticky top-0 z-20 shadow-sm">
+          <div className="mx-auto max-w-[1600px] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <a href="/" className="text-xl font-bold text-primary">editresume.io</a>
+              <div className="flex gap-3 items-center">
+                <button
+                  onClick={() => setShowWizard(true)}
+                  className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all font-semibold"
+                >
+                  ✨ New Resume
+                </button>
+                
+                {!resumeData.name && (
+                  <span className="text-xs text-gray-500 italic">
+                    Enter your name to enable export →
+                  </span>
+                )}
+                
+                <button 
+                  onClick={() => handleExport('docx')}
+                  disabled={isExporting || !resumeData.name}
+                  className="text-sm px-5 py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold"
+                  title={!resumeData.name ? "Enter your name first" : "Export as DOCX"}
+                >
+                  📄 Export DOCX
+                </button>
+                <button 
+                  onClick={() => handleExport('pdf')}
+                  disabled={isExporting || !resumeData.name}
+                  className="text-sm px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold shadow-md"
+                  title={!resumeData.name ? "Enter your name first" : "Export as PDF"}
+                >
+                  {isExporting ? '⏳ Exporting...' : '📥 Export PDF'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <div className="mx-auto max-w-[1800px] px-4 py-4">
-        {showUpload ? (
-          <div className="max-w-3xl mx-auto space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <UploadResume onUploadSuccess={handleUploadSuccess} />
-              <PasteResume onPasteSuccess={handleUploadSuccess} />
-            </div>
-            <div className="text-center">
-              <button
-                onClick={handleStartFresh}
-                className="text-sm text-gray-600 hover:text-primary underline"
-              >
-                or start from scratch →
-              </button>
-            </div>
-          </div>
+        {showWizard ? (
+          <NewResumeWizard
+            onComplete={handleWizardComplete}
+            onCancel={() => setShowWizard(false)}
+          />
         ) : (
           <div className="space-y-4">
             {/* Top Bar - Template & Controls */}
@@ -202,29 +212,72 @@ export default function EditorPage() {
             {/* Two Column Layout - Editor & Preview */}
             <div className="grid grid-cols-2 gap-4">
               {/* Left - Editor */}
-              <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-                {selectedTemplate === 'two-column' ? (
-                  <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                      <h2 className="text-lg font-bold text-blue-900 mb-2">🎨 Two-Column Layout Editor</h2>
-                      <p className="text-sm text-blue-700">Assign sections to left/right columns and adjust widths. Changes appear live in preview →</p>
+              <div className="space-y-4">
+                <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+                  {selectedTemplate === 'two-column' ? (
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                        <h2 className="text-lg font-bold text-blue-900 mb-2">🎨 Two-Column Layout Editor</h2>
+                        <p className="text-sm text-blue-700">Assign sections to left/right columns and adjust widths. Changes appear live in preview →</p>
+                      </div>
+                      <TwoColumnEditor
+                        sections={resumeData.sections}
+                        onUpdate={(sections) => setResumeData({ ...resumeData, sections })}
+                        resumeData={{
+                          name: resumeData.name,
+                          title: resumeData.title,
+                          email: resumeData.email,
+                          phone: resumeData.phone,
+                          location: resumeData.location,
+                          summary: resumeData.summary
+                        }}
+                        onResumeDataUpdate={(data) => setResumeData({ ...resumeData, ...data })}
+                      />
                     </div>
-                    <TwoColumnEditor
-                      sections={resumeData.sections}
-                      onUpdate={(sections) => setResumeData({ ...resumeData, sections })}
+                  ) : (
+                    <ResumeForm
+                      data={resumeData}
+                      onChange={setResumeData}
+                      replacements={replacements}
                     />
+                  )}
+                </div>
+
+                {/* Export Buttons - Bottom of Editor */}
+                <div className="bg-white rounded-xl shadow-lg p-4 border-2 border-blue-200">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-gray-900 mb-1">Ready to Export?</h3>
+                      <p className="text-xs text-gray-600">
+                        {!resumeData.name 
+                          ? "Enter your name above to enable export" 
+                          : "Download your resume in your preferred format"}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleExport('docx')}
+                        disabled={isExporting || !resumeData.name}
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold text-sm"
+                        title={!resumeData.name ? "Enter your name first" : "Export as DOCX"}
+                      >
+                        📄 DOCX
+                      </button>
+                      <button 
+                        onClick={() => handleExport('pdf')}
+                        disabled={isExporting || !resumeData.name}
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold text-sm shadow-md"
+                        title={!resumeData.name ? "Enter your name first" : "Export as PDF"}
+                      >
+                        {isExporting ? '⏳ Exporting...' : '📥 PDF'}
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  <ResumeForm
-                    data={resumeData}
-                    onChange={setResumeData}
-                    replacements={replacements}
-                  />
-                )}
+                </div>
               </div>
 
               {/* Right - Live Preview */}
-              <div className="sticky top-4 h-fit">
+              <div className="sticky top-4">
                 <div className="bg-white rounded-xl shadow-lg p-4 border">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold text-gray-700">📄 Live Preview</h3>
@@ -255,19 +308,24 @@ export default function EditorPage() {
                     </div>
                   </div>
                   <div 
-                    className="overflow-auto border-2 rounded-lg bg-gray-50" 
+                    className="overflow-y-auto overflow-x-hidden border-2 rounded-lg bg-gray-50" 
                     style={{ 
-                      maxHeight: 'calc(100vh - 220px)',
-                      transform: `scale(${previewScale})`,
-                      transformOrigin: 'top left',
-                      width: `${100 / previewScale}%`
+                      maxHeight: 'calc(100vh - 200px)',
+                      minHeight: '600px'
                     }}
                   >
-                    <PreviewPanel
-                      data={resumeData}
-                      replacements={replacements}
-                      template={selectedTemplate}
-                    />
+                    <div style={{ 
+                      transform: `scale(${previewScale})`,
+                      transformOrigin: 'top center',
+                      width: `${100 / previewScale}%`,
+                      margin: '0 auto'
+                    }}>
+                      <PreviewPanel
+                        data={resumeData}
+                        replacements={replacements}
+                        template={selectedTemplate}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

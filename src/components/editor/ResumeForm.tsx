@@ -150,16 +150,39 @@ export default function ResumeForm({ data, onChange }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl border p-6 shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
+      <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl border-2 border-blue-300 p-6 shadow-lg">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="text-2xl">👤</div>
+          <h3 className="text-lg font-bold text-gray-900">Basic Information</h3>
+          {!data.name && (
+            <span className="ml-auto text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full font-semibold animate-pulse">
+              ⚠️ Name Required
+            </span>
+          )}
+        </div>
         <div className="grid gap-4">
-          <input
-            type="text"
-            placeholder="Full Name"
-            value={data.name}
-            onChange={(e) => updateField('name', e.target.value)}
-            className="px-4 py-2 border rounded-xl"
-          />
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              Full Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Enter your full name (e.g., John Doe)"
+              value={data.name}
+              onChange={(e) => updateField('name', e.target.value)}
+              className={`w-full px-4 py-3 border-2 rounded-xl text-lg font-semibold transition-all ${
+                data.name 
+                  ? 'border-green-400 bg-green-50 focus:border-green-500 focus:ring-2 focus:ring-green-200' 
+                  : 'border-red-300 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
+              }`}
+              autoFocus
+            />
+            {!data.name && (
+              <p className="text-xs text-red-600 mt-1 font-medium">
+                👆 Start here! Enter your name to enable export
+              </p>
+            )}
+          </div>
           <input
             type="text"
             placeholder="Job Title"
@@ -312,9 +335,12 @@ export default function ResumeForm({ data, onChange }: Props) {
 
       <button
         onClick={addSection}
-        className="w-full py-3 bg-gray-100 hover:bg-gray-200 rounded-2xl text-sm font-medium"
+        className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
       >
-        + Add Section
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Add New Section
       </button>
     </div>
   )
