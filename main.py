@@ -260,7 +260,7 @@ async def export_pdf(payload: ExportPayload):
                     <div class="section">
                         <h2>{apply_replacements(s.title, replacements)}</h2>
                         <ul>
-                            {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets])}
+                            {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets if b.text.strip()])}
                         </ul>
                     </div>'''
                     
@@ -275,7 +275,7 @@ async def export_pdf(payload: ExportPayload):
                     <div class="section">
                         <h2>{apply_replacements(s.title, replacements)}</h2>
                         <ul>
-                            {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets])}
+                            {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets if b.text.strip()])}
                         </ul>
                     </div>'''
                     
@@ -284,14 +284,19 @@ async def export_pdf(payload: ExportPayload):
                     elif s.id and s.id in right_section_ids:
                         right_sections_html += section_html
             
-            # Calculate column widths
+            # Calculate column widths with spacing
             left_width = payload.two_column_left_width or 50
             right_width = 100 - left_width
             
+            # Adjust for spacing between columns (2% gap)
+            gap = 2
+            left_width_adjusted = left_width - (gap / 2)
+            right_width_adjusted = right_width - (gap / 2)
+            
             content_html = f'''
             <div class="two-column">
-                <div class="column" style="width: {left_width}%;">{left_sections_html}</div>
-                <div class="column" style="width: {right_width}%;">{right_sections_html}</div>
+                <div class="column" style="width: {left_width_adjusted}%; margin-right: {gap}%;">{left_sections_html}</div>
+                <div class="column" style="width: {right_width_adjusted}%;">{right_sections_html}</div>
                 <div class="clearfix"></div>
             </div>'''
         else:
@@ -301,7 +306,7 @@ async def export_pdf(payload: ExportPayload):
             <div class="section">
                 <h2>{apply_replacements(s.title, replacements)}</h2>
                 <ul>
-                    {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets])}
+                    {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets if b.text.strip()])}
                 </ul>
             </div>''' for s in payload.sections])
             content_html = summary_html + sections_html
@@ -324,8 +329,7 @@ async def export_pdf(payload: ExportPayload):
         .section ul {{ margin: 0; padding-left: 20px; list-style-type: disc; }}
         .section li {{ margin-bottom: 6px; font-size: 10pt; }}
         .two-column {{ width: 100%; }}
-        .column {{ width: 48%; float: left; }}
-        .column:first-child {{ margin-right: 4%; }}
+        .column {{ float: left; }}
         .clearfix {{ clear: both; }}
     </style>
 </head>
@@ -720,8 +724,10 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
                 for b in s.bullets:
+                    if not b.text.strip():  # Skip empty bullets
+                        continue
                     bullet_text = apply_replacements(b.text, replacements)
-                    bullet_para = left_cell.add_paragraph()
+                    bullet_para = left_cell.add_paragraph(style='List Bullet')
                     
                     # Handle bold text formatting
                     if '**' in bullet_text:
@@ -754,8 +760,10 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
                 for b in s.bullets:
+                    if not b.text.strip():  # Skip empty bullets
+                        continue
                     bullet_text = apply_replacements(b.text, replacements)
-                    bullet_para = right_cell.add_paragraph()
+                    bullet_para = right_cell.add_paragraph(style='List Bullet')
                     
                     # Handle bold text formatting
                     if '**' in bullet_text:
@@ -793,8 +801,10 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
                 for b in s.bullets:
+                    if not b.text.strip():  # Skip empty bullets
+                        continue
                     bullet_text = apply_replacements(b.text, replacements)
-                    bullet_para = doc.add_paragraph()
+                    bullet_para = doc.add_paragraph(style='List Bullet')
                     
                     # Handle bold text formatting
                     if '**' in bullet_text:
