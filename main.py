@@ -9,9 +9,36 @@ import json
 import logging
 import secrets
 from datetime import datetime
+from openai import OpenAI
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# OpenAI Configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
+
+openai_client = None
+if OPENAI_API_KEY and OPENAI_API_KEY != "sk-your-openai-api-key-here":
+    try:
+        # Use requests library directly to avoid version compatibility issues
+        import requests
+        openai_client = {
+            'api_key': OPENAI_API_KEY,
+            'model': OPENAI_MODEL,
+            'requests': requests
+        }
+        logger.info(f"OpenAI client initialized successfully with model: {OPENAI_MODEL}")
+    except Exception as e:
+        logger.error(f"Failed to initialize OpenAI client: {e}")
+        logger.warning("AI features will be disabled due to client initialization error")
+        openai_client = None
+else:
+    if not OPENAI_API_KEY:
+        logger.warning("OpenAI API key not found. AI features will be disabled.")
+    else:
+        logger.warning("OpenAI API key is still the placeholder value. Please set a real API key.")
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
 
@@ -66,6 +93,24 @@ class SignupPayload(BaseModel):
     password: str
     name: str
 
+class ImproveBulletPayload(BaseModel):
+    bullet: str
+    context: Optional[str] = None
+    tone: Optional[str] = "professional"
+
+class GenerateBulletPointsPayload(BaseModel):
+    role: str
+    company: str
+    skills: str
+    count: int = 5
+    tone: Optional[str] = "professional"
+
+class GenerateSummaryPayload(BaseModel):
+    role: str
+    years_experience: int
+    skills: str
+    achievements: Optional[str] = None
+
 users_db = {}
 user_stats = {}
 payment_history = {}
@@ -73,7 +118,17 @@ PREMIUM_MODE = os.getenv("PREMIUM_MODE", "false").lower() == "true"
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "db": os.getenv("DATABASE_URL", "unset"), "premium_mode": PREMIUM_MODE}
+    openai_status = {
+        "configured": OPENAI_API_KEY is not None,
+        "model": OPENAI_MODEL if OPENAI_API_KEY else None,
+        "client_ready": openai_client is not None
+    }
+    return {
+        "status": "ok", 
+        "db": os.getenv("DATABASE_URL", "unset"), 
+        "premium_mode": PREMIUM_MODE,
+        "openai": openai_status
+    }
 
 @app.post("/api/auth/signup")
 async def signup(payload: SignupPayload):
@@ -230,6 +285,270 @@ async def delete_account(email: str):
     logger.info(f"User account deleted: {email}")
     
     return {"message": "Account deleted successfully"}
+
+# OpenAI AI Endpoints
+@app.get("/api/openai/status")
+async def get_openai_status():
+    """Check OpenAI connection status"""
+    if not OPENAI_API_KEY:
+        return {
+            "status": "disabled",
+            "message": "OpenAI API key not configured",
+            "configured": False
+        }
+    
+    if not openai_client:
+        return {
+            "status": "error",
+            "message": "OpenAI client not initialized",
+            "configured": False
+        }
+    
+    try:
+        # Test the connection with a simple request using requests
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [{"role": "user", "content": "Hello"}],
+            "max_tokens": 5
+        }
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            tokens_used = result.get('usage', {}).get('total_tokens', 0)
+            return {
+                "status": "connected",
+                "message": "OpenAI client is working",
+                "configured": True,
+                "model": OPENAI_MODEL,
+                "tokens_used": tokens_used
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"OpenAI API error: {response.status_code}",
+                "configured": False
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"OpenAI connection failed: {str(e)}",
+            "configured": False
+        }
+
+@app.post("/api/openai/improve-bullet")
+async def improve_bullet(payload: ImproveBulletPayload):
+    """Improve a bullet point using AI"""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI service not available")
+    
+    try:
+        tone_instructions = {
+            "professional": "Use professional, corporate language with strong action verbs",
+            "technical": "Use technical terminology and methodologies, focus on tools and processes",
+            "formal": "Use formal, executive-level language with strategic focus",
+            "casual": "Use conversational but workplace-appropriate language"
+        }
+        
+        tone_instruction = tone_instructions.get(payload.tone, tone_instructions["professional"])
+        
+        context = f"Context: {payload.context}" if payload.context else ""
+        
+        prompt = f"""Improve this resume bullet point to be more impactful and ATS-optimized.
+
+Current bullet: "{payload.bullet}"
+
+{context}
+
+Requirements:
+- Make it more specific with metrics/numbers if possible
+- Use strong action verbs
+- Focus on achievements and impact
+- Keep it concise (1-2 lines)
+- {tone_instruction}
+- ATS-friendly format
+
+Return ONLY the improved bullet point, no explanations."""
+
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": OPENAI_MAX_TOKENS,
+            "temperature": 0.7
+        }
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"OpenAI API error: {response.status_code}")
+        
+        result = response.json()
+        improved_bullet = result['choices'][0]['message']['content'].strip()
+        
+        return {
+            "success": True,
+            "original": payload.bullet,
+            "improved": improved_bullet,
+            "tokens_used": result.get('usage', {}).get('total_tokens', 0),
+            "tone": payload.tone
+        }
+        
+    except Exception as e:
+        logger.error(f"OpenAI improve bullet error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to improve bullet: {str(e)}")
+
+@app.post("/api/ai/generate_bullet_points")
+async def generate_bullet_points(payload: GenerateBulletPointsPayload):
+    """Generate bullet points from scratch using AI"""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI service not available")
+    
+    try:
+        tone_instructions = {
+            "professional": "Use professional, corporate language with strong action verbs",
+            "technical": "Use technical terminology and methodologies, focus on tools and processes",
+            "formal": "Use formal, executive-level language with strategic focus",
+            "casual": "Use conversational but workplace-appropriate language"
+        }
+        
+        tone_instruction = tone_instructions.get(payload.tone, tone_instructions["professional"])
+        
+        prompt = f"""Generate {payload.count} professional resume bullet points for this role:
+
+Role: {payload.role}
+Company: {payload.company}
+Skills: {payload.skills}
+
+Requirements:
+- Include specific metrics/numbers where possible (use realistic examples)
+- Use strong action verbs
+- Focus on achievements and impact
+- Each bullet should be 1-2 lines
+- {tone_instruction}
+- ATS-friendly format
+- Make them diverse and cover different aspects of the role
+
+Return ONLY the bullet points, one per line, no numbering or explanations."""
+
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": OPENAI_MAX_TOKENS,
+            "temperature": 0.7
+        }
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"OpenAI API error: {response.status_code}")
+        
+        result = response.json()
+        bullet_points_text = result['choices'][0]['message']['content'].strip()
+        bullet_points = [line.strip() for line in bullet_points_text.split('\n') if line.strip()]
+        
+        return {
+            "success": True,
+            "bullet_points": bullet_points,
+            "count": len(bullet_points),
+            "tokens_used": result.get('usage', {}).get('total_tokens', 0),
+            "role": payload.role,
+            "company": payload.company,
+            "tone": payload.tone
+        }
+        
+    except Exception as e:
+        logger.error(f"OpenAI generate bullet points error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate bullet points: {str(e)}")
+
+@app.post("/api/ai/generate_summary")
+async def generate_summary(payload: GenerateSummaryPayload):
+    """Generate professional resume summary using AI"""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI service not available")
+    
+    try:
+        achievements = f"Key achievements: {payload.achievements}" if payload.achievements else ""
+        
+        context = f"""
+Role: {payload.role}
+Experience: {payload.years_experience} years
+Skills: {payload.skills}
+{achievements}
+
+Requirements:
+- Concise and impactful (50-80 words)
+- Highlight key strengths and value proposition
+- Include relevant technical skills and experience
+- ATS-optimized with industry keywords
+- Professional tone
+- Focus on achievements and impact
+
+Return ONLY the summary text, no explanations or labels."""
+
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [{"role": "user", "content": context}],
+            "max_tokens": OPENAI_MAX_TOKENS,
+            "temperature": 0.7
+        }
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"OpenAI API error: {response.status_code}")
+        
+        result = response.json()
+        summary = result['choices'][0]['message']['content'].strip()
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "tokens_used": result.get('usage', {}).get('total_tokens', 0)
+        }
+    except Exception as e:
+        logger.error(f"OpenAI generate summary error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
 
 TEMPLATES = {
     "clean": {
