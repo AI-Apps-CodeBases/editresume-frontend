@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -9,9 +9,30 @@ import json
 import logging
 import secrets
 from datetime import datetime
+from openai import OpenAI
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
+
+openai_client = None
+if OPENAI_API_KEY:
+    try:
+        openai_client = OpenAI(
+            api_key=OPENAI_API_KEY,
+            max_retries=2,
+            timeout=30.0
+        )
+        logger.info(f"OpenAI client initialized successfully with model: {OPENAI_MODEL}")
+    except Exception as e:
+        logger.error(f"Failed to initialize OpenAI client: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+else:
+    logger.warning("OPENAI_API_KEY not set - OpenAI features will be disabled")
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
 
@@ -52,7 +73,7 @@ class ExportPayload(BaseModel):
     summary: Optional[str] = None
     sections: List[Section] = []
     replacements: Optional[Dict[str, str]] = None
-    template: Optional[str] = "clean"
+    template: Optional[str] = "tech"
     two_column_left: Optional[List[str]] = []
     two_column_right: Optional[List[str]] = []
     two_column_left_width: Optional[int] = 50
@@ -73,7 +94,17 @@ PREMIUM_MODE = os.getenv("PREMIUM_MODE", "false").lower() == "true"
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "db": os.getenv("DATABASE_URL", "unset"), "premium_mode": PREMIUM_MODE}
+    openai_status = {
+        "configured": OPENAI_API_KEY is not None,
+        "model": OPENAI_MODEL if OPENAI_API_KEY else None,
+        "client_ready": openai_client is not None
+    }
+    return {
+        "status": "ok", 
+        "db": os.getenv("DATABASE_URL", "unset"), 
+        "premium_mode": PREMIUM_MODE,
+        "openai": openai_status
+    }
 
 @app.post("/api/auth/signup")
 async def signup(payload: SignupPayload):
@@ -231,69 +262,257 @@ async def delete_account(email: str):
     
     return {"message": "Account deleted successfully"}
 
+@app.get("/api/openai/status")
+async def openai_status():
+    if not openai_client:
+        return {
+            "status": "disabled",
+            "configured": False,
+            "message": "OpenAI API key not configured"
+        }
+    
+    try:
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "user", "content": "test"}],
+            max_tokens=5
+        )
+        return {
+            "status": "active",
+            "configured": True,
+            "model": OPENAI_MODEL,
+            "max_tokens": OPENAI_MAX_TOKENS,
+            "message": "OpenAI connection successful"
+        }
+    except Exception as e:
+        logger.error(f"OpenAI connection test failed: {str(e)}")
+        return {
+            "status": "error",
+            "configured": True,
+            "error": str(e),
+            "message": "OpenAI API key configured but connection failed"
+        }
+
+class ImproveBulletPayload(BaseModel):
+    bullet: str
+    context: Optional[str] = None
+    tone: Optional[str] = "professional"
+
+@app.post("/api/openai/improve-bullet")
+async def improve_bullet(payload: ImproveBulletPayload):
+    if not openai_client:
+        raise HTTPException(
+            status_code=503, 
+            detail="OpenAI is not configured. Please set OPENAI_API_KEY environment variable."
+        )
+    
+    try:
+        tone_instructions = {
+            "professional": "Use professional, corporate language with strong action verbs.",
+            "technical": "Use technical terminology and emphasize technical skills, tools, and methodologies.",
+            "casual": "Use conversational but professional language, less formal but still workplace-appropriate.",
+            "formal": "Use highly formal, executive-level language with emphasis on leadership and strategy."
+        }
+        
+        tone_instruction = tone_instructions.get(payload.tone, tone_instructions["professional"])
+        
+        prompt = f"""Improve this resume bullet point to be more impactful and ATS-friendly.
+Make it more specific, quantifiable, and action-oriented.
+
+Tone: {tone_instruction}
+
+Original bullet: {payload.bullet}
+{f'Context: {payload.context}' if payload.context else ''}
+
+Return ONLY the improved bullet point, no explanations."""
+
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=OPENAI_MAX_TOKENS,
+            temperature=0.7
+        )
+        
+        improved = response.choices[0].message.content.strip()
+        
+        return {
+            "success": True,
+            "original": payload.bullet,
+            "improved": improved,
+            "tokens_used": response.usage.total_tokens
+        }
+    except Exception as e:
+        logger.error(f"OpenAI improve bullet error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to improve bullet: {str(e)}")
+
+class GenerateBulletPointsPayload(BaseModel):
+    role: str
+    company: Optional[str] = None
+    achievements: Optional[str] = None
+    skills: Optional[str] = None
+    count: Optional[int] = 5
+    tone: Optional[str] = "professional"
+
+@app.post("/api/ai/generate_bullet_points")
+async def generate_bullet_points(payload: GenerateBulletPointsPayload):
+    if not openai_client:
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI is not configured. Please set OPENAI_API_KEY environment variable."
+        )
+    
+    try:
+        context_parts = [f"Role: {payload.role}"]
+        if payload.company:
+            context_parts.append(f"Company: {payload.company}")
+        if payload.achievements:
+            context_parts.append(f"Achievements: {payload.achievements}")
+        if payload.skills:
+            context_parts.append(f"Skills/Technologies: {payload.skills}")
+        
+        context = "\n".join(context_parts)
+        
+        tone_instructions = {
+            "professional": "Use professional, corporate language with strong action verbs.",
+            "technical": "Use technical terminology and emphasize technical skills, tools, and methodologies.",
+            "casual": "Use conversational but professional language, less formal but still workplace-appropriate.",
+            "formal": "Use highly formal, executive-level language with emphasis on leadership and strategy."
+        }
+        
+        tone_instruction = tone_instructions.get(payload.tone, tone_instructions["professional"])
+        
+        prompt = f"""Generate {payload.count} professional resume bullet points based on the following information:
+
+{context}
+
+Tone: {tone_instruction}
+
+Requirements:
+- Start with strong action verbs
+- Include metrics and quantifiable results where possible
+- Be specific and impactful
+- ATS-optimized
+- Each bullet should be 1-2 lines
+
+Return ONLY the bullet points, one per line, without numbering or bullets symbols."""
+
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=OPENAI_MAX_TOKENS,
+            temperature=0.8
+        )
+        
+        content = response.choices[0].message.content.strip()
+        bullets = [line.strip() for line in content.split('\n') if line.strip()]
+        
+        return {
+            "success": True,
+            "bullets": bullets,
+            "count": len(bullets),
+            "tokens_used": response.usage.total_tokens
+        }
+    except Exception as e:
+        logger.error(f"OpenAI generate bullets error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate bullet points: {str(e)}")
+
+class GenerateSummaryPayload(BaseModel):
+    role: str
+    years_experience: Optional[int] = None
+    skills: Optional[str] = None
+    achievements: Optional[str] = None
+    target_role: Optional[str] = None
+
+@app.post("/api/ai/generate_summary")
+async def generate_summary(payload: GenerateSummaryPayload):
+    if not openai_client:
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI is not configured. Please set OPENAI_API_KEY environment variable."
+        )
+    
+    try:
+        context_parts = [f"Current Role: {payload.role}"]
+        if payload.years_experience:
+            context_parts.append(f"Years of Experience: {payload.years_experience}")
+        if payload.skills:
+            context_parts.append(f"Key Skills: {payload.skills}")
+        if payload.achievements:
+            context_parts.append(f"Notable Achievements: {payload.achievements}")
+        if payload.target_role:
+            context_parts.append(f"Target Role: {payload.target_role}")
+        
+        context = "\n".join(context_parts)
+        
+        prompt = f"""Generate a professional resume summary (2-3 sentences) based on the following information:
+
+{context}
+
+Requirements:
+- Concise and impactful (50-80 words)
+- Highlight key strengths and value proposition
+- Include relevant technical skills and experience
+- ATS-optimized with industry keywords
+- Professional tone
+- Focus on achievements and impact
+
+Return ONLY the summary text, no explanations or labels."""
+
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=OPENAI_MAX_TOKENS,
+            temperature=0.7
+        )
+        
+        summary = response.choices[0].message.content.strip()
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "tokens_used": response.usage.total_tokens
+        }
+    except Exception as e:
+        logger.error(f"OpenAI generate summary error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
+
 TEMPLATES = {
-    "clean": {
-        "name": "Clean (ATS)",
+    "tech": {
+        "name": "Tech Professional",
+        "industry": "Technology",
+        "styles": {
+            "header_align": "left",
+            "header_border": "3px solid #2563eb",
+            "font": "Arial, sans-serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "healthcare": {
+        "name": "Healthcare Pro",
+        "industry": "Healthcare",
         "styles": {
             "header_align": "center",
-            "header_border": "2px solid #333",
+            "header_border": "2px solid #059669",
             "font": "Georgia, serif",
             "section_uppercase": True,
             "layout": "single"
         }
     },
-    "modern": {
-        "name": "Modern",
-        "styles": {
-            "header_align": "left",
-            "header_border": "none",
-            "font": "Arial, sans-serif",
-            "section_uppercase": False,
-            "layout": "single"
-        }
-    },
-    "minimal": {
-        "name": "Minimal",
-        "styles": {
-            "header_align": "left",
-            "header_border": "1px solid #eee",
-            "font": "Helvetica, sans-serif",
-            "section_uppercase": False,
-            "layout": "single"
-        }
-    },
-    "two-column": {
-        "name": "Two Column",
+    "finance": {
+        "name": "Finance Executive",
+        "industry": "Finance",
         "styles": {
             "header_align": "center",
-            "header_border": "1px solid #333",
-            "font": "Arial, sans-serif",
-            "section_uppercase": False,
-            "layout": "two-column"
-        }
-    },
-    "compact": {
-        "name": "Compact",
-        "styles": {
-            "header_align": "center",
-            "header_border": "1px solid #333",
-            "font": "Arial, sans-serif",
-            "section_uppercase": True,
-            "layout": "single"
-        }
-    },
-    "professional": {
-        "name": "Professional",
-        "styles": {
-            "header_align": "left",
-            "header_border": "3px solid #2563eb",
-            "font": "Arial, sans-serif",
+            "header_border": "3px solid #1e40af",
+            "font": "Times New Roman, serif",
             "section_uppercase": True,
             "layout": "single"
         }
     },
     "creative": {
-        "name": "Creative",
+        "name": "Creative Portfolio",
+        "industry": "Marketing & Design",
         "styles": {
             "header_align": "left",
             "header_border": "none",
@@ -302,33 +521,124 @@ TEMPLATES = {
             "layout": "single"
         }
     },
-    "executive": {
-        "name": "Executive",
-        "styles": {
-            "header_align": "center",
-            "header_border": "2px solid #1e40af",
-            "font": "Georgia, serif",
-            "section_uppercase": True,
-            "layout": "single"
-        }
-    },
-    "technical": {
-        "name": "Technical",
-        "styles": {
-            "header_align": "left",
-            "header_border": "1px solid #64748b",
-            "font": "Courier New, monospace",
-            "section_uppercase": False,
-            "layout": "single"
-        }
-    },
     "academic": {
-        "name": "Academic",
+        "name": "Academic Scholar",
+        "industry": "Education",
         "styles": {
             "header_align": "center",
             "header_border": "1px solid #000",
             "font": "Times New Roman, serif",
             "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "legal": {
+        "name": "Legal Professional",
+        "industry": "Legal",
+        "styles": {
+            "header_align": "center",
+            "header_border": "2px solid #1e293b",
+            "font": "Georgia, serif",
+            "section_uppercase": True,
+            "layout": "single"
+        }
+    },
+    "engineering": {
+        "name": "Engineering Pro",
+        "industry": "Engineering",
+        "styles": {
+            "header_align": "left",
+            "header_border": "2px solid #ea580c",
+            "font": "Arial, sans-serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "sales": {
+        "name": "Sales Leader",
+        "industry": "Sales",
+        "styles": {
+            "header_align": "left",
+            "header_border": "3px solid #dc2626",
+            "font": "Arial, sans-serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "consulting": {
+        "name": "Consultant Elite",
+        "industry": "Consulting",
+        "styles": {
+            "header_align": "center",
+            "header_border": "2px solid #4338ca",
+            "font": "Georgia, serif",
+            "section_uppercase": True,
+            "layout": "single"
+        }
+    },
+    "hr": {
+        "name": "HR Professional",
+        "industry": "Human Resources",
+        "styles": {
+            "header_align": "left",
+            "header_border": "2px solid #7c3aed",
+            "font": "Arial, sans-serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "operations": {
+        "name": "Operations Manager",
+        "industry": "Operations",
+        "styles": {
+            "header_align": "left",
+            "header_border": "2px solid #0891b2",
+            "font": "Arial, sans-serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "customer": {
+        "name": "Customer Success",
+        "industry": "Customer Service",
+        "styles": {
+            "header_align": "center",
+            "header_border": "2px solid #06b6d4",
+            "font": "Arial, sans-serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "data": {
+        "name": "Data Scientist",
+        "industry": "Data & Analytics",
+        "styles": {
+            "header_align": "left",
+            "header_border": "2px solid #8b5cf6",
+            "font": "Courier New, monospace",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "product": {
+        "name": "Product Manager",
+        "industry": "Product",
+        "styles": {
+            "header_align": "left",
+            "header_border": "3px solid #ec4899",
+            "font": "Arial, sans-serif",
+            "section_uppercase": False,
+            "layout": "single"
+        }
+    },
+    "executive": {
+        "name": "Executive Leader",
+        "industry": "Executive",
+        "styles": {
+            "header_align": "center",
+            "header_border": "3px solid #1e293b",
+            "font": "Georgia, serif",
+            "section_uppercase": True,
             "layout": "single"
         }
     }
@@ -338,7 +648,8 @@ TEMPLATES = {
 async def get_templates():
     return {
         "templates": [
-            {"id": tid, "name": t["name"]} for tid, t in TEMPLATES.items()
+            {"id": tid, "name": t["name"], "industry": t.get("industry", "General")} 
+            for tid, t in TEMPLATES.items()
         ]
     }
 
@@ -393,8 +704,8 @@ async def export_pdf(payload: ExportPayload):
         from io import BytesIO
         
         replacements = payload.replacements or {}
-        template_id = payload.template or "clean"
-        template_style = TEMPLATES.get(template_id, TEMPLATES["clean"])
+        template_id = payload.template or "tech"
+        template_style = TEMPLATES.get(template_id, TEMPLATES["tech"])
         
         logger.info(f"Exporting PDF with template: {template_id}")
         logger.info(f"Template style: {template_style}")
@@ -758,8 +1069,8 @@ async def export_docx(payload: ExportPayload):
         from io import BytesIO
         
         replacements = payload.replacements or {}
-        template_id = payload.template or "clean"
-        template_style = TEMPLATES.get(template_id, TEMPLATES["clean"])
+        template_id = payload.template or "tech"
+        template_style = TEMPLATES.get(template_id, TEMPLATES["tech"])
         
         logger.info(f"Exporting DOCX with template: {template_id}")
         logger.info(f"Template layout: {template_style['styles']['layout']}")
@@ -1013,4 +1324,242 @@ async def export_docx(payload: ExportPayload):
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================
+# REAL-TIME COLLABORATION (WebSocket)
+# ============================================================
+
+class Comment(BaseModel):
+    id: str
+    user_name: str
+    text: str
+    timestamp: str
+    target_type: str
+    target_id: str
+    resolved: bool = False
+
+class CollaborationRoom:
+    def __init__(self):
+        self.rooms: Dict[str, Dict[str, any]] = {}
+        self.comments: Dict[str, List[Dict]] = {}
+    
+    def create_room(self, room_id: str):
+        if room_id not in self.rooms:
+            self.rooms[room_id] = {
+                "connections": {},
+                "resume_data": None,
+                "last_update": datetime.now().isoformat()
+            }
+            self.comments[room_id] = []
+            logger.info(f"Created collaboration room: {room_id}")
+    
+    def add_connection(self, room_id: str, user_id: str, websocket: WebSocket, user_name: str):
+        self.create_room(room_id)
+        
+        # Remove any existing connection with the same user_id to prevent duplicates
+        if user_id in self.rooms[room_id]["connections"]:
+            logger.info(f"Replacing existing connection for user {user_name} ({user_id})")
+        
+        self.rooms[room_id]["connections"][user_id] = {
+            "ws": websocket,
+            "name": user_name,
+            "joined_at": datetime.now().isoformat()
+        }
+        logger.info(f"User {user_name} ({user_id}) joined room {room_id}")
+    
+    def remove_connection(self, room_id: str, user_id: str):
+        if room_id in self.rooms and user_id in self.rooms[room_id]["connections"]:
+            del self.rooms[room_id]["connections"][user_id]
+            logger.info(f"User {user_id} left room {room_id}")
+            if not self.rooms[room_id]["connections"]:
+                del self.rooms[room_id]
+                if room_id in self.comments:
+                    del self.comments[room_id]
+                logger.info(f"Room {room_id} is now empty and removed")
+    
+    def get_active_users(self, room_id: str) -> List[Dict]:
+        if room_id not in self.rooms:
+            return []
+        return [
+            {"user_id": uid, "name": conn["name"], "joined_at": conn["joined_at"]}
+            for uid, conn in self.rooms[room_id]["connections"].items()
+        ]
+    
+    async def broadcast(self, room_id: str, message: dict, exclude_user: str = None):
+        if room_id not in self.rooms:
+            return
+        
+        dead_connections = []
+        for user_id, conn in self.rooms[room_id]["connections"].items():
+            if exclude_user and user_id == exclude_user:
+                continue
+            try:
+                await conn["ws"].send_json(message)
+            except Exception as e:
+                logger.error(f"Failed to send to user {user_id}: {e}")
+                dead_connections.append(user_id)
+        
+        for user_id in dead_connections:
+            self.remove_connection(room_id, user_id)
+    
+    def add_comment(self, room_id: str, comment: Dict) -> Dict:
+        self.create_room(room_id)
+        comment_data = {
+            **comment,
+            "id": secrets.token_urlsafe(8),
+            "timestamp": datetime.now().isoformat()
+        }
+        self.comments[room_id].append(comment_data)
+        logger.info(f"Added comment in room {room_id}: {comment_data['id']}")
+        return comment_data
+    
+    def get_comments(self, room_id: str, target_id: str = None) -> List[Dict]:
+        if room_id not in self.comments:
+            return []
+        comments = self.comments[room_id]
+        if target_id:
+            return [c for c in comments if c.get("target_id") == target_id]
+        return comments
+    
+    def resolve_comment(self, room_id: str, comment_id: str):
+        if room_id in self.comments:
+            for comment in self.comments[room_id]:
+                if comment["id"] == comment_id:
+                    comment["resolved"] = True
+                    logger.info(f"Resolved comment {comment_id} in room {room_id}")
+                    return True
+        return False
+    
+    def delete_comment(self, room_id: str, comment_id: str):
+        if room_id in self.comments:
+            self.comments[room_id] = [c for c in self.comments[room_id] if c["id"] != comment_id]
+            logger.info(f"Deleted comment {comment_id} from room {room_id}")
+            return True
+        return False
+
+collab_manager = CollaborationRoom()
+
+@app.get("/api/collab/room/create")
+async def create_collab_room():
+    room_id = secrets.token_urlsafe(8)
+    collab_manager.create_room(room_id)
+    return {"room_id": room_id, "url": f"/editor?room={room_id}"}
+
+@app.get("/api/collab/room/{room_id}/users")
+async def get_room_users(room_id: str):
+    users = collab_manager.get_active_users(room_id)
+    return {"room_id": room_id, "users": users, "count": len(users)}
+
+@app.get("/api/collab/room/{room_id}/comments")
+async def get_room_comments(room_id: str, target_id: str = None):
+    comments = collab_manager.get_comments(room_id, target_id)
+    return {"room_id": room_id, "comments": comments, "count": len(comments)}
+
+@app.post("/api/collab/room/{room_id}/comments")
+async def add_comment(room_id: str, comment: Comment):
+    comment_data = collab_manager.add_comment(room_id, comment.dict())
+    return {"success": True, "comment": comment_data}
+
+@app.post("/api/collab/room/{room_id}/comments/{comment_id}/resolve")
+async def resolve_comment_endpoint(room_id: str, comment_id: str):
+    success = collab_manager.resolve_comment(room_id, comment_id)
+    return {"success": success}
+
+@app.delete("/api/collab/room/{room_id}/comments/{comment_id}")
+async def delete_comment_endpoint(room_id: str, comment_id: str):
+    success = collab_manager.delete_comment(room_id, comment_id)
+    return {"success": success}
+
+@app.websocket("/ws/collab/{room_id}")
+async def websocket_collab(websocket: WebSocket, room_id: str):
+    await websocket.accept()
+    
+    try:
+        init_msg = await websocket.receive_json()
+        user_id = init_msg.get("user_id", secrets.token_urlsafe(6))
+        user_name = init_msg.get("user_name", "Anonymous")
+        
+        collab_manager.add_connection(room_id, user_id, websocket, user_name)
+        
+        active_users = collab_manager.get_active_users(room_id)
+        await collab_manager.broadcast(room_id, {
+            "type": "user_joined",
+            "user_id": user_id,
+            "user_name": user_name,
+            "active_users": active_users
+        })
+        
+        while True:
+            data = await websocket.receive_json()
+            message_type = data.get("type")
+            
+            if message_type == "resume_update":
+                await collab_manager.broadcast(room_id, {
+                    "type": "resume_update",
+                    "user_id": user_id,
+                    "user_name": user_name,
+                    "data": data.get("data"),
+                    "timestamp": datetime.now().isoformat()
+                }, exclude_user=user_id)
+            
+            elif message_type == "cursor_position":
+                await collab_manager.broadcast(room_id, {
+                    "type": "cursor_position",
+                    "user_id": user_id,
+                    "user_name": user_name,
+                    "position": data.get("position")
+                }, exclude_user=user_id)
+            
+            elif message_type == "ping":
+                await websocket.send_json({"type": "pong"})
+            
+            elif message_type == "add_comment":
+                comment = collab_manager.add_comment(room_id, {
+                    "user_name": user_name,
+                    "text": data.get("text"),
+                    "target_type": data.get("target_type"),
+                    "target_id": data.get("target_id"),
+                    "resolved": False
+                })
+                await collab_manager.broadcast(room_id, {
+                    "type": "comment_added",
+                    "comment": comment
+                })
+            
+            elif message_type == "resolve_comment":
+                comment_id = data.get("comment_id")
+                collab_manager.resolve_comment(room_id, comment_id)
+                await collab_manager.broadcast(room_id, {
+                    "type": "comment_resolved",
+                    "comment_id": comment_id
+                })
+            
+            elif message_type == "delete_comment":
+                comment_id = data.get("comment_id")
+                collab_manager.delete_comment(room_id, comment_id)
+                await collab_manager.broadcast(room_id, {
+                    "type": "comment_deleted",
+                    "comment_id": comment_id
+                })
+    
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected for user {user_id}")
+        collab_manager.remove_connection(room_id, user_id)
+        active_users = collab_manager.get_active_users(room_id)
+        await collab_manager.broadcast(room_id, {
+            "type": "user_left",
+            "user_id": user_id,
+            "user_name": user_name,
+            "active_users": active_users
+        })
+    except Exception as e:
+        logger.error(f"WebSocket error for user {user_id}: {e}")
+        collab_manager.remove_connection(room_id, user_id)
+        active_users = collab_manager.get_active_users(room_id)
+        await collab_manager.broadcast(room_id, {
+            "type": "user_left",
+            "user_id": user_id,
+            "user_name": user_name,
+            "active_users": active_users
+        })
 
