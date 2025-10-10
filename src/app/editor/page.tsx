@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import ResumeForm from '@/components/editor/ResumeForm'
 import PreviewPanel from '@/components/editor/PreviewPanel'
 import GlobalReplacements from '@/components/editor/GlobalReplacements'
@@ -7,18 +8,30 @@ import TemplateSelector from '@/components/editor/TemplateSelector'
 import TwoColumnEditor from '@/components/editor/TwoColumnEditor'
 import NewResumeWizard from '@/components/editor/NewResumeWizard'
 import AuthModal from '@/components/auth/AuthModal'
+import CollaborationPanel from '@/components/editor/CollaborationPanel'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCollaboration } from '@/hooks/useCollaboration'
 
 export default function EditorPage() {
   const { user, isAuthenticated, login, logout, checkPremiumAccess } = useAuth()
+  const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showWizard, setShowWizard] = useState(true)
+  const [roomId, setRoomId] = useState<string | null>(null)
+  const [userName, setUserName] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('userName') || ''
+    }
+    return ''
+  })
   const [selectedTemplate, setSelectedTemplate] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('selectedTemplate') || 'clean'
+      return localStorage.getItem('selectedTemplate') || 'tech'
     }
-    return 'clean'
+    return 'tech'
   })
+
+  const collaboration = useCollaboration()
   
   const [resumeData, setResumeData] = useState({
     name: '',
@@ -76,8 +89,80 @@ export default function EditorPage() {
       if (hasExistingResume) {
         setShowWizard(false)
       }
+      
+      const urlRoomId = searchParams.get('room')
+      if (urlRoomId) {
+        setRoomId(urlRoomId)
+        setShowWizard(false)
+        
+        if (!userName) {
+          const name = prompt('Enter your name for collaboration:')
+          if (name) {
+            setUserName(name)
+            localStorage.setItem('userName', name)
+          }
+        }
+      }
     }
-  }, [])
+  }, [searchParams, userName])
+
+  useEffect(() => {
+    if (roomId && userName) {
+      collaboration.connect(roomId, userName)
+      
+      collaboration.onRemoteUpdate((data, remoteUserName) => {
+        console.log(`Update from ${remoteUserName}:`, data)
+        setResumeData(data)
+      })
+    }
+    
+    return () => {
+      if (roomId) {
+        collaboration.disconnect()
+      }
+    }
+  }, [roomId, userName, collaboration])
+
+  const handleResumeDataChange = useCallback((newData: any) => {
+    setResumeData(newData)
+    
+    if (roomId && collaboration.isConnected) {
+      collaboration.sendUpdate(newData)
+    }
+  }, [roomId, collaboration])
+
+  const handleCreateRoom = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/collab/room/create')
+      const data = await response.json()
+      const name = userName || prompt('Enter your name:')
+      if (name) {
+        setUserName(name)
+        localStorage.setItem('userName', name)
+        setRoomId(data.room_id)
+        window.history.pushState({}, '', `/editor?room=${data.room_id}`)
+      }
+    } catch (error) {
+      console.error('Failed to create room:', error)
+      alert('Failed to create collaboration room')
+    }
+  }
+
+  const handleJoinRoom = (roomIdToJoin: string) => {
+    const name = userName || prompt('Enter your name:')
+    if (name) {
+      setUserName(name)
+      localStorage.setItem('userName', name)
+      setRoomId(roomIdToJoin)
+      window.history.pushState({}, '', `/editor?room=${roomIdToJoin}`)
+    }
+  }
+
+  const handleLeaveRoom = () => {
+    collaboration.disconnect()
+    setRoomId(null)
+    window.history.pushState({}, '', '/editor')
+  }
 
   const saveToHistory = () => {
     if (!resumeData.name) return
@@ -258,6 +343,16 @@ export default function EditorPage() {
           />
         ) : (
           <div className="space-y-4">
+            {/* Collaboration Panel */}
+            <CollaborationPanel
+              isConnected={collaboration.isConnected}
+              activeUsers={collaboration.activeUsers}
+              roomId={roomId}
+              onCreateRoom={handleCreateRoom}
+              onJoinRoom={handleJoinRoom}
+              onLeaveRoom={handleLeaveRoom}
+            />
+
             {/* Top Bar - Template & Controls */}
             <div className="bg-white rounded-xl shadow-sm border p-4">
               <div className="flex items-center gap-6">
@@ -291,7 +386,7 @@ export default function EditorPage() {
                       </div>
                       <TwoColumnEditor
                         sections={resumeData.sections}
-                        onUpdate={(sections) => setResumeData({ ...resumeData, sections })}
+                        onUpdate={(sections) => handleResumeDataChange({ ...resumeData, sections })}
                         resumeData={{
                           name: resumeData.name,
                           title: resumeData.title,
@@ -300,14 +395,18 @@ export default function EditorPage() {
                           location: resumeData.location,
                           summary: resumeData.summary
                         }}
-                        onResumeDataUpdate={(data) => setResumeData({ ...resumeData, ...data })}
+                        onResumeDataUpdate={(data) => handleResumeDataChange({ ...resumeData, ...data })}
                       />
                     </div>
                   ) : (
                     <ResumeForm
                       data={resumeData}
-                      onChange={setResumeData}
+                      onChange={handleResumeDataChange}
                       replacements={replacements}
+                      roomId={roomId}
+                      onAddComment={collaboration.addComment}
+                      onResolveComment={collaboration.resolveComment}
+                      onDeleteComment={collaboration.deleteComment}
                     />
                   )}
                 </div>

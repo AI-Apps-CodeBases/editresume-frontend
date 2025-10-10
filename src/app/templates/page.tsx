@@ -5,97 +5,144 @@ import { useRouter } from 'next/navigation'
 interface Template {
   id: string
   name: string
-  description: string
-  preview: string
-  layout: string
+  industry: string
 }
 
-const TEMPLATES: Template[] = [
-  {
-    id: 'clean',
-    name: 'Clean ATS',
-    description: 'Traditional centered layout, perfect for ATS systems',
-    preview: 'Center-aligned header, uppercase sections, classic format',
-    layout: 'Header (center) → Summary → Experience → Skills → Education'
-  },
-  {
-    id: 'modern',
-    name: 'Modern Professional',
-    description: 'Left-aligned, clean lines, contemporary look',
-    preview: 'Left-aligned header, mixed case sections, modern spacing',
-    layout: 'Header (left) → Skills (sidebar) → Experience → Education'
-  },
-  {
-    id: 'minimal',
-    name: 'Minimal',
-    description: 'Subtle styling, maximum readability',
-    preview: 'Minimal borders, clean typography, spacious layout',
-    layout: 'Header → Experience → Skills → Education → Projects'
-  },
-  {
-    id: 'two-column',
-    name: 'Two Column',
-    description: 'Skills sidebar with main content area',
-    preview: 'Left sidebar for skills/contact, right for experience',
-    layout: 'Sidebar (Skills, Contact) → Main (Experience, Education)'
-  },
-  {
-    id: 'compact',
-    name: 'Compact',
-    description: 'More content, less space, dense but readable',
-    preview: 'Tight spacing, more info per page',
-    layout: 'Header → Skills → Experience → Education → Projects'
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    description: 'Bold blue accent for polished corporate look',
-    preview: 'Blue header border, uppercase sections, professional font',
-    layout: 'Header (blue accent) → Summary → Experience → Skills'
-  },
-  {
-    id: 'creative',
-    name: 'Creative',
-    description: 'Unique styling for creative industries',
-    preview: 'No borders, creative font, modern layout',
-    layout: 'Header → Portfolio → Experience → Skills → Education'
-  },
-  {
-    id: 'executive',
-    name: 'Executive',
-    description: 'Sophisticated serif font for leadership roles',
-    preview: 'Navy border, centered header, executive presence',
-    layout: 'Header (center) → Summary → Leadership → Experience'
-  },
-  {
-    id: 'technical',
-    name: 'Technical',
-    description: 'Monospace font ideal for developers',
-    preview: 'Code-style font, technical aesthetic',
-    layout: 'Header → Skills → Projects → Experience → Education'
-  },
-  {
-    id: 'academic',
-    name: 'Academic',
-    description: 'Classic format for academic positions',
-    preview: 'Times font, traditional academic style',
-    layout: 'Header → Education → Publications → Experience → Research'
+const TEMPLATE_CONFIGS: Record<string, {
+  description: string
+  color: string
+  icon: string
+  preview: {
+    headerAlign: 'left' | 'center'
+    borderColor: string
+    bgColor: string
+    font: string
+    uppercase: boolean
   }
-]
+}> = {
+  tech: {
+    description: 'Modern layout for software engineers, developers, and tech professionals',
+    color: 'from-blue-500 to-blue-700',
+    icon: '💻',
+    preview: { headerAlign: 'left', borderColor: '#2563eb', bgColor: '#eff6ff', font: 'font-sans', uppercase: false }
+  },
+  healthcare: {
+    description: 'Professional design for doctors, nurses, and healthcare workers',
+    color: 'from-green-500 to-emerald-600',
+    icon: '⚕️',
+    preview: { headerAlign: 'center', borderColor: '#059669', bgColor: '#ecfdf5', font: 'font-serif', uppercase: true }
+  },
+  finance: {
+    description: 'Executive style for bankers, analysts, and financial professionals',
+    color: 'from-blue-700 to-blue-900',
+    icon: '💼',
+    preview: { headerAlign: 'center', borderColor: '#1e40af', bgColor: '#dbeafe', font: 'font-serif', uppercase: true }
+  },
+  creative: {
+    description: 'Eye-catching design for designers, marketers, and creative roles',
+    color: 'from-purple-500 to-pink-500',
+    icon: '🎨',
+    preview: { headerAlign: 'left', borderColor: '#a855f7', bgColor: '#fae8ff', font: 'font-sans', uppercase: false }
+  },
+  academic: {
+    description: 'Scholarly format for professors, researchers, and educators',
+    color: 'from-gray-600 to-gray-800',
+    icon: '🎓',
+    preview: { headerAlign: 'center', borderColor: '#374151', bgColor: '#f9fafb', font: 'font-serif', uppercase: false }
+  },
+  legal: {
+    description: 'Formal layout for lawyers, attorneys, and legal professionals',
+    color: 'from-slate-700 to-slate-900',
+    icon: '⚖️',
+    preview: { headerAlign: 'center', borderColor: '#1e293b', bgColor: '#f1f5f9', font: 'font-serif', uppercase: true }
+  },
+  engineering: {
+    description: 'Technical design for mechanical, civil, and other engineers',
+    color: 'from-orange-500 to-orange-700',
+    icon: '⚙️',
+    preview: { headerAlign: 'left', borderColor: '#ea580c', bgColor: '#ffedd5', font: 'font-sans', uppercase: false }
+  },
+  sales: {
+    description: 'Dynamic layout for sales professionals and business developers',
+    color: 'from-red-500 to-red-700',
+    icon: '📈',
+    preview: { headerAlign: 'left', borderColor: '#dc2626', bgColor: '#fee2e2', font: 'font-sans', uppercase: false }
+  },
+  consulting: {
+    description: 'Sophisticated design for consultants and strategy professionals',
+    color: 'from-indigo-600 to-indigo-800',
+    icon: '🤝',
+    preview: { headerAlign: 'center', borderColor: '#4338ca', bgColor: '#e0e7ff', font: 'font-serif', uppercase: true }
+  },
+  hr: {
+    description: 'People-focused layout for HR managers and recruiters',
+    color: 'from-purple-600 to-purple-800',
+    icon: '👥',
+    preview: { headerAlign: 'left', borderColor: '#7c3aed', bgColor: '#f3e8ff', font: 'font-sans', uppercase: false }
+  },
+  operations: {
+    description: 'Efficient design for operations and logistics professionals',
+    color: 'from-cyan-600 to-cyan-800',
+    icon: '📦',
+    preview: { headerAlign: 'left', borderColor: '#0891b2', bgColor: '#cffafe', font: 'font-sans', uppercase: false }
+  },
+  customer: {
+    description: 'Friendly layout for customer service and support professionals',
+    color: 'from-sky-500 to-sky-700',
+    icon: '🎯',
+    preview: { headerAlign: 'center', borderColor: '#0284c7', bgColor: '#e0f2fe', font: 'font-sans', uppercase: false }
+  },
+  data: {
+    description: 'Analytical design for data scientists and analysts',
+    color: 'from-violet-600 to-violet-800',
+    icon: '📊',
+    preview: { headerAlign: 'left', borderColor: '#8b5cf6', bgColor: '#ede9fe', font: 'font-mono', uppercase: false }
+  },
+  product: {
+    description: 'Strategic layout for product managers and owners',
+    color: 'from-pink-600 to-pink-800',
+    icon: '🚀',
+    preview: { headerAlign: 'left', borderColor: '#ec4899', bgColor: '#fce7f3', font: 'font-sans', uppercase: false }
+  },
+  executive: {
+    description: 'Premium design for C-suite executives and senior leadership',
+    color: 'from-slate-800 to-black',
+    icon: '👔',
+    preview: { headerAlign: 'center', borderColor: '#0f172a', bgColor: '#f8fafc', font: 'font-serif', uppercase: true }
+  }
+}
 
 export default function TemplatesPage() {
   const router = useRouter()
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [selectedIndustry, setSelectedIndustry] = useState<string>('all')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/templates`)
+      .then(res => res.json())
+      .then(data => {
+        setTemplates(data.templates)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('Failed to load templates:', err)
+        setLoading(false)
+      })
+  }, [])
 
   const handleSelectTemplate = (templateId: string) => {
-    setSelectedTemplate(templateId)
     localStorage.setItem('selectedTemplate', templateId)
     router.push('/editor')
   }
 
+  const industries = ['all', ...new Set(templates.map(t => t.industry))]
+  const filteredTemplates = selectedIndustry === 'all' 
+    ? templates 
+    : templates.filter(t => t.industry === selectedIndustry)
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
-      {/* Animated Background Blobs */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-200 to-purple-200 rounded-full blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-pink-200 to-yellow-200 rounded-full blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
@@ -117,263 +164,249 @@ export default function TemplatesPage() {
       </header>
 
       <div className="relative mx-auto max-w-7xl px-6 py-12">
-        <div className="text-center mb-12 animate-fadeIn">
+        <div className="text-center mb-12">
           <div className="inline-block text-6xl mb-4">📄</div>
           <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-            Choose Your Template
+            15 Industry-Specific Templates
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Pick a design that matches your style. You can change it anytime in the editor.
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-2">
+            Each template has unique styling: colors, fonts, alignments, and formatting.
+          </p>
+          <p className="text-sm text-gray-500">
+            Notice the differences: header borders, text alignment, uppercase vs mixed case, serif vs sans-serif fonts
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 animate-fadeIn">
-          {TEMPLATES.map((template, index) => (
-            <div
-              key={template.id}
-              className="bg-white rounded-2xl border-2 border-gray-200 p-4 hover:border-blue-400 cursor-pointer transition-all duration-300 shadow-lg hover:shadow-2xl group transform hover:scale-105"
-              onClick={() => handleSelectTemplate(template.id)}
-              style={{ animationDelay: `${index * 50}ms` }}
+        {/* Industry Filter */}
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          {industries.map(industry => (
+            <button
+              key={industry}
+              onClick={() => setSelectedIndustry(industry)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                selectedIndustry === industry
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+              }`}
             >
-              <div className="mb-3">
-                <div className="aspect-[8.5/11] bg-white rounded-lg border p-3 flex flex-col text-[10px] overflow-hidden">
-                  {/* Preview based on template type */}
-                  {template.id === 'clean' && (
-                    <>
-                      <div className="text-center border-b-2 border-black pb-2 mb-2">
-                        <div className="font-bold text-sm">JOHN DOE</div>
-                        <div className="text-xs">Senior Engineer</div>
-                        <div className="text-xs opacity-60">email@example.com | 555-1234</div>
-                      </div>
-                      <div className="space-y-2">
-                        <div>
-                          <div className="font-bold uppercase text-xs border-b border-black">EXPERIENCE</div>
-                          <div className="text-xs opacity-60 mt-1">• Led team of 5 engineers</div>
-                          <div className="text-xs opacity-60">• Reduced costs by 40%</div>
-                        </div>
-                        <div>
-                          <div className="font-bold uppercase text-xs border-b border-black">SKILLS</div>
-                          <div className="text-xs opacity-60 mt-1">Python, AWS, Docker</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {template.id === 'modern' && (
-                    <>
-                      <div className="border-b pb-2 mb-2">
-                        <div className="font-bold text-sm">John Doe</div>
-                        <div className="text-xs">Senior Engineer</div>
-                        <div className="text-xs opacity-60">email@example.com | 555-1234</div>
-                      </div>
-                      <div className="space-y-2">
-                        <div>
-                          <div className="font-bold text-xs border-b">Experience</div>
-                          <div className="text-xs opacity-60 mt-1">• Led team of 5 engineers</div>
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs border-b">Skills</div>
-                          <div className="text-xs opacity-60 mt-1">Python, AWS, Docker</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {template.id === 'minimal' && (
-                    <>
-                      <div className="border-b border-gray-300 pb-2 mb-2">
-                        <div className="font-semibold text-sm">John Doe</div>
-                        <div className="text-xs opacity-70">Senior Engineer</div>
-                        <div className="text-xs opacity-50">email@example.com</div>
-                      </div>
-                      <div className="space-y-2">
-                        <div>
-                          <div className="font-semibold text-xs">Experience</div>
-                          <div className="text-xs opacity-60 mt-1">• Led engineering team</div>
-                        </div>
-                        <div>
-                          <div className="font-semibold text-xs">Skills</div>
-                          <div className="text-xs opacity-60 mt-1">Python, AWS</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {template.id === 'two-column' && (
-                    <div className="flex gap-2 h-full">
-                      <div className="w-1/3 bg-gray-100 p-2 rounded">
-                        <div className="font-bold text-xs mb-2">SKILLS</div>
-                        <div className="text-xs opacity-60 space-y-1">
-                          <div>• Python</div>
-                          <div>• AWS</div>
-                          <div>• Docker</div>
-                        </div>
-                        <div className="font-bold text-xs mt-2 mb-1">CONTACT</div>
-                        <div className="text-xs opacity-60">email@example.com</div>
-                      </div>
-                      <div className="w-2/3">
-                        <div className="text-center border-b pb-1 mb-2">
-                          <div className="font-bold text-sm">JOHN DOE</div>
-                          <div className="text-xs">Senior Engineer</div>
-                        </div>
-                        <div className="font-bold text-xs border-b">EXPERIENCE</div>
-                        <div className="text-xs opacity-60 mt-1">• Led team</div>
-                        <div className="text-xs opacity-60">• 40% cost reduction</div>
-                      </div>
-                    </div>
-                  )}
-                  {template.id === 'compact' && (
-                    <>
-                      <div className="text-center border-b border-black pb-1 mb-1">
-                        <div className="font-bold text-xs">JOHN DOE</div>
-                        <div className="text-xs">Senior Engineer | email@example.com</div>
-                      </div>
-                      <div className="space-y-1">
-                        <div>
-                          <div className="font-bold uppercase text-xs">SKILLS</div>
-                          <div className="text-xs opacity-60">Python, AWS, Docker, Kubernetes</div>
-                        </div>
-                        <div>
-                          <div className="font-bold uppercase text-xs">EXPERIENCE</div>
-                          <div className="text-xs opacity-60">• Led 5 engineers • Cost savings 40%</div>
-                        </div>
-                        <div>
-                          <div className="font-bold uppercase text-xs">EDUCATION</div>
-                          <div className="text-xs opacity-60">BS Computer Science</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {template.id === 'professional' && (
-                    <>
-                      <div className="border-b-2 border-blue-600 pb-2 mb-2">
-                        <div className="font-bold text-sm">John Doe</div>
-                        <div className="text-xs">Senior Engineer</div>
-                        <div className="text-xs opacity-60">email@example.com</div>
-                      </div>
-                      <div className="space-y-1">
-                        <div>
-                          <div className="font-bold uppercase text-xs">EXPERIENCE</div>
-                          <div className="text-xs opacity-60">• Led team</div>
-                        </div>
-                        <div>
-                          <div className="font-bold uppercase text-xs">SKILLS</div>
-                          <div className="text-xs opacity-60">AWS, Docker</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {template.id === 'creative' && (
-                    <>
-                      <div className="pb-2 mb-2">
-                        <div className="font-bold text-sm text-purple-600">John Doe</div>
-                        <div className="text-xs italic">Creative Professional</div>
-                      </div>
-                      <div className="space-y-1">
-                        <div>
-                          <div className="font-semibold text-xs">Portfolio</div>
-                          <div className="text-xs opacity-60">Award designs</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {template.id === 'executive' && (
-                    <>
-                      <div className="text-center border-b-2 border-blue-800 pb-2 mb-2">
-                        <div className="font-bold text-sm">JOHN DOE</div>
-                        <div className="text-xs font-serif">CEO</div>
-                      </div>
-                      <div className="space-y-1">
-                        <div>
-                          <div className="font-bold uppercase text-xs">LEADERSHIP</div>
-                          <div className="text-xs opacity-60">• 20 years</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {template.id === 'technical' && (
-                    <>
-                      <div className="border-b border-gray-500 pb-2 mb-2 font-mono">
-                        <div className="font-bold text-sm">john_doe</div>
-                        <div className="text-xs">$ developer</div>
-                      </div>
-                      <div className="space-y-1 font-mono">
-                        <div className="text-xs">// projects</div>
-                        <div className="text-xs opacity-60">- microservices</div>
-                      </div>
-                    </>
-                  )}
-                  {template.id === 'academic' && (
-                    <>
-                      <div className="text-center border-b border-black pb-2 mb-2 font-serif">
-                        <div className="font-bold text-sm">Dr. John Doe</div>
-                        <div className="text-xs">Professor</div>
-                      </div>
-                      <div className="space-y-1 font-serif">
-                        <div className="text-xs font-semibold">Education</div>
-                        <div className="text-xs opacity-60">PhD CS</div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-bold text-gray-900 group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300">
-                  {template.name}
-                </h3>
-                <p className="text-xs text-gray-600 line-clamp-2 min-h-[32px]">{template.description}</p>
-                
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSelectTemplate(template.id)
-                  }}
-                  className="w-full py-2 text-xs bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-300"
-                >
-                  Select Template
-                </button>
-              </div>
-            </div>
+              {industry === 'all' ? '🌟 All Industries' : industry}
+            </button>
           ))}
         </div>
 
-        <div className="mt-16 text-center animate-fadeIn">
-          <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-gray-200 max-w-2xl mx-auto">
-            <div className="text-4xl mb-4">✨</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-3">Not Sure Yet?</h2>
-            <p className="text-gray-600 mb-6">
-              You can always change your template later in the editor. Start creating your resume now!
-            </p>
-            <a
-              href="/editor"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-semibold shadow-lg hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              Start Without Template
-            </a>
+        {loading ? (
+          <div className="text-center py-20">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-600">Loading templates...</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {filteredTemplates.map((template, index) => {
+              const config = TEMPLATE_CONFIGS[template.id] || TEMPLATE_CONFIGS.tech
+              return (
+                <div
+                  key={template.id}
+                  className="bg-white rounded-xl border-2 border-gray-200 p-3 hover:border-blue-400 cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl group transform hover:scale-105"
+                  onClick={() => handleSelectTemplate(template.id)}
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  {/* Icon */}
+                  <div className="text-center mb-2">
+                    <span className="text-3xl">{config.icon}</span>
+                  </div>
+
+                  {/* Live Preview - SUPER OBVIOUS differences */}
+                  <div className="mb-3 relative">
+                    {/* Color indicator badge */}
+                    <div 
+                      className="absolute -top-1 -right-1 w-6 h-6 rounded-full z-10 shadow-lg border-2 border-white"
+                      style={{ backgroundColor: config.preview.borderColor }}
+                    ></div>
+                    
+                    <div 
+                      className="aspect-[8.5/11] rounded-lg shadow-md p-3 flex flex-col overflow-hidden"
+                      style={{ 
+                        backgroundColor: config.preview.bgColor,
+                        border: `5px solid ${config.preview.borderColor}`
+                      }}
+                    >
+                      {/* Header with extreme styling differences */}
+                      <div 
+                        className={`pb-2 mb-2 ${config.preview.headerAlign === 'center' ? 'text-center' : 'text-left'}`}
+                        style={{ 
+                          borderBottom: `4px solid ${config.preview.borderColor}`,
+                          backgroundColor: config.preview.borderColor + '15'
+                        }}
+                      >
+                        <div 
+                          className={`${config.preview.font} font-extrabold ${config.preview.uppercase ? 'uppercase tracking-widest' : ''}`} 
+                          style={{ 
+                            fontSize: '11px',
+                            color: config.preview.borderColor,
+                            letterSpacing: config.preview.uppercase ? '0.1em' : 'normal'
+                          }}
+                        >
+                          {template.id === 'data' ? 'jane_doe' : config.preview.uppercase ? 'J. DOE' : 'John Doe'}
+                        </div>
+                        <div className={`${config.preview.font} font-semibold`} style={{ fontSize: '8px', opacity: 0.8 }}>
+                          {template.industry}
+                        </div>
+                      </div>
+                      
+                      {/* Body sections */}
+                      <div className="space-y-2 flex-1">
+                        <div>
+                          <div 
+                            className={`${config.preview.font} font-bold ${config.preview.uppercase ? 'uppercase tracking-widest' : ''}`}
+                            style={{ 
+                              fontSize: '9px',
+                              borderBottom: `3px solid ${config.preview.borderColor}`,
+                              paddingBottom: '3px',
+                              marginBottom: '4px',
+                              color: config.preview.borderColor,
+                              letterSpacing: config.preview.uppercase ? '0.1em' : 'normal'
+                            }}
+                          >
+                            {config.preview.uppercase ? 'EXPERIENCE' : 'Experience'}
+                          </div>
+                          <div className={config.preview.font} style={{ fontSize: '7px', opacity: 0.7, paddingLeft: config.preview.headerAlign === 'center' ? '0' : '4px' }}>
+                            • Led team of 5
+                          </div>
+                          <div className={config.preview.font} style={{ fontSize: '7px', opacity: 0.7, paddingLeft: config.preview.headerAlign === 'center' ? '0' : '4px' }}>
+                            • Achieved 40% growth
+                          </div>
+                        </div>
+                        <div>
+                          <div 
+                            className={`${config.preview.font} font-bold ${config.preview.uppercase ? 'uppercase tracking-widest' : ''}`}
+                            style={{ 
+                              fontSize: '9px',
+                              borderBottom: `3px solid ${config.preview.borderColor}`,
+                              paddingBottom: '3px',
+                              marginBottom: '4px',
+                              color: config.preview.borderColor,
+                              letterSpacing: config.preview.uppercase ? '0.1em' : 'normal'
+                            }}
+                          >
+                            {config.preview.uppercase ? 'SKILLS' : 'Skills'}
+                          </div>
+                          <div className={config.preview.font} style={{ fontSize: '7px', opacity: 0.7, paddingLeft: config.preview.headerAlign === 'center' ? '0' : '4px' }}>
+                            {template.id === 'data' ? '$ python --skills' : 'Leadership & Strategy'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Info */}
+                  <div className="space-y-1.5">
+                    <div>
+                      <h3 className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors leading-tight">
+                        {template.name}
+                      </h3>
+                      <p className="text-[10px] text-gray-500">{template.industry}</p>
+                    </div>
+                    
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleSelectTemplate(template.id)
+                      }}
+                      className={`w-full py-1.5 text-[10px] bg-gradient-to-r ${config.color} text-white rounded-lg font-semibold hover:shadow-md transition-all duration-300`}
+                    >
+                      Select
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Visual Differences Guide */}
+        <div className="mt-12 bg-gradient-to-br from-blue-50 to-purple-50 rounded-3xl p-8 border-2 border-blue-200">
+          <h2 className="text-2xl font-bold text-center mb-6">What Makes Each Template Unique?</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="text-3xl mb-2">🎨</div>
+              <h3 className="font-bold text-sm mb-1">Border Colors</h3>
+              <p className="text-xs text-gray-600">Blue, green, red, orange borders for different industries</p>
+              <div className="flex gap-1 mt-2">
+                <div className="w-6 h-6 rounded border-2 border-blue-600"></div>
+                <div className="w-6 h-6 rounded border-2 border-green-600"></div>
+                <div className="w-6 h-6 rounded border-2 border-red-600"></div>
+                <div className="w-6 h-6 rounded border-2 border-orange-600"></div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="text-3xl mb-2">📐</div>
+              <h3 className="font-bold text-sm mb-1">Header Alignment</h3>
+              <p className="text-xs text-gray-600">Left-aligned for modern, centered for traditional</p>
+              <div className="mt-2 space-y-1">
+                <div className="text-[8px] text-left border-b pb-1">Left Aligned</div>
+                <div className="text-[8px] text-center border-b pb-1">Centered</div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="text-3xl mb-2">Aa</div>
+              <h3 className="font-bold text-sm mb-1">Font Styles</h3>
+              <p className="text-xs text-gray-600">Sans-serif, serif, or monospace fonts</p>
+              <div className="mt-2 space-y-1">
+                <div className="text-[9px] font-sans">Sans-serif Font</div>
+                <div className="text-[9px] font-serif">Serif Font</div>
+                <div className="text-[9px] font-mono">Monospace</div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="text-3xl mb-2">ABC</div>
+              <h3 className="font-bold text-sm mb-1">Text Casing</h3>
+              <p className="text-xs text-gray-600">UPPERCASE for formal, Mixed for modern</p>
+              <div className="mt-2 space-y-1">
+                <div className="text-[9px] uppercase font-bold">Experience</div>
+                <div className="text-[9px] font-bold">Experience</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Features Section */}
-        <div className="mt-16 grid md:grid-cols-3 gap-6 animate-fadeIn">
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 text-center">
-            <div className="text-3xl mb-3">🎨</div>
-            <h3 className="font-bold text-gray-900 mb-2">Fully Customizable</h3>
-            <p className="text-sm text-gray-600">Change colors, fonts, and layouts to match your style</p>
-          </div>
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 text-center">
-            <div className="text-3xl mb-3">📱</div>
-            <h3 className="font-bold text-gray-900 mb-2">ATS-Friendly</h3>
-            <p className="text-sm text-gray-600">All templates are optimized for applicant tracking systems</p>
-          </div>
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 text-center">
-            <div className="text-3xl mb-3">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Export Anywhere</h3>
-            <p className="text-sm text-gray-600">Download as PDF or DOCX for any application</p>
+        {/* Info Section */}
+        <div className="mt-12 text-center">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-gray-200 max-w-2xl mx-auto">
+            <div className="text-4xl mb-4">✨</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">All Templates Include</h2>
+            <div className="grid md:grid-cols-2 gap-4 text-left mt-6">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">✅</div>
+                <div>
+                  <h3 className="font-semibold text-sm">ATS-Optimized</h3>
+                  <p className="text-xs text-gray-600">Pass applicant tracking systems</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">✅</div>
+                <div>
+                  <h3 className="font-semibold text-sm">Fully Customizable</h3>
+                  <p className="text-xs text-gray-600">Edit colors, fonts, and layout</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">✅</div>
+                <div>
+                  <h3 className="font-semibold text-sm">PDF & DOCX Export</h3>
+                  <p className="text-xs text-gray-600">Download in both formats</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">✅</div>
+                <div>
+                  <h3 className="font-semibold text-sm">AI-Powered</h3>
+                  <p className="text-xs text-gray-600">Improve content with AI</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
   )
 }
-

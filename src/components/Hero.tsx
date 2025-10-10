@@ -21,7 +21,7 @@ export default function Hero() {
           </h1>
           
           <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Edit your existing resume or create a new one from scratch. Choose from 10+ professional templates and export instantly.
+            Edit your existing resume or create a new one from scratch. Choose from 15 industry-specific templates and export instantly.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
@@ -61,7 +61,7 @@ export default function Hero() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
-              Browse 10+ Templates First
+              Browse 15 Templates
             </a>
           </div>
 

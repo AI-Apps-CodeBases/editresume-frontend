@@ -8,8 +8,8 @@ export default function Features() {
     },
     {
       icon: '🎨',
-      title: '10+ Templates',
-      description: 'Choose from professional templates: ATS-friendly, Modern, Executive, Technical, Creative, and more.',
+      title: '15 Industry Templates',
+      description: 'Choose from templates designed for Tech, Healthcare, Finance, Creative, Legal, and more industries.',
       gradient: 'from-purple-500 to-pink-500'
     },
     {
@@ -27,7 +27,7 @@ export default function Features() {
     {
       icon: '📥',
       title: 'Export Anywhere',
-      description: 'Download as PDF for applications or DOCX for further editing. All templates work perfectly in both formats.',
+      description: 'Download as PDF for applications or DOCX for further editing. Works perfectly in both formats.',
       gradient: 'from-indigo-500 to-blue-500'
     },
     {

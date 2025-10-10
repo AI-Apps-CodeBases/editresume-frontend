@@ -1,36 +1,65 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import UploadResume from './UploadResume'
 import PasteResume from './PasteResume'
+
+interface Template {
+  id: string
+  name: string
+  industry: string
+}
 
 interface Props {
   onComplete: (data: any, template: string, layoutConfig?: any) => void
   onCancel: () => void
 }
 
+const TEMPLATE_ICONS: Record<string, string> = {
+  tech: '💻',
+  healthcare: '⚕️',
+  finance: '💼',
+  creative: '🎨',
+  academic: '🎓',
+  legal: '⚖️',
+  engineering: '⚙️',
+  sales: '📈',
+  consulting: '🤝',
+  hr: '👥',
+  operations: '📦',
+  customer: '🎯',
+  data: '📊',
+  product: '🚀',
+  executive: '👔'
+}
+
 export default function NewResumeWizard({ onComplete, onCancel }: Props) {
   const [step, setStep] = useState<'method' | 'template' | 'layout'>('method')
   const [inputMethod, setInputMethod] = useState<'upload' | 'paste' | 'scratch' | null>(null)
   const [resumeData, setResumeData] = useState<any>(null)
-  const [selectedTemplate, setSelectedTemplate] = useState('clean')
+  const [selectedTemplate, setSelectedTemplate] = useState('tech')
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [loading, setLoading] = useState(false)
   const [layoutConfig, setLayoutConfig] = useState({
     leftWidth: 50,
     leftSections: [] as string[],
     rightSections: [] as string[]
   })
 
-  const templates = [
-    { id: 'clean', name: 'Clean', desc: 'Simple and professional', layout: 'single' },
-    { id: 'modern', name: 'Modern', desc: 'Bold headers with style', layout: 'single' },
-    { id: 'minimal', name: 'Minimal', desc: 'Ultra-clean design', layout: 'single' },
-    { id: 'two-column', name: 'Two Column', desc: 'Side-by-side layout', layout: 'two-column' },
-    { id: 'compact', name: 'Compact', desc: 'Space-efficient', layout: 'single' },
-    { id: 'professional', name: 'Professional', desc: 'Corporate style', layout: 'single' },
-    { id: 'creative', name: 'Creative', desc: 'Stand out design', layout: 'single' },
-    { id: 'executive', name: 'Executive', desc: 'Senior leadership', layout: 'single' },
-    { id: 'technical', name: 'Technical', desc: 'Developer focused', layout: 'single' },
-    { id: 'academic', name: 'Academic', desc: 'Research oriented', layout: 'single' }
-  ]
+  useEffect(() => {
+    if (step === 'template') {
+      setLoading(true)
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/templates`)
+        .then(res => res.json())
+        .then(data => {
+          setTemplates(data.templates)
+          setLoading(false)
+        })
+        .catch(err => {
+          console.error('Failed to load templates:', err)
+          setLoading(false)
+        })
+    }
+  }, [step])
 
   const handleMethodSelect = (method: 'upload' | 'paste' | 'scratch') => {
     setInputMethod(method)
@@ -71,13 +100,7 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId)
-    const template = templates.find(t => t.id === templateId)
-    
-    if (template?.layout === 'two-column' && resumeData?.sections?.length > 0) {
-      setStep('layout')
-    } else {
-      finishWizard(templateId, null)
-    }
+    finishWizard(templateId, null)
   }
 
   const finishWizard = (template: string, layout: any) => {
@@ -194,54 +217,46 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
           {step === 'template' && (
             <div className="space-y-6 animate-fadeIn">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">Choose Your Template</h2>
-                <p className="text-gray-400">Select a design that fits your style</p>
+                <h2 className="text-2xl font-bold text-white mb-2">Choose Your Industry Template</h2>
+                <p className="text-gray-400">Select a template designed for your field</p>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
-                {templates.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => handleTemplateSelect(template.id)}
-                    className={`group bg-white rounded-2xl p-6 text-left transition-all duration-300 hover:scale-105 hover:shadow-2xl border-4 ${
-                      selectedTemplate === template.id ? 'border-blue-500' : 'border-transparent'
-                    }`}
-                  >
-                    <div className="aspect-[8.5/11] bg-white border-2 border-gray-200 rounded-lg mb-4 p-3 overflow-hidden">
-                      {/* Mini Resume Preview */}
-                      <div className="h-full flex flex-col text-[8px] leading-tight">
-                        {template.layout === 'two-column' ? (
-                          <div className="flex gap-1 h-full">
-                            <div className="w-1/3 bg-gray-100 p-1 rounded">
-                              <div className="font-bold mb-1">SKILLS</div>
-                              <div className="text-gray-600">• Python</div>
-                              <div className="text-gray-600">• AWS</div>
-                            </div>
-                            <div className="w-2/3">
-                              <div className="font-bold text-center border-b pb-1 mb-1">JOHN DOE</div>
-                              <div className="font-bold mb-1">EXPERIENCE</div>
-                              <div className="text-gray-600">• Led team</div>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="text-center border-b pb-1 mb-1">
-                              <div className="font-bold">JOHN DOE</div>
-                              <div className="text-gray-600">Engineer</div>
-                            </div>
-                            <div className="font-bold mb-1">EXPERIENCE</div>
-                            <div className="text-gray-600 mb-1">• Led team of 5</div>
-                            <div className="font-bold mb-1">SKILLS</div>
-                            <div className="text-gray-600">Python, AWS</div>
-                          </>
-                        )}
+              {loading ? (
+                <div className="text-center py-20">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+                  <p className="mt-4 text-gray-300">Loading templates...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
+                  {templates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => handleTemplateSelect(template.id)}
+                      className={`group bg-white rounded-2xl p-6 text-left transition-all duration-300 hover:scale-105 hover:shadow-2xl border-4 ${
+                        selectedTemplate === template.id ? 'border-blue-500' : 'border-transparent'
+                      }`}
+                    >
+                      <div className="text-4xl mb-3 text-center group-hover:scale-110 transition-transform">
+                        {TEMPLATE_ICONS[template.id] || '📄'}
                       </div>
-                    </div>
-                    <h3 className="font-bold text-gray-900 mb-1">{template.name}</h3>
-                    <p className="text-xs text-gray-600">{template.desc}</p>
-                  </button>
-                ))}
-              </div>
+                      <div className="aspect-[8.5/11] bg-gray-50 border-2 border-gray-200 rounded-lg mb-4 p-2 overflow-hidden">
+                        <div className="h-full flex flex-col text-[7px] leading-tight">
+                          <div className="text-center border-b border-gray-400 pb-1 mb-1">
+                            <div className="font-bold">{template.id === 'data' ? 'jane_doe' : 'JANE DOE'}</div>
+                            <div className="text-gray-600 text-[6px]">{template.name}</div>
+                          </div>
+                          <div className="font-bold mb-1 text-[6px]">EXPERIENCE</div>
+                          <div className="text-gray-600 mb-1 text-[6px]">• Led team</div>
+                          <div className="font-bold mb-1 text-[6px]">SKILLS</div>
+                          <div className="text-gray-600 text-[6px]">Leadership</div>
+                        </div>
+                      </div>
+                      <h3 className="font-bold text-gray-900 mb-1 text-sm">{template.name}</h3>
+                      <p className="text-xs text-gray-600">{template.industry}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="flex justify-center gap-4 pt-6">
                 <button
@@ -250,6 +265,13 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
                 >
                   ← Back
                 </button>
+                <a
+                  href="/templates"
+                  target="_blank"
+                  className="px-6 py-3 bg-white text-gray-900 rounded-xl font-semibold hover:bg-gray-100 transition-colors"
+                >
+                  View All Templates Gallery →
+                </a>
               </div>
             </div>
           )}

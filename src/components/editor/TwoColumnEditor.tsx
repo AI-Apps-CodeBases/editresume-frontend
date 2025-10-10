@@ -327,12 +327,22 @@ export default function TwoColumnEditor({ sections, onUpdate, resumeData, onResu
           {leftSectionsList.map((section) => (
             <div key={section.id} className="bg-white rounded-lg p-3 border-2 border-blue-200">
               <div className="flex items-center justify-between mb-2 gap-2">
-                <input
-                  type="text"
-                  value={section.title}
-                  onChange={(e) => updateSectionTitle(section.id, e.target.value)}
-                  className="font-semibold text-sm border-0 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1 flex-1"
-                />
+                <div className="flex items-center gap-2 flex-1">
+                  <div
+                    className="cursor-move flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                    title="Drag to reorder (coming soon)"
+                  >
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    value={section.title}
+                    onChange={(e) => updateSectionTitle(section.id, e.target.value)}
+                    className="font-semibold text-sm border-0 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1 flex-1"
+                  />
+                </div>
                 <div className="flex gap-1">
                   <button
                     onClick={() => toggleSectionColumn(section.id)}
@@ -452,12 +462,22 @@ export default function TwoColumnEditor({ sections, onUpdate, resumeData, onResu
           {rightSectionsList.map((section) => (
             <div key={section.id} className="bg-white rounded-lg p-3 border-2 border-purple-200">
               <div className="flex items-center justify-between mb-2 gap-2">
-                <input
-                  type="text"
-                  value={section.title}
-                  onChange={(e) => updateSectionTitle(section.id, e.target.value)}
-                  className="font-semibold text-sm border-0 focus:outline-none focus:ring-2 focus:ring-purple-400 rounded px-2 py-1 flex-1"
-                />
+                <div className="flex items-center gap-2 flex-1">
+                  <div
+                    className="cursor-move flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                    title="Drag to reorder (coming soon)"
+                  >
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    value={section.title}
+                    onChange={(e) => updateSectionTitle(section.id, e.target.value)}
+                    className="font-semibold text-sm border-0 focus:outline-none focus:ring-2 focus:ring-purple-400 rounded px-2 py-1 flex-1"
+                  />
+                </div>
                 <div className="flex gap-1">
                   <button
                     onClick={() => toggleSectionColumn(section.id)}
