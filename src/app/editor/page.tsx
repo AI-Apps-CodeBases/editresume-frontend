@@ -6,8 +6,12 @@ import GlobalReplacements from '@/components/editor/GlobalReplacements'
 import TemplateSelector from '@/components/editor/TemplateSelector'
 import TwoColumnEditor from '@/components/editor/TwoColumnEditor'
 import NewResumeWizard from '@/components/editor/NewResumeWizard'
+import AuthModal from '@/components/auth/AuthModal'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function EditorPage() {
+  const { user, isAuthenticated, login, logout, checkPremiumAccess } = useAuth()
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [showWizard, setShowWizard] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -75,7 +79,48 @@ export default function EditorPage() {
     }
   }, [])
 
+  const saveToHistory = () => {
+    if (!resumeData.name) return
+    
+    const history = localStorage.getItem('resumeHistory')
+    const resumes = history ? JSON.parse(history) : []
+    const newResume = {
+      id: Date.now().toString(),
+      name: resumeData.name,
+      lastModified: new Date().toLocaleString(),
+      template: selectedTemplate
+    }
+    resumes.unshift(newResume)
+    localStorage.setItem('resumeHistory', JSON.stringify(resumes.slice(0, 10)))
+  }
+
   const handleExport = async (format: 'pdf' | 'docx') => {
+    const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
+    
+    if (premiumMode && !isAuthenticated) {
+      setShowAuthModal(true)
+      return
+    }
+
+    if (premiumMode && !checkPremiumAccess()) {
+      alert('⭐ Premium feature! Upgrade to export resumes.')
+      return
+    }
+
+    saveToHistory()
+    
+    if (isAuthenticated && user?.email) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/user/track-export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email })
+        })
+      } catch (e) {
+        console.log('Failed to track export')
+      }
+    }
+
     setIsExporting(true)
     try {
       const response = await fetch(
@@ -146,6 +191,30 @@ export default function EditorPage() {
             <div className="flex items-center justify-between">
               <a href="/" className="text-xl font-bold text-primary">editresume.io</a>
               <div className="flex gap-3 items-center">
+                {isAuthenticated ? (
+                  <div className="flex items-center gap-3">
+                    <a
+                      href="/profile"
+                      className="text-sm text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1"
+                    >
+                      👋 {user?.name}
+                      {user?.isPremium && <span className="ml-1 text-xs bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-0.5 rounded-full">PRO</span>}
+                    </a>
+                    <button
+                      onClick={logout}
+                      className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-red-400 hover:bg-red-50 transition-all font-semibold"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="text-sm px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 transition-all font-semibold"
+                  >
+                    🔐 Sign In
+                  </button>
+                )}
                 <button
                   onClick={() => setShowWizard(true)}
                   className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all font-semibold"
@@ -413,6 +482,12 @@ export default function EditorPage() {
           </div>
         </div>
       )}
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={login}
+      />
     </div>
   )
 }
