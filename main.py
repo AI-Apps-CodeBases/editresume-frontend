@@ -735,12 +735,13 @@ async def parse_text(payload: dict):
         if not text.strip():
             return {"success": False, "error": "No text provided"}
         
-        logger.info(f"Parsing text: {len(text)} characters")
-        parsed_data = parse_resume_text(text)
+        logger.info(f"Parsing text: {len(text)} characters with AI")
+        parsed_data = parse_resume_with_ai(text)
         
         return {
             "success": True,
-            "data": parsed_data
+            "data": parsed_data,
+            "message": "Resume parsed with AI - sections automatically organized!"
         }
     except Exception as e:
         logger.error(f"Text parsing error: {str(e)}")
@@ -1031,7 +1032,8 @@ async def upload_resume(file: UploadFile = File(...)):
                 "error": f"Could not extract text from {actual_type} file. The file might be:\n• Empty\n• Using special formatting (text boxes)\n• Password protected\n\nPlease try exporting from Word as a new DOCX, or use manual entry."
             }
         
-        parsed_data = parse_resume_text(text)
+        logger.info("Using AI-powered parsing for better resume organization...")
+        parsed_data = parse_resume_with_ai(text)
         
         return {
             "success": True,
@@ -1045,6 +1047,112 @@ async def upload_resume(file: UploadFile = File(...)):
         }
     except Exception as e:
         return {"success": False, "error": f"Upload failed: {str(e)}"}
+
+def parse_resume_with_ai(text: str) -> Dict:
+    """Use AI to intelligently parse and structure resume content"""
+    if not openai_client:
+        logger.warning("AI parsing not available, falling back to basic parsing")
+        return parse_resume_text(text)
+    
+    try:
+        prompt = f"""Parse this resume text and extract structured information. Return a JSON object with this exact structure:
+
+{{
+  "name": "Full Name",
+  "title": "Professional Title or Current Role",
+  "email": "email@example.com",
+  "phone": "+1-234-567-8900",
+  "location": "City, State/Country",
+  "summary": "Professional summary or objective (2-3 sentences)",
+  "sections": [
+    {{
+      "title": "Work Experience",
+      "bullets": [
+        "Full achievement/responsibility statement 1",
+        "Full achievement/responsibility statement 2"
+      ]
+    }},
+    {{
+      "title": "Education",
+      "bullets": [
+        "Degree, Institution, Year",
+        "Other education details"
+      ]
+    }},
+    {{
+      "title": "Skills",
+      "bullets": [
+        "Skill category or individual skills"
+      ]
+    }}
+  ]
+}}
+
+Rules:
+1. Identify ALL sections (Work Experience, Education, Skills, Projects, Certifications, etc.)
+2. For each section, extract complete bullet points/entries
+3. Preserve important details (dates, company names, technologies, metrics)
+4. If something is missing (like phone or email), leave it as empty string
+5. Professional summary should be concise (2-3 sentences max)
+6. Return ONLY valid JSON, no markdown code blocks
+
+Resume Text:
+{text[:4000]}
+"""
+
+        response = openai_client['requests'].post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f"Bearer {openai_client['api_key']}",
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': openai_client['model'],
+                'messages': [
+                    {'role': 'system', 'content': 'You are a resume parsing expert. Extract structured information from resumes accurately. Always return valid JSON.'},
+                    {'role': 'user', 'content': prompt}
+                ],
+                'temperature': 0.3,
+                'max_tokens': OPENAI_MAX_TOKENS
+            },
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            return parse_resume_text(text)
+        
+        result = response.json()
+        ai_response = result['choices'][0]['message']['content'].strip()
+        
+        ai_response = re.sub(r'^```json\s*', '', ai_response)
+        ai_response = re.sub(r'\s*```$', '', ai_response)
+        
+        parsed_data = json.loads(ai_response)
+        
+        for i, section in enumerate(parsed_data.get('sections', [])):
+            section['id'] = str(i)
+            for j, bullet in enumerate(section.get('bullets', [])):
+                if isinstance(bullet, str):
+                    if 'bullets' not in section:
+                        section['bullets'] = []
+                    section['bullets'][j] = {
+                        'id': f"{i}-{j}",
+                        'text': bullet,
+                        'params': {}
+                    }
+        
+        parsed_data.setdefault('detected_variables', {})
+        
+        logger.info(f"AI parsing successful: {len(parsed_data.get('sections', []))} sections extracted")
+        return parsed_data
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"AI returned invalid JSON: {e}")
+        return parse_resume_text(text)
+    except Exception as e:
+        logger.error(f"AI parsing failed: {str(e)}")
+        return parse_resume_text(text)
 
 def parse_resume_text(text: str) -> Dict:
     lines = [l.strip() for l in text.split('\n') if l.strip()]
