@@ -34,7 +34,7 @@ const TEMPLATE_ICONS: Record<string, string> = {
 
 export default function NewResumeWizard({ onComplete, onCancel }: Props) {
   const [step, setStep] = useState<'method' | 'template' | 'layout'>('method')
-  const [inputMethod, setInputMethod] = useState<'upload' | 'paste' | 'scratch' | null>(null)
+  const [inputMethod, setInputMethod] = useState<'upload' | 'paste' | 'scratch' | 'visual' | null>(null)
   const [resumeData, setResumeData] = useState<any>(null)
   const [selectedTemplate, setSelectedTemplate] = useState('tech')
   const [templates, setTemplates] = useState<Template[]>([])
@@ -61,10 +61,10 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
     }
   }, [step])
 
-  const handleMethodSelect = (method: 'upload' | 'paste' | 'scratch') => {
+  const handleMethodSelect = (method: 'upload' | 'paste' | 'scratch' | 'visual') => {
     setInputMethod(method)
-    if (method === 'scratch') {
-      setResumeData({
+    if (method === 'scratch' || method === 'visual') {
+      const newData = {
         name: '',
         title: '',
         email: '',
@@ -88,8 +88,14 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
             bullets: [{ id: Date.now().toString() + '-3', text: '', params: {} }]
           }
         ]
-      })
-      setStep('template')
+      }
+      setResumeData(newData)
+      
+      if (method === 'visual') {
+        onComplete(newData, 'visual', null)
+      } else {
+        setStep('template')
+      }
     }
   }
 
@@ -169,7 +175,7 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
               )}
 
               {!inputMethod && (
-                <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
                   <button
                     onClick={() => handleMethodSelect('upload')}
                     className="group bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-3xl p-8 text-left transition-all duration-300 hover:scale-105 hover:shadow-2xl"
@@ -206,6 +212,19 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
                     <div className="flex items-center gap-2 text-sm text-pink-200">
                       <span className="text-green-300">✓</span>
                       <span>Blank canvas</span>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleMethodSelect('visual')}
+                    className="group bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 rounded-3xl p-8 text-left transition-all duration-300 hover:scale-105 hover:shadow-2xl ring-4 ring-yellow-400"
+                  >
+                    <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">🎨</div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Visual Editor</h3>
+                    <p className="text-emerald-100 mb-4">Edit directly on template with drag & drop</p>
+                    <div className="flex items-center gap-2 text-sm text-emerald-200">
+                      <span className="text-yellow-300">⭐</span>
+                      <span>Easiest & fastest</span>
                     </div>
                   </button>
                 </div>

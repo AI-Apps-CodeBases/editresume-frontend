@@ -9,6 +9,7 @@ import TwoColumnEditor from '@/components/editor/TwoColumnEditor'
 import NewResumeWizard from '@/components/editor/NewResumeWizard'
 import AuthModal from '@/components/auth/AuthModal'
 import CollaborationPanel from '@/components/editor/CollaborationPanel'
+import VisualResumeEditor from '@/components/editor/VisualResumeEditor'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCollaboration } from '@/hooks/useCollaboration'
 
@@ -29,6 +30,12 @@ export default function EditorPage() {
       return localStorage.getItem('selectedTemplate') || 'tech'
     }
     return 'tech'
+  })
+  const [editorMode, setEditorMode] = useState<'form' | 'visual'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('editorMode') as 'form' | 'visual') || 'form'
+    }
+    return 'form'
   })
 
   const collaboration = useCollaboration()
@@ -68,7 +75,22 @@ export default function EditorPage() {
     }
     
     setResumeData(newResumeData)
-    setSelectedTemplate(template)
+    
+    if (template === 'visual') {
+      setEditorMode('visual')
+      setSelectedTemplate('tech')
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('editorMode', 'visual')
+        localStorage.setItem('selectedTemplate', 'tech')
+      }
+    } else {
+      setEditorMode('form')
+      setSelectedTemplate(template)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('editorMode', 'form')
+        localStorage.setItem('selectedTemplate', template)
+      }
+    }
     
     if (data.detected_variables) {
       setReplacements(data.detected_variables)
@@ -357,10 +379,17 @@ export default function EditorPage() {
             <div className="bg-white rounded-xl shadow-sm border p-4">
               <div className="flex items-center gap-6">
                 <div className="flex-1">
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block">Template</label>
+                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
+                    Template {editorMode === 'visual' && <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">🎨 Visual Mode</span>}
+                  </label>
                   <TemplateSelector
                     selected={selectedTemplate}
-                    onChange={setSelectedTemplate}
+                    onChange={(template) => {
+                      setSelectedTemplate(template)
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('selectedTemplate', template)
+                      }
+                    }}
                   />
                 </div>
                 <div className="flex-1">
@@ -373,12 +402,111 @@ export default function EditorPage() {
               </div>
             </div>
 
-            {/* Two Column Layout - Editor & Preview */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Left - Editor */}
+            {/* Visual Editor Full Width or Two Column Layout */}
+            {editorMode === 'visual' ? (
               <div className="space-y-4">
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-emerald-900 mb-1">🎨 Visual Editor Mode</h2>
+                    <p className="text-sm text-emerald-700">Click any text to edit • Drag sections/bullets to reorder • Select text for AI improvements</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditorMode('form')
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('editorMode', 'form')
+                      }
+                    }}
+                    className="px-4 py-2 bg-white text-emerald-700 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition-colors border border-emerald-300"
+                  >
+                    Switch to Form Editor
+                  </button>
+                </div>
                 <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-                  {selectedTemplate === 'two-column' ? (
+                  <VisualResumeEditor
+                    data={resumeData}
+                    onChange={handleResumeDataChange}
+                    template={selectedTemplate}
+                    onAIImprove={async (text: string) => {
+                      try {
+                        console.log('AI Improve requested for:', text)
+                        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/openai/improve-bullet`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ bullet: text, tone: 'professional' })
+                        })
+                        
+                        if (!response.ok) {
+                          throw new Error(`HTTP error! status: ${response.status}`)
+                        }
+                        
+                        const data = await response.json()
+                        console.log('AI Improve response:', data)
+                        
+                        let improved = data.improved || data.improved_bullet || text
+                        improved = improved.replace(/^["']|["']$/g, '')
+                        
+                        console.log('Final improved text:', improved)
+                        return improved
+                      } catch (error) {
+                        console.error('AI improvement failed:', error)
+                        alert('AI improvement failed: ' + (error as Error).message)
+                        return text
+                      }
+                    }}
+                  />
+                </div>
+                <div className="bg-white rounded-xl shadow-lg p-4 border-2 border-emerald-200">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-gray-900 mb-1">Ready to Export?</h3>
+                      <p className="text-xs text-gray-600">
+                        {!resumeData.name 
+                          ? "Enter your name above to enable export" 
+                          : "Download your resume in your preferred format"}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleExport('docx')}
+                        disabled={isExporting || !resumeData.name}
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold text-sm"
+                      >
+                        📄 DOCX
+                      </button>
+                      <button 
+                        onClick={() => handleExport('pdf')}
+                        disabled={isExporting || !resumeData.name}
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold text-sm shadow-md"
+                      >
+                        {isExporting ? '⏳ Exporting...' : '📥 PDF'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {/* Left - Editor */}
+                <div className="space-y-4">
+                  {editorMode === 'form' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center justify-between">
+                      <p className="text-sm text-blue-700 font-medium">📝 Form Editor Mode</p>
+                      <button
+                        onClick={() => {
+                          setEditorMode('visual')
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('editorMode', 'visual')
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors"
+                      >
+                        Switch to Visual Editor
+                      </button>
+                    </div>
+                  )}
+                  <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+                    {selectedTemplate === 'two-column' ? (
                     <div className="space-y-4">
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                         <h2 className="text-lg font-bold text-blue-900 mb-2">🎨 Two-Column Layout Editor</h2>
@@ -498,6 +626,7 @@ export default function EditorPage() {
                 </div>
               </div>
             </div>
+            )}
           </div>
         )}
       </div>
