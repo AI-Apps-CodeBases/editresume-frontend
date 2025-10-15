@@ -550,6 +550,184 @@ Return ONLY the summary text, no explanations or labels."""
         logger.error(f"OpenAI generate summary error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
 
+@app.post("/api/ai/generate_bullet_from_keywords")
+async def generate_bullet_from_keywords(payload: dict):
+    """Generate bullet points from keywords and company context"""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI service not available")
+    
+    try:
+        keywords = payload.get('keywords', '')
+        company_title = payload.get('company_title', '')
+        job_title = payload.get('job_title', '')
+        
+        if not keywords:
+            raise HTTPException(status_code=400, detail="Keywords are required")
+        
+        context = f"""Generate a professional bullet point for a resume based on these keywords and context:
+
+Company: {company_title}
+Job Title: {job_title}
+Keywords: {keywords}
+
+Requirements:
+- Create ONE professional bullet point
+- Use action-oriented language (managed, implemented, developed, etc.)
+- Include specific technologies/tools if mentioned in keywords
+- Make it achievement-focused with metrics if possible
+- 1-2 lines maximum
+- Professional tone
+- ATS-optimized
+
+Return ONLY the bullet point text, no explanations or labels."""
+
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json={
+                "model": "gpt-3.5-turbo",
+                "messages": [
+                    {"role": "system", "content": "You are a professional resume writer. Create compelling bullet points that highlight achievements and technical skills."},
+                    {"role": "user", "content": context}
+                ],
+                "max_tokens": 150,
+                "temperature": 0.7
+            },
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            raise HTTPException(status_code=500, detail="AI service error")
+        
+        result = response.json()
+        bullet_text = result['choices'][0]['message']['content'].strip()
+        
+        # Clean up the response
+        bullet_text = bullet_text.replace('•', '').replace('*', '').strip()
+        
+        return {
+            "success": True,
+            "bullet_text": bullet_text,
+            "keywords_used": keywords,
+            "company_title": company_title,
+            "job_title": job_title,
+            "tokens_used": result.get('usage', {}).get('total_tokens', 0)
+        }
+        
+    except Exception as e:
+        logger.error(f"OpenAI generate bullet from keywords error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+
+@app.post("/api/ai/generate_summary_from_experience")
+async def generate_summary_from_experience(payload: dict):
+    """Generate ATS-optimized professional summary by analyzing work experience"""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI service not available")
+    
+    try:
+        name = payload.get('name', 'Professional')
+        title = payload.get('title', '')
+        sections = payload.get('sections', [])
+        
+        # Extract work experience
+        work_experience_text = ""
+        skills_text = ""
+        
+        for section in sections:
+            section_title = section.get('title', '').lower()
+            bullets = section.get('bullets', [])
+            
+            if 'experience' in section_title or 'work' in section_title or 'employment' in section_title:
+                work_experience_text += f"\n{section.get('title')}:\n"
+                for bullet in bullets:
+                    bullet_text = bullet.get('text', '') if isinstance(bullet, dict) else str(bullet)
+                    if bullet_text.strip():
+                        work_experience_text += f"  {bullet_text}\n"
+            
+            if 'skill' in section_title:
+                for bullet in bullets:
+                    bullet_text = bullet.get('text', '') if isinstance(bullet, dict) else str(bullet)
+                    if bullet_text.strip():
+                        skills_text += f"{bullet_text}, "
+        
+        context = f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
+
+Professional Title: {title if title else 'Not specified'}
+
+Work Experience:
+{work_experience_text if work_experience_text else 'Limited information provided'}
+
+Skills:
+{skills_text if skills_text else 'To be extracted from experience'}
+
+Requirements for the Professional Summary:
+1. Length: 6-7 sentences (approximately 100-120 words)
+2. ATS-Optimized: Include relevant keywords from their experience and industry
+3. Structure:
+   - Sentence 1: Opening statement with years of experience and core expertise
+   - Sentences 2-4: Key achievements, skills, and value proposition with specific metrics when available
+   - Sentences 5-6: Technical competencies and areas of expertise
+   - Sentence 7: Career objective or unique value add
+4. Include specific technologies, tools, and methodologies mentioned in experience
+5. Use action-oriented language and quantifiable achievements
+6. Professional, confident tone
+7. Third-person perspective (avoid "I")
+8. Focus on impact and results
+9. Include industry-specific keywords for ATS systems
+
+Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""
+
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [
+                {"role": "system", "content": "You are an expert resume writer specializing in ATS-optimized professional summaries. You analyze work experience to create compelling, keyword-rich summaries that pass ATS systems and impress recruiters."},
+                {"role": "user", "content": context}
+            ],
+            "max_tokens": 500,
+            "temperature": 0.7
+        }
+        
+        logger.info(f"Generating summary from experience for: {name}")
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"OpenAI API error: {response.status_code}")
+        
+        result = response.json()
+        summary = result['choices'][0]['message']['content'].strip()
+        
+        # Remove any quotes or formatting markers
+        summary = summary.strip('"\'')
+        
+        logger.info(f"Generated summary: {len(summary)} characters")
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "tokens_used": result.get('usage', {}).get('total_tokens', 0),
+            "word_count": len(summary.split())
+        }
+    except Exception as e:
+        logger.error(f"OpenAI generate summary from experience error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
+
 TEMPLATES = {
     "tech": {
         "name": "Tech Professional",
@@ -772,6 +950,51 @@ def format_bold_text(text: str) -> str:
     """Convert **text** to <strong>text</strong> for HTML"""
     return text.replace('**', '<strong>').replace('**', '</strong>')
 
+def format_work_experience_bullets(bullets, replacements):
+    """Format work experience bullets with proper company headers and tasks"""
+    html_parts = []
+    current_company = None
+    
+    for bullet in bullets:
+        if not bullet.text.strip():
+            # Empty separator - add spacing
+            html_parts.append('<div class="job-separator"></div>')
+            continue
+            
+        bullet_text = apply_replacements(bullet.text, replacements)
+        
+        # Check if this is a company header (starts with **)
+        if bullet_text.startswith('**') and '**' in bullet_text[2:]:
+            # Company header - extract company name and format
+            company_text = bullet_text.replace('**', '').strip()
+            html_parts.append(f'<div class="job-entry"><div class="company-name">{company_text}</div>')
+            current_company = company_text
+        else:
+            # Regular task bullet - remove any existing bullet points
+            task_text = bullet_text.replace('•', '').replace('*', '').strip()
+            if task_text:
+                html_parts.append(f'<li>{task_text}</li>')
+    
+    # Close the last job entry if needed
+    if current_company:
+        html_parts.append('</div>')
+    
+    return '\n'.join(html_parts)
+
+def format_regular_bullets(bullets, replacements):
+    """Format regular section bullets"""
+    html_parts = []
+    
+    for bullet in bullets:
+        if bullet.text.strip():
+            bullet_text = apply_replacements(bullet.text, replacements)
+            # Remove any existing bullet points and format
+            clean_text = bullet_text.replace('•', '').replace('*', '').strip()
+            if clean_text:
+                html_parts.append(f'<li>{format_bold_text(clean_text)}</li>')
+    
+    return '\n'.join(html_parts)
+
 @app.post("/api/resume/export/pdf")
 async def export_pdf(payload: ExportPayload):
     try:
@@ -814,13 +1037,25 @@ async def export_pdf(payload: ExportPayload):
             # If no configuration provided, use alternating logic
             if not left_section_ids and not right_section_ids:
                 for i, s in enumerate(payload.sections):
-                    section_html = f'''
-                    <div class="section">
-                        <h2>{apply_replacements(s.title, replacements)}</h2>
-                        <ul>
-                            {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets if b.text.strip()])}
-                        </ul>
-                    </div>'''
+                    section_title = s.title.lower()
+                    is_work_experience = 'experience' in section_title or 'work' in section_title or 'employment' in section_title
+                    
+                    if is_work_experience:
+                        bullets_html = format_work_experience_bullets(s.bullets, replacements)
+                        section_html = f'''
+                        <div class="section">
+                            <h2>{apply_replacements(s.title, replacements)}</h2>
+                            {bullets_html}
+                        </div>'''
+                    else:
+                        bullets_html = format_regular_bullets(s.bullets, replacements)
+                        section_html = f'''
+                        <div class="section">
+                            <h2>{apply_replacements(s.title, replacements)}</h2>
+                            <ul>
+                                {bullets_html}
+                            </ul>
+                        </div>'''
                     
                     if i % 2 == 0:
                         left_sections_html += section_html
@@ -829,13 +1064,25 @@ async def export_pdf(payload: ExportPayload):
             else:
                 # Use provided configuration
                 for s in payload.sections:
-                    section_html = f'''
-                    <div class="section">
-                        <h2>{apply_replacements(s.title, replacements)}</h2>
-                        <ul>
-                            {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets if b.text.strip()])}
-                        </ul>
-                    </div>'''
+                    section_title = s.title.lower()
+                    is_work_experience = 'experience' in section_title or 'work' in section_title or 'employment' in section_title
+                    
+                    if is_work_experience:
+                        bullets_html = format_work_experience_bullets(s.bullets, replacements)
+                        section_html = f'''
+                        <div class="section">
+                            <h2>{apply_replacements(s.title, replacements)}</h2>
+                            {bullets_html}
+                        </div>'''
+                    else:
+                        bullets_html = format_regular_bullets(s.bullets, replacements)
+                        section_html = f'''
+                        <div class="section">
+                            <h2>{apply_replacements(s.title, replacements)}</h2>
+                            <ul>
+                                {bullets_html}
+                            </ul>
+                        </div>'''
                     
                     if s.id and s.id in left_section_ids:
                         left_sections_html += section_html
@@ -860,13 +1107,27 @@ async def export_pdf(payload: ExportPayload):
         else:
             # Single column layout
             summary_html = f'<div class="summary">{apply_replacements(payload.summary, replacements)}</div>' if payload.summary else ''
-            sections_html = ''.join([f'''
-            <div class="section">
-                <h2>{apply_replacements(s.title, replacements)}</h2>
-                <ul>
-                    {''.join([f'<li>{format_bold_text(apply_replacements(b.text, replacements))}</li>' for b in s.bullets if b.text.strip()])}
-                </ul>
-            </div>''' for s in payload.sections])
+            sections_html = ''
+            for s in payload.sections:
+                section_title = s.title.lower()
+                is_work_experience = 'experience' in section_title or 'work' in section_title or 'employment' in section_title
+                
+                if is_work_experience:
+                    bullets_html = format_work_experience_bullets(s.bullets, replacements)
+                    sections_html += f'''
+                    <div class="section">
+                        <h2>{apply_replacements(s.title, replacements)}</h2>
+                        {bullets_html}
+                    </div>'''
+                else:
+                    bullets_html = format_regular_bullets(s.bullets, replacements)
+                    sections_html += f'''
+                    <div class="section">
+                        <h2>{apply_replacements(s.title, replacements)}</h2>
+                        <ul>
+                            {bullets_html}
+                        </ul>
+                    </div>'''
             content_html = summary_html + sections_html
         
         html_content = f'''<!DOCTYPE html>
@@ -886,6 +1147,9 @@ async def export_pdf(payload: ExportPayload):
                        border-bottom: 1px solid #333; padding-bottom: 3px; margin-bottom: 8px; }}
         .section ul {{ margin: 0; padding-left: 20px; list-style-type: disc; }}
         .section li {{ margin-bottom: 6px; font-size: 10pt; }}
+        .job-entry {{ margin-bottom: 20px; }}
+        .company-name {{ font-weight: bold; font-size: 1.1em; color: #333; margin-bottom: 5px; margin-left: 0; }}
+        .job-separator {{ height: 10px; }}
         .two-column {{ width: 100%; }}
         .column {{ float: left; }}
         .clearfix {{ clear: both; }}
@@ -1002,12 +1266,17 @@ async def upload_resume(file: UploadFile = File(...)):
                 import pdfplumber
                 pdf_file = BytesIO(contents)
                 with pdfplumber.open(pdf_file) as pdf:
-                    for page in pdf.pages:
+                    total_pages = len(pdf.pages)
+                    logger.info(f"PDF has {total_pages} pages")
+                    
+                    for page_num, page in enumerate(pdf.pages, 1):
                         page_text = page.extract_text()
                         if page_text:
+                            text += f"\n--- Page {page_num} ---\n"
                             text += page_text + "\n"
+                            logger.info(f"Extracted {len(page_text)} characters from page {page_num}")
                 
-                logger.info(f"PDF extracted {len(text)} characters")
+                logger.info(f"PDF extraction complete: {total_pages} pages, {len(text)} total characters")
             except Exception as pdf_error:
                 error_msg = str(pdf_error)
                 logger.error(f"PDF error: {error_msg}")
@@ -1068,37 +1337,58 @@ def parse_resume_with_ai(text: str) -> Dict:
     {{
       "title": "Work Experience",
       "bullets": [
-        "Full achievement/responsibility statement 1",
-        "Full achievement/responsibility statement 2"
+        "**Company Name / Job Title / Start Date - End Date**",
+        "• Achievement or task for this role",
+        "• Another achievement with metrics",
+        "• Key responsibility or accomplishment",
+        "",
+        "**Another Company / Job Title / Start Date - End Date**",
+        "• Achievement at this company",
+        "• Another task or responsibility"
       ]
     }},
     {{
       "title": "Education",
       "bullets": [
         "Degree, Institution, Year",
-        "Other education details"
+        "GPA or honors if applicable"
       ]
     }},
     {{
       "title": "Skills",
       "bullets": [
-        "Skill category or individual skills"
+        "Skill category: specific skills",
+        "Another category: more skills"
       ]
     }}
   ]
 }}
 
-Rules:
-1. Identify ALL sections (Work Experience, Education, Skills, Projects, Certifications, etc.)
-2. For each section, extract complete bullet points/entries
-3. Preserve important details (dates, company names, technologies, metrics)
-4. If something is missing (like phone or email), leave it as empty string
-5. Professional summary should be concise (2-3 sentences max)
-6. Return ONLY valid JSON, no markdown code blocks
+CRITICAL RULES FOR WORK EXPERIENCE:
+1. Company/Job line MUST be: **Company Name / Job Title / Date Range** (with ** for bold)
+2. Tasks/achievements MUST start with "• " (bullet point)
+3. Separate different jobs with empty string ""
+4. Extract complete date ranges (e.g., "Jan 2020 - Dec 2022" or "2020-2022")
+5. Include ALL jobs from the resume
 
-Resume Text:
-{text[:4000]}
+OTHER RULES:
+6. Identify ALL sections (Education, Skills, Projects, Certifications, Awards, etc.)
+7. Preserve important details (dates, technologies, metrics, achievements)
+8. If something is missing (like phone or email), leave it as empty string
+9. Professional summary should be concise (2-3 sentences max)
+10. Return ONLY valid JSON, no markdown code blocks
+11. This may be a MULTI-PAGE resume - extract ALL information from ALL pages
+12. Include everything: all work experience, education, skills, projects, certifications
+
+Resume Text (Full Content):
+{text[:12000]}
 """
+
+        # For very long resumes, use higher token limit
+        resume_length = len(text)
+        max_tokens_for_resume = min(4000, OPENAI_MAX_TOKENS) if resume_length > 8000 else OPENAI_MAX_TOKENS
+        
+        logger.info(f"Parsing resume: {resume_length} characters, using {max_tokens_for_resume} max tokens")
 
         response = openai_client['requests'].post(
             'https://api.openai.com/v1/chat/completions',
@@ -1109,13 +1399,13 @@ Resume Text:
             json={
                 'model': openai_client['model'],
                 'messages': [
-                    {'role': 'system', 'content': 'You are a resume parsing expert. Extract structured information from resumes accurately. Always return valid JSON.'},
+                    {'role': 'system', 'content': 'You are a resume parsing expert. Extract structured information from multi-page resumes accurately. Capture ALL sections and information. Always return valid JSON.'},
                     {'role': 'user', 'content': prompt}
                 ],
                 'temperature': 0.3,
-                'max_tokens': OPENAI_MAX_TOKENS
+                'max_tokens': max_tokens_for_resume
             },
-            timeout=30
+            timeout=45
         )
         
         if response.status_code != 200:
