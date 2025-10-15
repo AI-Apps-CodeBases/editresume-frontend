@@ -373,28 +373,29 @@ export default function EditorPage() {
               onLeaveRoom={handleLeaveRoom}
             />
 
-            {/* Top Bar - Template & Controls */}
+            {/* Top Bar - Template Info */}
             <div className="bg-white rounded-xl shadow-sm border p-4">
               <div className="flex items-center gap-6">
                 <div className="flex-1">
                   <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                    🎨 Visual Editor Controls
+                    🎨 Visual Editor
                   </label>
                   <div className="flex items-center gap-4">
                     <div className="text-sm text-gray-600">
                       <span className="font-medium">Template:</span> {selectedTemplate}
                     </div>
+                    <div className="text-xs text-gray-500">
+                      Template selected during setup
+                    </div>
                     <button
                       onClick={() => {
-                        const newTemplate = selectedTemplate === 'tech' ? 'clean' : selectedTemplate === 'clean' ? 'minimal' : 'tech'
-                        setSelectedTemplate(newTemplate)
-                        if (typeof window !== 'undefined') {
-                          localStorage.setItem('selectedTemplate', newTemplate)
-                        }
+                        console.log('=== MANUAL PREVIEW REFRESH ===')
+                        setPreviewKey(prev => prev + 1)
+                        console.log('Preview key updated to:', previewKey + 1)
                       }}
-                      className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200 transition-colors"
+                      className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold hover:bg-blue-200"
                     >
-                      Switch Template
+                      🔄 Refresh Preview
                     </button>
                   </div>
                 </div>
@@ -655,24 +656,55 @@ export default function EditorPage() {
                 // Add new job experience
                 const workExperienceSection = resumeData.sections.find(s => 
                   s.title.toLowerCase().includes('experience') || 
-                  s.title.toLowerCase().includes('work')
+                  s.title.toLowerCase().includes('work') ||
+                  s.title.toLowerCase().includes('employment') ||
+                  s.title.toLowerCase().includes('professional')
                 )
                 
+                console.log('Available sections:', resumeData.sections.map(s => s.title))
                 console.log('Found work experience section:', workExperienceSection)
                 
-                if (workExperienceSection && newContent.content) {
+                if (newContent.content) {
+                  let targetSection = workExperienceSection
+                  
+                  // If no work experience section found, create one
+                  if (!targetSection) {
+                    console.log('No work experience section found, creating one...')
+                    targetSection = {
+                      id: Date.now().toString(),
+                      title: 'Work Experience',
+                      bullets: []
+                    }
+                    // Add the new section to the beginning of sections array
+                    resumeData.sections.unshift(targetSection)
+                  }
                   const content = newContent.content
                   const bullets = content.bullets || []
                   
                   console.log('Content bullets:', bullets)
                   
+                  console.log('Content validation:', {
+                    company: content.company,
+                    role: content.role,
+                    duration: content.duration,
+                    bullets: bullets,
+                    fullContent: content
+                  })
+                  
+                  // Handle undefined values with fallbacks
+                  const company = content.company || 'Unknown Company'
+                  const role = content.role || 'Unknown Role'
+                  const duration = content.duration || 'Unknown Duration'
+                  
+                  console.log('Using fallbacks:', { company, role, duration })
+                  
                   const newBullets = [
                     { 
                       id: Date.now().toString(), 
-                      text: `**${content.company || 'Company'} / ${content.role || 'Role'} / ${content.duration || 'Duration'}**`, 
+                      text: `**${company} / ${role} / ${duration}**`, 
                       params: {} 
                     },
-                    ...bullets.map((bullet: string) => ({
+                    ...bullets.filter(bullet => bullet && bullet.trim()).map((bullet: string) => ({
                       id: Date.now().toString() + Math.random(),
                       text: `• ${bullet}`,
                       params: {}
@@ -681,18 +713,32 @@ export default function EditorPage() {
                   
                   console.log('New bullets to add:', newBullets)
                   
+                  // Clean up existing placeholder entries
+                  const cleanExistingBullets = (bullets: any[]) => {
+                    return bullets.filter(bullet => 
+                      bullet.text && 
+                      bullet.text.trim() && 
+                      !bullet.text.includes('Company / Role / Duration') &&
+                      !bullet.text.includes('**Company**') &&
+                      !bullet.text.includes('**Role**') &&
+                      !bullet.text.includes('**Duration**')
+                    )
+                  }
+                  
                   const updatedSections = resumeData.sections.map(section => {
-                    if (section.id === workExperienceSection.id) {
+                    if (section.id === targetSection.id) {
                       let updatedBullets
+                      const cleanedExistingBullets = cleanExistingBullets(section.bullets)
+                      
                       if (newContent.position === 'beginning') {
-                        updatedBullets = [...newBullets, ...section.bullets]
+                        updatedBullets = [...newBullets, ...cleanedExistingBullets]
                       } else if (newContent.position === 'middle') {
-                        const middleIndex = Math.floor(section.bullets.length / 2)
-                        const newBulletsList = [...section.bullets]
+                        const middleIndex = Math.floor(cleanedExistingBullets.length / 2)
+                        const newBulletsList = [...cleanedExistingBullets]
                         newBulletsList.splice(middleIndex, 0, ...newBullets)
                         updatedBullets = newBulletsList
                       } else {
-                        updatedBullets = [...section.bullets, ...newBullets]
+                        updatedBullets = [...cleanedExistingBullets, ...newBullets]
                       }
                       
                       console.log('Updated bullets for section:', updatedBullets)
@@ -704,9 +750,11 @@ export default function EditorPage() {
                   console.log('Updated sections:', updatedSections)
                   const newResumeData = { ...resumeData, sections: updatedSections }
                   console.log('New resume data:', newResumeData)
+                  console.log('Calling handleResumeDataChange to update preview...')
                   handleResumeDataChange(newResumeData)
+                  console.log('handleResumeDataChange completed')
                 } else {
-                  console.log('No work experience section found or no content')
+                  console.log('No content provided')
                 }
               } else if (newContent.type === 'project') {
                 // Add new project

@@ -415,7 +415,7 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
           {/* Cancel Button */}
           <div className="text-center mt-8">
             <button
-              onClick={onCancel}
+              onClick={() => window.location.href = '/'}
               className="text-gray-400 hover:text-white text-sm underline"
             >
               Cancel and go back

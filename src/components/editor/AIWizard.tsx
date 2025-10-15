@@ -35,30 +35,47 @@ export default function AIWizard({ data, onAddContent, onClose }: Props) {
   const [generatedContent, setGeneratedContent] = useState<any>(null)
 
   const handleGenerate = async () => {
+    console.log('=== AI WIZARD GENERATING CONTENT ===')
+    console.log('Content type:', contentType)
+    console.log('Requirements:', requirements)
+    console.log('Position:', position)
+    console.log('Target section:', targetSection)
+    console.log('Existing data:', data)
+    
     setIsGenerating(true)
     try {
+      const payload = {
+        contentType,
+        requirements,
+        position,
+        targetSection,
+        existingData: data,
+        context: {
+          name: data.name,
+          title: data.title,
+          currentSections: data.sections.map(s => s.title)
+        }
+      }
+      
+      console.log('Sending payload to backend:', payload)
+      
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_resume_content`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contentType,
-          requirements,
-          position,
-          targetSection,
-          existingData: data,
-          context: {
-            name: data.name,
-            title: data.title,
-            currentSections: data.sections.map(s => s.title)
-          }
-        })
+        body: JSON.stringify(payload)
       })
 
+      console.log('Response status:', response.status)
+      console.log('Response ok:', response.ok)
+
       if (!response.ok) {
-        throw new Error('Failed to generate content')
+        const errorText = await response.text()
+        console.error('Response error:', errorText)
+        throw new Error(`Failed to generate content: ${response.status} - ${errorText}`)
       }
 
       const result = await response.json()
+      console.log('Generated content result:', result)
       setGeneratedContent(result)
       setStep(3)
     } catch (error) {
@@ -70,14 +87,25 @@ export default function AIWizard({ data, onAddContent, onClose }: Props) {
   }
 
   const handleAddContent = () => {
+    console.log('=== AI WIZARD ADDING CONTENT ===')
+    console.log('Generated content:', generatedContent)
+    console.log('Content type:', contentType)
+    console.log('Position:', position)
+    console.log('Target section:', targetSection)
+    
     if (generatedContent) {
-      onAddContent({
+      const contentToAdd = {
         type: contentType,
         content: generatedContent,
         position,
         targetSection
-      })
+      }
+      console.log('Calling onAddContent with:', contentToAdd)
+      onAddContent(contentToAdd)
       onClose()
+    } else {
+      console.error('No generated content to add')
+      alert('No content generated to add')
     }
   }
 
@@ -347,6 +375,46 @@ export default function AIWizard({ data, onAddContent, onClose }: Props) {
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
               >
                 ✅ Add to Resume
+              </button>
+            </div>
+            
+            {/* Debug Test Button */}
+            <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <p className="text-xs text-yellow-700 mb-2">
+                🧪 <strong>Debug:</strong> Test backend connection
+              </p>
+              <button
+                onClick={async () => {
+                  console.log('=== TESTING BACKEND CONNECTION ===')
+                  try {
+                    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_resume_content`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        contentType: 'job',
+                        requirements: 'Test DevOps job at Google with Jenkins and Kubernetes',
+                        position: 'beginning',
+                        targetSection: '',
+                        existingData: data,
+                        context: {
+                          name: data.name,
+                          title: data.title,
+                          currentSections: data.sections.map(s => s.title)
+                        }
+                      })
+                    })
+                    console.log('Test response status:', response.status)
+                    const result = await response.json()
+                    console.log('Test response result:', result)
+                    alert('Backend test successful! Check console for details.')
+                  } catch (error) {
+                    console.error('Backend test failed:', error)
+                    alert('Backend test failed: ' + error.message)
+                  }
+                }}
+                className="px-3 py-1 bg-yellow-600 text-white rounded text-xs font-semibold hover:bg-yellow-700"
+              >
+                Test Backend
               </button>
             </div>
           </div>

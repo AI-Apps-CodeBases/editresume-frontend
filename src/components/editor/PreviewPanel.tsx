@@ -73,18 +73,48 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
     console.log('Bullets to render:', bullets.length)
     console.log('Bullet texts:', bullets.map(b => b.text))
     
-    // For now, let's simplify and render all sections the same way to test
-    console.log('Rendering as simple list for debugging')
+    // Filter out empty bullets but keep all non-empty ones
+    const validBullets = bullets.filter(b => b.text && b.text.trim())
+    console.log('Valid bullets after filtering:', validBullets.length)
+    
+    if (validBullets.length === 0) {
+      console.log('No valid bullets to render')
+      return <div className="text-gray-500 text-sm">No content available</div>
+    }
+    
+    console.log('Rendering bullets as list')
     return (
       <ul className="space-y-2">
-        {bullets.filter(b => b.text.trim()).map((bullet) => (
-          <li key={bullet.id} className="text-sm leading-relaxed flex">
-            <span className="mr-2">•</span>
-            <span className="flex-1" dangerouslySetInnerHTML={{ 
-              __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-            }} />
-          </li>
-        ))}
+        {validBullets.map((bullet, index) => {
+          const isHeader = bullet.text.startsWith('**') && bullet.text.endsWith('**')
+          const isBulletPoint = bullet.text.startsWith('•')
+          
+          console.log(`Bullet ${index}:`, {
+            text: bullet.text,
+            isHeader,
+            isBulletPoint,
+            id: bullet.id
+          })
+          
+          if (isHeader) {
+            return (
+              <li key={bullet.id} className="font-bold text-base mb-2 mt-4 first:mt-0">
+                <span dangerouslySetInnerHTML={{ 
+                  __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                }} />
+              </li>
+            )
+          } else {
+            return (
+              <li key={bullet.id} className="text-sm leading-relaxed flex">
+                <span className="mr-2">•</span>
+                <span className="flex-1" dangerouslySetInnerHTML={{ 
+                  __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                }} />
+              </li>
+            )
+          }
+        })}
       </ul>
     )
   }
