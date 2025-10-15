@@ -34,6 +34,95 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
     return result
   }
 
+  const renderBullets = (bullets: any[], sectionTitle: string) => {
+    const isWorkExperience = sectionTitle.toLowerCase().includes('experience') || 
+                             sectionTitle.toLowerCase().includes('work') || 
+                             sectionTitle.toLowerCase().includes('employment')
+    
+    if (!isWorkExperience) {
+      return (
+        <ul className="space-y-2">
+          {bullets.filter(b => b.text.trim()).map((bullet) => (
+            <li key={bullet.id} className="text-sm leading-relaxed flex">
+              <span className="mr-2">•</span>
+              <span className="flex-1" dangerouslySetInnerHTML={{ 
+                __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+              }} />
+            </li>
+          ))}
+        </ul>
+      )
+    }
+    
+    // Work Experience - group by company
+    const groups: JSX.Element[] = []
+    let currentCompany: JSX.Element | null = null
+    let currentTasks: JSX.Element[] = []
+    
+    bullets.forEach((bullet, index) => {
+      const text = bullet.text.trim()
+      
+      if (!text) {
+        // Empty separator - push current group
+        if (currentCompany && currentTasks.length > 0) {
+          groups.push(
+            <div key={`group-${index}`} className="mb-4">
+              {currentCompany}
+              <ul className="space-y-1 mt-2">
+                {currentTasks}
+              </ul>
+            </div>
+          )
+        }
+        currentCompany = null
+        currentTasks = []
+      } else if (text.startsWith('**') && text.includes('**', 2)) {
+        // Company header
+        if (currentCompany && currentTasks.length > 0) {
+          groups.push(
+            <div key={`group-${index}`} className="mb-4">
+              {currentCompany}
+              <ul className="space-y-1 mt-2">
+                {currentTasks}
+              </ul>
+            </div>
+          )
+        }
+        currentCompany = (
+          <div className="font-bold text-base text-gray-900" dangerouslySetInnerHTML={{
+            __html: applyReplacements(text).replace(/\*\*(.*?)\*\*/g, '$1')
+          }} />
+        )
+        currentTasks = []
+      } else {
+        // Regular bullet
+        const cleanText = text.startsWith('• ') ? text.substring(2) : text
+        currentTasks.push(
+          <li key={bullet.id} className="text-sm leading-relaxed flex">
+            <span className="mr-2">•</span>
+            <span className="flex-1" dangerouslySetInnerHTML={{ 
+              __html: applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+            }} />
+          </li>
+        )
+      }
+    })
+    
+    // Don't forget the last group
+    if (currentCompany && currentTasks.length > 0) {
+      groups.push(
+        <div key={`group-last`} className="mb-4">
+          {currentCompany}
+          <ul className="space-y-1 mt-2">
+            {currentTasks}
+          </ul>
+        </div>
+      )
+    }
+    
+    return <div className="space-y-4">{groups}</div>
+  }
+
   const headerAlign = template === 'clean' || template === 'two-column' || template === 'compact' ? 'center' : 'left'
   const headerBorder = template === 'clean' ? 'border-b-2 border-black' : template === 'minimal' ? 'border-b border-gray-300' : 'border-b'
   const sectionUppercase = template === 'clean' || template === 'compact'
@@ -118,16 +207,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
                   <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
                     {applyReplacements(section.title)}
                   </h2>
-                  <ul className="space-y-2">
-                    {section.bullets.map((bullet) => (
-                      <li key={bullet.id} className="text-sm leading-relaxed flex">
-                        <span className="mr-2">•</span>
-                        <span className="flex-1" dangerouslySetInnerHTML={{ 
-                          __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-                        }} />
-                      </li>
-                    ))}
-                  </ul>
+                  {renderBullets(section.bullets, section.title)}
                 </div>
               ))}
             </div>
@@ -138,16 +218,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
                   <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
                     {applyReplacements(section.title)}
                   </h2>
-                  <ul className="space-y-2">
-                    {section.bullets.map((bullet) => (
-                      <li key={bullet.id} className="text-sm leading-relaxed flex">
-                        <span className="mr-2">•</span>
-                        <span className="flex-1" dangerouslySetInnerHTML={{ 
-                          __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-                        }} />
-                      </li>
-                    ))}
-                  </ul>
+                  {renderBullets(section.bullets, section.title)}
                 </div>
               ))}
             </div>
@@ -167,16 +238,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
                 <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
                   {applyReplacements(section.title)}
                 </h2>
-                <ul className="space-y-2">
-                  {section.bullets.map((bullet) => (
-                    <li key={bullet.id} className="text-sm leading-relaxed flex">
-                      <span className="mr-2">•</span>
-                      <span className="flex-1" dangerouslySetInnerHTML={{ 
-                        __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-                      }} />
-                    </li>
-                  ))}
-                </ul>
+                {renderBullets(section.bullets, section.title)}
               </div>
             ))}
           </>

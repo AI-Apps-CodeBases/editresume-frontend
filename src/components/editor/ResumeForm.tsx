@@ -160,32 +160,32 @@ function SectionCard({
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {section.bullets.map((bullet, index) => (
-          <div key={bullet.id} className="group relative bg-gray-50 rounded-xl p-4 border">
-            <div className="flex gap-3 items-start">
+          <div key={bullet.id} className="group relative bg-gray-50 rounded-lg p-3 border">
+            <div className="flex gap-2 items-start">
               <div className="flex flex-col items-center gap-1">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
                   {index + 1}
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-0.5">
                   <button
                     onClick={() => moveBulletUp(section.id, bullet.id)}
                     disabled={index === 0}
-                    className="w-6 h-6 rounded bg-white border border-gray-300 hover:border-primary hover:bg-primary/5 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+                    className="w-5 h-5 rounded bg-white border border-gray-300 hover:border-primary hover:bg-primary/5 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
                     title="Move up"
                   >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" />
                     </svg>
                   </button>
                   <button
                     onClick={() => moveBulletDown(section.id, bullet.id)}
                     disabled={index === section.bullets.length - 1}
-                    className="w-6 h-6 rounded bg-white border border-gray-300 hover:border-primary hover:bg-primary/5 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+                    className="w-5 h-5 rounded bg-white border border-gray-300 hover:border-primary hover:bg-primary/5 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
                     title="Move down"
                   >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
@@ -197,14 +197,14 @@ function SectionCard({
                   placeholder="Add bullet... Use {{company}} {{tech}} {{metric}} for dynamic text"
                   value={bullet.text}
                   onChange={(e) => updateBullet(section.id, bullet.id, e.target.value)}
-                  className="w-full px-4 py-3 border-2 rounded-xl resize-none text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all bg-white"
-                  rows={2}
+                  className="w-full px-3 py-2 border-2 rounded-lg resize-none text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all bg-white"
+                  rows={1}
                 />
                 
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-1 mt-1">
                   <button
                     onClick={() => toggleBoldText(section.id, bullet.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
+                    className={`px-2 py-1 rounded text-xs font-medium transition-all flex items-center gap-1 ${
                       bullet.text.includes('**') 
                         ? 'bg-primary text-white' 
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -221,7 +221,7 @@ function SectionCard({
                   <button
                     onClick={() => improveBulletWithAI(section.id, bullet.id, bullet.text)}
                     disabled={improvingBullet === bullet.id || !bullet.text.trim()}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-2 py-1 rounded text-xs font-medium transition-all flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Improve with AI"
                   >
                     {improvingBullet === bullet.id ? (
@@ -230,11 +230,37 @@ function SectionCard({
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Improving...
+                        ...
                       </>
                     ) : (
                       <>
-                        ✨ Improve with AI
+                        ✨ AI
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const keywords = prompt('Enter 3-4 keywords for AI bullet generation:\n(e.g., "monitoring, Datadog, optimization, cost reduction")')
+                      if (keywords && keywords.trim()) {
+                        generateBulletFromKeywords(section.id, keywords.trim())
+                      }
+                    }}
+                    disabled={generatingBullets === section.id}
+                    className="px-2 py-1 rounded text-xs font-medium transition-all flex items-center gap-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate AI bullet from keywords"
+                  >
+                    {generatingBullets === section.id ? (
+                      <>
+                        <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        ...
+                      </>
+                    ) : (
+                      <>
+                        🤖 Keywords
                       </>
                     )}
                   </button>
@@ -247,10 +273,10 @@ function SectionCard({
 
               <button
                 onClick={() => removeBullet(section.id, bullet.id)}
-                className="flex-shrink-0 w-8 h-8 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                className="flex-shrink-0 w-6 h-6 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
                 title="Delete bullet"
               >
-                <svg className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </button>
@@ -503,34 +529,103 @@ export default function ResumeForm({ data, onChange, replacements, roomId, onAdd
     }
   }
 
-  const generateSummaryWithAI = async () => {
-    if (!data.title) {
-      alert('Please enter your job title first')
-      return
-    }
-
-    setGeneratingSummary(true)
+  const generateBulletFromKeywords = async (sectionId: string, keywords: string) => {
+    setGeneratingBullets(sectionId)
     try {
-      const response = await fetch('http://localhost:8000/api/ai/generate_summary', {
+      // Extract company title and job title from the section
+      let companyTitle = ''
+      let jobTitle = ''
+      
+      // Look for company headers in the section
+      const section = data.sections.find(s => s.id === sectionId)
+      if (section) {
+        for (const bullet of section.bullets) {
+          if (bullet.text.startsWith('**') && bullet.text.includes('**', 2)) {
+            const companyText = bullet.text.replace(/\*\*/g, '').trim()
+            const parts = companyText.split(' / ')
+            if (parts.length >= 2) {
+              companyTitle = parts[0]
+              jobTitle = parts[1]
+              break
+            }
+          }
+        }
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_bullet_from_keywords`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          role: data.title,
-          skills: data.sections.find(s => s.title.toLowerCase().includes('skill'))?.bullets.map(b => b.text).join(', '),
-          achievements: data.sections[0]?.bullets[0]?.text || undefined
+          keywords: keywords,
+          company_title: companyTitle,
+          job_title: jobTitle
         })
       })
-
+      
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || 'Failed to generate summary')
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
-
+      
       const result = await response.json()
-      updateField('summary', result.summary)
+      
+      if (result.success && result.bullet_text) {
+        // Add the new bullet to the section
+        const newBullet = {
+          id: Date.now().toString(),
+          text: result.bullet_text,
+          params: {}
+        }
+        
+        onChange({
+          ...data,
+          sections: data.sections.map(s => {
+            if (s.id === sectionId) {
+              return {
+                ...s,
+                bullets: [...s.bullets, newBullet]
+              }
+            }
+            return s
+          })
+        })
+      } else {
+        alert('Failed to generate bullet point')
+      }
     } catch (error) {
-      console.error('AI generate summary error:', error)
-      alert(error instanceof Error ? error.message : 'Failed to generate summary with AI')
+      console.error('Bullet generation failed:', error)
+      alert('Bullet generation failed: ' + (error as Error).message)
+    } finally {
+      setGeneratingBullets(null)
+    }
+  }
+
+  const generateSummaryWithAI = async () => {
+    setGeneratingSummary(true)
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_summary_from_experience`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          title: data.title,
+          sections: data.sections
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.summary) {
+        updateField('summary', result.summary)
+      } else {
+        alert('Failed to generate summary')
+      }
+    } catch (error) {
+      console.error('Summary generation failed:', error)
+      alert('Summary generation failed: ' + (error as Error).message)
     } finally {
       setGeneratingSummary(false)
     }

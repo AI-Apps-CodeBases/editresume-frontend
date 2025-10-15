@@ -378,26 +378,50 @@ export default function EditorPage() {
             {/* Top Bar - Template & Controls */}
             <div className="bg-white rounded-xl shadow-sm border p-4">
               <div className="flex items-center gap-6">
-                <div className="flex-1">
+                {editorMode !== 'visual' && (
+                  <div className="flex-1">
+                    <label className="text-sm font-semibold text-gray-700 mb-2 block">
+                      Template {editorMode === 'visual' && <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">🎨 Visual Mode</span>}
+                    </label>
+                    <TemplateSelector
+                      selected={selectedTemplate}
+                      onChange={(template) => {
+                        setSelectedTemplate(template)
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('selectedTemplate', template)
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+                <div className={editorMode === 'visual' ? 'flex-1' : 'flex-1'}>
                   <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                    Template {editorMode === 'visual' && <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">🎨 Visual Mode</span>}
+                    {editorMode === 'visual' ? '🎨 Visual Editor Controls' : 'Global Replacements'}
                   </label>
-                  <TemplateSelector
-                    selected={selectedTemplate}
-                    onChange={(template) => {
-                      setSelectedTemplate(template)
-                      if (typeof window !== 'undefined') {
-                        localStorage.setItem('selectedTemplate', template)
-                      }
-                    }}
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block">Global Replacements</label>
-                  <GlobalReplacements
-                    replacements={replacements}
-                    onChange={setReplacements}
-                  />
+                  {editorMode === 'visual' ? (
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium">Template:</span> {selectedTemplate}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newTemplate = selectedTemplate === 'tech' ? 'clean' : selectedTemplate === 'clean' ? 'minimal' : 'tech'
+                          setSelectedTemplate(newTemplate)
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('selectedTemplate', newTemplate)
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200 transition-colors"
+                      >
+                        Switch Template
+                      </button>
+                    </div>
+                  ) : (
+                    <GlobalReplacements
+                      replacements={replacements}
+                      onChange={setReplacements}
+                    />
+                  )}
                 </div>
               </div>
             </div>
