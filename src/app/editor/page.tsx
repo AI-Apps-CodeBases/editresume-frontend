@@ -10,6 +10,7 @@ import NewResumeWizard from '@/components/editor/NewResumeWizard'
 import AuthModal from '@/components/auth/AuthModal'
 import CollaborationPanel from '@/components/editor/CollaborationPanel'
 import VisualResumeEditor from '@/components/editor/VisualResumeEditor'
+import AIWizard from '@/components/editor/AIWizard'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCollaboration } from '@/hooks/useCollaboration'
 
@@ -18,7 +19,9 @@ export default function EditorPage() {
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showWizard, setShowWizard] = useState(true)
+  const [showAIWizard, setShowAIWizard] = useState(false)
   const [roomId, setRoomId] = useState<string | null>(null)
+  const [previewKey, setPreviewKey] = useState(0)
   const [userName, setUserName] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('userName') || ''
@@ -31,12 +34,7 @@ export default function EditorPage() {
     }
     return 'tech'
   })
-  const [editorMode, setEditorMode] = useState<'form' | 'visual'>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('editorMode') as 'form' | 'visual') || 'form'
-    }
-    return 'form'
-  })
+  const [editorMode, setEditorMode] = useState<'visual'>('visual')
 
   const collaboration = useCollaboration()
   
@@ -76,20 +74,11 @@ export default function EditorPage() {
     
     setResumeData(newResumeData)
     
-    if (template === 'visual') {
-      setEditorMode('visual')
-      setSelectedTemplate('tech')
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('editorMode', 'visual')
-        localStorage.setItem('selectedTemplate', 'tech')
-      }
-    } else {
-      setEditorMode('form')
-      setSelectedTemplate(template)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('editorMode', 'form')
-        localStorage.setItem('selectedTemplate', template)
-      }
+    setEditorMode('visual')
+    setSelectedTemplate(template === 'visual' ? 'tech' : template)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('editorMode', 'visual')
+      localStorage.setItem('selectedTemplate', template === 'visual' ? 'tech' : template)
     }
     
     if (data.detected_variables) {
@@ -146,12 +135,21 @@ export default function EditorPage() {
   }, [roomId, userName, collaboration])
 
   const handleResumeDataChange = useCallback((newData: any) => {
+    console.log('=== handleResumeDataChange called ===')
+    console.log('Previous resume data:', resumeData)
+    console.log('New resume data:', newData)
+    console.log('Setting new resume data...')
+    
     setResumeData(newData)
+    setPreviewKey(prev => prev + 1) // Force preview re-render
     
     if (roomId && collaboration.isConnected) {
+      console.log('Sending collaboration update...')
       collaboration.sendUpdate(newData)
     }
-  }, [roomId, collaboration])
+    
+    console.log('handleResumeDataChange completed')
+  }, [roomId, collaboration, resumeData])
 
   const handleCreateRoom = async () => {
     try {
@@ -378,74 +376,44 @@ export default function EditorPage() {
             {/* Top Bar - Template & Controls */}
             <div className="bg-white rounded-xl shadow-sm border p-4">
               <div className="flex items-center gap-6">
-                {editorMode !== 'visual' && (
-                  <div className="flex-1">
-                    <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                      Template {editorMode === 'visual' && <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">🎨 Visual Mode</span>}
-                    </label>
-                    <TemplateSelector
-                      selected={selectedTemplate}
-                      onChange={(template) => {
-                        setSelectedTemplate(template)
+                <div className="flex-1">
+                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
+                    🎨 Visual Editor Controls
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">Template:</span> {selectedTemplate}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newTemplate = selectedTemplate === 'tech' ? 'clean' : selectedTemplate === 'clean' ? 'minimal' : 'tech'
+                        setSelectedTemplate(newTemplate)
                         if (typeof window !== 'undefined') {
-                          localStorage.setItem('selectedTemplate', template)
+                          localStorage.setItem('selectedTemplate', newTemplate)
                         }
                       }}
-                    />
+                      className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200 transition-colors"
+                    >
+                      Switch Template
+                    </button>
                   </div>
-                )}
-                <div className={editorMode === 'visual' ? 'flex-1' : 'flex-1'}>
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                    {editorMode === 'visual' ? '🎨 Visual Editor Controls' : 'Global Replacements'}
-                  </label>
-                  {editorMode === 'visual' ? (
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium">Template:</span> {selectedTemplate}
-                      </div>
-                      <button
-                        onClick={() => {
-                          const newTemplate = selectedTemplate === 'tech' ? 'clean' : selectedTemplate === 'clean' ? 'minimal' : 'tech'
-                          setSelectedTemplate(newTemplate)
-                          if (typeof window !== 'undefined') {
-                            localStorage.setItem('selectedTemplate', newTemplate)
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200 transition-colors"
-                      >
-                        Switch Template
-                      </button>
-                    </div>
-                  ) : (
-                    <GlobalReplacements
-                      replacements={replacements}
-                      onChange={setReplacements}
-                    />
-                  )}
                 </div>
               </div>
             </div>
 
-            {/* Visual Editor Full Width or Two Column Layout */}
-            {editorMode === 'visual' ? (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-emerald-900 mb-1">🎨 Visual Editor Mode</h2>
-                    <p className="text-sm text-emerald-700">Click any text to edit • Drag sections/bullets to reorder • Select text for AI improvements</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditorMode('form')
-                      if (typeof window !== 'undefined') {
-                        localStorage.setItem('editorMode', 'form')
-                      }
-                    }}
-                    className="px-4 py-2 bg-white text-emerald-700 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition-colors border border-emerald-300"
-                  >
-                    Switch to Form Editor
-                  </button>
+            {/* Visual Editor */}
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
+                <div>
+                  <h2 className="text-lg font-bold text-emerald-900 mb-1">🎨 Visual Editor</h2>
+                  <p className="text-sm text-emerald-700">Click any text to edit • Drag sections/bullets to reorder • Select text for AI improvements</p>
                 </div>
+              </div>
+                
+                {/* Two Column Layout for Visual Editor */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left - Visual Editor */}
+                  <div className="space-y-4">
                 <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
                   <VisualResumeEditor
                     data={resumeData}
@@ -480,177 +448,107 @@ export default function EditorPage() {
                     }}
                   />
                 </div>
-                <div className="bg-white rounded-xl shadow-lg p-4 border-2 border-emerald-200">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-sm font-bold text-gray-900 mb-1">Ready to Export?</h3>
-                      <p className="text-xs text-gray-600">
-                        {!resumeData.name 
-                          ? "Enter your name above to enable export" 
-                          : "Download your resume in your preferred format"}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => handleExport('docx')}
-                        disabled={isExporting || !resumeData.name}
-                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold text-sm"
-                      >
-                        📄 DOCX
-                      </button>
-                      <button 
-                        onClick={() => handleExport('pdf')}
-                        disabled={isExporting || !resumeData.name}
-                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold text-sm shadow-md"
-                      >
-                        {isExporting ? '⏳ Exporting...' : '📥 PDF'}
-                      </button>
-                    </div>
                   </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {/* Left - Editor */}
-                <div className="space-y-4">
-                  {editorMode === 'form' && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center justify-between">
-                      <p className="text-sm text-blue-700 font-medium">📝 Form Editor Mode</p>
-                      <button
-                        onClick={() => {
-                          setEditorMode('visual')
-                          if (typeof window !== 'undefined') {
-                            localStorage.setItem('editorMode', 'visual')
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors"
-                      >
-                        Switch to Visual Editor
-                      </button>
-                    </div>
-                  )}
-                  <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-                    {selectedTemplate === 'two-column' ? (
-                    <div className="space-y-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                        <h2 className="text-lg font-bold text-blue-900 mb-2">🎨 Two-Column Layout Editor</h2>
-                        <p className="text-sm text-blue-700">Assign sections to left/right columns and adjust widths. Changes appear live in preview →</p>
+
+                  {/* Right - Live Preview */}
+                  <div className="lg:col-span-1">
+                    <div className="sticky top-4">
+                      <div className="bg-white rounded-xl shadow-lg p-4 border">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-sm font-bold text-gray-700">📄 Live Preview</h3>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setFullscreenPreview(true)}
+                              className="px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary-dark text-xs font-semibold transition-all flex items-center gap-1"
+                              title="View fullscreen preview"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                              </svg>
+                              Full Page
+                            </button>
+                            <button
+                              onClick={() => setPreviewScale(Math.max(0.4, previewScale - 0.1))}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold"
+                            >
+                              −
+                            </button>
+                            <span className="text-xs text-gray-600 min-w-[45px] text-center">{Math.round(previewScale * 100)}%</span>
+                            <button
+                              onClick={() => setPreviewScale(Math.min(1, previewScale + 0.1))}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <div 
+                          className="overflow-y-auto overflow-x-hidden border-2 rounded-lg bg-gray-50 flex justify-center" 
+                          style={{ 
+                            maxHeight: 'calc(100vh - 200px)',
+                            minHeight: '600px'
+                          }}
+                        >
+                          <div style={{ 
+                            transform: `scale(${previewScale})`,
+                            transformOrigin: 'top center',
+                            width: '850px',
+                            margin: '0 auto'
+                          }}>
+                            <PreviewPanel
+                              key={previewKey}
+                              data={resumeData}
+                              replacements={replacements}
+                              template={selectedTemplate}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <TwoColumnEditor
-                        sections={resumeData.sections}
-                        onUpdate={(sections) => handleResumeDataChange({ ...resumeData, sections })}
-                        resumeData={{
-                          name: resumeData.name,
-                          title: resumeData.title,
-                          email: resumeData.email,
-                          phone: resumeData.phone,
-                          location: resumeData.location,
-                          summary: resumeData.summary
-                        }}
-                        onResumeDataUpdate={(data) => handleResumeDataChange({ ...resumeData, ...data })}
-                      />
                     </div>
-                  ) : (
-                    <ResumeForm
-                      data={resumeData}
-                      onChange={handleResumeDataChange}
-                      replacements={replacements}
-                      roomId={roomId}
-                      onAddComment={collaboration.addComment}
-                      onResolveComment={collaboration.resolveComment}
-                      onDeleteComment={collaboration.deleteComment}
-                    />
-                  )}
+                  </div>
                 </div>
 
-                {/* Export Buttons - Bottom of Editor */}
-                <div className="bg-white rounded-xl shadow-lg p-4 border-2 border-blue-200">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-sm font-bold text-gray-900 mb-1">Ready to Export?</h3>
-                      <p className="text-xs text-gray-600">
-                        {!resumeData.name 
-                          ? "Enter your name above to enable export" 
-                          : "Download your resume in your preferred format"}
+                {/* AI Content Wizard */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-purple-900 mb-1">🤖 AI Content Wizard</h3>
+                      <p className="text-sm text-purple-700">Add new content to your resume with AI assistance</p>
+                    </div>
+                    <button
+                      onClick={() => setShowAIWizard(true)}
+                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                    >
+                      ✨ Open AI Wizard
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-lg p-4 border border-purple-200 text-center">
+                      <div className="text-2xl mb-2">💼</div>
+                      <h4 className="font-semibold text-gray-900 mb-1">Add Jobs</h4>
+                      <p className="text-xs text-gray-600">Add work experience with AI-generated content</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-purple-200 text-center">
+                      <div className="text-2xl mb-2">🚀</div>
+                      <h4 className="font-semibold text-gray-900 mb-1">Add Projects</h4>
+                      <p className="text-xs text-gray-600">Create project entries with technical details</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-purple-200 text-center">
+                      <div className="text-2xl mb-2">🛠️</div>
+                      <h4 className="font-semibold text-gray-900 mb-1">Add Skills</h4>
+                      <p className="text-xs text-gray-600">Generate categorized skills sections</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-700">
+                      💡 <strong>How it works:</strong> Tell the AI what you want to add (e.g., "Add a DevOps job at Google with Jenkins and Kubernetes experience"), and it will generate realistic content that fits your resume perfectly.
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => handleExport('docx')}
-                        disabled={isExporting || !resumeData.name}
-                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold text-sm"
-                        title={!resumeData.name ? "Enter your name first" : "Export as DOCX"}
-                      >
-                        📄 DOCX
-                      </button>
-                      <button 
-                        onClick={() => handleExport('pdf')}
-                        disabled={isExporting || !resumeData.name}
-                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold text-sm shadow-md"
-                        title={!resumeData.name ? "Enter your name first" : "Export as PDF"}
-                      >
-                        {isExporting ? '⏳ Exporting...' : '📥 PDF'}
-                      </button>
-                    </div>
-                  </div>
+                  
                 </div>
               </div>
-
-              {/* Right - Live Preview */}
-              <div className="sticky top-4">
-                <div className="bg-white rounded-xl shadow-lg p-4 border">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-gray-700">📄 Live Preview</h3>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setFullscreenPreview(true)}
-                        className="px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary-dark text-xs font-semibold transition-all flex items-center gap-1"
-                        title="View fullscreen preview"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                        </svg>
-                        Full Page
-                      </button>
-                      <button
-                        onClick={() => setPreviewScale(Math.max(0.4, previewScale - 0.1))}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold"
-                      >
-                        −
-                      </button>
-                      <span className="text-xs text-gray-600 min-w-[45px] text-center">{Math.round(previewScale * 100)}%</span>
-                      <button
-                        onClick={() => setPreviewScale(Math.min(1, previewScale + 0.1))}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  <div 
-                    className="overflow-y-auto overflow-x-hidden border-2 rounded-lg bg-gray-50" 
-                    style={{ 
-                      maxHeight: 'calc(100vh - 200px)',
-                      minHeight: '600px'
-                    }}
-                  >
-                    <div style={{ 
-                      transform: `scale(${previewScale})`,
-                      transformOrigin: 'top center',
-                      width: `${100 / previewScale}%`,
-                      margin: '0 auto'
-                    }}>
-                      <PreviewPanel
-                        data={resumeData}
-                        replacements={replacements}
-                        template={selectedTemplate}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            )}
           </div>
         )}
       </div>
@@ -689,14 +587,13 @@ export default function EditorPage() {
             </div>
             
             {/* Preview Content */}
-            <div className="flex-1 overflow-auto bg-gray-900 rounded-lg p-8">
+            <div className="flex-1 overflow-auto bg-gray-900 rounded-lg p-8 flex justify-center">
               <div 
-                className="mx-auto bg-white shadow-2xl"
+                className="bg-white shadow-2xl"
                 style={{ 
                   transform: `scale(${previewScale})`,
                   transformOrigin: 'top center',
-                  width: `${100 / previewScale}%`,
-                  maxWidth: '850px',
+                  width: '850px',
                   margin: '0 auto'
                 }}
               >
@@ -740,6 +637,182 @@ export default function EditorPage() {
         onClose={() => setShowAuthModal(false)}
         onAuthSuccess={login}
       />
+
+      {/* AI Content Wizard */}
+      {showAIWizard && (
+        <AIWizard
+          data={resumeData}
+          onAddContent={(newContent) => {
+            console.log('=== AI WIZARD ADDING CONTENT ===')
+            console.log('New content from AI wizard:', newContent)
+            console.log('Content type:', newContent.type)
+            console.log('Content data:', newContent.content)
+            console.log('Position:', newContent.position)
+            console.log('Current resume data before update:', resumeData)
+            
+            try {
+              if (newContent.type === 'job') {
+                // Add new job experience
+                const workExperienceSection = resumeData.sections.find(s => 
+                  s.title.toLowerCase().includes('experience') || 
+                  s.title.toLowerCase().includes('work')
+                )
+                
+                console.log('Found work experience section:', workExperienceSection)
+                
+                if (workExperienceSection && newContent.content) {
+                  const content = newContent.content
+                  const bullets = content.bullets || []
+                  
+                  console.log('Content bullets:', bullets)
+                  
+                  const newBullets = [
+                    { 
+                      id: Date.now().toString(), 
+                      text: `**${content.company || 'Company'} / ${content.role || 'Role'} / ${content.duration || 'Duration'}**`, 
+                      params: {} 
+                    },
+                    ...bullets.map((bullet: string) => ({
+                      id: Date.now().toString() + Math.random(),
+                      text: `• ${bullet}`,
+                      params: {}
+                    }))
+                  ]
+                  
+                  console.log('New bullets to add:', newBullets)
+                  
+                  const updatedSections = resumeData.sections.map(section => {
+                    if (section.id === workExperienceSection.id) {
+                      let updatedBullets
+                      if (newContent.position === 'beginning') {
+                        updatedBullets = [...newBullets, ...section.bullets]
+                      } else if (newContent.position === 'middle') {
+                        const middleIndex = Math.floor(section.bullets.length / 2)
+                        const newBulletsList = [...section.bullets]
+                        newBulletsList.splice(middleIndex, 0, ...newBullets)
+                        updatedBullets = newBulletsList
+                      } else {
+                        updatedBullets = [...section.bullets, ...newBullets]
+                      }
+                      
+                      console.log('Updated bullets for section:', updatedBullets)
+                      return { ...section, bullets: updatedBullets }
+                    }
+                    return section
+                  })
+                  
+                  console.log('Updated sections:', updatedSections)
+                  const newResumeData = { ...resumeData, sections: updatedSections }
+                  console.log('New resume data:', newResumeData)
+                  handleResumeDataChange(newResumeData)
+                } else {
+                  console.log('No work experience section found or no content')
+                }
+              } else if (newContent.type === 'project') {
+                // Add new project
+                const projectsSection = resumeData.sections.find(s => 
+                  s.title.toLowerCase().includes('project')
+                ) || resumeData.sections[0] // fallback to first section
+                
+                console.log('Found projects section:', projectsSection)
+                
+                if (newContent.content) {
+                  const content = newContent.content
+                  const bullets = content.bullets || []
+                  
+                  const newBullets = [
+                    { id: Date.now().toString(), text: `**${content.name || 'Project Name'}**`, params: {} },
+                    { id: Date.now().toString() + '1', text: content.description || 'Project description', params: {} },
+                    ...bullets.map((bullet: string) => ({
+                      id: Date.now().toString() + Math.random(),
+                      text: `• ${bullet}`,
+                      params: {}
+                    }))
+                  ]
+                  
+                  console.log('New project bullets:', newBullets)
+                  
+                  const updatedSections = resumeData.sections.map(section => {
+                    if (section.id === projectsSection.id) {
+                      const updatedBullets = [...section.bullets, ...newBullets]
+                      console.log('Updated project bullets:', updatedBullets)
+                      return { ...section, bullets: updatedBullets }
+                    }
+                    return section
+                  })
+                  
+                  const newResumeData = { ...resumeData, sections: updatedSections }
+                  console.log('New resume data with project:', newResumeData)
+                  handleResumeDataChange(newResumeData)
+                }
+              } else if (newContent.type === 'skill') {
+                // Add new skills section
+                if (newContent.content && newContent.content.categories) {
+                  const categories = newContent.content.categories
+                  const skillBullets = Object.entries(categories).map(([category, skills]) => 
+                    `**${category}:** ${Array.isArray(skills) ? skills.join(', ') : skills}`
+                  )
+                  
+                  const newSection = {
+                    id: Date.now().toString(),
+                    title: 'Skills',
+                    bullets: skillBullets.map(skill => ({
+                      id: Date.now().toString() + Math.random(),
+                      text: skill,
+                      params: {}
+                    }))
+                  }
+                  
+                  console.log('New skills section:', newSection)
+                  
+                  const newResumeData = { 
+                    ...resumeData, 
+                    sections: [...resumeData.sections, newSection] 
+                  }
+                  console.log('New resume data with skills:', newResumeData)
+                  handleResumeDataChange(newResumeData)
+                }
+              } else if (newContent.type === 'education') {
+                // Add new education section
+                if (newContent.content) {
+                  const content = newContent.content
+                  const educationBullets = [
+                    `**${content.institution || 'Institution'}**`,
+                    `${content.degree || 'Degree'} - ${content.year || 'Year'}`,
+                    ...(content.coursework || []).map(course => `• ${course}`),
+                    ...(content.honors || []).map(honor => `• ${honor}`)
+                  ]
+                  
+                  const newSection = {
+                    id: Date.now().toString(),
+                    title: 'Education',
+                    bullets: educationBullets.map(edu => ({
+                      id: Date.now().toString() + Math.random(),
+                      text: edu,
+                      params: {}
+                    }))
+                  }
+                  
+                  console.log('New education section:', newSection)
+                  
+                  const newResumeData = { 
+                    ...resumeData, 
+                    sections: [...resumeData.sections, newSection] 
+                  }
+                  console.log('New resume data with education:', newResumeData)
+                  handleResumeDataChange(newResumeData)
+                }
+              }
+              
+              setShowAIWizard(false)
+            } catch (error) {
+              console.error('Error adding content:', error)
+              alert('Failed to add content: ' + (error as Error).message)
+            }
+          }}
+          onClose={() => setShowAIWizard(false)}
+        />
+      )}
     </div>
   )
 }

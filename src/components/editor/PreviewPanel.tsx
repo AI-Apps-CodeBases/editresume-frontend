@@ -26,6 +26,34 @@ interface Props {
 }
 
 export default function PreviewPanel({ data, replacements, template = 'clean' }: Props) {
+  // Debug logging
+  useEffect(() => {
+    console.log('=== PreviewPanel received new data ===')
+    console.log('Data:', data)
+    console.log('Name:', data.name)
+    console.log('Sections:', data.sections.length)
+    console.log('Section details:', data.sections.map(s => ({
+      id: s.id,
+      title: s.title,
+      bulletCount: s.bullets.length,
+      bullets: s.bullets.map(b => ({ id: b.id, text: b.text }))
+    })))
+    
+    // Check for work experience section specifically
+    const workExpSection = data.sections.find(s => 
+      s.title.toLowerCase().includes('experience') || 
+      s.title.toLowerCase().includes('work')
+    )
+    if (workExpSection) {
+      console.log('=== WORK EXPERIENCE SECTION ===')
+      console.log('Section:', workExpSection)
+      console.log('Bullets:', workExpSection.bullets)
+      console.log('Bullet texts:', workExpSection.bullets.map(b => b.text))
+    } else {
+      console.log('No work experience section found')
+    }
+  }, [data])
+
   const applyReplacements = (text: string) => {
     let result = text
     Object.entries(replacements).forEach(([key, value]) => {
@@ -39,88 +67,26 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
                              sectionTitle.toLowerCase().includes('work') || 
                              sectionTitle.toLowerCase().includes('employment')
     
-    if (!isWorkExperience) {
-      return (
-        <ul className="space-y-2">
-          {bullets.filter(b => b.text.trim()).map((bullet) => (
-            <li key={bullet.id} className="text-sm leading-relaxed flex">
-              <span className="mr-2">•</span>
-              <span className="flex-1" dangerouslySetInnerHTML={{ 
-                __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-              }} />
-            </li>
-          ))}
-        </ul>
-      )
-    }
+    console.log('=== RENDER BULLETS ===')
+    console.log('Section title:', sectionTitle)
+    console.log('Is work experience:', isWorkExperience)
+    console.log('Bullets to render:', bullets.length)
+    console.log('Bullet texts:', bullets.map(b => b.text))
     
-    // Work Experience - group by company
-    const groups: JSX.Element[] = []
-    let currentCompany: JSX.Element | null = null
-    let currentTasks: JSX.Element[] = []
-    
-    bullets.forEach((bullet, index) => {
-      const text = bullet.text.trim()
-      
-      if (!text) {
-        // Empty separator - push current group
-        if (currentCompany && currentTasks.length > 0) {
-          groups.push(
-            <div key={`group-${index}`} className="mb-4">
-              {currentCompany}
-              <ul className="space-y-1 mt-2">
-                {currentTasks}
-              </ul>
-            </div>
-          )
-        }
-        currentCompany = null
-        currentTasks = []
-      } else if (text.startsWith('**') && text.includes('**', 2)) {
-        // Company header
-        if (currentCompany && currentTasks.length > 0) {
-          groups.push(
-            <div key={`group-${index}`} className="mb-4">
-              {currentCompany}
-              <ul className="space-y-1 mt-2">
-                {currentTasks}
-              </ul>
-            </div>
-          )
-        }
-        currentCompany = (
-          <div className="font-bold text-base text-gray-900" dangerouslySetInnerHTML={{
-            __html: applyReplacements(text).replace(/\*\*(.*?)\*\*/g, '$1')
-          }} />
-        )
-        currentTasks = []
-      } else {
-        // Regular bullet
-        const cleanText = text.startsWith('• ') ? text.substring(2) : text
-        currentTasks.push(
+    // For now, let's simplify and render all sections the same way to test
+    console.log('Rendering as simple list for debugging')
+    return (
+      <ul className="space-y-2">
+        {bullets.filter(b => b.text.trim()).map((bullet) => (
           <li key={bullet.id} className="text-sm leading-relaxed flex">
             <span className="mr-2">•</span>
             <span className="flex-1" dangerouslySetInnerHTML={{ 
-              __html: applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+              __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
             }} />
           </li>
-        )
-      }
-    })
-    
-    // Don't forget the last group
-    if (currentCompany && currentTasks.length > 0) {
-      groups.push(
-        <div key={`group-last`} className="mb-4">
-          {currentCompany}
-          <ul className="space-y-1 mt-2">
-            {currentTasks}
-          </ul>
-        </div>
-      )
-    }
-    
-    return <div className="space-y-4">{groups}</div>
+        ))}
+      </ul>
+    )
   }
 
   const headerAlign = template === 'clean' || template === 'two-column' || template === 'compact' ? 'center' : 'left'
