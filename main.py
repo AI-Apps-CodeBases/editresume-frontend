@@ -759,17 +759,31 @@ async def generate_resume_content(payload: dict):
             Position: {position}
             {existing_context}
             
-            Generate a work experience entry with:
-            1. Company name (realistic tech company)
-            2. Job title/role
-            3. Duration (realistic timeframe)
+            Generate a REALISTIC work experience entry with:
+            1. Company name (use a real tech company like Google, Microsoft, Amazon, etc.)
+            2. Job title/role (specific to the requirements)
+            3. Duration (realistic timeframe like "2022-2024" or "Jan 2023 - Present")
             4. 4-6 professional bullet points with:
                - Action verbs and quantifiable results
                - Technical skills mentioned in requirements
                - ATS-optimized language
                - Progressive responsibility
             
-            Return as JSON with fields: company, role, duration, bullets (array of strings)
+            IMPORTANT: 
+            - Use REAL company names, not placeholders
+            - Use REAL job titles, not generic ones
+            - Use REAL timeframes, not placeholders
+            - Make bullet points specific and detailed
+            
+            Return ONLY valid JSON with fields: company, role, duration, bullets (array of strings)
+            
+            Example format:
+            {
+              "company": "Google",
+              "role": "DevOps Engineer", 
+              "duration": "2022-2024",
+              "bullets": ["Deployed applications using Kubernetes", "Managed CI/CD pipelines"]
+            }
             """
         elif content_type == 'project':
             prompt = f"""
@@ -848,14 +862,39 @@ async def generate_resume_content(payload: dict):
         result = response.json()
         content = result['choices'][0]['message']['content'].strip()
         
+        logger.info(f"OpenAI response content: {content}")
+        
         # Try to parse as JSON
         try:
             import json
             parsed_content = json.loads(content)
+            logger.info(f"Parsed JSON content: {parsed_content}")
             return parsed_content
-        except json.JSONDecodeError:
-            # If not JSON, return as text
-            return {"content": content}
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse JSON: {e}")
+            logger.warning(f"Raw content: {content}")
+            
+            # Try to extract JSON from the content if it's wrapped in markdown
+            import re
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', content, re.DOTALL)
+            if json_match:
+                try:
+                    parsed_content = json.loads(json_match.group(1))
+                    logger.info(f"Extracted JSON from markdown: {parsed_content}")
+                    return parsed_content
+                except json.JSONDecodeError:
+                    pass
+            
+            # If all else fails, create a structured response based on content type
+            if content_type == 'job':
+                return {
+                    "company": "Generated Company",
+                    "role": "Generated Role", 
+                    "duration": "2023-2024",
+                    "bullets": [content]
+                }
+            else:
+                return {"content": content}
             
     except Exception as e:
         logger.error(f"Content generation failed: {e}")
