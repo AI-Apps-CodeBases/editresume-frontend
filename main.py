@@ -728,6 +728,139 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
         logger.error(f"OpenAI generate summary from experience error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
 
+@app.post("/api/ai/generate_resume_content")
+async def generate_resume_content(payload: dict):
+    """Generate resume content based on user requirements"""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI service not available")
+    
+    try:
+        content_type = payload.get('contentType', 'job')
+        requirements = payload.get('requirements', '')
+        position = payload.get('position', 'end')
+        target_section = payload.get('targetSection', '')
+        existing_data = payload.get('existingData', {})
+        context = payload.get('context', {})
+        
+        # Build context from existing resume data
+        existing_context = f"""
+        Current Resume:
+        Name: {context.get('name', '')}
+        Title: {context.get('title', '')}
+        Existing Sections: {', '.join(context.get('currentSections', []))}
+        """
+        
+        # Generate content based on type
+        if content_type == 'job':
+            prompt = f"""
+            Based on the following requirements, generate a complete work experience entry:
+            
+            Requirements: {requirements}
+            Position: {position}
+            {existing_context}
+            
+            Generate a work experience entry with:
+            1. Company name (realistic tech company)
+            2. Job title/role
+            3. Duration (realistic timeframe)
+            4. 4-6 professional bullet points with:
+               - Action verbs and quantifiable results
+               - Technical skills mentioned in requirements
+               - ATS-optimized language
+               - Progressive responsibility
+            
+            Return as JSON with fields: company, role, duration, bullets (array of strings)
+            """
+        elif content_type == 'project':
+            prompt = f"""
+            Based on the following requirements, generate a project entry:
+            
+            Requirements: {requirements}
+            {existing_context}
+            
+            Generate a project entry with:
+            1. Project name
+            2. Brief description
+            3. 3-5 bullet points with:
+               - Technical implementation details
+               - Technologies used
+               - Results/impact
+               - Challenges overcome
+            
+            Return as JSON with fields: name, description, bullets (array of strings)
+            """
+        elif content_type == 'skill':
+            prompt = f"""
+            Based on the following requirements, generate a skills section:
+            
+            Requirements: {requirements}
+            {existing_context}
+            
+            Generate a skills section with:
+            1. Categorized skills (Technical, Tools, Languages, etc.)
+            2. Relevant to the person's background
+            3. Industry-standard terminology
+            4. ATS-friendly format
+            
+            Return as JSON with fields: categories (object with category names as keys and skill arrays as values)
+            """
+        elif content_type == 'education':
+            prompt = f"""
+            Based on the following requirements, generate an education entry:
+            
+            Requirements: {requirements}
+            {existing_context}
+            
+            Generate an education entry with:
+            1. Institution name
+            2. Degree/qualification
+            3. Relevant coursework (if applicable)
+            4. Graduation year
+            5. Any honors or achievements
+            
+            Return as JSON with fields: institution, degree, year, coursework (array), honors (array)
+            """
+        else:
+            raise HTTPException(status_code=400, detail="Invalid content type")
+        
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 1000,
+            "temperature": 0.7
+        }
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"OpenAI API error: {response.status_code}")
+        
+        result = response.json()
+        content = result['choices'][0]['message']['content'].strip()
+        
+        # Try to parse as JSON
+        try:
+            import json
+            parsed_content = json.loads(content)
+            return parsed_content
+        except json.JSONDecodeError:
+            # If not JSON, return as text
+            return {"content": content}
+            
+    except Exception as e:
+        logger.error(f"Content generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 TEMPLATES = {
     "tech": {
         "name": "Tech Professional",
