@@ -13,6 +13,7 @@ import VisualResumeEditor from '@/components/editor/VisualResumeEditor'
 import AIWizard from '@/components/editor/AIWizard'
 import JobDescriptionMatcher from '@/components/editor/JobDescriptionMatcher'
 import ImproveResumeButton from '@/components/editor/ImproveResumeButton'
+import CoverLetterGenerator from '@/components/editor/CoverLetterGenerator'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCollaboration } from '@/hooks/useCollaboration'
 
@@ -22,6 +23,7 @@ export default function EditorPage() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showWizard, setShowWizard] = useState(true)
   const [showAIWizard, setShowAIWizard] = useState(false)
+  const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
   const [roomId, setRoomId] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
   const [userName, setUserName] = useState(() => {
@@ -323,6 +325,12 @@ export default function EditorPage() {
                   </button>
                 )}
                 <button
+                  onClick={() => setShowCoverLetterGenerator(true)}
+                  className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all font-semibold"
+                >
+                  📝 Cover Letter
+                </button>
+                <button
                   onClick={() => setShowWizard(true)}
                   className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all font-semibold"
                 >
@@ -568,6 +576,46 @@ export default function EditorPage() {
                     }}
                   />
                 </div>
+
+                {/* Cover Letter Generator */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-green-900 mb-1">📝 Cover Letter Generator</h3>
+                      <p className="text-sm text-green-700">Generate tailored cover letters with AI that match your resume to specific job applications</p>
+                    </div>
+                    <button
+                      onClick={() => setShowCoverLetterGenerator(true)}
+                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                    >
+                      ✨ Generate Cover Letter
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
+                      <div className="text-2xl mb-2">🎯</div>
+                      <h4 className="font-semibold text-gray-900 mb-1">Tailored Content</h4>
+                      <p className="text-xs text-gray-600">AI matches your experience to job requirements</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
+                      <div className="text-2xl mb-2">✏️</div>
+                      <h4 className="font-semibold text-gray-900 mb-1">Customizable</h4>
+                      <p className="text-xs text-gray-600">Edit each paragraph to your preference</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
+                      <div className="text-2xl mb-2">📄</div>
+                      <h4 className="font-semibold text-gray-900 mb-1">Export Ready</h4>
+                      <p className="text-xs text-gray-600">Export as PDF or DOCX with your resume</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-xs text-green-700">
+                      💡 <strong>How it works:</strong> Enter the company name, job title, and job description. Choose your preferred tone (professional, friendly, or concise), and AI will generate a personalized cover letter that highlights your relevant experience.
+                    </p>
+                  </div>
+                </div>
               </div>
           </div>
         )}
@@ -657,6 +705,14 @@ export default function EditorPage() {
         onClose={() => setShowAuthModal(false)}
         onAuthSuccess={login}
       />
+
+      {/* Cover Letter Generator */}
+      {showCoverLetterGenerator && (
+        <CoverLetterGenerator
+          resumeData={resumeData}
+          onClose={() => setShowCoverLetterGenerator(false)}
+        />
+      )}
 
       {/* AI Content Wizard */}
       {showAIWizard && (
