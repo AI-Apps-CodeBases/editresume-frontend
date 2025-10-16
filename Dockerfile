@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf-2.0-0 \
     libcairo2 \
     libpangocairo-1.0-0 \
+    build-essential \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./

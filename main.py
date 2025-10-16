@@ -10,6 +10,7 @@ import logging
 import secrets
 from datetime import datetime
 from openai import OpenAI
+from keyword_extractor import KeywordExtractor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,6 +40,9 @@ else:
         logger.warning("OpenAI API key not found. AI features will be disabled.")
     else:
         logger.warning("OpenAI API key is still the placeholder value. Please set a real API key.")
+
+# Initialize keyword extractor
+keyword_extractor = KeywordExtractor()
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
 
@@ -110,6 +114,10 @@ class GenerateSummaryPayload(BaseModel):
     years_experience: int
     skills: str
     achievements: Optional[str] = None
+
+class JobDescriptionMatchPayload(BaseModel):
+    job_description: str
+    resume_data: ResumePayload
 
 users_db = {}
 user_stats = {}
@@ -416,7 +424,8 @@ Return ONLY the improved bullet point, no explanations."""
         
     except Exception as e:
         logger.error(f"OpenAI improve bullet error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to improve bullet: {str(e)}")
+        error_message = "Failed to improve bullet: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
 
 @app.post("/api/ai/generate_bullet_points")
 async def generate_bullet_points(payload: GenerateBulletPointsPayload):
@@ -489,7 +498,8 @@ Return ONLY the bullet points, one per line, no numbering or explanations."""
         
     except Exception as e:
         logger.error(f"OpenAI generate bullet points error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate bullet points: {str(e)}")
+        error_message = "Failed to generate bullet points: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
 
 @app.post("/api/ai/generate_summary")
 async def generate_summary(payload: GenerateSummaryPayload):
@@ -548,7 +558,8 @@ Return ONLY the summary text, no explanations or labels."""
         }
     except Exception as e:
         logger.error(f"OpenAI generate summary error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
+        error_message = "Failed to generate summary: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
 
 @app.post("/api/ai/generate_bullet_from_keywords")
 async def generate_bullet_from_keywords(payload: dict):
@@ -622,7 +633,8 @@ Return ONLY the bullet point text, no explanations or labels."""
         
     except Exception as e:
         logger.error(f"OpenAI generate bullet from keywords error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+        error_message = "AI generation failed: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
 
 @app.post("/api/ai/generate_summary_from_experience")
 async def generate_summary_from_experience(payload: dict):
@@ -726,7 +738,126 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
         }
     except Exception as e:
         logger.error(f"OpenAI generate summary from experience error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
+        error_message = "Failed to generate summary: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
+
+@app.post("/api/ai/match_job_description")
+async def match_job_description(payload: JobDescriptionMatchPayload):
+    """Match job description with resume and calculate similarity score"""
+    try:
+        # Convert resume data to text for analysis
+        resume_text = f"{payload.resume_data.name} — {payload.resume_data.title}\n\n"
+        if payload.resume_data.summary:
+            resume_text += payload.resume_data.summary + "\n\n"
+        
+        for section in payload.resume_data.sections:
+            resume_text += f"{section.title}\n"
+            for bullet in section.bullets:
+                resume_text += f"• {bullet.text}\n"
+            resume_text += "\n"
+        
+        # Calculate similarity using keyword extractor
+        similarity_result = keyword_extractor.calculate_similarity(
+            payload.job_description, 
+            resume_text
+        )
+        
+        # Get keyword suggestions for missing keywords
+        suggestions = keyword_extractor.get_keyword_suggestions(
+            similarity_result.get('missing_keywords', [])
+        )
+        
+        # Generate AI-powered improvement suggestions
+        improvement_suggestions = []
+        if openai_client and similarity_result.get('similarity_score', 0) < 70:
+            try:
+                improvement_prompt = f"""Based on this job description and resume analysis, provide 3-5 specific suggestions to improve the resume for this job.
+
+Job Description:
+{payload.job_description[:1000]}
+
+Resume Summary:
+{resume_text[:1000]}
+
+Missing Keywords: {', '.join(similarity_result.get('missing_keywords', [])[:10])}
+Current Match Score: {similarity_result.get('similarity_score', 0)}%
+
+Provide specific, actionable suggestions to:
+1. Add missing technical skills
+2. Improve keyword matching
+3. Enhance relevant experience
+4. Optimize for ATS systems
+
+Return as a JSON array of suggestion objects with 'category' and 'suggestion' fields."""
+
+                headers = {
+                    "Authorization": f"Bearer {openai_client['api_key']}",
+                    "Content-Type": "application/json"
+                }
+                
+                data = {
+                    "model": openai_client['model'],
+                    "messages": [{"role": "user", "content": improvement_prompt}],
+                    "max_tokens": 500,
+                    "temperature": 0.7
+                }
+                
+                response = openai_client['requests'].post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    suggestions_text = result['choices'][0]['message']['content'].strip()
+                    
+                    # Try to parse as JSON
+                    try:
+                        import json
+                        improvement_suggestions = json.loads(suggestions_text)
+                    except json.JSONDecodeError:
+                        # If not JSON, create structured suggestions
+                        lines = [line.strip() for line in suggestions_text.split('\n') if line.strip()]
+                        improvement_suggestions = [
+                            {"category": "General", "suggestion": line} 
+                            for line in lines[:5]
+                        ]
+                        
+            except Exception as e:
+                logger.error(f"Error generating AI suggestions: {e}")
+        
+        return {
+            "success": True,
+            "match_analysis": {
+                "similarity_score": similarity_result.get('similarity_score', 0),
+                "technical_score": similarity_result.get('technical_score', 0),
+                "matching_keywords": similarity_result.get('matching_keywords', []),
+                "missing_keywords": similarity_result.get('missing_keywords', []),
+                "technical_matches": similarity_result.get('technical_matches', []),
+                "technical_missing": similarity_result.get('technical_missing', []),
+                "total_job_keywords": similarity_result.get('total_job_keywords', 0),
+                "match_count": similarity_result.get('match_count', 0),
+                "missing_count": similarity_result.get('missing_count', 0)
+            },
+            "keyword_suggestions": suggestions,
+            "improvement_suggestions": improvement_suggestions,
+            "analysis_summary": {
+                "overall_match": "Excellent" if similarity_result.get('similarity_score', 0) >= 80 else
+                               "Good" if similarity_result.get('similarity_score', 0) >= 60 else
+                               "Fair" if similarity_result.get('similarity_score', 0) >= 40 else
+                               "Needs Improvement",
+                "technical_match": "Strong" if similarity_result.get('technical_score', 0) >= 70 else
+                                 "Moderate" if similarity_result.get('technical_score', 0) >= 40 else
+                                 "Weak"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Job description matching error: {str(e)}")
+        error_message = "Failed to analyze job match: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
 
 @app.post("/api/ai/generate_resume_content")
 async def generate_resume_content(payload: dict):
@@ -778,12 +909,12 @@ async def generate_resume_content(payload: dict):
             Return ONLY valid JSON with fields: company, role, duration, bullets (array of strings)
             
             Example format:
-            {
+            {{
               "company": "Google",
               "role": "DevOps Engineer", 
               "duration": "2022-2024",
               "bullets": ["Deployed applications using Kubernetes", "Managed CI/CD pipelines"]
-            }
+            }}
             """
         elif content_type == 'project':
             prompt = f"""
@@ -862,17 +993,17 @@ async def generate_resume_content(payload: dict):
         result = response.json()
         content = result['choices'][0]['message']['content'].strip()
         
-        logger.info(f"OpenAI response content: {content}")
+        logger.info("OpenAI response content: " + str(content))
         
         # Try to parse as JSON
         try:
             import json
             parsed_content = json.loads(content)
-            logger.info(f"Parsed JSON content: {parsed_content}")
+            logger.info("Parsed JSON content: " + str(parsed_content))
             return parsed_content
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse JSON: {e}")
-            logger.warning(f"Raw content: {content}")
+            logger.warning("Raw content: " + str(content))
             
             # Try to extract JSON from the content if it's wrapped in markdown
             import re
@@ -880,7 +1011,7 @@ async def generate_resume_content(payload: dict):
             if json_match:
                 try:
                     parsed_content = json.loads(json_match.group(1))
-                    logger.info(f"Extracted JSON from markdown: {parsed_content}")
+                    logger.info("Extracted JSON from markdown: " + str(parsed_content))
                     return parsed_content
                 except json.JSONDecodeError:
                     pass
@@ -898,7 +1029,8 @@ async def generate_resume_content(payload: dict):
             
     except Exception as e:
         logger.error(f"Content generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_message = "Failed to generate content: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
 
 TEMPLATES = {
     "tech": {
@@ -1850,27 +1982,31 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.bold = True
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
-                for b in s.bullets:
-                    if not b.text.strip():  # Skip empty bullets
-                        continue
-                    bullet_text = apply_replacements(b.text, replacements)
-                    bullet_para = left_cell.add_paragraph(style='List Bullet')
-                    
-                    # Handle bold text formatting
-                    if '**' in bullet_text:
-                        parts = bullet_text.split('**')
-                        for i, part in enumerate(parts):
-                            if i % 2 == 0:  # Regular text
-                                if part.strip():
+                # Create a proper bullet list for this section
+                if s.bullets:
+                    # Add bullets as a proper list
+                    for b in s.bullets:
+                        if not b.text.strip():  # Skip empty bullets
+                            continue
+                        bullet_text = apply_replacements(b.text, replacements)
+                        bullet_para = left_cell.add_paragraph()
+                        bullet_para.style = 'List Bullet'
+                        
+                        # Handle bold text formatting
+                        if '**' in bullet_text:
+                            parts = bullet_text.split('**')
+                            for i, part in enumerate(parts):
+                                if i % 2 == 0:  # Regular text
+                                    if part.strip():
+                                        run = bullet_para.add_run(part)
+                                        run.font.size = Pt(10)
+                                else:  # Bold text
                                     run = bullet_para.add_run(part)
                                     run.font.size = Pt(10)
-                            else:  # Bold text
-                                run = bullet_para.add_run(part)
-                                run.font.size = Pt(10)
-                                run.font.bold = True
-                    else:
-                        run = bullet_para.add_run(bullet_text)
-                        run.font.size = Pt(10)
+                                    run.font.bold = True
+                        else:
+                            run = bullet_para.add_run(bullet_text)
+                            run.font.size = Pt(10)
                 
                 left_cell.add_paragraph()
             
@@ -1886,27 +2022,31 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.bold = True
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
-                for b in s.bullets:
-                    if not b.text.strip():  # Skip empty bullets
-                        continue
-                    bullet_text = apply_replacements(b.text, replacements)
-                    bullet_para = right_cell.add_paragraph(style='List Bullet')
-                    
-                    # Handle bold text formatting
-                    if '**' in bullet_text:
-                        parts = bullet_text.split('**')
-                        for i, part in enumerate(parts):
-                            if i % 2 == 0:  # Regular text
-                                if part.strip():
+                # Create a proper bullet list for this section
+                if s.bullets:
+                    # Add bullets as a proper list
+                    for b in s.bullets:
+                        if not b.text.strip():  # Skip empty bullets
+                            continue
+                        bullet_text = apply_replacements(b.text, replacements)
+                        bullet_para = right_cell.add_paragraph()
+                        bullet_para.style = 'List Bullet'
+                        
+                        # Handle bold text formatting
+                        if '**' in bullet_text:
+                            parts = bullet_text.split('**')
+                            for i, part in enumerate(parts):
+                                if i % 2 == 0:  # Regular text
+                                    if part.strip():
+                                        run = bullet_para.add_run(part)
+                                        run.font.size = Pt(10)
+                                else:  # Bold text
                                     run = bullet_para.add_run(part)
                                     run.font.size = Pt(10)
-                            else:  # Bold text
-                                run = bullet_para.add_run(part)
-                                run.font.size = Pt(10)
-                                run.font.bold = True
-                    else:
-                        run = bullet_para.add_run(bullet_text)
-                        run.font.size = Pt(10)
+                                    run.font.bold = True
+                        else:
+                            run = bullet_para.add_run(bullet_text)
+                            run.font.size = Pt(10)
                 
                 right_cell.add_paragraph()
         else:
@@ -1927,27 +2067,31 @@ async def export_docx(payload: ExportPayload):
                 heading_run.font.bold = True
                 heading_run.font.name = 'Arial' if 'Arial' in template_style["styles"]["font"] else 'Georgia'
                 
-                for b in s.bullets:
-                    if not b.text.strip():  # Skip empty bullets
-                        continue
-                    bullet_text = apply_replacements(b.text, replacements)
-                    bullet_para = doc.add_paragraph(style='List Bullet')
-                    
-                    # Handle bold text formatting
-                    if '**' in bullet_text:
-                        parts = bullet_text.split('**')
-                        for i, part in enumerate(parts):
-                            if i % 2 == 0:  # Regular text
-                                if part.strip():
+                # Create a proper bullet list for this section
+                if s.bullets:
+                    # Add bullets as a proper list
+                    for b in s.bullets:
+                        if not b.text.strip():  # Skip empty bullets
+                            continue
+                        bullet_text = apply_replacements(b.text, replacements)
+                        bullet_para = doc.add_paragraph()
+                        bullet_para.style = 'List Bullet'
+                        
+                        # Handle bold text formatting
+                        if '**' in bullet_text:
+                            parts = bullet_text.split('**')
+                            for i, part in enumerate(parts):
+                                if i % 2 == 0:  # Regular text
+                                    if part.strip():
+                                        run = bullet_para.add_run(part)
+                                        run.font.size = Pt(10)
+                                else:  # Bold text
                                     run = bullet_para.add_run(part)
                                     run.font.size = Pt(10)
-                            else:  # Bold text
-                                run = bullet_para.add_run(part)
-                                run.font.size = Pt(10)
-                                run.font.bold = True
-                    else:
-                        run = bullet_para.add_run(bullet_text)
-                        run.font.size = Pt(10)
+                                    run.font.bold = True
+                        else:
+                            run = bullet_para.add_run(bullet_text)
+                            run.font.size = Pt(10)
                 
                 doc.add_paragraph()
         
