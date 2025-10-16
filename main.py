@@ -87,6 +87,7 @@ class ExportPayload(BaseModel):
     two_column_left: Optional[List[str]] = []
     two_column_right: Optional[List[str]] = []
     two_column_left_width: Optional[int] = 50
+    cover_letter: Optional[str] = None
 
 class LoginPayload(BaseModel):
     email: str
@@ -118,6 +119,14 @@ class GenerateSummaryPayload(BaseModel):
 class JobDescriptionMatchPayload(BaseModel):
     job_description: str
     resume_data: ResumePayload
+
+class CoverLetterPayload(BaseModel):
+    job_description: str
+    resume_data: ResumePayload
+    company_name: str
+    position_title: str
+    tone: str = "professional"
+    custom_requirements: Optional[str] = None
 
 users_db = {}
 user_stats = {}
@@ -859,6 +868,119 @@ Return as a JSON array of suggestion objects with 'category' and 'suggestion' fi
         error_message = "Failed to analyze job match: " + str(e)
         raise HTTPException(status_code=500, detail=error_message)
 
+@app.post("/api/ai/cover_letter")
+async def generate_cover_letter(payload: CoverLetterPayload):
+    """Generate a tailored cover letter using AI"""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI service not available")
+    
+    try:
+        # Convert resume data to text for context
+        resume_text = f"{payload.resume_data.name} — {payload.resume_data.title}\n\n"
+        if payload.resume_data.summary:
+            resume_text += payload.resume_data.summary + "\n\n"
+        
+        for section in payload.resume_data.sections:
+            resume_text += f"{section.title}\n"
+            for bullet in section.bullets:
+                resume_text += f"• {bullet.text}\n"
+            resume_text += "\n"
+        
+        # Define tone instructions
+        tone_instructions = {
+            "professional": "Use formal, corporate language with strong action verbs and industry terminology",
+            "friendly": "Use warm, approachable language while maintaining professionalism",
+            "concise": "Use direct, clear language with short sentences and bullet points where appropriate"
+        }
+        
+        tone_instruction = tone_instructions.get(payload.tone, tone_instructions["professional"])
+        
+        # Build custom requirements context
+        custom_context = f"\nAdditional Requirements: {payload.custom_requirements}" if payload.custom_requirements else ""
+        
+        prompt = f"""Generate a professional cover letter for this job application.
+
+Job Details:
+- Company: {payload.company_name}
+- Position: {payload.position_title}
+- Job Description: {payload.job_description[:2000]}
+
+Candidate Information:
+{resume_text[:2000]}
+
+Requirements:
+- Write a compelling cover letter that connects the candidate's experience to the job requirements
+- Use {payload.tone} tone: {tone_instruction}
+- Include specific examples from the candidate's background that match job requirements
+- Address key requirements from the job description with concrete examples
+- Keep it professional and engaging
+- Length: 3-4 paragraphs (approximately 250-350 words)
+- Start with a strong opening that shows enthusiasm and mentions the specific position
+- Use action verbs and quantifiable achievements where possible
+- End with a clear call to action
+- Avoid generic phrases - be specific to this role and company
+{custom_context}
+
+Structure the response as JSON with these fields:
+- opening: Opening paragraph (1-2 sentences) - mention the specific position and company
+- body: Main body paragraphs (2-3 paragraphs) - highlight relevant experience and achievements
+- closing: Closing paragraph (1-2 sentences) - express enthusiasm and next steps
+- full_letter: Complete formatted letter with proper spacing
+
+Return ONLY valid JSON, no markdown formatting."""
+
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 1000,
+            "temperature": 0.7
+        }
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"OpenAI API error: {response.status_code}")
+        
+        result = response.json()
+        cover_letter_content = result['choices'][0]['message']['content'].strip()
+        
+        # Try to parse as JSON
+        try:
+            import json
+            parsed_content = json.loads(cover_letter_content)
+        except json.JSONDecodeError:
+            # If not JSON, create structured response
+            parsed_content = {
+                "opening": "I am writing to express my strong interest in the " + payload.position_title + " position at " + payload.company_name + ".",
+                "body": cover_letter_content,
+                "closing": "I would welcome the opportunity to discuss how my experience can contribute to your team. Thank you for your consideration.",
+                "full_letter": cover_letter_content
+            }
+        
+        return {
+            "success": True,
+            "cover_letter": parsed_content,
+            "tokens_used": result.get('usage', {}).get('total_tokens', 0),
+            "company": payload.company_name,
+            "position": payload.position_title,
+            "tone": payload.tone
+        }
+        
+    except Exception as e:
+        logger.error(f"Cover letter generation error: {str(e)}")
+        error_message = "Failed to generate cover letter: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
+
 @app.post("/api/ai/generate_resume_content")
 async def generate_resume_content(payload: dict):
     """Generate resume content based on user requirements"""
@@ -1326,6 +1448,19 @@ async def export_pdf(payload: ExportPayload):
         if payload.location:
             contact_info += ' • ' + apply_replacements(payload.location, replacements)
         
+        # Add cover letter if provided
+        cover_letter_html = ""
+        if payload.cover_letter:
+            cover_letter_content = payload.cover_letter.replace('\n', '<br>')
+            cover_letter_html = f'''
+            <div class="cover-letter-section">
+                <h2>Cover Letter</h2>
+                <div class="cover-letter-content">
+                    {cover_letter_content}
+                </div>
+            </div>
+            '''
+        
         # Build sections HTML
         if layout == 'two-column':
             left_sections_html = ""
@@ -1403,6 +1538,7 @@ async def export_pdf(payload: ExportPayload):
             right_width_adjusted = right_width - (gap / 2)
             
             content_html = f'''
+            {cover_letter_html}
             <div class="two-column">
                 <div class="column" style="width: {left_width_adjusted}%; margin-right: {gap}%;">{left_sections_html}</div>
                 <div class="column" style="width: {right_width_adjusted}%;">{right_sections_html}</div>
@@ -1432,7 +1568,7 @@ async def export_pdf(payload: ExportPayload):
                             {bullets_html}
                         </ul>
                     </div>'''
-            content_html = summary_html + sections_html
+            content_html = cover_letter_html + summary_html + sections_html
         
         html_content = f'''<!DOCTYPE html>
 <html>
@@ -1457,6 +1593,9 @@ async def export_pdf(payload: ExportPayload):
         .two-column {{ width: 100%; }}
         .column {{ float: left; }}
         .clearfix {{ clear: both; }}
+        .cover-letter-section {{ margin-bottom: 20px; page-break-after: always; }}
+        .cover-letter-section h2 {{ font-size: 14pt; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 5px; }}
+        .cover-letter-content {{ font-size: 11pt; line-height: 1.6; text-align: justify; }}
     </style>
 </head>
 <body>
@@ -1892,6 +2031,19 @@ async def export_docx(payload: ExportPayload):
                 contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         doc.add_paragraph()
+        
+        # Add cover letter if provided
+        if payload.cover_letter:
+            cover_letter_heading = doc.add_paragraph()
+            cover_letter_heading_run = cover_letter_heading.add_run("Cover Letter")
+            cover_letter_heading_run.font.size = Pt(14)
+            cover_letter_heading_run.font.bold = True
+            
+            cover_letter_para = doc.add_paragraph(payload.cover_letter)
+            cover_letter_para.runs[0].font.size = Pt(11)
+            cover_letter_para.runs[0].font.name = 'Arial'
+            
+            doc.add_paragraph()  # Add spacing
         
         logger.info(f"Layout decision: layout='{layout}', is_two_column={layout == 'two-column'}")
         if layout == 'two-column':
