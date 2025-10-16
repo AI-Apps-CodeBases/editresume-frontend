@@ -11,6 +11,8 @@ import AuthModal from '@/components/auth/AuthModal'
 import CollaborationPanel from '@/components/editor/CollaborationPanel'
 import VisualResumeEditor from '@/components/editor/VisualResumeEditor'
 import AIWizard from '@/components/editor/AIWizard'
+import JobDescriptionMatcher from '@/components/editor/JobDescriptionMatcher'
+import ImproveResumeButton from '@/components/editor/ImproveResumeButton'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCollaboration } from '@/hooks/useCollaboration'
 
@@ -548,6 +550,23 @@ export default function EditorPage() {
                       </p>
                     </div>
                   
+                </div>
+
+                {/* Job Description Matcher */}
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-indigo-900 mb-1">🎯 Job Description Matcher</h3>
+                      <p className="text-sm text-indigo-700">Analyze how well your resume matches a specific job and get improvement suggestions</p>
+                    </div>
+                  </div>
+                  
+                  <JobDescriptionMatcher 
+                    resumeData={resumeData}
+                    onMatchResult={(result) => {
+                      console.log('Job match result:', result);
+                    }}
+                  />
                 </div>
               </div>
           </div>
