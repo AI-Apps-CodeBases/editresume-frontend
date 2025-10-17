@@ -20,12 +20,12 @@ interface ResumeData {
 }
 
 interface Props {
-  data: ResumeData
-  onAddContent: (newContent: any) => void
+  resumeData: ResumeData
+  onAddContent?: (newContent: any) => void
   onClose: () => void
 }
 
-export default function AIWizard({ data, onAddContent, onClose }: Props) {
+export default function AIWizard({ resumeData, onAddContent, onClose }: Props) {
   const [step, setStep] = useState(1)
   const [contentType, setContentType] = useState<'job' | 'project' | 'skill' | 'education'>('job')
   const [requirements, setRequirements] = useState('')
@@ -40,7 +40,7 @@ export default function AIWizard({ data, onAddContent, onClose }: Props) {
     console.log('Requirements:', requirements)
     console.log('Position:', position)
     console.log('Target section:', targetSection)
-    console.log('Existing data:', data)
+    console.log('Existing data:', resumeData)
     
     setIsGenerating(true)
     try {
@@ -49,11 +49,11 @@ export default function AIWizard({ data, onAddContent, onClose }: Props) {
         requirements,
         position,
         targetSection,
-        existingData: data,
+        existingData: resumeData,
         context: {
-          name: data.name,
-          title: data.title,
-          currentSections: data.sections.map(s => s.title)
+          name: resumeData.name,
+          title: resumeData.title,
+          currentSections: resumeData.sections.map(s => s.title)
         }
       }
       
@@ -101,7 +101,9 @@ export default function AIWizard({ data, onAddContent, onClose }: Props) {
         targetSection
       }
       console.log('Calling onAddContent with:', contentToAdd)
-      onAddContent(contentToAdd)
+      if (onAddContent) {
+        onAddContent(contentToAdd)
+      }
       onClose()
     } else {
       console.error('No generated content to add')
@@ -230,7 +232,7 @@ export default function AIWizard({ data, onAddContent, onClose }: Props) {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Auto-detect (Work Experience)</option>
-                    {data.sections.map(section => (
+                    {resumeData.sections.map(section => (
                       <option key={section.id} value={section.id}>{section.title}</option>
                     ))}
                   </select>

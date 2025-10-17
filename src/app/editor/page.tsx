@@ -11,7 +11,6 @@ import AuthModal from '@/components/auth/AuthModal'
 import CollaborationPanel from '@/components/editor/CollaborationPanel'
 import VisualResumeEditor from '@/components/editor/VisualResumeEditor'
 import AIWizard from '@/components/editor/AIWizard'
-import JobDescriptionMatcher from '@/components/editor/JobDescriptionMatcher'
 import ImproveResumeButton from '@/components/editor/ImproveResumeButton'
 import CoverLetterGenerator from '@/components/editor/CoverLetterGenerator'
 import { useAuth } from '@/contexts/AuthContext'
@@ -204,14 +203,20 @@ export default function EditorPage() {
   }
 
   const handleExport = async (format: 'pdf' | 'docx') => {
+    console.log('Export requested:', format)
+    console.log('Resume data:', resumeData)
+    console.log('Is authenticated:', isAuthenticated)
+    
     const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
     
     if (premiumMode && !isAuthenticated) {
+      console.log('Premium mode - showing auth modal')
       setShowAuthModal(true)
       return
     }
 
     if (premiumMode && !checkPremiumAccess()) {
+      console.log('Premium mode - access denied')
       alert('⭐ Premium feature! Upgrade to export resumes.')
       return
     }
@@ -232,27 +237,34 @@ export default function EditorPage() {
 
     setIsExporting(true)
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/export/${format}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-          name: resumeData.name,
-          title: resumeData.title,
-          email: resumeData.email,
-          phone: resumeData.phone,
-          location: resumeData.location,
-          summary: resumeData.summary,
-          sections: resumeData.sections,
-          replacements,
-          template: selectedTemplate,
-          two_column_left: localStorage.getItem('twoColumnLeft') ? JSON.parse(localStorage.getItem('twoColumnLeft')!) : [],
-          two_column_right: localStorage.getItem('twoColumnRight') ? JSON.parse(localStorage.getItem('twoColumnRight')!) : [],
-          two_column_left_width: localStorage.getItem('twoColumnLeftWidth') ? Number(localStorage.getItem('twoColumnLeftWidth')!) : 50
-          })
-        }
-      )
+      const exportUrl = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/export/${format}`
+      console.log('Export URL:', exportUrl)
+      
+      const exportData = {
+        name: resumeData.name,
+        title: resumeData.title,
+        email: resumeData.email,
+        phone: resumeData.phone,
+        location: resumeData.location,
+        summary: resumeData.summary,
+        sections: resumeData.sections,
+        replacements,
+        template: selectedTemplate,
+        two_column_left: localStorage.getItem('twoColumnLeft') ? JSON.parse(localStorage.getItem('twoColumnLeft')!) : [],
+        two_column_right: localStorage.getItem('twoColumnRight') ? JSON.parse(localStorage.getItem('twoColumnRight')!) : [],
+        two_column_left_width: localStorage.getItem('twoColumnLeftWidth') ? Number(localStorage.getItem('twoColumnLeftWidth')!) : 50
+      }
+      
+      console.log('Export data:', exportData)
+      
+      const response = await fetch(exportUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exportData)
+      })
+      
+      console.log('Export response status:', response.status)
+      console.log('Export response ok:', response.ok)
       
       // Debug logging
       const debugInfo = {
@@ -280,10 +292,13 @@ export default function EditorPage() {
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
       } else {
-        alert(`Export failed. Please try again.`)
+        const errorText = await response.text()
+        console.error('Export failed:', response.status, errorText)
+        alert(`Export failed (${response.status}): ${errorText}`)
       }
     } catch (error) {
-      alert(`Export failed. Make sure backend is running.`)
+      console.error('Export error:', error)
+      alert(`Export failed: ${error.message}. Make sure backend is running.`)
     } finally {
       setIsExporting(false)
     }
@@ -291,6 +306,220 @@ export default function EditorPage() {
 
   const [previewScale, setPreviewScale] = useState(0.6)
   const [fullscreenPreview, setFullscreenPreview] = useState(false)
+
+  const handleAddContent = (newContent: any) => {
+    console.log('=== AI WIZARD ADDING CONTENT ===')
+    console.log('New content from AI wizard:', newContent)
+    console.log('Content type:', newContent.type)
+    console.log('Content data:', newContent.content)
+    console.log('Position:', newContent.position)
+    console.log('Current resume data before update:', resumeData)
+    
+    try {
+      if (newContent.type === 'job') {
+        // Add new job experience
+        const workExperienceSection = resumeData.sections.find(s => 
+          s.title.toLowerCase().includes('experience') || 
+          s.title.toLowerCase().includes('work') ||
+          s.title.toLowerCase().includes('employment') ||
+          s.title.toLowerCase().includes('professional')
+        )
+        
+        console.log('Available sections:', resumeData.sections.map(s => s.title))
+        console.log('Found work experience section:', workExperienceSection)
+        
+        if (newContent.content) {
+          let targetSection = workExperienceSection
+          
+          // If no work experience section found, create one
+          if (!targetSection) {
+            console.log('No work experience section found, creating one...')
+            targetSection = {
+              id: Date.now().toString(),
+              title: 'Work Experience',
+              bullets: []
+            }
+            // Add the new section to the beginning of sections array
+            resumeData.sections.unshift(targetSection)
+          }
+          const content = newContent.content
+          const bullets = content.bullets || []
+          
+          console.log('Content bullets:', bullets)
+          
+          console.log('Content validation:', {
+            company: content.company,
+            role: content.role,
+            duration: content.duration,
+            bullets: bullets,
+            fullContent: content
+          })
+          
+          // Handle undefined values with fallbacks
+          const company = content.company || 'Unknown Company'
+          const role = content.role || 'Unknown Role'
+          const duration = content.duration || 'Unknown Duration'
+          
+          console.log('Using fallbacks:', { company, role, duration })
+          
+          const newBullets = [
+            { 
+              id: Date.now().toString(), 
+              text: `**${company} / ${role} / ${duration}**`, 
+              params: {} 
+            },
+            ...bullets.filter((bullet: any) => bullet && bullet.trim()).map((bullet: string) => ({
+              id: Date.now().toString() + Math.random(),
+              text: `• ${bullet}`,
+              params: {}
+            }))
+          ]
+          
+          console.log('New bullets to add:', newBullets)
+          
+          // Clean up existing placeholder entries
+          const cleanExistingBullets = (bullets: any[]) => {
+            return bullets.filter(bullet => 
+              bullet.text && 
+              bullet.text.trim() && 
+              !bullet.text.includes('Company / Role / Duration') &&
+              !bullet.text.includes('**Company**') &&
+              !bullet.text.includes('**Role**') &&
+              !bullet.text.includes('**Duration**')
+            )
+          }
+          
+          const updatedSections = resumeData.sections.map(section => {
+            if (section.id === targetSection.id) {
+              let updatedBullets
+              const cleanedExistingBullets = cleanExistingBullets(section.bullets)
+              
+              if (newContent.position === 'beginning') {
+                updatedBullets = [...newBullets, ...cleanedExistingBullets]
+              } else if (newContent.position === 'middle') {
+                const middleIndex = Math.floor(cleanedExistingBullets.length / 2)
+                const newBulletsList = [...cleanedExistingBullets]
+                newBulletsList.splice(middleIndex, 0, ...newBullets)
+                updatedBullets = newBulletsList
+              } else {
+                updatedBullets = [...cleanedExistingBullets, ...newBullets]
+              }
+              
+              console.log('Updated bullets for section:', updatedBullets)
+              return { ...section, bullets: updatedBullets }
+            }
+            return section
+          })
+          
+          console.log('Updated sections:', updatedSections)
+          const newResumeData = { ...resumeData, sections: updatedSections }
+          console.log('New resume data:', newResumeData)
+          console.log('Calling handleResumeDataChange to update preview...')
+          handleResumeDataChange(newResumeData)
+          console.log('handleResumeDataChange completed')
+        } else {
+          console.log('No content provided')
+        }
+      } else if (newContent.type === 'project') {
+        // Add new project
+        const projectsSection = resumeData.sections.find(s => 
+          s.title.toLowerCase().includes('project')
+        ) || resumeData.sections[0]
+        
+        console.log('Found projects section:', projectsSection)
+        
+        if (newContent.content) {
+          const content = newContent.content
+          const bullets = content.bullets || []
+          
+          const newBullets = [
+            { id: Date.now().toString(), text: `**${content.name || 'Project Name'}**`, params: {} },
+            { id: Date.now().toString() + '1', text: content.description || 'Project description', params: {} },
+            ...bullets.map((bullet: string) => ({
+              id: Date.now().toString() + Math.random(),
+              text: `• ${bullet}`,
+              params: {}
+            }))
+          ]
+          
+          console.log('New project bullets:', newBullets)
+          
+          const updatedSections = resumeData.sections.map(section => {
+            if (section.id === projectsSection.id) {
+              const updatedBullets = [...section.bullets, ...newBullets]
+              console.log('Updated project bullets:', updatedBullets)
+              return { ...section, bullets: updatedBullets }
+            }
+            return section
+          })
+          
+          const newResumeData = { ...resumeData, sections: updatedSections }
+          console.log('New resume data with project:', newResumeData)
+          handleResumeDataChange(newResumeData)
+        }
+      } else if (newContent.type === 'skill') {
+        // Add new skills section
+        if (newContent.content && newContent.content.categories) {
+          const categories = newContent.content.categories
+          const skillBullets = Object.entries(categories).map(([category, skills]) => 
+            `**${category}:** ${Array.isArray(skills) ? skills.join(', ') : skills}`
+          )
+          
+          const newSection = {
+            id: Date.now().toString(),
+            title: 'Skills',
+            bullets: skillBullets.map(skill => ({
+              id: Date.now().toString() + Math.random(),
+              text: skill,
+              params: {}
+            }))
+          }
+          
+          console.log('New skills section:', newSection)
+          
+          const newResumeData = { 
+            ...resumeData, 
+            sections: [...resumeData.sections, newSection] 
+          }
+          console.log('New resume data with skills:', newResumeData)
+          handleResumeDataChange(newResumeData)
+        }
+      } else if (newContent.type === 'education') {
+        // Add new education section
+        if (newContent.content) {
+          const content = newContent.content
+          const educationBullets = [
+            `**${content.institution || 'Institution'}**`,
+            `${content.degree || 'Degree'} - ${content.year || 'Year'}`,
+            ...(content.coursework || []).map((course: string) => `• ${course}`),
+            ...(content.honors || []).map((honor: string) => `• ${honor}`)
+          ]
+          
+          const newSection = {
+            id: Date.now().toString(),
+            title: 'Education',
+            bullets: educationBullets.map(edu => ({
+              id: Date.now().toString() + Math.random(),
+              text: edu,
+              params: {}
+            }))
+          }
+          
+          console.log('New education section:', newSection)
+          
+          const newResumeData = { 
+            ...resumeData, 
+            sections: [...resumeData.sections, newSection] 
+          }
+          console.log('New resume data with education:', newResumeData)
+          handleResumeDataChange(newResumeData)
+        }
+      }
+    } catch (error) {
+      console.error('Error adding content:', error)
+      alert('Failed to add content: ' + (error as Error).message)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -331,7 +560,10 @@ export default function EditorPage() {
                   📝 Cover Letter
                 </button>
                 <button
-                  onClick={() => setShowWizard(true)}
+                  onClick={() => {
+                    console.log('New Resume button clicked')
+                    setShowWizard(true)
+                  }}
                   className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all font-semibold"
                 >
                   ✨ New Resume
@@ -422,14 +654,15 @@ export default function EditorPage() {
               </div>
                 
                 {/* Two Column Layout for Visual Editor */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left - Visual Editor */}
-                  <div className="space-y-4">
-                <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left - Visual Editor (Larger) */}
+                  <div className="lg:col-span-2 space-y-4">
+                <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                   <VisualResumeEditor
                     data={resumeData}
                     onChange={handleResumeDataChange}
                     template={selectedTemplate}
+                    onAddContent={handleAddContent}
                     onAIImprove={async (text: string) => {
                       try {
                         console.log('AI Improve requested for:', text)
@@ -461,7 +694,7 @@ export default function EditorPage() {
                 </div>
                   </div>
 
-                  {/* Right - Live Preview */}
+                  {/* Right - Live Preview (Smaller) */}
                   <div className="lg:col-span-1">
                     <div className="sticky top-4">
                       <div className="bg-white rounded-xl shadow-lg p-4 border">
@@ -496,8 +729,8 @@ export default function EditorPage() {
                         <div 
                           className="overflow-y-auto overflow-x-hidden border-2 rounded-lg bg-gray-50 flex justify-center" 
                           style={{ 
-                            maxHeight: 'calc(100vh - 200px)',
-                            minHeight: '600px'
+                            maxHeight: 'calc(100vh - 300px)',
+                            minHeight: '400px'
                           }}
                         >
                           <div style={{ 
@@ -560,22 +793,6 @@ export default function EditorPage() {
                   
                 </div>
 
-                {/* Job Description Matcher */}
-                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-indigo-900 mb-1">🎯 Job Description Matcher</h3>
-                      <p className="text-sm text-indigo-700">Analyze how well your resume matches a specific job and get improvement suggestions</p>
-                    </div>
-                  </div>
-                  
-                  <JobDescriptionMatcher 
-                    resumeData={resumeData}
-                    onMatchResult={(result) => {
-                      console.log('Job match result:', result);
-                    }}
-                  />
-                </div>
 
                 {/* Cover Letter Generator */}
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">

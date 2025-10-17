@@ -34,9 +34,11 @@ interface JobMatchResult {
 interface JobDescriptionMatcherProps {
   resumeData: any;
   onMatchResult?: (result: JobMatchResult) => void;
+  onClose?: () => void;
+  standalone?: boolean; // If true, renders with popup wrapper
 }
 
-export default function JobDescriptionMatcher({ resumeData, onMatchResult }: JobDescriptionMatcherProps) {
+export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClose, standalone = true }: JobDescriptionMatcherProps) {
   const [jobDescription, setJobDescription] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [matchResult, setMatchResult] = useState<JobMatchResult | null>(null);
@@ -93,16 +95,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult }: Job
     return 'bg-red-100';
   };
 
-  return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">
-          Job Description Matcher
-        </h3>
-        <p className="text-gray-600 text-sm">
-          Paste a job description to see how well your resume matches and get improvement suggestions.
-        </p>
-      </div>
+  const content = (
+    <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+          <div className="mb-6">
+            <p className="text-gray-600 text-sm">
+              Paste a job description to see how well your resume matches and get improvement suggestions.
+            </p>
+          </div>
 
       <div className="mb-4">
         <label htmlFor="job-description" className="block text-sm font-medium text-gray-700 mb-2">
@@ -112,7 +111,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult }: Job
           id="job-description"
           value={jobDescription}
           onChange={(e) => setJobDescription(e.target.value)}
-          placeholder="Paste the job description here..."
+          placeholder="Paste the job description here... Example: 'We are looking for a DevOps Engineer with experience in AWS, Kubernetes, and CI/CD pipelines. The ideal candidate should have 3+ years of experience with infrastructure automation and monitoring tools.'"
           className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
         />
       </div>
@@ -269,4 +268,29 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult }: Job
       )}
     </div>
   );
+
+  if (standalone) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              🎯 Job Description Matcher
+            </h2>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  return content;
 }

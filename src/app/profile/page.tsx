@@ -2,6 +2,7 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import SettingsPanel from '@/components/SettingsPanel'
 
 interface ResumeHistory {
   id: string
@@ -345,66 +346,10 @@ export default function ProfilePage() {
             )}
 
             {activeTab === 'settings' && (
-              <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-gray-900">Account Settings</h2>
-
-                <div className="space-y-6">
-                  <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Profile Information</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
-                        <input
-                          type="text"
-                          value={user?.name}
-                          disabled
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white text-gray-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                        <input
-                          type="email"
-                          value={user?.email}
-                          disabled
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white text-gray-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Preferences</h3>
-                    <div className="space-y-3">
-                      <label className="flex items-center justify-between">
-                        <span className="text-gray-700 font-medium">Email notifications</span>
-                        <input type="checkbox" className="w-5 h-5 rounded" />
-                      </label>
-                      <label className="flex items-center justify-between">
-                        <span className="text-gray-700 font-medium">Marketing emails</span>
-                        <input type="checkbox" className="w-5 h-5 rounded" />
-                      </label>
-                      <label className="flex items-center justify-between">
-                        <span className="text-gray-700 font-medium">Auto-save resumes</span>
-                        <input type="checkbox" defaultChecked className="w-5 h-5 rounded" />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="bg-red-50 rounded-xl p-6 border-2 border-red-200">
-                    <h3 className="text-lg font-bold text-red-900 mb-2">Danger Zone</h3>
-                    <p className="text-red-700 mb-4">
-                      Once you delete your account, there is no going back. Please be certain.
-                    </p>
-                    <button
-                      onClick={handleDeleteAccount}
-                      className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-semibold"
-                    >
-                      Delete Account
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <SettingsPanel
+                user={user}
+                onDeleteAccount={handleDeleteAccount}
+              />
             )}
           </div>
         </div>

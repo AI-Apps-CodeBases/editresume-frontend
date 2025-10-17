@@ -1,5 +1,8 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import InlineGrammarChecker from './InlineGrammarChecker'
+import LeftSidebar from './LeftSidebar'
+import { useSettings } from '@/contexts/SettingsContext'
 
 interface Bullet {
   id: string
@@ -28,9 +31,11 @@ interface Props {
   onChange: (data: ResumeData) => void
   template?: string
   onAIImprove?: (text: string, context?: string) => Promise<string>
+  onAddContent?: (newContent: any) => void
 }
 
-export default function VisualResumeEditor({ data, onChange, template = 'tech', onAIImprove }: Props) {
+export default function VisualResumeEditor({ data, onChange, template = 'tech', onAIImprove, onAddContent }: Props) {
+  const { settings } = useSettings()
   const [draggedSection, setDraggedSection] = useState<string | null>(null)
   const [draggedBullet, setDraggedBullet] = useState<{ sectionId: string, bulletId: string } | null>(null)
   const [draggedCompanyGroup, setDraggedCompanyGroup] = useState<{ sectionId: string, bulletIds: string[] } | null>(null)
@@ -519,8 +524,36 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
     }
   }
 
+  const handleGrammarSuggestion = (sectionId: string, bulletId: string, newText: string) => {
+    if (sectionId === 'summary') {
+      onChange({ ...data, summary: newText })
+    } else {
+      const sections = data.sections.map(s =>
+        s.id === sectionId
+          ? {
+              ...s,
+              bullets: s.bullets.map(b =>
+                b.id === bulletId ? { ...b, text: newText } : b
+              )
+            }
+          : s
+      )
+      onChange({ ...data, sections })
+    }
+  }
+
   return (
-    <div className="relative" ref={editorRef}>
+    <div className="flex bg-gray-50 min-h-screen">
+      {/* Left Sidebar */}
+      <LeftSidebar
+        resumeData={data}
+        onApplySuggestion={handleGrammarSuggestion}
+        onAIImprove={onAIImprove}
+        onAddContent={onAddContent}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 relative" ref={editorRef}>
       {/* AI Floating Toolbar */}
       {showAIMenu && !isAILoading && (
         <div
@@ -561,6 +594,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
           </div>
         </div>
       )}
+
 
       {/* Resume Template */}
       <div className="bg-white shadow-xl rounded-lg overflow-hidden" style={{ width: '850px', margin: '0 auto', minHeight: '1100px' }}>
@@ -646,15 +680,14 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                 )}
               </button>
             </div>
-            <div
-              contentEditable
-              suppressContentEditableWarning
-              data-editable-type="field"
-              data-field="summary"
-              onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
-              className="text-sm text-gray-700 leading-relaxed outline-none hover:bg-white focus:bg-white px-3 py-2 rounded transition-colors cursor-text bg-white border border-blue-100 min-h-[80px]"
-            >
-              {data.summary || 'Click to edit or generate summary from your work experience above ↑'}
+            <div className="text-sm text-gray-700 leading-relaxed bg-white border border-blue-100 min-h-[80px] px-3 py-2 rounded">
+              <InlineGrammarChecker
+                text={data.summary || 'Click to edit or generate summary from your work experience above ↑'}
+                onApplySuggestion={(originalText, newText) => {
+                  updateField('summary', newText)
+                }}
+                showInline={settings.inlineGrammarCheck}
+              />
             </div>
           </div>
 
@@ -909,16 +942,14 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                       >
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 mt-1">•</span>
-                          <div
-                            contentEditable
-                            suppressContentEditableWarning
-                            data-editable-type="bullet"
-                            data-section-id={section.id}
-                            data-bullet-id={bullet.id}
-                            onBlur={(e) => updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')}
-                            className="flex-1 text-sm text-gray-700 leading-relaxed outline-none cursor-text"
-                          >
-                            {bullet.text.startsWith('• ') ? bullet.text.substring(2) : bullet.text || 'Click to edit bullet point'}
+                          <div className="flex-1 text-sm text-gray-700 leading-relaxed">
+                            <InlineGrammarChecker
+                              text={bullet.text.startsWith('• ') ? bullet.text.substring(2) : bullet.text || 'Click to edit bullet point'}
+                              onApplySuggestion={(originalText, newText) => {
+                                updateBullet(section.id, bullet.id, newText)
+                              }}
+                              showInline={settings.inlineGrammarCheck}
+                            />
                           </div>
                         </div>
                         
@@ -1166,6 +1197,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
       <div className="mt-4 text-center text-sm text-gray-500 space-y-1">
         <div>💡 Cmd+Z to undo • Drag company to move as group • Hover for buttons • 🤖 AI for keywords</div>
         <div className="text-xs text-gray-400">Company format: **Company / Role / Dates** then • Task 1, • Task 2, etc.</div>
+      </div>
       </div>
     </div>
   )
