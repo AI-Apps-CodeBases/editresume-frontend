@@ -11,6 +11,7 @@ import secrets
 from datetime import datetime
 from openai import OpenAI
 from keyword_extractor import KeywordExtractor
+from grammar_checker import GrammarStyleChecker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,8 +42,9 @@ else:
     else:
         logger.warning("OpenAI API key is still the placeholder value. Please set a real API key.")
 
-# Initialize keyword extractor
+# Initialize keyword extractor and grammar checker
 keyword_extractor = KeywordExtractor()
+grammar_checker = GrammarStyleChecker()
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
 
@@ -127,6 +129,10 @@ class CoverLetterPayload(BaseModel):
     position_title: str
     tone: str = "professional"
     custom_requirements: Optional[str] = None
+
+class GrammarCheckPayload(BaseModel):
+    text: str
+    check_type: str = "all"  # "grammar", "style", "all"
 
 users_db = {}
 user_stats = {}
@@ -979,6 +985,93 @@ Return ONLY valid JSON, no markdown formatting."""
     except Exception as e:
         logger.error(f"Cover letter generation error: {str(e)}")
         error_message = "Failed to generate cover letter: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
+
+@app.post("/api/ai/grammar_check")
+async def check_grammar_style(payload: GrammarCheckPayload):
+    """Check grammar and style of text"""
+    try:
+        text = payload.text.strip()
+        if not text:
+            return {
+                "success": False,
+                "error": "No text provided for checking"
+            }
+        
+        logger.info(f"Grammar/style check requested for {len(text)} characters")
+        
+        if payload.check_type in ["grammar", "all"]:
+            grammar_issues = grammar_checker.check_grammar(text)
+        else:
+            grammar_issues = []
+        
+        if payload.check_type in ["style", "all"]:
+            passive_issues = grammar_checker.check_passive_voice(text)
+            weak_verb_issues = grammar_checker.check_weak_verbs(text)
+            readability_score, readability_issues = grammar_checker.check_readability(text)
+            strength_score, strength_issues = grammar_checker.check_action_verbs(text)
+            style_score = grammar_checker.calculate_style_score(text)
+            improvement_suggestions = grammar_checker.get_improvement_suggestions(text)
+        else:
+            passive_issues = []
+            weak_verb_issues = []
+            readability_issues = []
+            strength_issues = []
+            style_score = None
+            improvement_suggestions = []
+            readability_score = 100
+            strength_score = 100
+        
+        # Format grammar issues
+        formatted_grammar_issues = []
+        for issue in grammar_issues:
+            formatted_grammar_issues.append({
+                "message": issue.message,
+                "replacements": issue.replacements,
+                "offset": issue.offset,
+                "length": issue.length,
+                "rule_id": issue.rule_id,
+                "category": issue.category,
+                "severity": issue.severity
+            })
+        
+        # Format style issues
+        all_style_issues = passive_issues + weak_verb_issues + readability_issues + strength_issues
+        formatted_style_issues = []
+        for issue in all_style_issues:
+            formatted_style_issues.append({
+                "type": issue.type,
+                "message": issue.message,
+                "suggestion": issue.suggestion,
+                "severity": issue.severity,
+                "score_impact": issue.score_impact
+            })
+        
+        response = {
+            "success": True,
+            "text_length": len(text),
+            "grammar_issues": formatted_grammar_issues,
+            "style_issues": formatted_style_issues,
+            "improvement_suggestions": improvement_suggestions
+        }
+        
+        if style_score:
+            response.update({
+                "style_score": {
+                    "overall_score": style_score.overall_score,
+                    "grammar_score": style_score.grammar_score,
+                    "readability_score": style_score.readability_score,
+                    "strength_score": style_score.strength_score,
+                    "issues_count": style_score.issues_count,
+                    "suggestions": style_score.suggestions
+                }
+            })
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Grammar/style check error: {str(e)}")
+        error_message = "Failed to check grammar and style: " + str(e)
         raise HTTPException(status_code=500, detail=error_message)
 
 @app.post("/api/ai/generate_resume_content")
