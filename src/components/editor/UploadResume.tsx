@@ -66,8 +66,10 @@ export default function UploadResume({ onUploadSuccess }: Props) {
       )
 
       const result = await response.json()
+      console.log('Upload response:', result)
 
       if (result.success) {
+        console.log('Upload successful, calling onUploadSuccess with:', result.data)
         onUploadSuccess(result.data)
       } else {
         const errorMsg = result.error || 'Upload failed'

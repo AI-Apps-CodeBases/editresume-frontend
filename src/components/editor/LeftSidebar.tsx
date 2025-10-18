@@ -5,6 +5,7 @@ import AIWizard from './AIWizard'
 import JobDescriptionMatcher from './JobDescriptionMatcher'
 import CoverLetterGenerator from './CoverLetterGenerator'
 import GrammarStylePanel from './GrammarStylePanel'
+import ATSScoreWidget from './ATSScoreWidget'
 
 interface Props {
   resumeData: {
@@ -103,6 +104,14 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
       description: 'Grammar and style analysis',
       premium: false,
       enabled: settings.grammarCheck
+    },
+    {
+      id: 'ats-score',
+      title: 'ATS Score',
+      icon: '🎯',
+      description: 'ATS compatibility analysis',
+      premium: false,
+      enabled: true
     },
     {
       id: 'collaboration',
@@ -215,6 +224,8 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
             </div>
           </div>
         )
+      case 'ats-score':
+        return <ATSScoreWidget resumeData={resumeData} onClose={() => setActivePopup(null)} />
       case 'collaboration':
         return (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setActivePopup(null)}>

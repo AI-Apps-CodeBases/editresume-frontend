@@ -112,7 +112,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
 
     document.addEventListener('selectionchange', handleSelection)
     return () => document.removeEventListener('selectionchange', handleSelection)
-  }, [])
+  }, [onAIImprove])
 
   const updateField = (field: keyof ResumeData, value: string) => {
     onChange({ ...data, [field]: value })
@@ -832,17 +832,57 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                           title="Drag to move this company and all its tasks as a group"
                         >
                           <div className="flex items-start gap-2">
-                            <div
-                              contentEditable
-                              suppressContentEditableWarning
+                            <textarea
+                              value={bullet.text.replace(/\*\*(.*?)\*\*/g, '$1')}
+                              onChange={(e) => updateBullet(section.id, bullet.id, e.target.value)}
+                              onMouseUp={(e) => {
+                                const textarea = e.target as HTMLTextAreaElement
+                                const start = textarea.selectionStart
+                                const end = textarea.selectionEnd
+                                if (start !== end) {
+                                  const selectedText = textarea.value.substring(start, end)
+                                  if (selectedText.trim()) {
+                                    setSelectedText({ 
+                                      text: selectedText, 
+                                      range: null, 
+                                      element: textarea 
+                                    })
+                                    const rect = textarea.getBoundingClientRect()
+                                    setAIMenuPosition({ 
+                                      x: rect.left + rect.width / 2, 
+                                      y: rect.top - 10 
+                                    })
+                                    setShowAIMenu(true)
+                                  }
+                                }
+                              }}
+                              onKeyUp={(e) => {
+                                const textarea = e.target as HTMLTextAreaElement
+                                const start = textarea.selectionStart
+                                const end = textarea.selectionEnd
+                                if (start !== end) {
+                                  const selectedText = textarea.value.substring(start, end)
+                                  if (selectedText.trim()) {
+                                    setSelectedText({ 
+                                      text: selectedText, 
+                                      range: null, 
+                                      element: textarea 
+                                    })
+                                    const rect = textarea.getBoundingClientRect()
+                                    setAIMenuPosition({ 
+                                      x: rect.left + rect.width / 2, 
+                                      y: rect.top - 10 
+                                    })
+                                    setShowAIMenu(true)
+                                  }
+                                }
+                              }}
                               data-editable-type="bullet"
                               data-section-id={section.id}
                               data-bullet-id={bullet.id}
-                              onBlur={(e) => updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')}
-                              className="flex-1 text-base font-bold text-gray-900 leading-relaxed outline-none cursor-text"
-                              dangerouslySetInnerHTML={{
-                                __html: bullet.text.replace(/\*\*(.*?)\*\*/g, '$1')
-                              }}
+                              className="flex-1 text-base font-bold text-gray-900 leading-relaxed outline-none cursor-text resize-none border-none bg-transparent"
+                              rows={1}
+                              placeholder="Company / Role / Dates"
                             />
                             <div className="opacity-0 group-hover/bullet:opacity-100 flex gap-1 transition-opacity">
                               <button
@@ -942,15 +982,58 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                       >
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 mt-1">•</span>
-                          <div className="flex-1 text-sm text-gray-700 leading-relaxed">
-                            <InlineGrammarChecker
-                              text={bullet.text.startsWith('• ') ? bullet.text.substring(2) : bullet.text || 'Click to edit bullet point'}
-                              onApplySuggestion={(originalText, newText) => {
-                                updateBullet(section.id, bullet.id, newText)
-                              }}
-                              showInline={settings.inlineGrammarCheck}
-                            />
-                          </div>
+                          <textarea
+                            value={bullet.text.startsWith('• ') ? bullet.text.substring(2) : bullet.text || ''}
+                            onChange={(e) => updateBullet(section.id, bullet.id, e.target.value)}
+                            onMouseUp={(e) => {
+                              const textarea = e.target as HTMLTextAreaElement
+                              const start = textarea.selectionStart
+                              const end = textarea.selectionEnd
+                              if (start !== end) {
+                                const selectedText = textarea.value.substring(start, end)
+                                if (selectedText.trim()) {
+                                  setSelectedText({ 
+                                    text: selectedText, 
+                                    range: null, 
+                                    element: textarea 
+                                  })
+                                  const rect = textarea.getBoundingClientRect()
+                                  setAIMenuPosition({ 
+                                    x: rect.left + rect.width / 2, 
+                                    y: rect.top - 10 
+                                  })
+                                  setShowAIMenu(true)
+                                }
+                              }
+                            }}
+                            onKeyUp={(e) => {
+                              const textarea = e.target as HTMLTextAreaElement
+                              const start = textarea.selectionStart
+                              const end = textarea.selectionEnd
+                              if (start !== end) {
+                                const selectedText = textarea.value.substring(start, end)
+                                if (selectedText.trim()) {
+                                  setSelectedText({ 
+                                    text: selectedText, 
+                                    range: null, 
+                                    element: textarea 
+                                  })
+                                  const rect = textarea.getBoundingClientRect()
+                                  setAIMenuPosition({ 
+                                    x: rect.left + rect.width / 2, 
+                                    y: rect.top - 10 
+                                  })
+                                  setShowAIMenu(true)
+                                }
+                              }
+                            }}
+                            data-editable-type="bullet"
+                            data-section-id={section.id}
+                            data-bullet-id={bullet.id}
+                            className="flex-1 text-sm text-gray-700 leading-relaxed resize-none border-none bg-transparent outline-none"
+                            rows={1}
+                            placeholder="Click to edit bullet point"
+                          />
                         </div>
                         
                         {/* Action Buttons Below Bullet */}

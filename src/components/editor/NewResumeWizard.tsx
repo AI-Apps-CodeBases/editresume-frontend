@@ -95,8 +95,10 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
   }
 
   const handleUploadOrPasteSuccess = (data: any) => {
+    console.log('handleUploadOrPasteSuccess called with:', data)
     setResumeData(data)
     setStep('template')
+    console.log('Step changed to template')
   }
 
   const handleTemplateSelect = (templateId: string) => {

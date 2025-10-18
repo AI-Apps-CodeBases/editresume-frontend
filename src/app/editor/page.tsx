@@ -13,6 +13,7 @@ import VisualResumeEditor from '@/components/editor/VisualResumeEditor'
 import AIWizard from '@/components/editor/AIWizard'
 import ImproveResumeButton from '@/components/editor/ImproveResumeButton'
 import CoverLetterGenerator from '@/components/editor/CoverLetterGenerator'
+import ATSScoreWidget from '@/components/editor/ATSScoreWidget'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCollaboration } from '@/hooks/useCollaboration'
 
@@ -23,6 +24,7 @@ export default function EditorPage() {
   const [showWizard, setShowWizard] = useState(true)
   const [showAIWizard, setShowAIWizard] = useState(false)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
+  const [showATSScore, setShowATSScore] = useState(false)
   const [roomId, setRoomId] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
   const [userName, setUserName] = useState(() => {
@@ -1151,6 +1153,14 @@ export default function EditorPage() {
             }
           }}
           onClose={() => setShowAIWizard(false)}
+        />
+      )}
+
+      {/* ATS Score Widget */}
+      {showATSScore && (
+        <ATSScoreWidget
+          resumeData={resumeData}
+          onClose={() => setShowATSScore(false)}
         />
       )}
     </div>
