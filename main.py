@@ -16,6 +16,15 @@ from grammar_checker import GrammarStyleChecker
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Import ATS checker with fallback
+try:
+    from ats_checker import ATSChecker
+    ats_checker = ATSChecker()
+    logger.info("ATS checker initialized successfully")
+except ImportError as e:
+    logger.warning(f"ATS checker not available: {e}")
+    ats_checker = None
+
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -2502,6 +2511,56 @@ async def resolve_comment_endpoint(room_id: str, comment_id: str):
 async def delete_comment_endpoint(room_id: str, comment_id: str):
     success = collab_manager.delete_comment(room_id, comment_id)
     return {"success": success}
+
+@app.post("/api/ai/ats_score")
+async def get_ats_score(payload: ResumePayload):
+    """Get ATS compatibility score and suggestions for resume"""
+    try:
+        logger.info("Processing ATS score request")
+        
+        # Check if ATS checker is available
+        if not ats_checker:
+            return {
+                "success": False,
+                "score": 0,
+                "suggestions": ["ATS analysis is not available. Please install required dependencies."],
+                "details": {},
+                "error": "ATS checker not available"
+            }
+        
+        # Convert ResumePayload to dict for ATSChecker
+        resume_data = {
+            'name': payload.name,
+            'title': payload.title,
+            'email': payload.email,
+            'phone': payload.phone,
+            'location': payload.location,
+            'summary': payload.summary,
+            'sections': payload.sections
+        }
+        
+        # Get ATS score and analysis
+        result = ats_checker.get_ats_score(resume_data)
+        
+        logger.info(f"ATS analysis completed. Score: {result.get('score', 0)}")
+        
+        return {
+            "success": True,
+            "score": result.get('score', 0),
+            "suggestions": result.get('suggestions', []),
+            "details": result.get('details', {}),
+            "message": f"ATS compatibility score: {result.get('score', 0)}/100"
+        }
+        
+    except Exception as e:
+        logger.error(f"ATS score calculation error: {str(e)}")
+        return {
+            "success": False,
+            "score": 0,
+            "suggestions": ["Unable to analyze resume. Please check your content."],
+            "details": {},
+            "error": str(e)
+        }
 
 @app.websocket("/ws/collab/{room_id}")
 async def websocket_collab(websocket: WebSocket, room_id: str):
