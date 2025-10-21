@@ -999,7 +999,7 @@ export default function EditorPage() {
                       text: `**${company} / ${role} / ${duration}**`, 
                       params: {} 
                     },
-                    ...bullets.filter(bullet => bullet && bullet.trim()).map((bullet: string) => ({
+                    ...bullets.filter((bullet: string) => bullet && bullet.trim()).map((bullet: string) => ({
                       id: Date.now().toString() + Math.random(),
                       text: `• ${bullet}`,
                       params: {}
