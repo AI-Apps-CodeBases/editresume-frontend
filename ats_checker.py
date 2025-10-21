@@ -35,6 +35,8 @@ try:
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
+except Exception:
+    SKLEARN_AVAILABLE = False
 
 try:
     import spacy
