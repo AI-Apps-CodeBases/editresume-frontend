@@ -937,7 +937,7 @@ export default function EditorPage() {
       {/* AI Content Wizard */}
       {showAIWizard && (
         <AIWizard
-          data={resumeData}
+          resumeData={resumeData}
           onAddContent={(newContent) => {
             console.log('=== AI WIZARD ADDING CONTENT ===')
             console.log('New content from AI wizard:', newContent)
