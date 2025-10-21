@@ -1122,8 +1122,8 @@ export default function EditorPage() {
                   const educationBullets = [
                     `**${content.institution || 'Institution'}**`,
                     `${content.degree || 'Degree'} - ${content.year || 'Year'}`,
-                    ...(content.coursework || []).map(course => `• ${course}`),
-                    ...(content.honors || []).map(honor => `• ${honor}`)
+                    ...(content.coursework || []).map((course: string) => `• ${course}`),
+                    ...(content.honors || []).map((honor: string) => `• ${honor}`)
                   ]
                   
                   const newSection = {
