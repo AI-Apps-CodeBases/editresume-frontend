@@ -24,6 +24,9 @@ try:
 except ImportError as e:
     logger.warning(f"ATS checker not available: {e}")
     ats_checker = None
+except Exception as e:
+    logger.warning(f"ATS checker failed to initialize: {e}")
+    ats_checker = None
 
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
