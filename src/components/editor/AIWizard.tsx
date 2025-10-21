@@ -323,7 +323,7 @@ export default function AIWizard({ resumeData, onAddContent, onClose }: Props) {
                     <div className="mt-2 space-y-1">
                       {Object.entries(generatedContent.categories).map(([category, skills]) => (
                         <div key={category} className="text-sm">
-                          <strong>{category}:</strong> {Array.isArray(skills) ? skills.join(', ') : skills}
+                          <strong>{category}:</strong> {Array.isArray(skills) ? (skills as string[]).join(', ') : String(skills)}
                         </div>
                       ))}
                     </div>
