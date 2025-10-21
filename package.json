@@ -6,8 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint",
-    "build:vercel": "DISABLE_ESLINT_PLUGIN=true next build"
+    "lint": "next lint"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -27,5 +26,8 @@
     "postcss": "8.4.47",
     "tailwindcss": "3.4.10",
     "typescript": "5.6.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

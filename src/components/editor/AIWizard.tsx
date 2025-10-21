@@ -397,11 +397,11 @@ export default function AIWizard({ resumeData, onAddContent, onClose }: Props) {
                         requirements: 'Test DevOps job at Google with Jenkins and Kubernetes',
                         position: 'beginning',
                         targetSection: '',
-                        existingData: data,
+                        existingData: resumeData,
                         context: {
-                          name: data.name,
-                          title: data.title,
-                          currentSections: data.sections.map(s => s.title)
+                          name: resumeData.name,
+                          title: resumeData.title,
+                          currentSections: resumeData.sections.map(s => s.title)
                         }
                       })
                     })
