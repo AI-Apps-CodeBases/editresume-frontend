@@ -345,7 +345,7 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {activeTab === 'settings' && (
+            {activeTab === 'settings' && user && (
               <SettingsPanel
                 user={user}
                 onDeleteAccount={handleDeleteAccount}
