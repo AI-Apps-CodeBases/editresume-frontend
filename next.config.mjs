@@ -9,9 +9,8 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   eslint: {
-    // Ignore ESLint errors during build to allow deployment
-    ignoreDuringBuilds: true,
-    dirs: [], // Disable ESLint entirely during build
+    // Completely disable ESLint during build
+    ignoreDuringBuilds: process.env.DISABLE_ESLINT_PLUGIN === 'true',
   },
 };
 export default nextConfig;
