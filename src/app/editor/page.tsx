@@ -300,7 +300,8 @@ export default function EditorPage() {
       }
     } catch (error) {
       console.error('Export error:', error)
-      alert(`Export failed: ${error.message}. Make sure backend is running.`)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      alert(`Export failed: ${errorMessage}. Make sure backend is running.`)
     } finally {
       setIsExporting(false)
     }
