@@ -48,7 +48,7 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
       const urlParams = new URLSearchParams(window.location.search)
       if (urlParams.has('popup') || urlParams.has('tool')) {
         // Remove any popup-related URL parameters
-        const newUrl = new URL(window.location)
+        const newUrl = new URL(window.location.href)
         newUrl.searchParams.delete('popup')
         newUrl.searchParams.delete('tool')
         window.history.replaceState({}, '', newUrl.toString())

@@ -22,10 +22,10 @@ interface ResumeData {
 interface Props {
   data: ResumeData
   replacements: Record<string, string>
-  template?: string
+  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
 }
 
-export default function PreviewPanel({ data, replacements, template = 'clean' }: Props) {
+export default function PreviewPanel({ data, replacements, template = 'clean' as const }: Props) {
   // Debug logging
   useEffect(() => {
     console.log('=== PreviewPanel received new data ===')
@@ -53,6 +53,11 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
       console.log('No work experience section found')
     }
   }, [data])
+
+  // Helper function for border styling
+  const getBorderClass = () => {
+    return template === 'clean' || template === 'tech' ? 'border-black' : 'border-gray-300'
+  }
 
   const applyReplacements = (text: string) => {
     let result = text
@@ -189,7 +194,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
             <div className="space-y-6">
               {data.summary && (
                 <div>
-                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
+                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
                     Professional Summary
                   </h2>
                   <p className="text-sm leading-relaxed text-gray-700">
@@ -200,7 +205,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
 
               {data.sections.filter((s) => leftSectionIds.includes(s.id)).map((section) => (
                 <div key={section.id}>
-                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
+                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
                     {applyReplacements(section.title)}
                   </h2>
                   {renderBullets(section.bullets, section.title)}
@@ -211,7 +216,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' }:
             <div className="space-y-6">
               {data.sections.filter((s) => rightSectionIds.includes(s.id)).map((section) => (
                 <div key={section.id}>
-                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
+                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
                     {applyReplacements(section.title)}
                   </h2>
                   {renderBullets(section.bullets, section.title)}

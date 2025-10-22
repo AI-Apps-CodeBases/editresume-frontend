@@ -33,11 +33,12 @@ export default function EditorPage() {
     }
     return ''
   })
-  const [selectedTemplate, setSelectedTemplate] = useState(() => {
+  const [selectedTemplate, setSelectedTemplate] = useState<'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('selectedTemplate') || 'tech'
+      const stored = localStorage.getItem('selectedTemplate') || 'clean'
+      return stored as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
     }
-    return 'tech'
+    return 'clean'
   })
   const [editorMode, setEditorMode] = useState<'visual'>('visual')
 
@@ -80,7 +81,7 @@ export default function EditorPage() {
     setResumeData(newResumeData)
     
     setEditorMode('visual')
-    setSelectedTemplate(template === 'visual' ? 'tech' : template)
+    setSelectedTemplate(template === 'visual' ? 'tech' : template as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech')
     if (typeof window !== 'undefined') {
       localStorage.setItem('editorMode', 'visual')
       localStorage.setItem('selectedTemplate', template === 'visual' ? 'tech' : template)

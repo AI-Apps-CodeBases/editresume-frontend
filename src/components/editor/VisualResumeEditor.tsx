@@ -102,7 +102,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
           element = element.parentElement
         }
         
-        setSelectedText({ text: selection.toString(), range, element })
+        setSelectedText({ text: selection.toString(), range, element: element || null })
         setAIMenuPosition({ x: rect.left + rect.width / 2, y: rect.top - 10 })
         setShowAIMenu(true)
       } else {
@@ -608,7 +608,6 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
               data-field="name"
               onBlur={(e) => updateField('name', e.currentTarget.textContent || '')}
               className="text-4xl font-bold text-gray-900 mb-2 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
-              placeholder="Your Name"
             >
               {data.name || 'Click to edit name'}
             </div>

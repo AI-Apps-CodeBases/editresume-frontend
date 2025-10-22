@@ -61,6 +61,7 @@ function SectionCard({
   toggleBoldText,
   improveBulletWithAI,
   generateBulletsWithAI,
+  generateBulletFromKeywords,
   improvingBullet,
   generatingBullets,
   roomId,
@@ -80,6 +81,7 @@ function SectionCard({
   toggleBoldText: (sectionId: string, bulletId: string) => void
   improveBulletWithAI: (sectionId: string, bulletId: string, bulletText: string) => void
   generateBulletsWithAI: (sectionId: string) => void
+  generateBulletFromKeywords: (sectionId: string, keywords: string) => void
   improvingBullet: string | null
   generatingBullets: string | null
   roomId?: string | null
@@ -324,6 +326,70 @@ export default function ResumeForm({ data, onChange, replacements, roomId, onAdd
   const [generatingSummary, setGeneratingSummary] = useState(false)
   const [selectedTone, setSelectedTone] = useState<string>('professional')
   
+  const generateBulletFromKeywords = async (sectionId: string, keywords: string) => {
+    setGeneratingBullets(sectionId)
+    try {
+      // Extract company title and job title from the section
+      let companyTitle = ''
+      let jobTitle = ''
+      
+      // Look for company headers in the section
+      const section = data.sections.find(s => s.id === sectionId)
+      if (section) {
+        for (const bullet of section.bullets) {
+          if (bullet.text.startsWith('**') && bullet.text.includes('**', 2)) {
+            const companyText = bullet.text.replace(/\*\*/g, '').trim()
+            const parts = companyText.split(' / ')
+            if (parts.length >= 2) {
+              companyTitle = parts[0]
+              jobTitle = parts[1]
+              break
+            }
+          }
+        }
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_bullet_from_keywords`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keywords: keywords,
+          company_title: companyTitle,
+          job_title: jobTitle
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success && result.bullet_text) {
+        // Add the new bullet to the section
+        const newBullet = {
+          id: Date.now().toString(),
+          text: result.bullet_text,
+          params: {}
+        }
+        
+        onChange({
+          ...data,
+          sections: data.sections.map(s => 
+            s.id === sectionId 
+              ? { ...s, bullets: [...s.bullets, newBullet] }
+              : s
+          )
+        })
+      }
+    } catch (error) {
+      console.error('Error generating bullet from keywords:', error)
+      alert('Failed to generate bullet. Please try again.')
+    } finally {
+      setGeneratingBullets(null)
+    }
+  }
+  
   const updateField = (field: keyof ResumeData, value: string) => {
     onChange({ ...data, [field]: value })
   }
@@ -529,75 +595,6 @@ export default function ResumeForm({ data, onChange, replacements, roomId, onAdd
     }
   }
 
-  const generateBulletFromKeywords = async (sectionId: string, keywords: string) => {
-    setGeneratingBullets(sectionId)
-    try {
-      // Extract company title and job title from the section
-      let companyTitle = ''
-      let jobTitle = ''
-      
-      // Look for company headers in the section
-      const section = data.sections.find(s => s.id === sectionId)
-      if (section) {
-        for (const bullet of section.bullets) {
-          if (bullet.text.startsWith('**') && bullet.text.includes('**', 2)) {
-            const companyText = bullet.text.replace(/\*\*/g, '').trim()
-            const parts = companyText.split(' / ')
-            if (parts.length >= 2) {
-              companyTitle = parts[0]
-              jobTitle = parts[1]
-              break
-            }
-          }
-        }
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_bullet_from_keywords`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keywords: keywords,
-          company_title: companyTitle,
-          job_title: jobTitle
-        })
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const result = await response.json()
-      
-      if (result.success && result.bullet_text) {
-        // Add the new bullet to the section
-        const newBullet = {
-          id: Date.now().toString(),
-          text: result.bullet_text,
-          params: {}
-        }
-        
-        onChange({
-          ...data,
-          sections: data.sections.map(s => {
-            if (s.id === sectionId) {
-              return {
-                ...s,
-                bullets: [...s.bullets, newBullet]
-              }
-            }
-            return s
-          })
-        })
-      } else {
-        alert('Failed to generate bullet point')
-      }
-    } catch (error) {
-      console.error('Bullet generation failed:', error)
-      alert('Bullet generation failed: ' + (error as Error).message)
-    } finally {
-      setGeneratingBullets(null)
-    }
-  }
 
   const generateSummaryWithAI = async () => {
     setGeneratingSummary(true)
@@ -807,6 +804,7 @@ export default function ResumeForm({ data, onChange, replacements, roomId, onAdd
               toggleBoldText={toggleBoldText}
               improveBulletWithAI={improveBulletWithAI}
               generateBulletsWithAI={generateBulletsWithAI}
+              generateBulletFromKeywords={generateBulletFromKeywords}
               improvingBullet={improvingBullet}
               generatingBullets={generatingBullets}
               roomId={roomId}
