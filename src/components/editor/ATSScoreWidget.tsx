@@ -44,7 +44,7 @@ export default function ATSScoreWidget({ resumeData, onClose }: Props) {
   const analyzeResume = async () => {
     setIsAnalyzing(true)
     try {
-      const response = await fetch('http://localhost:8000/api/ai/ats_score', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/ats_score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

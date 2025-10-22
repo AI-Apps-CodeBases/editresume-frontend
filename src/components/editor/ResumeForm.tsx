@@ -521,7 +521,7 @@ export default function ResumeForm({ data, onChange, replacements, roomId, onAdd
 
     setImprovingBullet(bulletId)
     try {
-      const response = await fetch('http://localhost:8000/api/openai/improve-bullet', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/openai/improve-bullet`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -554,7 +554,7 @@ export default function ResumeForm({ data, onChange, replacements, roomId, onAdd
     
     setGeneratingBullets(sectionId)
     try {
-      const response = await fetch('http://localhost:8000/api/ai/generate_bullet_points', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_bullet_points`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

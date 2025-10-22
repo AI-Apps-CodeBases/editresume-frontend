@@ -43,7 +43,7 @@ export default function Comments({
     if (!roomId) return
     try {
       const response = await fetch(
-        `http://localhost:8000/api/collab/room/${roomId}/comments?target_id=${targetId}`
+        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/collab/room/${roomId}/comments?target_id=${targetId}`
       )
       const data = await response.json()
       setComments(data.comments || [])

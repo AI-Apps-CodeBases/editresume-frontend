@@ -159,7 +159,7 @@ function EditorPageContent() {
 
   const handleCreateRoom = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/collab/room/create')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/collab/room/create`)
       const data = await response.json()
       const name = userName || prompt('Enter your name:')
       if (name) {

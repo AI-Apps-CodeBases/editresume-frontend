@@ -42,7 +42,9 @@ export function useCollaboration(): CollaborationHook {
     const userId = Math.random().toString(36).substring(7)
     userIdRef.current = userId
     
-    const ws = new WebSocket(`ws://localhost:8000/ws/collab/${roomId}`)
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+    const wsUrl = apiBase.replace('http', 'ws') + `/ws/collab/${roomId}`
+    const ws = new WebSocket(wsUrl)
     
     ws.onopen = () => {
       ws.send(JSON.stringify({
