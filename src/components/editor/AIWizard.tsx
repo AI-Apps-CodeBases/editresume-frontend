@@ -411,7 +411,8 @@ export default function AIWizard({ resumeData, onAddContent, onClose }: Props) {
                     alert('Backend test successful! Check console for details.')
                   } catch (error) {
                     console.error('Backend test failed:', error)
-                    alert('Backend test failed: ' + error.message)
+                    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+                    alert('Backend test failed: ' + errorMessage)
                   }
                 }}
                 className="px-3 py-1 bg-yellow-600 text-white rounded text-xs font-semibold hover:bg-yellow-700"
