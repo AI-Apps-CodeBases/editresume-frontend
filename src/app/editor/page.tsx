@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import ResumeForm from '@/components/editor/ResumeForm'
 import PreviewPanel from '@/components/editor/PreviewPanel'
@@ -17,7 +17,7 @@ import ATSScoreWidget from '@/components/editor/ATSScoreWidget'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCollaboration } from '@/hooks/useCollaboration'
 
-export default function EditorPage() {
+function EditorPageContent() {
   const { user, isAuthenticated, login, logout, checkPremiumAccess } = useAuth()
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -1166,6 +1166,19 @@ export default function EditorPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading editor...</p>
+      </div>
+    </div>}>
+      <EditorPageContent />
+    </Suspense>
   )
 }
 
