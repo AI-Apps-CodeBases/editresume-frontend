@@ -28,6 +28,30 @@ except Exception as e:
     logger.warning(f"ATS checker failed to initialize: {e}")
     ats_checker = None
 
+# Import Enhanced ATS checker
+try:
+    from enhanced_ats_checker import EnhancedATSChecker
+    enhanced_ats_checker = EnhancedATSChecker()
+    logger.info("Enhanced ATS checker initialized successfully")
+except ImportError as e:
+    logger.warning(f"Enhanced ATS checker not available: {e}")
+    enhanced_ats_checker = None
+except Exception as e:
+    logger.warning(f"Enhanced ATS checker failed to initialize: {e}")
+    enhanced_ats_checker = None
+
+# Import AI Improvement Engine
+try:
+    from ai_improvement_engine import AIResumeImprovementEngine
+    ai_improvement_engine = AIResumeImprovementEngine()
+    logger.info("AI Improvement Engine initialized successfully")
+except ImportError as e:
+    logger.warning(f"AI Improvement Engine not available: {e}")
+    ai_improvement_engine = None
+except Exception as e:
+    logger.warning(f"AI Improvement Engine failed to initialize: {e}")
+    ai_improvement_engine = None
+
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -153,6 +177,19 @@ class CoverLetterPayload(BaseModel):
 class GrammarCheckPayload(BaseModel):
     text: str
     check_type: str = "all"  # "grammar", "style", "all"
+
+class EnhancedATSPayload(BaseModel):
+    resume_data: ResumePayload
+    job_description: Optional[str] = None
+    target_role: Optional[str] = None
+    industry: Optional[str] = None
+
+class AIImprovementPayload(BaseModel):
+    resume_data: ResumePayload
+    job_description: Optional[str] = None
+    target_role: Optional[str] = None
+    industry: Optional[str] = None
+    strategy: Optional[str] = None  # Specific improvement strategy to focus on
 
 users_db = {}
 user_stats = {}
@@ -2570,6 +2607,279 @@ async def get_ats_score(payload: ResumePayload):
             "score": 0,
             "suggestions": ["Unable to analyze resume. Please check your content."],
             "details": {},
+            "error": str(e)
+        }
+
+@app.post("/api/ai/enhanced_ats_score")
+async def get_enhanced_ats_score(payload: EnhancedATSPayload):
+    """Get enhanced ATS compatibility score with AI improvements"""
+    try:
+        logger.info("Processing enhanced ATS score request")
+        
+        # Check if enhanced ATS checker is available
+        if not enhanced_ats_checker:
+            return {
+                "success": False,
+                "score": 0,
+                "suggestions": ["Enhanced ATS analysis is not available. Please install required dependencies."],
+                "details": {},
+                "ai_improvements": [],
+                "error": "Enhanced ATS checker not available"
+            }
+        
+        # Convert ResumePayload to dict for EnhancedATSChecker
+        resume_data = {
+            'name': payload.resume_data.name,
+            'title': payload.resume_data.title,
+            'email': payload.resume_data.email,
+            'phone': payload.resume_data.phone,
+            'location': payload.resume_data.location,
+            'summary': payload.resume_data.summary,
+            'sections': [
+                {
+                    'id': section.id,
+                    'title': section.title,
+                    'bullets': [
+                        {
+                            'id': bullet.id,
+                            'text': bullet.text,
+                            'params': bullet.params
+                        }
+                        for bullet in section.bullets
+                    ]
+                }
+                for section in payload.resume_data.sections
+            ]
+        }
+        
+        # Get enhanced ATS score and analysis
+        result = enhanced_ats_checker.get_enhanced_ats_score(resume_data, payload.job_description)
+        
+        logger.info(f"Enhanced ATS analysis completed. Score: {result.get('score', 0)}")
+        
+        return {
+            "success": True,
+            "score": result.get('score', 0),
+            "suggestions": result.get('suggestions', []),
+            "details": result.get('details', {}),
+            "ai_improvements": result.get('ai_improvements', []),
+            "message": f"Enhanced ATS compatibility score: {result.get('score', 0)}/100"
+        }
+        
+    except Exception as e:
+        logger.error(f"Enhanced ATS score calculation error: {str(e)}")
+        return {
+            "success": False,
+            "score": 0,
+            "suggestions": ["Unable to analyze resume. Please check your content."],
+            "details": {},
+            "ai_improvements": [],
+            "error": str(e)
+        }
+
+@app.post("/api/ai/improvement_suggestions")
+async def get_ai_improvement_suggestions(payload: AIImprovementPayload):
+    """Get AI-powered improvement suggestions based on 10 strategies"""
+    try:
+        logger.info("Processing AI improvement suggestions request")
+        
+        # Check if AI improvement engine is available
+        if not ai_improvement_engine:
+            return {
+                "success": False,
+                "suggestions": ["AI improvement engine is not available. Please install required dependencies."],
+                "error": "AI improvement engine not available"
+            }
+        
+        # Convert ResumePayload to dict
+        resume_data = {
+            'name': payload.resume_data.name,
+            'title': payload.resume_data.title,
+            'email': payload.resume_data.email,
+            'phone': payload.resume_data.phone,
+            'location': payload.resume_data.location,
+            'summary': payload.resume_data.summary,
+            'sections': [
+                {
+                    'id': section.id,
+                    'title': section.title,
+                    'bullets': [
+                        {
+                            'id': bullet.id,
+                            'text': bullet.text,
+                            'params': bullet.params
+                        }
+                        for bullet in section.bullets
+                    ]
+                }
+                for section in payload.resume_data.sections
+            ]
+        }
+        
+        # Get AI improvement suggestions
+        result = ai_improvement_engine.get_improvement_suggestions(
+            resume_data, 
+            payload.job_description, 
+            payload.target_role, 
+            payload.industry
+        )
+        
+        logger.info(f"AI improvement suggestions generated. Total: {result.get('total_improvements', 0)}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"AI improvement suggestions error: {str(e)}")
+        return {
+            "success": False,
+            "suggestions": ["Unable to generate improvement suggestions. Please check your content."],
+            "error": str(e)
+        }
+
+@app.post("/api/ai/apply_improvement")
+async def apply_ai_improvement(payload: AIImprovementPayload):
+    """Apply specific AI improvement to resume content"""
+    try:
+        logger.info(f"Processing AI improvement application for strategy: {payload.strategy}")
+        
+        # Check if AI improvement engine is available
+        if not ai_improvement_engine:
+            return {
+                "success": False,
+                "improved_content": "",
+                "suggestions": ["AI improvement engine is not available."],
+                "error": "AI improvement engine not available"
+            }
+        
+        # Convert ResumePayload to dict
+        resume_data = {
+            'name': payload.resume_data.name,
+            'title': payload.resume_data.title,
+            'email': payload.resume_data.email,
+            'phone': payload.resume_data.phone,
+            'location': payload.resume_data.location,
+            'summary': payload.resume_data.summary,
+            'sections': [
+                {
+                    'id': section.id,
+                    'title': section.title,
+                    'bullets': [
+                        {
+                            'id': bullet.id,
+                            'text': bullet.text,
+                            'params': bullet.params
+                        }
+                        for bullet in section.bullets
+                    ]
+                }
+                for section in payload.resume_data.sections
+            ]
+        }
+        
+        # Generate improvement prompt for specific strategy
+        if payload.strategy:
+            from ai_improvement_engine import ImprovementStrategy
+            
+            # Map category names to strategy enum values
+            strategy_mapping = {
+                'summary': 'professional_summary',
+                'achievements': 'quantified_achievements',
+                'keywords': 'job_alignment',
+                'experience': 'career_transition',
+                'content': 'content_audit',
+                'format': 'modern_format',
+                'skills': 'skills_enhancement',
+                'leadership': 'leadership_emphasis',
+                'contact': 'contact_optimization',
+                'ats': 'ats_compatibility'
+            }
+            
+            # Get the mapped strategy name
+            mapped_strategy = strategy_mapping.get(payload.strategy, payload.strategy)
+            logger.info(f"Strategy mapping: {payload.strategy} -> {mapped_strategy}")
+            
+            try:
+                strategy = ImprovementStrategy(mapped_strategy)
+                prompt = ai_improvement_engine.generate_improvement_prompt(
+                    strategy, resume_data, payload.job_description, 
+                    payload.target_role, payload.industry
+                )
+                
+                # Use OpenAI to generate improved content
+                if openai_client:
+                    try:
+                        response = openai_client['requests'].post(
+                            "https://api.openai.com/v1/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {openai_client['api_key']}",
+                                "Content-Type": "application/json"
+                            },
+                            json={
+                                "model": openai_client['model'],
+                                "messages": [
+                                    {"role": "system", "content": "You are an expert resume writer. Provide specific, actionable improvements to resume content."},
+                                    {"role": "user", "content": prompt}
+                                ],
+                                "max_tokens": OPENAI_MAX_TOKENS,
+                                "temperature": 0.7
+                            }
+                        )
+                        
+                        if response.status_code == 200:
+                            ai_response = response.json()
+                            improved_content = ai_response['choices'][0]['message']['content']
+                            
+                            return {
+                                "success": True,
+                                "improved_content": improved_content,
+                                "strategy": payload.strategy,
+                                "prompt_used": prompt,
+                                "message": f"AI improvement applied for {payload.strategy} strategy"
+                            }
+                        else:
+                            logger.error(f"OpenAI API error: {response.status_code}")
+                            return {
+                                "success": False,
+                                "improved_content": "",
+                                "suggestions": ["AI improvement generation failed. Please try again."],
+                                "error": f"OpenAI API error: {response.status_code}"
+                            }
+                    except Exception as e:
+                        logger.error(f"OpenAI request error: {str(e)}")
+                        return {
+                            "success": False,
+                            "improved_content": "",
+                            "suggestions": ["AI improvement generation failed. Please try again."],
+                            "error": str(e)
+                        }
+                else:
+                    return {
+                        "success": False,
+                        "improved_content": "",
+                        "suggestions": ["OpenAI client not available. Please configure API key."],
+                        "error": "OpenAI client not available"
+                    }
+            except ValueError:
+                return {
+                    "success": False,
+                    "improved_content": "",
+                    "suggestions": [f"Invalid strategy: {payload.strategy}. Available strategies: {', '.join(strategy_mapping.keys())}"],
+                    "error": f"Invalid strategy: {payload.strategy}. Mapped to: {mapped_strategy}"
+                }
+        else:
+            return {
+                "success": False,
+                "improved_content": "",
+                "suggestions": ["Please specify a strategy to apply."],
+                "error": "No strategy specified"
+            }
+        
+    except Exception as e:
+        logger.error(f"AI improvement application error: {str(e)}")
+        return {
+            "success": False,
+            "improved_content": "",
+            "suggestions": ["Unable to apply AI improvement. Please try again."],
             "error": str(e)
         }
 
