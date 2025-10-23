@@ -14,6 +14,8 @@ import AIWizard from '@/components/editor/AIWizard'
 import ImproveResumeButton from '@/components/editor/ImproveResumeButton'
 import CoverLetterGenerator from '@/components/editor/CoverLetterGenerator'
 import ATSScoreWidget from '@/components/editor/ATSScoreWidget'
+import EnhancedATSScoreWidget from '@/components/editor/EnhancedATSScoreWidget'
+import AIImprovementWidget from '@/components/editor/AIImprovementWidget'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCollaboration } from '@/hooks/useCollaboration'
 
@@ -25,6 +27,8 @@ function EditorPageContent() {
   const [showAIWizard, setShowAIWizard] = useState(false)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
   const [showATSScore, setShowATSScore] = useState(false)
+  const [showEnhancedATS, setShowEnhancedATS] = useState(false)
+  const [showAIImprovements, setShowAIImprovements] = useState(false)
   const [roomId, setRoomId] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
   const [userName, setUserName] = useState(() => {
@@ -661,41 +665,39 @@ function EditorPageContent() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Left - Visual Editor (Larger) */}
                   <div className="lg:col-span-2 space-y-4">
-                <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-                  <VisualResumeEditor
-                    data={resumeData}
-                    onChange={handleResumeDataChange}
-                    template={selectedTemplate}
-                    onAddContent={handleAddContent}
-                    onAIImprove={async (text: string) => {
-                      try {
-                        console.log('AI Improve requested for:', text)
-                        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/openai/improve-bullet`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ bullet: text, tone: 'professional' })
-                        })
-                        
-                        if (!response.ok) {
-                          throw new Error(`HTTP error! status: ${response.status}`)
+                    <VisualResumeEditor
+                      data={resumeData}
+                      onChange={handleResumeDataChange}
+                      template={selectedTemplate}
+                      onAddContent={handleAddContent}
+                      onAIImprove={async (text: string) => {
+                        try {
+                          console.log('AI Improve requested for:', text)
+                          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/openai/improve-bullet`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ bullet: text, tone: 'professional' })
+                          })
+                          
+                          if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`)
+                          }
+                          
+                          const data = await response.json()
+                          console.log('AI Improve response:', data)
+                          
+                          let improved = data.improved || data.improved_bullet || text
+                          improved = improved.replace(/^["']|["']$/g, '')
+                          
+                          console.log('Final improved text:', improved)
+                          return improved
+                        } catch (error) {
+                          console.error('AI improvement failed:', error)
+                          alert('AI improvement failed: ' + (error as Error).message)
+                          return text
                         }
-                        
-                        const data = await response.json()
-                        console.log('AI Improve response:', data)
-                        
-                        let improved = data.improved || data.improved_bullet || text
-                        improved = improved.replace(/^["']|["']$/g, '')
-                        
-                        console.log('Final improved text:', improved)
-                        return improved
-                      } catch (error) {
-                        console.error('AI improvement failed:', error)
-                        alert('AI improvement failed: ' + (error as Error).message)
-                        return text
-                      }
-                    }}
-                  />
-                </div>
+                      }}
+                    />
                   </div>
 
                   {/* Right - Live Preview (Smaller) */}
@@ -797,6 +799,65 @@ function EditorPageContent() {
                   
                 </div>
 
+
+                {/* AI-Powered Resume Improvements */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-purple-900 mb-1">🤖 AI-Powered Resume Improvements</h3>
+                      <p className="text-sm text-purple-700">Get intelligent suggestions to optimize your resume with 10 proven improvement strategies</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowEnhancedATS(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                      >
+                        🎯 Enhanced ATS Score
+                      </button>
+                      <button
+                        onClick={() => setShowAIImprovements(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                      >
+                        ✨ AI Improvements
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white rounded-lg p-4 border border-purple-200">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="text-2xl">🎯</div>
+                        <h4 className="font-semibold text-gray-900">Enhanced ATS Analysis</h4>
+                      </div>
+                      <p className="text-xs text-gray-600 mb-3">Comprehensive ATS compatibility scoring with AI-powered improvement suggestions</p>
+                      <ul className="text-xs text-gray-600 space-y-1">
+                        <li>• Structure & formatting analysis</li>
+                        <li>• Keyword optimization scoring</li>
+                        <li>• Job description alignment</li>
+                        <li>• Content quality assessment</li>
+                      </ul>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-purple-200">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="text-2xl">✨</div>
+                        <h4 className="font-semibold text-gray-900">10 AI Improvement Strategies</h4>
+                      </div>
+                      <p className="text-xs text-gray-600 mb-3">Intelligent suggestions based on proven resume improvement techniques</p>
+                      <ul className="text-xs text-gray-600 space-y-1">
+                        <li>• Professional summary enhancement</li>
+                        <li>• Quantified achievements</li>
+                        <li>• Career transition support</li>
+                        <li>• Leadership emphasis</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                    <p className="text-xs text-purple-700">
+                      💡 <strong>How it works:</strong> Our AI analyzes your resume using 10 proven improvement strategies, from professional summary enhancement to ATS optimization. Get specific, actionable suggestions with examples and apply them with one click.
+                    </p>
+                  </div>
+                </div>
 
                 {/* Cover Letter Generator */}
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
@@ -1163,6 +1224,28 @@ function EditorPageContent() {
         <ATSScoreWidget
           resumeData={resumeData}
           onClose={() => setShowATSScore(false)}
+        />
+      )}
+
+      {/* Enhanced ATS Score Widget */}
+      {showEnhancedATS && (
+        <EnhancedATSScoreWidget
+          resumeData={resumeData}
+          jobDescription=""
+          targetRole=""
+          industry=""
+          onClose={() => setShowEnhancedATS(false)}
+        />
+      )}
+
+      {/* AI Improvement Widget */}
+      {showAIImprovements && (
+        <AIImprovementWidget
+          resumeData={resumeData}
+          jobDescription=""
+          targetRole=""
+          industry=""
+          onClose={() => setShowAIImprovements(false)}
         />
       )}
     </div>

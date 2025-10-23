@@ -199,16 +199,6 @@ export default function ProfilePage() {
                         <div className="text-xs text-gray-600">Start a new resume</div>
                       </div>
                     </a>
-                    <a
-                      href="/templates"
-                      className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-purple-400 hover:shadow-lg transition-all"
-                    >
-                      <span className="text-2xl">🎨</span>
-                      <div>
-                        <div className="font-semibold text-gray-900">Browse Templates</div>
-                        <div className="text-xs text-gray-600">View all templates</div>
-                      </div>
-                    </a>
                   </div>
                 </div>
               </div>

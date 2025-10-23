@@ -833,7 +833,13 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                           <div className="flex items-start gap-2">
                             <textarea
                               value={bullet.text.replace(/\*\*(.*?)\*\*/g, '$1')}
-                              onChange={(e) => updateBullet(section.id, bullet.id, e.target.value)}
+                              onChange={(e) => {
+                                updateBullet(section.id, bullet.id, e.target.value)
+                                // Auto-resize textarea
+                                const textarea = e.target as HTMLTextAreaElement
+                                textarea.style.height = 'auto'
+                                textarea.style.height = Math.min(textarea.scrollHeight, 128) + 'px'
+                              }}
                               onMouseUp={(e) => {
                                 const textarea = e.target as HTMLTextAreaElement
                                 const start = textarea.selectionStart
@@ -879,9 +885,15 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                               data-editable-type="bullet"
                               data-section-id={section.id}
                               data-bullet-id={bullet.id}
-                              className="flex-1 text-base font-bold text-gray-900 leading-relaxed outline-none cursor-text resize-none border-none bg-transparent"
-                              rows={1}
+                              className="w-full text-base font-bold text-gray-900 leading-relaxed outline-none cursor-text resize-none border-none bg-transparent"
+                              rows={2}
                               placeholder="Company / Role / Dates"
+                              style={{ 
+                                width: '100%',
+                                minHeight: '2rem',
+                                wordWrap: 'break-word',
+                                whiteSpace: 'pre-wrap'
+                              }}
                             />
                             <div className="opacity-0 group-hover/bullet:opacity-100 flex gap-1 transition-opacity">
                               <button
@@ -982,8 +994,14 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 mt-1">•</span>
                           <textarea
-                            value={bullet.text.startsWith('• ') ? bullet.text.substring(2) : bullet.text || ''}
-                            onChange={(e) => updateBullet(section.id, bullet.id, e.target.value)}
+                            value={bullet.text ? (bullet.text.startsWith('• ') ? bullet.text.substring(2) : bullet.text) : ''}
+                            onChange={(e) => {
+                              updateBullet(section.id, bullet.id, e.target.value)
+                              // Auto-resize textarea
+                              const textarea = e.target as HTMLTextAreaElement
+                              textarea.style.height = 'auto'
+                              textarea.style.height = Math.min(textarea.scrollHeight, 128) + 'px'
+                            }}
                             onMouseUp={(e) => {
                               const textarea = e.target as HTMLTextAreaElement
                               const start = textarea.selectionStart
@@ -1029,9 +1047,15 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                             data-editable-type="bullet"
                             data-section-id={section.id}
                             data-bullet-id={bullet.id}
-                            className="flex-1 text-sm text-gray-700 leading-relaxed resize-none border-none bg-transparent outline-none"
-                            rows={1}
+                            className="w-full text-sm text-gray-700 leading-relaxed resize-none border-none bg-transparent outline-none"
+                            rows={3}
                             placeholder="Click to edit bullet point"
+                            style={{ 
+                              width: '100%',
+                              minHeight: '3rem',
+                              wordWrap: 'break-word',
+                              whiteSpace: 'pre-wrap'
+                            }}
                           />
                         </div>
                         

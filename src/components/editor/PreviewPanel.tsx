@@ -110,11 +110,22 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               </li>
             )
           } else {
+            // Remove existing bullet point if present to avoid double bullets
+            let cleanText = bullet.text
+            if (cleanText.startsWith('• ')) {
+              cleanText = cleanText.substring(2)
+            } else if (cleanText.startsWith('•')) {
+              cleanText = cleanText.substring(1)
+            } else if (cleanText.startsWith('- ')) {
+              cleanText = cleanText.substring(2)
+            } else if (cleanText.startsWith('* ')) {
+              cleanText = cleanText.substring(2)
+            }
             return (
               <li key={bullet.id} className="text-sm leading-relaxed flex">
                 <span className="mr-2">•</span>
                 <span className="flex-1" dangerouslySetInnerHTML={{ 
-                  __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                  __html: applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
                 }} />
               </li>
             )
