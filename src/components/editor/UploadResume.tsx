@@ -58,7 +58,7 @@ export default function UploadResume({ onUploadSuccess }: Props) {
       formData.append('file', file)
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/upload`,
+        `${process.env.NEXT_PUBLIC_API_BASE || 'https://editresume-staging.onrender.com'}/api/resume/upload`,
         {
           method: 'POST',
           body: formData
