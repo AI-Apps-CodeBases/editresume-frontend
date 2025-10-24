@@ -1,11 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import ResumeForm from '@/components/editor/ResumeForm'
 import PreviewPanel from '@/components/editor/PreviewPanel'
 import GlobalReplacements from '@/components/editor/GlobalReplacements'
 import TemplateSelector from '@/components/editor/TemplateSelector'
-import TwoColumnEditor from '@/components/editor/TwoColumnEditor'
 import NewResumeWizard from '@/components/editor/NewResumeWizard'
 import AuthModal from '@/components/auth/AuthModal'
 import CollaborationPanel from '@/components/editor/CollaborationPanel'
@@ -45,7 +43,6 @@ function EditorPageContent() {
     }
     return 'clean'
   })
-  const [editorMode, setEditorMode] = useState<'visual'>('visual')
 
   const collaboration = useCollaboration()
   
@@ -85,10 +82,8 @@ function EditorPageContent() {
     
     setResumeData(newResumeData)
     
-    setEditorMode('visual')
     setSelectedTemplate(template === 'visual' ? 'tech' : template as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech')
     if (typeof window !== 'undefined') {
-      localStorage.setItem('editorMode', 'visual')
       localStorage.setItem('selectedTemplate', template === 'visual' ? 'tech' : template)
     }
     
@@ -109,6 +104,13 @@ function EditorPageContent() {
     if (typeof window !== 'undefined') {
       const hasExistingResume = localStorage.getItem('resumeData')
       if (hasExistingResume) {
+        try {
+          const existingData = JSON.parse(hasExistingResume)
+          console.log('Loading existing resume data from localStorage:', existingData)
+          setResumeData(existingData)
+        } catch (error) {
+          console.error('Error parsing resume data from localStorage:', error)
+        }
         setShowWizard(false)
       }
       
@@ -127,6 +129,14 @@ function EditorPageContent() {
       }
     }
   }, [searchParams, userName])
+
+  // Save resume data to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && resumeData.name) {
+      console.log('Saving resume data to localStorage:', resumeData)
+      localStorage.setItem('resumeData', JSON.stringify(resumeData))
+    }
+  }, [resumeData])
 
   useEffect(() => {
     if (roomId && userName) {
