@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import React, { useState } from 'react'
 
 interface ResumeData {
   name: string
@@ -23,9 +23,18 @@ interface Props {
   resumeData: ResumeData
   onAddContent?: (newContent: any) => void
   onClose: () => void
+  context?: {
+    type: string
+    companyName?: string
+    jobTitle?: string
+    dateRange?: string
+    sectionId?: string
+    bulletId?: string
+    bulletText?: string
+  }
 }
 
-export default function AIWizard({ resumeData, onAddContent, onClose }: Props) {
+export default function AIWizard({ resumeData, onAddContent, onClose, context }: Props) {
   const [step, setStep] = useState(1)
   const [contentType, setContentType] = useState<'job' | 'project' | 'skill' | 'education'>('job')
   const [requirements, setRequirements] = useState('')
@@ -34,6 +43,27 @@ export default function AIWizard({ resumeData, onAddContent, onClose }: Props) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedContent, setGeneratedContent] = useState<any>(null)
 
+  // Auto-setup for work experience context
+  React.useEffect(() => {
+    if (context?.type === 'work-experience' || context?.type === 'work-experience-bullet') {
+      setContentType('job')
+      setStep(2) // Skip to requirements step
+      if (context.companyName && context.jobTitle) {
+        setRequirements(`Company: ${context.companyName}\nJob Title: ${context.jobTitle}\nDate Range: ${context.dateRange || 'Not specified'}\n\nPlease describe your experience at this company in 2-3 sentences. Include your role, key responsibilities, and main achievements:`)
+      }
+      // Skip the position selection step for work experience
+      setPosition('end')
+    } else if (context?.type === 'bullet-improvement') {
+      setContentType('job')
+      setStep(2) // Skip to requirements step
+      if (context.bulletText) {
+        setRequirements(`Current bullet point: "${context.bulletText}"\n\nSection: ${context.sectionTitle || 'Work Experience'}\nCompany: ${context.companyName || 'Not specified'}\nRole: ${context.jobTitle || 'Not specified'}\n\nPlease describe how you want to improve this bullet point. Include specific achievements, metrics, or details you'd like to add:`)
+      }
+      // Skip the position selection step for bullet improvement
+      setPosition('end')
+    }
+  }, [context])
+
   const handleGenerate = async () => {
     console.log('=== AI WIZARD GENERATING CONTENT ===')
     console.log('Content type:', contentType)
@@ -41,19 +71,51 @@ export default function AIWizard({ resumeData, onAddContent, onClose }: Props) {
     console.log('Position:', position)
     console.log('Target section:', targetSection)
     console.log('Existing data:', resumeData)
+    console.log('Context:', context)
     
     setIsGenerating(true)
     try {
-      const payload = {
-        contentType,
-        requirements,
-        position,
-        targetSection,
-        existingData: resumeData,
-        context: {
-          name: resumeData.name,
-          title: resumeData.title,
-          currentSections: resumeData.sections.map(s => s.title)
+      // For work experience context, create a specialized payload
+      let payload
+      if (context?.type === 'work-experience' || context?.type === 'work-experience-bullet') {
+        payload = {
+          contentType: 'work-experience',
+          requirements,
+          context: {
+            companyName: context.companyName,
+            jobTitle: context.jobTitle,
+            dateRange: context.dateRange,
+            sectionId: context.sectionId,
+            bulletId: context.bulletId,
+            existingData: resumeData
+          }
+        }
+      } else if (context?.type === 'bullet-improvement') {
+        payload = {
+          contentType: 'bullet-improvement',
+          requirements,
+          context: {
+            sectionId: context.sectionId,
+            bulletId: context.bulletId,
+            bulletText: context.bulletText,
+            sectionTitle: context.sectionTitle,
+            companyName: context.companyName,
+            jobTitle: context.jobTitle,
+            existingData: resumeData
+          }
+        }
+      } else {
+        payload = {
+          contentType,
+          requirements,
+          position,
+          targetSection,
+          existingData: resumeData,
+          context: {
+            name: resumeData.name,
+            title: resumeData.title,
+            currentSections: resumeData.sections.map(s => s.title)
+          }
         }
       }
       
@@ -92,19 +154,60 @@ export default function AIWizard({ resumeData, onAddContent, onClose }: Props) {
     console.log('Content type:', contentType)
     console.log('Position:', position)
     console.log('Target section:', targetSection)
+    console.log('Context:', context)
     
     if (generatedContent) {
-      const contentToAdd = {
-        type: contentType,
-        content: generatedContent,
-        position,
-        targetSection
+      // For work experience context, directly update the company information
+      if (context?.type === 'work-experience' || context?.type === 'work-experience-bullet') {
+        const contentToAdd = {
+          type: 'work-experience-update',
+          content: generatedContent,
+          context: {
+            companyName: context.companyName,
+            jobTitle: context.jobTitle,
+            dateRange: context.dateRange,
+            sectionId: context.sectionId,
+            bulletId: context.bulletId
+          }
+        }
+        
+        console.log('Updating work experience:', contentToAdd)
+        if (onAddContent) {
+          onAddContent(contentToAdd)
+        }
+        onClose()
+      } else if (context?.type === 'bullet-improvement') {
+        // For bullet improvement, directly update the specific bullet point
+        const contentToAdd = {
+          type: 'bullet-improvement',
+          content: generatedContent,
+          context: {
+            sectionId: context.sectionId,
+            bulletId: context.bulletId,
+            sectionTitle: context.sectionTitle,
+            companyName: context.companyName,
+            jobTitle: context.jobTitle
+          }
+        }
+        
+        console.log('Improving bullet point:', contentToAdd)
+        if (onAddContent) {
+          onAddContent(contentToAdd)
+        }
+        onClose()
+      } else {
+        const contentToAdd = {
+          type: contentType,
+          content: generatedContent,
+          position,
+          targetSection
+        }
+        console.log('Calling onAddContent with:', contentToAdd)
+        if (onAddContent) {
+          onAddContent(contentToAdd)
+        }
+        onClose()
       }
-      console.log('Calling onAddContent with:', contentToAdd)
-      if (onAddContent) {
-        onAddContent(contentToAdd)
-      }
-      onClose()
     } else {
       console.error('No generated content to add')
       alert('No content generated to add')

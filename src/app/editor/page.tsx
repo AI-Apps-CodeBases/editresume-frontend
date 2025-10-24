@@ -25,6 +25,7 @@ function EditorPageContent() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showWizard, setShowWizard] = useState(true)
   const [showAIWizard, setShowAIWizard] = useState(false)
+  const [aiWizardContext, setAiWizardContext] = useState<any>(null)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
   const [showATSScore, setShowATSScore] = useState(false)
   const [showEnhancedATS, setShowEnhancedATS] = useState(false)
@@ -315,6 +316,106 @@ function EditorPageContent() {
   const [previewScale, setPreviewScale] = useState(0.6)
   const [fullscreenPreview, setFullscreenPreview] = useState(false)
 
+  const handleWorkExperienceUpdate = (newContent: any) => {
+    console.log('=== HANDLING WORK EXPERIENCE UPDATE ===')
+    console.log('New content:', newContent)
+    console.log('Context:', newContent.context)
+    
+    try {
+      const { content, context } = newContent
+      const { sectionId, bulletId, companyName, jobTitle, dateRange } = context
+      
+      // Find the section and update the company header
+      const sections = resumeData.sections.map(section => {
+        if (section.id === sectionId) {
+          const updatedBullets = section.bullets.map(bullet => {
+            if (bullet.id === bulletId) {
+              // Update the company header with new information
+              return {
+                ...bullet,
+                text: `**${content.companyName || companyName} / ${content.jobTitle || jobTitle} / ${content.dateRange || dateRange}**`
+              }
+            }
+            return bullet
+          })
+          
+          // Add new bullet points after the company header
+          if (content.bullets && content.bullets.length > 0) {
+            const newBullets = content.bullets.map((bulletText: string, index: number) => ({
+              id: `bullet-${Date.now()}-${index}`,
+              text: `• ${bulletText}`,
+              params: {}
+            }))
+            
+            // Insert new bullets after the company header
+            const headerIndex = updatedBullets.findIndex(b => b.id === bulletId)
+            updatedBullets.splice(headerIndex + 1, 0, ...newBullets)
+          }
+          
+          return {
+            ...section,
+            bullets: updatedBullets
+          }
+        }
+        return section
+      })
+      
+      setResumeData({ ...resumeData, sections })
+      console.log('Work experience updated successfully')
+      
+    } catch (error) {
+      console.error('Error updating work experience:', error)
+      alert('Failed to update work experience: ' + (error as Error).message)
+    }
+  }
+
+  const handleBulletImprovement = (newContent: any) => {
+    console.log('=== HANDLING BULLET IMPROVEMENT ===')
+    console.log('New content:', newContent)
+    console.log('Context:', newContent.context)
+    
+    try {
+      const { content, context } = newContent
+      const { sectionId, bulletId } = context
+      
+      // Find the section and update the specific bullet point
+      const sections = resumeData.sections.map(section => {
+        if (section.id === sectionId) {
+          const updatedBullets = section.bullets.map(bullet => {
+            if (bullet.id === bulletId) {
+              // Update the bullet text with the improved content
+              let improvedText = content.improvedBullet || content.bullet || content
+              
+              // Ensure the text starts with a bullet point
+              if (!improvedText.startsWith('•')) {
+                improvedText = `• ${improvedText}`
+              }
+              
+              return {
+                ...bullet,
+                text: improvedText
+              }
+            }
+            return bullet
+          })
+          
+          return {
+            ...section,
+            bullets: updatedBullets
+          }
+        }
+        return section
+      })
+      
+      setResumeData({ ...resumeData, sections })
+      console.log('Bullet point improved successfully')
+      
+    } catch (error) {
+      console.error('Error improving bullet point:', error)
+      alert('Failed to improve bullet point: ' + (error as Error).message)
+    }
+  }
+
   const handleAddContent = (newContent: any) => {
     console.log('=== AI WIZARD ADDING CONTENT ===')
     console.log('New content from AI wizard:', newContent)
@@ -322,6 +423,27 @@ function EditorPageContent() {
     console.log('Content data:', newContent.content)
     console.log('Position:', newContent.position)
     console.log('Current resume data before update:', resumeData)
+    
+    // Handle AI Wizard context for work experience
+    if (newContent.type === 'ai-wizard') {
+      console.log('AI Wizard context detected:', newContent.context)
+      setAiWizardContext(newContent.context)
+      setShowAIWizard(true)
+      return
+    }
+    
+    // Handle work experience update
+    if (newContent.type === 'work-experience-update') {
+      console.log('Work experience update detected:', newContent)
+      handleWorkExperienceUpdate(newContent)
+      return
+    }
+    
+    if (newContent.type === 'bullet-improvement') {
+      console.log('Bullet improvement detected:', newContent)
+      handleBulletImprovement(newContent)
+      return
+    }
     
     try {
       if (newContent.type === 'job') {
@@ -1000,6 +1122,7 @@ function EditorPageContent() {
       {showAIWizard && (
         <AIWizard
           resumeData={resumeData}
+          context={aiWizardContext}
           onAddContent={(newContent) => {
             console.log('=== AI WIZARD ADDING CONTENT ===')
             console.log('New content from AI wizard:', newContent)
@@ -1215,7 +1338,10 @@ function EditorPageContent() {
               alert('Failed to add content: ' + (error as Error).message)
             }
           }}
-          onClose={() => setShowAIWizard(false)}
+          onClose={() => {
+            setShowAIWizard(false)
+            setAiWizardContext(null)
+          }}
         />
       )}
 
