@@ -86,18 +86,8 @@ app = FastAPI(title="editresume.io API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://staging.editresume.io", 
-        "https://editresume-staging.vercel.app",
-        "https://editresume-staging-git-staging-hasantutac.vercel.app",
-        "https://editresume-staging-nboq9rrqm-hasans-projects-d7f2163d.vercel.app",
-        "https://editresume-staging-cm5l63gn2-hasans-projects-d7f2163d.vercel.app",
-        "https://*.vercel.app",
-        "https://*.onrender.com"
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins temporarily
+    allow_credentials=False,  # Must be False when allow_origins=["*"]
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
