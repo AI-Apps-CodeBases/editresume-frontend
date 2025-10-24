@@ -1237,6 +1237,31 @@ async def generate_resume_content(payload: dict):
             
             Return as JSON with fields: institution, degree, year, coursework (array), honors (array)
             """
+        elif content_type == 'bullet-improvement':
+            current_bullet = context.get('bulletText', '')
+            section_title = context.get('sectionTitle', 'Work Experience')
+            company_name = context.get('companyName', '')
+            job_title = context.get('jobTitle', '')
+            
+            prompt = f"""
+            Improve the following bullet point for a resume:
+            
+            Current bullet point: "{current_bullet}"
+            Section: {section_title}
+            Company: {company_name}
+            Role: {job_title}
+            
+            Requirements: {requirements}
+            
+            Please improve this bullet point by:
+            - Adding specific metrics and quantifiable results
+            - Using strong action verbs
+            - Making it more achievement-focused
+            - Keeping it concise but impactful
+            - Maintaining professional tone
+            
+            Return as JSON with field: improvedBullet (string)
+            """
         else:
             raise HTTPException(status_code=400, detail="Invalid content type")
         
@@ -1295,6 +1320,10 @@ async def generate_resume_content(payload: dict):
                     "role": "Generated Role", 
                     "duration": "2023-2024",
                     "bullets": [content]
+                }
+            elif content_type == 'bullet-improvement':
+                return {
+                    "improvedBullet": content
                 }
             else:
                 return {"content": content}
@@ -2881,6 +2910,148 @@ async def apply_ai_improvement(payload: AIImprovementPayload):
             "improved_content": "",
             "suggestions": ["Unable to apply AI improvement. Please try again."],
             "error": str(e)
+        }
+
+# Pydantic model for work experience generation
+class WorkExperienceRequest(BaseModel):
+    experienceDescription: str
+    currentCompany: Optional[str] = None
+    currentJobTitle: Optional[str] = None
+    currentDateRange: Optional[str] = None
+
+@app.post("/api/ai/generate-work-experience")
+async def generate_work_experience(payload: WorkExperienceRequest):
+    """Generate work experience content from user description"""
+    try:
+        logger.info("Processing work experience generation request")
+        
+        # Check if OpenAI is available
+        if not openai_client:
+            return {
+                "success": False,
+                "error": "OpenAI API not available",
+                "companyName": payload.currentCompany or "Tech Company",
+                "jobTitle": payload.currentJobTitle or "Software Engineer", 
+                "dateRange": payload.currentDateRange or "2020-2023",
+                "bullets": [
+                    "Developed and maintained web applications using modern technologies",
+                    "Collaborated with cross-functional teams to deliver high-quality software solutions",
+                    "Implemented automated testing and CI/CD pipelines",
+                    "Mentored junior developers and conducted code reviews"
+                ]
+            }
+        
+        # Create prompt for work experience generation
+        prompt = f"""
+        Based on the following work experience description, generate professional resume content:
+
+        Experience Description: {payload.experienceDescription}
+
+        Current Company: {payload.currentCompany or 'Not specified'}
+        Current Job Title: {payload.currentJobTitle or 'Not specified'}
+        Current Date Range: {payload.currentDateRange or 'Not specified'}
+
+        Please generate:
+        1. A professional company name (if not provided or generic)
+        2. A professional job title (if not provided or generic)
+        3. A realistic date range (if not provided)
+        4. 4-6 professional bullet points that highlight achievements, responsibilities, and impact
+
+        Return the response in this JSON format:
+        {{
+            "companyName": "Company Name",
+            "jobTitle": "Job Title", 
+            "dateRange": "Date Range",
+            "bullets": [
+                "Achievement-focused bullet point 1",
+                "Responsibility-focused bullet point 2",
+                "Impact-focused bullet point 3",
+                "Skill-focused bullet point 4"
+            ]
+        }}
+
+        Make the bullet points:
+        - Start with action verbs (Led, Developed, Implemented, etc.)
+        - Include quantifiable results where possible
+        - Focus on achievements and impact, not just responsibilities
+        - Be specific and professional
+        - Use industry-standard terminology
+        """
+
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [
+                {"role": "system", "content": "You are a professional resume writer and career coach. Generate high-quality, ATS-friendly resume content."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 800,
+            "temperature": 0.7
+        }
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"OpenAI API error: {response.status_code}")
+        
+        result = response.json()
+        generated_content = result['choices'][0]['message']['content'].strip()
+        
+        # Parse the JSON response
+        try:
+            import json
+            result = json.loads(generated_content)
+            
+            return {
+                "success": True,
+                "companyName": result.get("companyName", payload.currentCompany or "Tech Company"),
+                "jobTitle": result.get("jobTitle", payload.currentJobTitle or "Software Engineer"),
+                "dateRange": result.get("dateRange", payload.currentDateRange or "2020-2023"),
+                "bullets": result.get("bullets", [
+                    "Developed and maintained web applications using modern technologies",
+                    "Collaborated with cross-functional teams to deliver high-quality software solutions",
+                    "Implemented automated testing and CI/CD pipelines",
+                    "Mentored junior developers and conducted code reviews"
+                ])
+            }
+        except json.JSONDecodeError:
+            # Fallback if JSON parsing fails
+            return {
+                "success": True,
+                "companyName": payload.currentCompany or "Tech Company",
+                "jobTitle": payload.currentJobTitle or "Software Engineer",
+                "dateRange": payload.currentDateRange or "2020-2023",
+                "bullets": [
+                    "Developed and maintained web applications using modern technologies",
+                    "Collaborated with cross-functional teams to deliver high-quality software solutions", 
+                    "Implemented automated testing and CI/CD pipelines",
+                    "Mentored junior developers and conducted code reviews"
+                ]
+            }
+        
+    except Exception as e:
+        logger.error(f"Work experience generation error: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "companyName": payload.currentCompany or "Tech Company",
+            "jobTitle": payload.currentJobTitle or "Software Engineer",
+            "dateRange": payload.currentDateRange or "2020-2023", 
+            "bullets": [
+                "Developed and maintained web applications using modern technologies",
+                "Collaborated with cross-functional teams to deliver high-quality software solutions",
+                "Implemented automated testing and CI/CD pipelines",
+                "Mentored junior developers and conducted code reviews"
+            ]
         }
 
 @app.websocket("/ws/collab/{room_id}")
