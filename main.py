@@ -92,6 +92,7 @@ app.add_middleware(
         "https://staging.editresume.io", 
         "https://editresume-staging.vercel.app",
         "https://editresume-staging-git-staging-hasantutac.vercel.app",
+        "https://editresume-staging-nboq9rrqm-hasans-projects-d7f2163d.vercel.app",
         "https://*.vercel.app",
         "https://*.onrender.com"
     ],
