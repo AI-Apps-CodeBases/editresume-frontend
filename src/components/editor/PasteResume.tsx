@@ -55,7 +55,7 @@ export default function PasteResume({ onPasteSuccess }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-purple-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
         <div className="relative bg-white/90 backdrop-blur-sm rounded-3xl border-2 border-purple-200 p-8 shadow-xl">
           <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">

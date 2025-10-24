@@ -97,7 +97,7 @@ export default function UploadResume({ onUploadSuccess }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-purple-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
         <div 
           className={`relative bg-white/90 backdrop-blur-sm rounded-3xl border-2 border-dashed p-12 text-center transition-all duration-300 ${

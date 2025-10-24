@@ -69,7 +69,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-bounce">📄</div>
           <p className="text-xl text-gray-600">Loading profile...</p>
@@ -89,7 +89,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
       <header className="bg-white border-b shadow-sm">
         <div className="mx-auto max-w-7xl px-4 py-4">
           <div className="flex items-center justify-between">

@@ -652,7 +652,7 @@ function EditorPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
       {!showWizard && (
         <header className="bg-white border-b sticky top-0 z-20 shadow-sm">
           <div className="mx-auto max-w-[1600px] px-4 py-3">

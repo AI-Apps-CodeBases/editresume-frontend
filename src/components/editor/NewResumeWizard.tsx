@@ -71,11 +71,11 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center p-4">
       <div className="max-w-4xl w-full">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-white mb-4">Create Your Resume</h1>
-          <p className="text-xl text-gray-300">Choose how you'd like to get started</p>
+          <p className="text-xl text-blue-100">Choose how you'd like to get started</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
@@ -122,7 +122,7 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
         <div className="text-center mt-12">
           <button
             onClick={onCancel}
-            className="px-8 py-3 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 transition-colors"
+            className="px-8 py-3 bg-white/20 text-white rounded-xl font-semibold hover:bg-white/30 transition-colors backdrop-blur-sm"
           >
             Cancel
           </button>

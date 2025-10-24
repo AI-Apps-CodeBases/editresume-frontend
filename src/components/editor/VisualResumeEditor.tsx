@@ -858,14 +858,15 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                 )}
               </button>
             </div>
-            <div className="text-sm text-gray-700 leading-relaxed bg-white border border-blue-100 min-h-[80px] px-3 py-2 rounded">
-              <InlineGrammarChecker
-                text={data.summary || 'Click to edit or generate summary from your work experience above ↑'}
-                onApplySuggestion={(originalText, newText) => {
-                  updateField('summary', newText)
-                }}
-                showInline={settings.inlineGrammarCheck}
-              />
+            <div 
+              contentEditable
+              suppressContentEditableWarning
+              data-editable-type="field"
+              data-field="summary"
+              onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
+              className="text-sm text-gray-700 leading-relaxed bg-white border border-blue-100 min-h-[80px] px-3 py-2 rounded outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text"
+            >
+              {data.summary || 'Click to edit or generate summary from your work experience above ↑'}
             </div>
           </div>
 
