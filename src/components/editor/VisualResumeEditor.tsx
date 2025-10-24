@@ -37,6 +37,60 @@ interface Props {
 }
 
 export default function VisualResumeEditor({ data, onChange, template = 'tech', onAIImprove, onAddContent }: Props) {
+  // Add page break styles
+  useEffect(() => {
+    const style = document.createElement('style')
+    style.textContent = `
+      .resume-container {
+        position: relative;
+        page-break-inside: avoid;
+      }
+      
+      .page-layout-indicator {
+        height: 1px;
+        background: #e5e7eb;
+        border: none;
+        margin: 20px 0;
+        position: relative;
+      }
+      
+      .page-layout-indicator::after {
+        content: "Page 1";
+        position: absolute;
+        right: 0;
+        top: -8px;
+        background: #f3f4f6;
+        color: #6b7280;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        border: 1px solid #d1d5db;
+      }
+      
+      @media print {
+        .resume-container {
+          box-shadow: none !important;
+          border: none !important;
+        }
+        
+        .page-break-indicator {
+          page-break-before: always;
+          height: 0;
+          border: none;
+          background: none;
+        }
+        
+        .page-break-indicator::before {
+          display: none;
+        }
+      }
+    `
+    document.head.appendChild(style)
+    
+    return () => {
+      document.head.removeChild(style)
+    }
+  }, [])
   const { settings } = useSettings()
   const [draggedSection, setDraggedSection] = useState<string | null>(null)
   const [draggedBullet, setDraggedBullet] = useState<{ sectionId: string, bulletId: string } | null>(null)
@@ -736,7 +790,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
 
 
       {/* Resume Template */}
-      <div className="bg-white shadow-xl rounded-lg overflow-hidden" style={{ width: '850px', margin: '0 auto', minHeight: '1100px' }}>
+      <div className="bg-white shadow-xl rounded-lg overflow-hidden resume-container" style={{ width: '850px', margin: '0 auto', minHeight: '1100px' }}>
         <div className="p-12">
           {/* Header Section */}
           <div className="text-center mb-8 pb-6 border-b-2 border-gray-300">
@@ -831,6 +885,9 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
               {data.summary || 'Click to edit or generate summary from your work experience above ↑'}
             </div>
           </div>
+
+          {/* Page Layout Indicator - After Summary */}
+          <hr className="page-layout-indicator" />
 
           {/* Sections */}
           <div className="space-y-6">
@@ -1078,7 +1135,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                               <div className="space-y-3">
                                 {companyBullets.map((companyBullet, bulletIdx) => (
-                                  <div key={companyBullet.id} className="flex items-start gap-3">
+                                  <div key={companyBullet.id} className="group flex items-start gap-3">
                                     <div className="w-2 h-2 bg-black rounded-full mt-2 flex-shrink-0"></div>
                                     <div
                                       contentEditable
@@ -1092,36 +1149,39 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                                       {companyBullet.text.replace(/^•\s*/, '')}
                                     </div>
                                     
-                                    {/* AI Improve Button */}
-                                    <button
-                                      onClick={async () => {
-                                        if (onAIImprove) {
-                                          try {
-                                            setIsAILoading(true)
-                                            const improvedText = await onAIImprove(companyBullet.text)
-                                            updateBullet(section.id, companyBullet.id, improvedText)
-                                          } catch (error) {
-                                            console.error('AI improvement failed:', error)
-                                          } finally {
-                                            setIsAILoading(false)
+                                    {/* Action Buttons on the Right */}
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      {/* AI Improve Button */}
+                                      <button
+                                        onClick={async () => {
+                                          if (onAIImprove) {
+                                            try {
+                                              setIsAILoading(true)
+                                              const improvedText = await onAIImprove(companyBullet.text)
+                                              updateBullet(section.id, companyBullet.id, improvedText)
+                                            } catch (error) {
+                                              console.error('AI improvement failed:', error)
+                                            } finally {
+                                              setIsAILoading(false)
+                                            }
                                           }
-                                        }
-                                      }}
-                                      disabled={isAILoading}
-                                      className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
-                                      title="✨ AI Improve - Enhance this bullet point"
-                                    >
-                                      <span>{isAILoading ? '⏳' : '✨'}</span> {isAILoading ? 'Improving...' : 'Improve'}
-                                    </button>
-                                    
-                                    {/* Remove Bullet Button */}
-                                    <button
-                                      onClick={() => removeBullet(section.id, companyBullet.id)}
-                                      className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
-                                      title="Remove bullet point"
-                                    >
-                                      <span>×</span> Remove
-                                    </button>
+                                        }}
+                                        disabled={isAILoading}
+                                        className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
+                                        title="✨ AI Improve - Enhance this bullet point"
+                                      >
+                                        <span>{isAILoading ? '⏳' : '✨'}</span>
+                                      </button>
+                                      
+                                      {/* Remove Bullet Button */}
+                                      <button
+                                        onClick={() => removeBullet(section.id, companyBullet.id)}
+                                        className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
+                                        title="Remove bullet point"
+                                      >
+                                        <span>×</span>
+                                      </button>
+                                    </div>
                                   </div>
                                 ))}
                                 
@@ -1169,7 +1229,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                         return (
                           <div 
                             key={bullet.id}
-                            className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                            className="group bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
                           >
                             {/* Simple Bullet Point */}
                             <div className="flex items-start gap-3">
@@ -1186,7 +1246,10 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                                 >
                                   {bullet.text.replace(/^•\s*/, '')}
                                 </div>
-                                
+                              </div>
+                              
+                              {/* Action Buttons on the Right */}
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {/* AI Improve Button */}
                                 <button
                                   onClick={async () => {
@@ -1206,7 +1269,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                                   className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
                                   title="✨ AI Improve - Enhance this bullet point"
                                 >
-                                  <span>{isAILoading ? '⏳' : '✨'}</span> {isAILoading ? 'Improving...' : 'Improve'}
+                                  <span>{isAILoading ? '⏳' : '✨'}</span>
                                 </button>
                                 
                                 {/* Remove Button */}
@@ -1215,7 +1278,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                                   className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
                                   title="Remove bullet point"
                                 >
-                                  <span>×</span> Remove
+                                  <span>×</span>
                                 </button>
                               </div>
                             </div>

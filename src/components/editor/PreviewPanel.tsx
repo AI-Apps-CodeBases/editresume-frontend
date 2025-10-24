@@ -26,6 +26,61 @@ interface Props {
 }
 
 export default function PreviewPanel({ data, replacements, template = 'clean' as const }: Props) {
+  // Add page break styles
+  useEffect(() => {
+    const style = document.createElement('style')
+    style.textContent = `
+      .preview-resume-container {
+        position: relative;
+        page-break-inside: avoid;
+      }
+      
+      .page-layout-indicator {
+        height: 1px;
+        background: #e5e7eb;
+        border: none;
+        margin: 20px 0;
+        position: relative;
+      }
+      
+      .page-layout-indicator::after {
+        content: "Page 1";
+        position: absolute;
+        right: 0;
+        top: -8px;
+        background: #f3f4f6;
+        color: #6b7280;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        border: 1px solid #d1d5db;
+      }
+      
+      @media print {
+        .preview-resume-container {
+          box-shadow: none !important;
+          border: none !important;
+        }
+        
+        .page-break-indicator {
+          page-break-before: always;
+          height: 0;
+          border: none;
+          background: none;
+        }
+        
+        .page-break-indicator::before {
+          display: none;
+        }
+      }
+    `
+    document.head.appendChild(style)
+    
+    return () => {
+      document.head.removeChild(style)
+    }
+  }, [])
+
   // Debug logging
   useEffect(() => {
     console.log('=== PreviewPanel received new data ===')
@@ -182,7 +237,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
   }, [isTwoColumn])
 
   return (
-    <div className="bg-white rounded-2xl border shadow-lg p-8">
+    <div className="bg-white rounded-2xl border shadow-lg p-8 preview-resume-container">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-500">Live Preview ({template})</h3>
       </div>
@@ -200,6 +255,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
           </div>
         )}
 
+
         {isTwoColumn ? (
           <div className="grid gap-8" style={{ gridTemplateColumns: `${leftWidth}% ${100 - leftWidth}%` }}>
             <div className="space-y-6">
@@ -213,6 +269,9 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
                   </p>
                 </div>
               )}
+
+              {/* Page Layout Indicator - After Summary */}
+              {data.summary && <hr className="page-layout-indicator" />}
 
               {data.sections.filter((s) => leftSectionIds.includes(s.id)).map((section) => (
                 <div key={section.id}>
@@ -255,6 +314,9 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
             ))}
           </>
         )}
+
+        {/* Page Layout Indicator - After Sections for Single Column */}
+        {!isTwoColumn && data.sections.length > 0 && <hr className="page-layout-indicator" />}
 
         {!data.name && !data.title && data.sections.length === 0 && (
           <div className="text-center py-12 text-gray-400">
