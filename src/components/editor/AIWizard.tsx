@@ -31,6 +31,7 @@ interface Props {
     sectionId?: string
     bulletId?: string
     bulletText?: string
+    sectionTitle?: string
   }
 }
 
