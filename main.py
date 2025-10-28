@@ -437,21 +437,63 @@ async def improve_bullet(payload: ImproveBulletPayload):
         
         context = f"Context: {payload.context}" if payload.context else ""
         
-        prompt = f"""Improve this resume bullet point to be more impactful and ATS-optimized.
+        # Generate diverse improvement prompts to avoid repetitive language
+        improvement_templates = [
+            f"""Transform this resume bullet point into a powerful, achievement-focused statement that will impress recruiters and pass ATS systems.
 
 Current bullet: "{payload.bullet}"
 
 {context}
 
-Requirements:
-- Make it more specific with metrics/numbers if possible
-- Use strong action verbs
-- Focus on achievements and impact
-- Keep it concise (1-2 lines)
+Enhancement Guidelines:
+- Quantify achievements with specific metrics, percentages, or numbers
+- Use dynamic action verbs that demonstrate leadership and impact
+- Highlight measurable business outcomes and results
+- Incorporate relevant industry keywords naturally
+- Maintain professional tone while being compelling
 - {tone_instruction}
-- ATS-friendly format
+- Ensure ATS compatibility with standard formatting
 
-Return ONLY the improved bullet point, no explanations."""
+Return ONLY the enhanced bullet point, no explanations.""",
+
+            f"""Elevate this resume bullet point to showcase your professional impact and expertise.
+
+Current bullet: "{payload.bullet}"
+
+{context}
+
+Optimization Requirements:
+- Add concrete data points and quantifiable results
+- Use industry-specific terminology and technical keywords
+- Demonstrate problem-solving and value creation
+- Show progression, growth, or improvement
+- {tone_instruction}
+- Format for maximum ATS visibility
+- Keep concise but impactful
+
+Return ONLY the optimized bullet point, no explanations.""",
+
+            f"""Refine this resume bullet point to maximize its impact on hiring managers and applicant tracking systems.
+
+Current bullet: "{payload.bullet}"
+
+{context}
+
+Improvement Focus:
+- Include specific metrics, KPIs, or performance indicators
+- Utilize powerful action verbs that convey leadership and expertise
+- Emphasize business value and strategic contributions
+- Integrate relevant technical skills and methodologies
+- {tone_instruction}
+- Ensure keyword optimization for ATS scanning
+- Maintain clarity and professionalism
+
+Return ONLY the refined bullet point, no explanations."""
+        ]
+        
+        # Randomly select a template to ensure variety
+        import random
+        prompt = random.choice(improvement_templates)
 
         headers = {
             "Authorization": f"Bearer {openai_client['api_key']}",
@@ -462,7 +504,10 @@ Return ONLY the improved bullet point, no explanations."""
             "model": openai_client['model'],
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": OPENAI_MAX_TOKENS,
-            "temperature": 0.7
+            "temperature": 0.8,  # Increased temperature for more creative and diverse outputs
+            "top_p": 0.9,  # Add top_p for better variety
+            "frequency_penalty": 0.3,  # Reduce repetition
+            "presence_penalty": 0.2  # Encourage new topics/words
         }
         
         response = openai_client['requests'].post(
@@ -835,24 +880,35 @@ async def match_job_description(payload: JobDescriptionMatchPayload):
         improvement_suggestions = []
         if openai_client and similarity_result.get('similarity_score', 0) < 70:
             try:
-                improvement_prompt = f"""Based on this job description and resume analysis, provide 3-5 specific suggestions to improve the resume for this job.
+                improvement_prompt = f"""As an expert resume strategist, analyze this job-resume match and provide specific, actionable improvements.
 
-Job Description:
+JOB DESCRIPTION:
 {payload.job_description[:1000]}
 
-Resume Summary:
+CURRENT RESUME:
 {resume_text[:1000]}
 
-Missing Keywords: {', '.join(similarity_result.get('missing_keywords', [])[:10])}
-Current Match Score: {similarity_result.get('similarity_score', 0)}%
+ANALYSIS:
+- Missing Keywords: {', '.join(similarity_result.get('missing_keywords', [])[:10])}
+- Match Score: {similarity_result.get('similarity_score', 0)}%
+- Technical Skills Gap: {', '.join(similarity_result.get('technical_missing', [])[:5])}
 
-Provide specific, actionable suggestions to:
-1. Add missing technical skills
-2. Improve keyword matching
-3. Enhance relevant experience
-4. Optimize for ATS systems
+REQUIREMENTS:
+Provide 4-6 highly specific, actionable suggestions that will:
+1. Bridge keyword gaps with natural integration
+2. Add missing technical skills to relevant sections
+3. Quantify achievements with metrics
+4. Enhance ATS compatibility
+5. Strengthen job-relevant experience descriptions
+6. Optimize professional summary for this role
 
-Return as a JSON array of suggestion objects with 'category' and 'suggestion' fields."""
+Each suggestion should be:
+- Specific and implementable
+- Include exact wording examples
+- Target specific resume sections
+- Address the identified gaps
+
+Return as JSON array: [{{"category": "Technical Skills", "suggestion": "Add Python and SQL to skills section and include in work experience bullets"}}, ...]"""
 
                 headers = {
                     "Authorization": f"Bearer {openai_client['api_key']}",
@@ -862,8 +918,11 @@ Return as a JSON array of suggestion objects with 'category' and 'suggestion' fi
                 data = {
                     "model": openai_client['model'],
                     "messages": [{"role": "user", "content": improvement_prompt}],
-                    "max_tokens": 500,
-                    "temperature": 0.7
+                    "max_tokens": 800,  # Increased for more detailed suggestions
+                    "temperature": 0.6,  # Balanced creativity and consistency
+                    "top_p": 0.9,
+                    "frequency_penalty": 0.2,
+                    "presence_penalty": 0.1
                 }
                 
                 response = openai_client['requests'].post(
@@ -1502,6 +1561,384 @@ async def get_templates():
         ]
     }
 
+@app.post("/api/resume/parse-file")
+async def parse_file(file: UploadFile = File(...)):
+    """Industry-standard resume parsing with multiple extraction methods"""
+    try:
+        logger.info(f"Parsing file: {file.filename}, size: {file.size}")
+        
+        # File validation
+        if not file.filename:
+            return {"success": False, "error": "No filename provided"}
+        
+        if file.size > 10 * 1024 * 1024:  # 10MB limit
+            return {"success": False, "error": "File too large. Maximum size is 10MB"}
+        
+        file_extension = file.filename.split('.')[-1].lower()
+        if file_extension not in ['pdf', 'docx', 'doc', 'txt']:
+            return {"success": False, "error": "Unsupported file type. Please upload PDF, DOCX, DOC, or TXT"}
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Extract text using multiple methods for reliability
+        text = ""
+        extraction_methods = []
+        
+        if file_extension == 'pdf':
+            text, methods = extract_pdf_text(file_content)
+            extraction_methods.extend(methods)
+        
+        elif file_extension == 'docx':
+            text, methods = extract_docx_text(file_content)
+            extraction_methods.extend(methods)
+        
+        elif file_extension == 'doc':
+            text, methods = extract_doc_text(file_content)
+            extraction_methods.extend(methods)
+        
+        elif file_extension == 'txt':
+            try:
+                text = file_content.decode('utf-8')
+                extraction_methods.append("UTF-8 decode")
+            except:
+                try:
+                    text = file_content.decode('latin-1')
+                    extraction_methods.append("Latin-1 decode")
+                except:
+                    return {"success": False, "error": "Could not decode text file"}
+        
+        # Clean and validate extracted text
+        text = clean_extracted_text(text)
+        
+        if not text.strip():
+            return {
+                "success": False,
+                "error": "No readable text found. The file might be:\n• Scanned image (try OCR)\n• Password protected\n• Corrupted\n• Empty"
+            }
+        
+        if len(text.strip()) < 50:
+            return {
+                "success": False,
+                "error": "Text too short. Please ensure the file contains a complete resume."
+            }
+        
+        # Use regex parsing for now (AI is hanging)
+        logger.info(f"Parsing {len(text)} characters with regex parser using methods: {', '.join(extraction_methods)}")
+        parsed_data = parse_resume_with_regex(text)
+        
+        return {
+            "success": True,
+            "data": parsed_data,
+            "raw_text": text[:500],  # First 500 chars for debugging
+            "extraction_methods": extraction_methods,
+            "message": f"Resume parsed successfully using {len(extraction_methods)} method(s) - {len(parsed_data.get('sections', []))} sections extracted"
+        }
+        
+    except Exception as e:
+        logger.error(f"File parsing error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Upload failed: {str(e)}"
+        }
+
+def extract_pdf_text(file_content: bytes) -> tuple[str, list[str]]:
+    """Extract text from PDF using multiple methods"""
+    text = ""
+    methods = []
+    
+    # Method 1: PyMuPDF (fitz) - Most reliable
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=file_content, filetype="pdf")
+        for page in doc:
+            text += page.get_text() + "\n"
+        doc.close()
+        methods.append("PyMuPDF")
+        logger.info(f"PyMuPDF extracted {len(text)} characters")
+    except Exception as e:
+        logger.warning(f"PyMuPDF failed: {e}")
+    
+    # Method 2: pdfplumber - Good for complex layouts
+    if len(text.strip()) < 100:
+        try:
+            import pdfplumber
+            import io
+            with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+            methods.append("pdfplumber")
+            logger.info(f"pdfplumber extracted {len(text)} characters")
+        except Exception as e:
+            logger.warning(f"pdfplumber failed: {e}")
+    
+    # Method 3: PyPDF2 - Fallback
+    if len(text.strip()) < 100:
+        try:
+            import PyPDF2
+            import io
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
+            methods.append("PyPDF2")
+            logger.info(f"PyPDF2 extracted {len(text)} characters")
+        except Exception as e:
+            logger.warning(f"PyPDF2 failed: {e}")
+    
+    return text, methods
+
+def extract_docx_text(file_content: bytes) -> tuple[str, list[str]]:
+    """Extract text from DOCX using multiple methods"""
+    text = ""
+    methods = []
+    
+    # Method 1: python-docx - Standard method
+    try:
+        from docx import Document
+        import io
+        doc = Document(io.BytesIO(file_content))
+        
+        # Extract from paragraphs
+        for para in doc.paragraphs:
+            if para.text.strip():
+                text += para.text + "\n"
+        
+        # Extract from tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.text.strip():
+                        text += cell.text + "\n"
+        
+        methods.append("python-docx")
+        logger.info(f"python-docx extracted {len(text)} characters")
+    except Exception as e:
+        logger.warning(f"python-docx failed: {e}")
+    
+    # Method 2: docx2txt - Alternative method
+    if len(text.strip()) < 100:
+        try:
+            import docx2txt
+            import io
+            text = docx2txt.process(io.BytesIO(file_content))
+            methods.append("docx2txt")
+            logger.info(f"docx2txt extracted {len(text)} characters")
+        except Exception as e:
+            logger.warning(f"docx2txt failed: {e}")
+    
+    return text, methods
+
+def extract_doc_text(file_content: bytes) -> tuple[str, list[str]]:
+    """Extract text from DOC files"""
+    text = ""
+    methods = []
+    
+    # Method 1: antiword (if available)
+    try:
+        import subprocess
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.doc') as temp_file:
+            temp_file.write(file_content)
+            temp_file_path = temp_file.name
+        
+        try:
+            result = subprocess.run(['antiword', temp_file_path], 
+                                  capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                text = result.stdout
+                methods.append("antiword")
+                logger.info(f"antiword extracted {len(text)} characters")
+        finally:
+            os.unlink(temp_file_path)
+    except Exception as e:
+        logger.warning(f"antiword failed: {e}")
+    
+    # Method 2: Try reading as text (fallback)
+    if len(text.strip()) < 100:
+        try:
+            text = file_content.decode('utf-8', errors='ignore')
+            methods.append("UTF-8 decode")
+            logger.info(f"UTF-8 decode extracted {len(text)} characters")
+        except Exception as e:
+            logger.warning(f"UTF-8 decode failed: {e}")
+    
+    return text, methods
+
+def clean_extracted_text(text: str) -> str:
+    """Clean and normalize extracted text"""
+    if not text:
+        return ""
+    
+    # Remove excessive whitespace
+    text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)  # Max 2 newlines
+    text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces to single
+    
+    # Remove common PDF artifacts
+    text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Remove non-ASCII
+    text = re.sub(r'\f', '\n', text)  # Form feeds to newlines
+    
+    # Clean up bullet points
+    text = re.sub(r'[•·▪▫‣⁃]', '•', text)  # Normalize bullets
+    
+    return text.strip()
+
+def parse_resume_with_regex(text: str) -> dict:
+    """Simple, reliable resume parser that actually works"""
+    logger.info("Using simple regex-based resume parsing")
+    
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    
+    # Extract basic info
+    name = ""
+    title = ""
+    email = ""
+    phone = ""
+    location = ""
+    
+    # Find name (first line that looks like a name)
+    for line in lines[:3]:
+        if len(line) > 2 and not any(char.isdigit() for char in line) and '@' not in line and '•' not in line:
+            name = line
+            break
+    
+    # Find title (line after name)
+    for i, line in enumerate(lines[1:4]):
+        if len(line) > 2 and not any(char.isdigit() for char in line) and '@' not in line and '•' not in line and line != name:
+            title = line
+            break
+    
+    # Find email
+    email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
+    if email_match:
+        email = email_match.group()
+    
+    # Find phone
+    phone_match = re.search(r'(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})', text)
+    if phone_match:
+        phone = phone_match.group().strip()
+    
+    # Find location
+    location_match = re.search(r'([A-Za-z\s]+),\s*([A-Z]{2})', text)
+    if location_match:
+        location = location_match.group().strip()
+    
+    # Extract sections
+    sections = []
+    current_section = None
+    current_bullets = []
+    
+    section_keywords = ['work experience', 'professional experience', 'employment', 'experience', 'projects', 'education', 'skills', 'certifications']
+    
+    for line in lines:
+        line_lower = line.lower()
+        
+        # Check if this is a section header
+        is_section = any(keyword in line_lower for keyword in section_keywords)
+        
+        if is_section:
+            # Save previous section
+            if current_section and current_bullets:
+                sections.append({
+                    "title": current_section,
+                    "bullets": [{"id": f"{len(sections)}-{i}", "text": bullet, "params": {}} for i, bullet in enumerate(current_bullets)],
+                    "id": str(len(sections))
+                })
+            
+            # Start new section
+            current_section = line
+            current_bullets = []
+        
+        elif current_section and line:
+            # This is content for current section
+            if line.startswith(('•', '-', '*')):
+                bullet_text = line[1:].strip()
+                if bullet_text:
+                    current_bullets.append(f"• {bullet_text}")
+            elif ' / ' in line and any(char.isdigit() for char in line):
+                # Job entry
+                current_bullets.append(f"**{line}**")
+            else:
+                current_bullets.append(line)
+    
+    # Save last section
+    if current_section and current_bullets:
+        sections.append({
+            "title": current_section,
+            "bullets": [{"id": f"{len(sections)}-{i}", "text": bullet, "params": {}} for i, bullet in enumerate(current_bullets)],
+            "id": str(len(sections))
+        })
+    
+    return {
+        "name": name,
+        "title": title,
+        "email": email,
+        "phone": phone,
+        "location": location,
+        "summary": "",
+        "sections": sections,
+        "detected_variables": {}
+    }
+
+@app.post("/api/resume/debug-extract")
+async def debug_extract(file: UploadFile = File(...)):
+    """Debug endpoint to see raw extracted text without AI parsing"""
+    try:
+        logger.info(f"Debug extracting file: {file.filename}")
+        
+        # File validation
+        if not file.filename:
+            return {"success": False, "error": "No filename provided"}
+        
+        file_extension = file.filename.split('.')[-1].lower()
+        if file_extension not in ['pdf', 'docx', 'doc', 'txt']:
+            return {"success": False, "error": "Unsupported file type"}
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Extract text using multiple methods
+        text = ""
+        extraction_methods = []
+        
+        if file_extension == 'pdf':
+            text, methods = extract_pdf_text(file_content)
+            extraction_methods.extend(methods)
+        elif file_extension == 'docx':
+            text, methods = extract_docx_text(file_content)
+            extraction_methods.extend(methods)
+        elif file_extension == 'doc':
+            text, methods = extract_doc_text(file_content)
+            extraction_methods.extend(methods)
+        elif file_extension == 'txt':
+            try:
+                text = file_content.decode('utf-8')
+                extraction_methods.append("UTF-8 decode")
+            except:
+                text = file_content.decode('latin-1')
+                extraction_methods.append("Latin-1 decode")
+        
+        # Clean text
+        text = clean_extracted_text(text)
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "file_size": file.size,
+            "extraction_methods": extraction_methods,
+            "raw_text_length": len(text),
+            "raw_text": text,
+            "first_500_chars": text[:500],
+            "last_500_chars": text[-500:] if len(text) > 500 else text
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug extraction error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/resume/parse-text")
 async def parse_text(payload: dict):
     try:
@@ -1510,8 +1947,8 @@ async def parse_text(payload: dict):
         if not text.strip():
             return {"success": False, "error": "No text provided"}
         
-        logger.info(f"Parsing text: {len(text)} characters with AI")
-        parsed_data = parse_resume_with_ai(text)
+        logger.info(f"Parsing text: {len(text)} characters with regex parser")
+        parsed_data = parse_resume_with_regex(text)
         
         return {
             "success": True,
@@ -1938,7 +2375,9 @@ def parse_resume_with_ai(text: str) -> Dict:
         return parse_resume_text(text)
     
     try:
-        prompt = f"""Parse this resume text and extract structured information. Return a JSON object with this exact structure:
+        prompt = f"""Parse this resume text and extract structured information. This resume may have been exported from a resume builder app, so pay special attention to preserving the exact structure and content.
+
+Return a JSON object with this exact structure:
 
 {{
   "name": "Full Name",
@@ -1978,6 +2417,28 @@ def parse_resume_with_ai(text: str) -> Dict:
   ]
 }}
 
+CRITICAL PARSING RULES FOR APP-EXPORTED RESUMES:
+1. PRESERVE ALL CONTENT - Don't skip, summarize, or paraphrase anything
+2. Maintain exact bullet point structure and wording
+3. For work experience sections, preserve company names, job titles, dates, and ALL achievements
+4. Keep quantified metrics exactly as written (e.g., "30% reduction", "over 100 applications")
+5. Preserve technical skills and tools mentioned (AWS, Kubernetes, Docker, etc.)
+6. Maintain project descriptions with all details
+7. Extract contact information from header (name, email, phone, location)
+8. Handle multi-page content by combining everything
+9. If you see patterns like "reduced deployment time by 30%" repeated, keep each instance
+10. For DevOps/Engineering resumes, preserve all technical details and metrics
+11. Don't paraphrase or shorten content - extract exactly as written
+12. Group content into logical sections but preserve all bullet points
+
+SPECIAL ATTENTION TO:
+- Quantified achievements (percentages, numbers, metrics)
+- Technical skills and tools (AWS, Kubernetes, Docker, Jenkins, etc.)
+- Company names and job titles
+- Project descriptions and outcomes
+- All bullet points with their complete text
+- Work experience entries with exact dates and roles
+
 CRITICAL RULES FOR WORK EXPERIENCE:
 1. Company/Job line MUST be: **Company Name / Job Title / Date Range** (with ** for bold)
 2. Tasks/achievements MUST start with "• " (bullet point)
@@ -2013,7 +2474,7 @@ Resume Text (Full Content):
             json={
                 'model': openai_client['model'],
                 'messages': [
-                    {'role': 'system', 'content': 'You are a resume parsing expert. Extract structured information from multi-page resumes accurately. Capture ALL sections and information. Always return valid JSON.'},
+                    {'role': 'system', 'content': 'You are a resume parsing expert specializing in app-exported resumes. Extract structured information from multi-page resumes accurately. Capture ALL sections and information without paraphrasing or summarizing. Preserve exact wording, metrics, and technical details. Always return valid JSON.'},
                     {'role': 'user', 'content': prompt}
                 ],
                 'temperature': 0.3,
@@ -2053,9 +2514,11 @@ Resume Text (Full Content):
         
     except json.JSONDecodeError as e:
         logger.error(f"AI returned invalid JSON: {e}")
+        logger.info("Falling back to basic text parsing")
         return parse_resume_text(text)
     except Exception as e:
         logger.error(f"AI parsing failed: {str(e)}")
+        logger.info("Falling back to basic text parsing")
         return parse_resume_text(text)
 
 def parse_resume_text(text: str) -> Dict:
@@ -2754,6 +3217,168 @@ async def get_ai_improvement_suggestions(payload: AIImprovementPayload):
         return {
             "success": False,
             "suggestions": ["Unable to generate improvement suggestions. Please check your content."],
+            "error": str(e)
+        }
+
+@app.post("/api/ai/improve_ats_score")
+async def improve_ats_score_bulk(payload: EnhancedATSPayload):
+    """Apply multiple AI improvements to boost ATS score"""
+    try:
+        logger.info("Processing bulk ATS score improvement request")
+        
+        # Check if enhanced ATS checker and AI improvement engine are available
+        if not enhanced_ats_checker or not ai_improvement_engine:
+            return {
+                "success": False,
+                "improved_resume": None,
+                "score_improvement": 0,
+                "applied_improvements": [],
+                "error": "Required services not available"
+            }
+        
+        # Convert ResumePayload to dict
+        resume_data = {
+            'name': payload.resume_data.name,
+            'title': payload.resume_data.title,
+            'email': payload.resume_data.email,
+            'phone': payload.resume_data.phone,
+            'location': payload.resume_data.location,
+            'summary': payload.resume_data.summary,
+            'sections': [
+                {
+                    'id': section.id,
+                    'title': section.title,
+                    'bullets': [
+                        {
+                            'id': bullet.id,
+                            'text': bullet.text,
+                            'params': bullet.params
+                        }
+                        for bullet in section.bullets
+                    ]
+                }
+                for section in payload.resume_data.sections
+            ]
+        }
+        
+        # Get current ATS score
+        current_result = enhanced_ats_checker.get_enhanced_ats_score(resume_data, payload.job_description)
+        current_score = current_result.get('score', 0)
+        
+        # Get AI improvements
+        improvements = current_result.get('ai_improvements', [])
+        
+        # Sort improvements by impact score (highest first) and priority
+        priority_order = {'high': 3, 'medium': 2, 'low': 1}
+        improvements.sort(key=lambda x: (priority_order.get(x.get('priority', 'low'), 1), x.get('impact_score', 0)), reverse=True)
+        
+        # Apply top improvements (limit to 5 to avoid overwhelming changes)
+        applied_improvements = []
+        improved_resume = resume_data.copy()
+        
+        for improvement in improvements[:5]:
+            try:
+                # Map category to strategy
+                strategy_mapping = {
+                    'professional_summary': 'summary',
+                    'quantified_achievements': 'achievements', 
+                    'job_alignment': 'keywords',
+                    'career_transition': 'experience',
+                    'content_audit': 'content',
+                    'modern_format': 'format',
+                    'skills_enhancement': 'skills',
+                    'leadership_emphasis': 'leadership',
+                    'contact_optimization': 'contact',
+                    'ats_compatibility': 'ats'
+                }
+                
+                strategy = strategy_mapping.get(improvement.get('category', '').lower().replace(' ', '_'), 'content')
+                
+                # Generate improvement using AI
+                if openai_client:
+                    prompt = f"""Apply this specific ATS improvement to the resume:
+
+Improvement: {improvement.get('title', '')}
+Description: {improvement.get('description', '')}
+Suggestion: {improvement.get('specific_suggestion', '')}
+
+Current Resume Data:
+{str(improved_resume)[:2000]}
+
+Job Description Context:
+{payload.job_description[:500] if payload.job_description else 'Not provided'}
+
+Requirements:
+- Apply the improvement naturally and professionally
+- Maintain resume structure and formatting
+- Ensure ATS compatibility
+- Return the complete updated resume as JSON
+
+Return ONLY the updated resume JSON, no explanations."""
+                    
+                    response = openai_client['requests'].post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {openai_client['api_key']}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": openai_client['model'],
+                            "messages": [
+                                {"role": "system", "content": "You are an expert resume writer specializing in ATS optimization. Apply improvements while maintaining professional quality."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            "max_tokens": 2000,
+                            "temperature": 0.6
+                        }
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        improved_content = result['choices'][0]['message']['content'].strip()
+                        
+                        # Try to parse the improved resume
+                        try:
+                            import json
+                            updated_resume = json.loads(improved_content)
+                            improved_resume = updated_resume
+                            applied_improvements.append(improvement)
+                            logger.info(f"Applied improvement: {improvement.get('title', '')}")
+                        except json.JSONDecodeError:
+                            logger.warning(f"Could not parse improved resume for: {improvement.get('title', '')}")
+                            continue
+                    else:
+                        logger.warning(f"OpenAI API error for improvement: {improvement.get('title', '')}")
+                        continue
+                        
+            except Exception as e:
+                logger.error(f"Error applying improvement {improvement.get('title', '')}: {str(e)}")
+                continue
+        
+        # Calculate new ATS score
+        new_result = enhanced_ats_checker.get_enhanced_ats_score(improved_resume, payload.job_description)
+        new_score = new_result.get('score', current_score)
+        score_improvement = new_score - current_score
+        
+        logger.info(f"ATS score improved from {current_score} to {new_score} (+{score_improvement})")
+        
+        return {
+            "success": True,
+            "improved_resume": improved_resume,
+            "original_score": current_score,
+            "new_score": new_score,
+            "score_improvement": score_improvement,
+            "applied_improvements": applied_improvements,
+            "remaining_improvements": len(improvements) - len(applied_improvements)
+        }
+        
+    except Exception as e:
+        logger.error(f"Bulk ATS improvement error: {str(e)}")
+        return {
+            "success": False,
+            "improved_resume": None,
+            "score_improvement": 0,
+            "applied_improvements": [],
             "error": str(e)
         }
 
