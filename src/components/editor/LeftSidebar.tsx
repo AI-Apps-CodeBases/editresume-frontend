@@ -68,9 +68,7 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
 
   // Additional safety check - force close on any state change
   React.useEffect(() => {
-    if (activePopup) {
-      console.log('Popup opened:', activePopup)
-    }
+    // Popup state management
   }, [activePopup])
 
   const sidebarItems = [
@@ -133,7 +131,6 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
   ]
 
   const handleItemClick = (itemId: string) => {
-    console.log('Sidebar item clicked:', itemId, 'Current popup:', activePopup)
     if (activePopup === itemId) {
       setActivePopup(null)
     } else {
@@ -156,10 +153,8 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
 
   const renderPopup = () => {
     if (!activePopup) {
-      console.log('No active popup, returning null')
       return null
     }
-    console.log('Rendering popup:', activePopup)
 
     const commonProps = {
       onClose: () => setActivePopup(null),

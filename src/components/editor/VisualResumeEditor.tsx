@@ -225,9 +225,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
   }
 
   const handleParsedResume = (jobs: any[], sections: any[]) => {
-    console.log('=== PARSING RESUME DATA ===')
-    console.log('Jobs:', jobs)
-    console.log('Sections:', sections)
+    // Parsing resume data
     
     const newSections: Section[] = []
     
@@ -264,8 +262,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
     
     // Process ALL sections and create modern format for each
     sections.forEach((section, index) => {
-      console.log(`Processing section: ${section.title}`)
-      console.log('Section content:', section.content)
+      // Processing section
       
       if (section.content && section.content.length > 0) {
         const modernSection: Section = {

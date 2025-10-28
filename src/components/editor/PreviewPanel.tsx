@@ -81,33 +81,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
     }
   }, [])
 
-  // Debug logging
-  useEffect(() => {
-    console.log('=== PreviewPanel received new data ===')
-    console.log('Data:', data)
-    console.log('Name:', data.name)
-    console.log('Sections:', data.sections.length)
-    console.log('Section details:', data.sections.map(s => ({
-      id: s.id,
-      title: s.title,
-      bulletCount: s.bullets.length,
-      bullets: s.bullets.map(b => ({ id: b.id, text: b.text }))
-    })))
-    
-    // Check for work experience section specifically
-    const workExpSection = data.sections.find(s => 
-      s.title.toLowerCase().includes('experience') || 
-      s.title.toLowerCase().includes('work')
-    )
-    if (workExpSection) {
-      console.log('=== WORK EXPERIENCE SECTION ===')
-      console.log('Section:', workExpSection)
-      console.log('Bullets:', workExpSection.bullets)
-      console.log('Bullet texts:', workExpSection.bullets.map(b => b.text))
-    } else {
-      console.log('No work experience section found')
-    }
-  }, [data])
+  // Debug logging removed for production
 
   // Helper function for border styling
   const getBorderClass = () => {
@@ -127,34 +101,18 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
                              sectionTitle.toLowerCase().includes('work') || 
                              sectionTitle.toLowerCase().includes('employment')
     
-    console.log('=== RENDER BULLETS ===')
-    console.log('Section title:', sectionTitle)
-    console.log('Is work experience:', isWorkExperience)
-    console.log('Bullets to render:', bullets.length)
-    console.log('Bullet texts:', bullets.map(b => b.text))
-    
     // Filter out empty bullets but keep all non-empty ones
     const validBullets = bullets.filter(b => b.text && b.text.trim())
-    console.log('Valid bullets after filtering:', validBullets.length)
     
     if (validBullets.length === 0) {
-      console.log('No valid bullets to render')
       return <div className="text-gray-500 text-sm">No content available</div>
     }
     
-    console.log('Rendering bullets as list')
     return (
       <ul className="space-y-2">
         {validBullets.map((bullet, index) => {
           const isHeader = bullet.text.startsWith('**') && bullet.text.endsWith('**')
           const isBulletPoint = bullet.text.startsWith('•')
-          
-          console.log(`Bullet ${index}:`, {
-            text: bullet.text,
-            isHeader,
-            isBulletPoint,
-            id: bullet.id
-          })
           
           if (isHeader) {
             return (
