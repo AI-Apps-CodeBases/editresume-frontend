@@ -99,6 +99,7 @@ BASE_ALLOWED_ORIGINS = [
     "https://editresume.io",  # Production frontend
     "https://www.editresume.io",  # Production with www
     "https://editresume-staging.onrender.com",  # Staging backend (for testing)
+    "https://editresume-*-*-hasans-projects-d7f2163d.vercel.app",  # Vercel staging frontend
 ]
 
 # Add additional origins from environment variable
