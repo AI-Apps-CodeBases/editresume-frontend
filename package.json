@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "NODE_OPTIONS='--no-warnings' next dev -p 3000",
+    "dev:force": "NODE_OPTIONS='--no-warnings --max-old-space-size=4096' next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint"
@@ -26,8 +27,5 @@
     "postcss": "8.4.47",
     "tailwindcss": "3.4.10",
     "typescript": "5.6.2"
-  },
-  "engines": {
-    "node": ">=18.17.0"
   }
 }

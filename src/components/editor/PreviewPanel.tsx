@@ -237,9 +237,22 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
   }, [isTwoColumn])
 
   return (
-    <div className="bg-white rounded-2xl border shadow-lg p-8 preview-resume-container">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-500">Live Preview ({template})</h3>
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-soft-lg p-8 preview-resume-container hover-lift">
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+          <h3 className="text-sm font-semibold text-gray-500">Live Preview</h3>
+          <span className="px-2 py-1 bg-primary-100 text-primary-700 text-xs rounded-full font-medium">
+            {template}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          <span>Auto-save enabled</span>
+        </div>
       </div>
 
       <div className={`space-y-6 ${fontFamily}`}>

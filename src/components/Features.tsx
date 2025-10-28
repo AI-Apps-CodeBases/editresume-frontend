@@ -42,11 +42,11 @@ export default function Features() {
     <section className="py-24 bg-gradient-to-b from-white to-gray-50">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-base font-semibold text-primary mb-2">FEATURES</h2>
-          <p className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
+          <h2 className="text-base font-semibold text-primary mb-2 tracking-wider">FEATURES</h2>
+          <p className="text-heading text-gray-900 mb-4">
             Everything You Need to Succeed
           </p>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-body-large text-gray-600 max-w-2xl mx-auto">
             Professional resume creation tools that actually work
           </p>
         </div>
@@ -55,19 +55,19 @@ export default function Features() {
           {features.map((feature, index) => (
             <div
               key={index}
-              className="group relative bg-white rounded-2xl p-8 shadow-sm hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-transparent hover:-translate-y-1"
+              className={`group relative bg-white rounded-2xl card-spacing shadow-sm card-hover border border-gray-100 animate-fade-in-up stagger-${index + 1}`}
             >
-              <div className={`absolute inset-0 bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity`} />
+              <div className={`absolute inset-0 bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity duration-300`} />
               
-              <div className={`inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-r ${feature.gradient} mb-5 text-2xl shadow-lg`}>
+              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-r ${feature.gradient} mb-6 text-2xl shadow-lg group-hover:scale-110 transition-transform duration-300`}>
                 {feature.icon}
               </div>
               
-              <h3 className="text-xl font-bold text-gray-900 mb-3">
+              <h3 className="text-heading text-gray-900 mb-4">
                 {feature.title}
               </h3>
               
-              <p className="text-gray-600 leading-relaxed">
+              <p className="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
                 {feature.description}
               </p>
             </div>

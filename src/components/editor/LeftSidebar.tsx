@@ -289,18 +289,18 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
   return (
     <>
       {/* Sidebar */}
-      <div className="w-48 bg-white border-r border-gray-200 shadow-lg flex flex-col">
+      <div className="w-64 bg-white border-r border-gray-200 shadow-xl flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">AI Tools</h2>
-              <p className="text-sm text-gray-600">Enhance your resume</p>
+              <h2 className="text-xl font-bold text-gray-900">AI Tools</h2>
+              <p className="text-sm text-gray-600 mt-1">Enhance your resume</p>
             </div>
             {activePopup && (
               <button
                 onClick={() => setActivePopup(null)}
-                className="text-red-500 hover:text-red-700 text-sm font-medium px-2 py-1 rounded border border-red-200 hover:bg-red-50"
+                className="text-red-500 hover:text-red-700 text-sm font-medium px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition-all duration-200"
                 title="Close any open popup"
               >
                 Close All
@@ -311,33 +311,33 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
 
         {/* Tools List */}
         <div className="flex-1 overflow-y-auto">
-          <div className="p-2 space-y-1">
+          <div className="p-3 space-y-2">
             {sidebarItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleItemClick(item.id)}
                 disabled={!item.enabled}
-                className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-all group ${
+                className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 group ${
                   activePopup === item.id
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                    ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-2 border-blue-200 shadow-md'
                     : item.enabled
-                    ? 'hover:bg-gray-50 text-gray-700'
+                    ? 'hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 text-gray-700 hover:shadow-sm hover:border hover:border-gray-200'
                     : 'opacity-50 text-gray-400 cursor-not-allowed'
                 }`}
               >
-                <div className="text-lg">{item.icon}</div>
+                <div className="text-xl flex-shrink-0">{item.icon}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium text-sm truncate">{item.title}</span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-sm truncate">{item.title}</span>
                     {item.premium && (
-                      <span className="px-1 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                      <span className="px-2 py-0.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 text-xs rounded-full font-medium border border-purple-200">
                         Pro
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{item.description}</p>
+                  <p className="text-xs text-gray-500 truncate leading-relaxed">{item.description}</p>
                 </div>
-                <div className="text-gray-400 group-hover:text-gray-600">
+                <div className="text-gray-400 group-hover:text-gray-600 transition-colors duration-200 flex-shrink-0">
                   {activePopup === item.id ? '▼' : '▶'}
                 </div>
               </button>
@@ -346,15 +346,15 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="text-xs text-gray-500 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              <span>Grammar Check: {settings.grammarCheck ? 'On' : 'Off'}</span>
+        <div className="p-4 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+          <div className="text-xs text-gray-500 text-center space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="font-medium">Grammar Check: {settings.grammarCheck ? 'On' : 'Off'}</span>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${settings.aiImprovements ? 'bg-purple-500' : 'bg-gray-400'}`}></span>
-              <span>AI Features: {settings.aiImprovements ? 'On' : 'Off'}</span>
+              <span className={`w-2 h-2 rounded-full ${settings.aiImprovements ? 'bg-purple-500 animate-pulse' : 'bg-gray-400'}`}></span>
+              <span className="font-medium">AI Features: {settings.aiImprovements ? 'On' : 'Off'}</span>
             </div>
           </div>
         </div>

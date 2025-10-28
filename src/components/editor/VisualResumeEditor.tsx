@@ -766,32 +766,52 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
   }
 
   return (
-    <div className="flex bg-gray-50 min-h-screen">
+    <div className="flex bg-gray-50 min-h-screen editor-layout">
       {/* Left Sidebar */}
-      <LeftSidebar
-        resumeData={data}
-        onApplySuggestion={handleGrammarSuggestion}
-        onAIImprove={onAIImprove}
-        onAddContent={onAddContent}
-      />
+      <div className="hidden lg:block sticky top-0 h-screen overflow-y-auto">
+        <LeftSidebar
+          resumeData={data}
+          onApplySuggestion={handleGrammarSuggestion}
+          onAIImprove={onAIImprove}
+          onAddContent={onAddContent}
+        />
+      </div>
 
       {/* Main Content */}
       <div className="flex-1 relative" ref={editorRef}>
+        {/* Mobile Sidebar Toggle */}
+        <div className="lg:hidden fixed top-4 left-4 z-40">
+          <button
+            onClick={() => {/* TODO: Add mobile sidebar toggle */}}
+            className="bg-white shadow-lg rounded-lg p-3 border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
       
       {/* AI Loading Indicator */}
       {isAILoading && (
         <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center">
-          <div className="bg-white rounded-xl px-6 py-4 shadow-2xl flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
-            <span className="text-sm font-semibold text-gray-700">AI is improving your text...</span>
+          <div className="bg-white rounded-xl px-8 py-6 shadow-2xl flex items-center gap-4 animate-fade-in">
+            <div className="loading-spinner w-6 h-6 border-primary-500"></div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-gray-700">AI is improving your text...</span>
+              <div className="loading-dots mt-1">
+                <div></div>
+                <div></div>
+                <div></div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
 
       {/* Resume Template */}
-      <div className="bg-white shadow-xl rounded-lg overflow-hidden resume-container" style={{ width: '850px', margin: '0 auto', minHeight: '1100px' }}>
-        <div className="p-12">
+      <div className="bg-white shadow-xl rounded-lg overflow-hidden resume-container mx-4 lg:mx-auto" style={{ width: '100%', maxWidth: '850px', margin: '0 auto', minHeight: '1100px' }}>
+        <div className="p-6 lg:p-12">
           {/* Header Section */}
           <div className="text-center mb-8 pb-6 border-b-2 border-gray-300">
             <div
