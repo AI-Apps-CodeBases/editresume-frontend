@@ -7,15 +7,9 @@ import os
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./editresume.db")
 
-# Fix Render's common typo: ostgresql:// -> postgresql://
-if DATABASE_URL and DATABASE_URL.startswith("ostgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("ostgresql://", "postgresql://", 1)
-    print("Fixed ostgresql:// typo in DATABASE_URL")
-
-# Normalize postgres:// to postgresql://
+# Normalize postgres:// to postgresql:// (common provider format)
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    print("Normalized postgres:// to postgresql://")
 
 # Create engine
 if DATABASE_URL.startswith("sqlite"):
