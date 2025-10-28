@@ -7,6 +7,10 @@ import os
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./editresume.db")
 
+# Fix any ostgresql typos (Render sometimes provides this)
+if DATABASE_URL and "ostgresql" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("ostgresql", "postgresql")
+
 # Normalize postgres:// to postgresql:// (common provider format)
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)

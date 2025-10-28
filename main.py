@@ -13,7 +13,7 @@ from openai import OpenAI
 from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
 from sqlalchemy.orm import Session
-from database import get_db, create_tables, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView
+from database import get_db, create_tables, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, DATABASE_URL
 from version_control import VersionControlService
 
 logging.basicConfig(level=logging.INFO)
@@ -262,7 +262,7 @@ async def health():
     }
     return {
         "status": "ok", 
-        "db": os.getenv("DATABASE_URL", "unset"), 
+        "db": DATABASE_URL, 
         "premium_mode": PREMIUM_MODE,
         "openai": openai_status
     }
