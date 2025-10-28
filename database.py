@@ -7,25 +7,19 @@ import os
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./editresume.db")
 
-# Normalize common PostgreSQL URL variants/typos from providers
-if DATABASE_URL:
-    # Fix missing leading 'p' in 'ostgresql://'
-    if DATABASE_URL.startswith("ostgresql://"):
-        DATABASE_URL = "p" + DATABASE_URL
-    # Render and others sometimes provide 'postgres://'
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Fix Render's common typo: ostgresql -> postgresql
+if DATABASE_URL and "ostgresql" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("ostgresql", "postgresql")
+    print("Fixed ostgresql typo in DATABASE_URL")
 
-# Debug: Print sanitized scheme and host (without credentials)
-if DATABASE_URL.startswith("postgresql") and "@" in DATABASE_URL:
-    print(f"Using PostgreSQL database: {DATABASE_URL.split('@', 1)[1]}")
+# Normalize postgres:// to postgresql://
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    print("Normalized postgres:// to postgresql://")
 
-# Create engine with explicit dialect
+# Create engine
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-elif DATABASE_URL.startswith("postgresql"):
-    # Ensure we use the correct PostgreSQL dialect
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 else:
     engine = create_engine(DATABASE_URL)
 
