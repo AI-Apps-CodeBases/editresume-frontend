@@ -7,6 +7,13 @@ import os
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./editresume.db")
 
+# Debug: Print database URL (without password for security)
+if DATABASE_URL.startswith("postgresql"):
+    print(f"Using PostgreSQL database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'connection string'}")
+elif DATABASE_URL.startswith("ostgresql"):
+    print("ERROR: Database URL has typo - 'ostgresql' should be 'postgresql'")
+    raise ValueError("Database URL contains typo: 'ostgresql' should be 'postgresql'")
+
 # Create engine
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
