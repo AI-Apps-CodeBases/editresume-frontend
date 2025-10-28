@@ -113,38 +113,33 @@ ALLOWED_ORIGINS = BASE_ALLOWED_ORIGINS + ADDITIONAL_ORIGINS
 # Log CORS configuration for debugging
 print(f"CORS Allowed Origins: {ALLOWED_ORIGINS}")
 
+# Custom function to check if origin is allowed
+def is_origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    
+    # Check exact matches first
+    if origin in ALLOWED_ORIGINS:
+        return True
+    
+    # For staging environment, allow Vercel domains with our project ID
+    ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+    if ENVIRONMENT == "staging":
+        if ("vercel.app" in origin and 
+            "hasans-projects-d7f2163d" in origin and 
+            ("editresume-staging" in origin or "editresume-staging-git" in origin)):
+            return True
+    
+    return False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://editresume-staging.*\.vercel\.app|https://editresume-staging-git.*\.vercel\.app|http://localhost:300[01]|https://(staging\.)?editresume\.io|https://www\.editresume\.io|https://editresume-staging\.onrender\.com",
     allow_credentials=True,  # Allow credentials for authenticated requests
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],  # Expose all headers to frontend
 )
-
-# Custom CORS handler for dynamic Vercel domains
-@app.middleware("http")
-async def custom_cors_handler(request: Request, call_next):
-    origin = request.headers.get("origin")
-    
-    # Check if it's a Vercel domain that should be allowed
-    if origin and "vercel.app" in origin and "hasans-projects-d7f2163d" in origin:
-        # Add the origin to allowed origins if not already present
-        if origin not in ALLOWED_ORIGINS:
-            ALLOWED_ORIGINS.append(origin)
-            print(f"Added dynamic Vercel origin: {origin}")
-    
-    response = await call_next(request)
-    
-    # Add CORS headers for Vercel domains
-    if origin and "vercel.app" in origin and "hasans-projects-d7f2163d" in origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Expose-Headers"] = "*"
-    
-    return response
 
 # Add explicit OPTIONS handler for CORS preflight requests
 @app.options("/{path:path}")
