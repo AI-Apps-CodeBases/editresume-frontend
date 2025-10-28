@@ -25,6 +25,7 @@ interface JobMatchResult {
   match_analysis: MatchAnalysis;
   keyword_suggestions: Record<string, string[]>;
   improvement_suggestions: ImprovementSuggestion[];
+  applied_improvements?: ImprovementSuggestion[];
   analysis_summary: {
     overall_match: string;
     technical_match: string;
@@ -101,10 +102,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
           const result = await response.json();
           if (result.success && result.improved_content) {
             // Update resume data with improved content
-            if (onMatchResult) {
+            if (onMatchResult && matchResult) {
               onMatchResult({
                 ...matchResult,
-                applied_improvements: [...(matchResult?.applied_improvements || []), improvement]
+                applied_improvements: [...(matchResult.applied_improvements || []), improvement]
               });
             }
           }
@@ -298,7 +299,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
                 console.log('Improvement suggestions:', improvements);
                 // Show improvements in a modal for user to review and apply
                 if (improvements && improvements.length > 0) {
-                  const improvementText = improvements.map((imp, index) => 
+                  const improvementText = improvements.map((imp: ImprovementSuggestion, index: number) => 
                     `${index + 1}. [${imp.category}] ${imp.suggestion}`
                   ).join('\n\n');
                   
