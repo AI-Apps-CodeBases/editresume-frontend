@@ -2456,6 +2456,16 @@ async def export_pdf(payload: ExportPayload, user_email: str = None, db: Session
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/test/connection")
+async def test_connection():
+    """Test endpoint to verify API connectivity"""
+    return {
+        "status": "success",
+        "message": "API is working",
+        "timestamp": datetime.utcnow().isoformat(),
+        "cors_origins": ALLOWED_ORIGINS
+    }
+
 @app.post("/api/resume/upload")
 async def upload_resume(file: UploadFile = File(...)):
     try:
