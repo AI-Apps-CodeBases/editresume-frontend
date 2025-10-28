@@ -146,14 +146,12 @@ function EditorPageContent() {
       if (isNewResume) {
         // Create empty resume data and skip wizard
         const emptyResumeData = {
-          personalInfo: {
-            name: '',
-            email: '',
-            phone: '',
-            location: '',
-            linkedin: '',
-            website: ''
-          },
+          name: '',
+          title: '',
+          email: '',
+          phone: '',
+          location: '',
+          summary: '',
           sections: [
             {
               id: '1',

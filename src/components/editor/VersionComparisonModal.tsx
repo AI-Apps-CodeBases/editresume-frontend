@@ -153,6 +153,7 @@ export default function VersionComparisonModal({
                     <PreviewPanel
                       data={formatResumeDataForPreview(version1Data)}
                       template="tech"
+                      replacements={{}}
                       key={`version-1-${version1Id}`}
                     />
                   </div>
@@ -165,6 +166,7 @@ export default function VersionComparisonModal({
                     <PreviewPanel
                       data={formatResumeDataForPreview(version2Data)}
                       template="tech"
+                      replacements={{}}
                       key={`version-2-${version2Id}`}
                     />
                   </div>

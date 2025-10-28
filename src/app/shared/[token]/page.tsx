@@ -188,7 +188,8 @@ export default function SharedResumePage() {
           <div className="p-6">
             <PreviewPanel
               data={resumeData}
-              template={sharedInfo.resume.template}
+              template={(sharedInfo.resume.template || 'tech') as 'tech' | 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern'}
+              replacements={{}}
               key="shared-resume-preview"
             />
           </div>
