@@ -190,7 +190,7 @@ export default function ProfilePage() {
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <a
-                      href="/editor"
+                      href="/editor?new=true"
                       className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all"
                     >
                       <span className="text-2xl">✏️</span>

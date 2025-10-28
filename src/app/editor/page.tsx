@@ -14,8 +14,14 @@ import CoverLetterGenerator from '@/components/editor/CoverLetterGenerator'
 import ATSScoreWidget from '@/components/editor/ATSScoreWidget'
 import EnhancedATSScoreWidget from '@/components/editor/EnhancedATSScoreWidget'
 import AIImprovementWidget from '@/components/editor/AIImprovementWidget'
+import VersionControlPanel from '@/components/editor/VersionControlPanel'
+import VersionComparisonModal from '@/components/editor/VersionComparisonModal'
+import ExportAnalyticsDashboard from '@/components/editor/ExportAnalyticsDashboard'
+import ShareResumeModal from '@/components/editor/ShareResumeModal'
+import JobMatchAnalyticsDashboard from '@/components/editor/JobMatchAnalyticsDashboard'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCollaboration } from '@/hooks/useCollaboration'
+import { versionControlService } from '@/lib/services/versionControl'
 
 function EditorPageContent() {
   const { user, isAuthenticated, login, logout, checkPremiumAccess } = useAuth()
@@ -28,6 +34,13 @@ function EditorPageContent() {
   const [showATSScore, setShowATSScore] = useState(false)
   const [showEnhancedATS, setShowEnhancedATS] = useState(false)
   const [showAIImprovements, setShowAIImprovements] = useState(false)
+  const [showVersionControl, setShowVersionControl] = useState(false)
+  const [showVersionComparison, setShowVersionComparison] = useState(false)
+  const [showExportAnalytics, setShowExportAnalytics] = useState(false)
+  const [showShareResume, setShowShareResume] = useState(false)
+  const [showJobMatchAnalytics, setShowJobMatchAnalytics] = useState(false)
+  const [currentResumeId, setCurrentResumeId] = useState<number | null>(null)
+  const [comparisonVersions, setComparisonVersions] = useState<{ version1Id: number; version2Id: number } | null>(null)
   const [roomId, setRoomId] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
   const [userName, setUserName] = useState(() => {
@@ -126,6 +139,48 @@ function EditorPageContent() {
             localStorage.setItem('userName', name)
           }
         }
+      }
+      
+      // Check if user wants to create a new resume from scratch
+      const isNewResume = searchParams.get('new') === 'true'
+      if (isNewResume) {
+        // Create empty resume data and skip wizard
+        const emptyResumeData = {
+          personalInfo: {
+            name: '',
+            email: '',
+            phone: '',
+            location: '',
+            linkedin: '',
+            website: ''
+          },
+          sections: [
+            {
+              id: '1',
+              title: 'Professional Summary',
+              bullets: [{ id: '1', text: '', params: {} }]
+            },
+            {
+              id: '2', 
+              title: 'Experience',
+              bullets: [{ id: '2', text: '', params: {} }]
+            },
+            {
+              id: '3',
+              title: 'Skills', 
+              bullets: [{ id: '3', text: '', params: {} }]
+            },
+            {
+              id: '4',
+              title: 'Education',
+              bullets: [{ id: '4', text: '', params: {} }]
+            }
+          ],
+          template: 'tech',
+          layoutConfig: {}
+        }
+        setResumeData(emptyResumeData)
+        setShowWizard(false)
       }
     }
   }, [searchParams, userName])
@@ -258,6 +313,12 @@ function EditorPageContent() {
       const exportUrl = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/export/${format}`
       console.log('Export URL:', exportUrl)
       
+      // Add user email to URL for analytics tracking
+      const url = new URL(exportUrl)
+      if (user?.email) {
+        url.searchParams.set('user_email', user.email)
+      }
+      
       const exportData = {
         name: resumeData.name,
         title: resumeData.title,
@@ -275,7 +336,7 @@ function EditorPageContent() {
       
       console.log('Export data:', exportData)
       
-      const response = await fetch(exportUrl, {
+      const response = await fetch(url.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(exportData)
@@ -321,6 +382,61 @@ function EditorPageContent() {
     } finally {
       setIsExporting(false)
     }
+  }
+
+  // Version Control Handlers
+  const handleSaveResume = async () => {
+    if (!user) {
+      setShowAuthModal(true)
+      return
+    }
+
+    try {
+      const resumeDataForSave = {
+        personalInfo: {
+          name: resumeData.name,
+          email: resumeData.email,
+          phone: resumeData.phone,
+          location: resumeData.location
+        },
+        summary: resumeData.summary,
+        sections: resumeData.sections,
+        template: selectedTemplate
+      }
+
+      const result = await versionControlService.saveResume(resumeDataForSave)
+      setCurrentResumeId(result.resume_id)
+      
+      // Show success message
+      console.log('Resume saved successfully')
+    } catch (error) {
+      console.error('Failed to save resume:', error)
+      alert('Failed to save resume. Please try again.')
+    }
+  }
+
+  const handleVersionLoad = (versionData: any) => {
+    const newResumeData = {
+      name: versionData.personalInfo?.name || '',
+      title: versionData.personalInfo?.title || '',
+      email: versionData.personalInfo?.email || '',
+      phone: versionData.personalInfo?.phone || '',
+      location: versionData.personalInfo?.location || '',
+      summary: versionData.summary || '',
+      sections: versionData.sections || []
+    }
+    setResumeData(newResumeData)
+    setPreviewKey(prev => prev + 1)
+  }
+
+  const handleVersionSave = (changeSummary: string) => {
+    console.log('Version saved:', changeSummary)
+    // Could show a toast notification here
+  }
+
+  const handleCompareVersions = (version1Id: number, version2Id: number) => {
+    setComparisonVersions({ version1Id, version2Id })
+    setShowVersionComparison(true)
   }
 
   const [previewScale, setPreviewScale] = useState(0.6)
@@ -699,6 +815,38 @@ function EditorPageContent() {
                 >
                   📝 Cover Letter
                 </button>
+                {isAuthenticated && (
+                  <button
+                    onClick={() => setShowVersionControl(true)}
+                    className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-purple-400 hover:bg-purple-50 transition-all font-semibold"
+                  >
+                    📚 Versions
+                  </button>
+                )}
+                {isAuthenticated && (
+                  <button
+                    onClick={() => setShowExportAnalytics(true)}
+                    className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-orange-400 hover:bg-orange-50 transition-all font-semibold"
+                  >
+                    📊 Analytics
+                  </button>
+                )}
+                {isAuthenticated && (
+                  <button
+                    onClick={() => setShowJobMatchAnalytics(true)}
+                    className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50 transition-all font-semibold"
+                  >
+                    🎯 Job Matches
+                  </button>
+                )}
+                {isAuthenticated && currentResumeId && (
+                  <button
+                    onClick={() => setShowShareResume(true)}
+                    className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all font-semibold"
+                  >
+                    🔗 Share
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     console.log('New Resume button clicked')
@@ -1385,6 +1533,75 @@ function EditorPageContent() {
           targetRole=""
           industry=""
           onClose={() => setShowAIImprovements(false)}
+        />
+      )}
+
+      {/* Version Control Panel */}
+      {showVersionControl && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Version Control</h2>
+                <button
+                  onClick={() => setShowVersionControl(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <VersionControlPanel
+                resumeId={currentResumeId || undefined}
+                resumeData={resumeData}
+                onVersionLoad={handleVersionLoad}
+                onSaveVersion={handleVersionSave}
+                onCompareVersions={handleCompareVersions}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Version Comparison Modal */}
+      {showVersionComparison && comparisonVersions && (
+        <VersionComparisonModal
+          isOpen={showVersionComparison}
+          onClose={() => {
+            setShowVersionComparison(false)
+            setComparisonVersions(null)
+          }}
+          version1Id={comparisonVersions.version1Id}
+          version2Id={comparisonVersions.version2Id}
+        />
+      )}
+
+      {/* Export Analytics Dashboard */}
+      {showExportAnalytics && (
+        <ExportAnalyticsDashboard
+          isOpen={showExportAnalytics}
+          onClose={() => setShowExportAnalytics(false)}
+        />
+      )}
+
+      {/* Share Resume Modal */}
+      {showShareResume && currentResumeId && (
+        <ShareResumeModal
+          isOpen={showShareResume}
+          onClose={() => setShowShareResume(false)}
+          resumeId={currentResumeId}
+          resumeName={resumeData.name || 'Untitled Resume'}
+        />
+      )}
+
+      {/* Job Match Analytics Dashboard */}
+      {showJobMatchAnalytics && (
+        <JobMatchAnalyticsDashboard
+          isOpen={showJobMatchAnalytics}
+          onClose={() => setShowJobMatchAnalytics(false)}
         />
       )}
     </div>

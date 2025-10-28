@@ -15,7 +15,7 @@ export default function FooterCTA() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           
           <a
-            href="/editor"
+            href="/editor?new=true"
             className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold text-lg border-2 border-white/20 hover:bg-white/20 transition-all"
           >
             Start Free

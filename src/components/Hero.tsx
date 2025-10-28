@@ -39,7 +39,7 @@ export default function Hero() {
             </a>
             
             <a
-              href="/editor"
+              href="/editor?new=true"
               className="group inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all hover:scale-105 border-2 border-white/30"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
