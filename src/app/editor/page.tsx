@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import PreviewPanel from '@/components/editor/PreviewPanel'
 import GlobalReplacements from '@/components/editor/GlobalReplacements'
 import TemplateSelector from '@/components/editor/TemplateSelector'
@@ -17,12 +18,13 @@ import AIImprovementWidget from '@/components/editor/AIImprovementWidget'
 import VersionControlPanel from '@/components/editor/VersionControlPanel'
 import VersionComparisonModal from '@/components/editor/VersionComparisonModal'
 import ExportAnalyticsDashboard from '@/components/editor/ExportAnalyticsDashboard'
+import JobMatchAnalyticsDashboard from '@/components/editor/JobMatchAnalyticsDashboard'
 import ShareResumeModal from '@/components/editor/ShareResumeModal'
 import DebugPanel from '@/components/DebugPanel'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 
-function EditorPageContent() {
+const EditorPageContent = () => {
   const { user, isAuthenticated, login, logout, checkPremiumAccess } = useAuth()
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
