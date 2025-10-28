@@ -115,16 +115,22 @@ const EditorPageContent = () => {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const hasExistingResume = localStorage.getItem('resumeData')
-      if (hasExistingResume) {
-        try {
-          const existingData = JSON.parse(hasExistingResume)
-          console.log('Loading existing resume data from localStorage:', existingData)
-          setResumeData(existingData)
-        } catch (error) {
-          console.error('Error parsing resume data from localStorage:', error)
-        }
-        setShowWizard(false)
+      // Check if user wants to upload a resume
+      const isUploadResume = searchParams.get('upload') === 'true'
+      if (isUploadResume) {
+        // Clear any cached data and show upload wizard
+        localStorage.removeItem('resumeData')
+        setResumeData({
+          name: '',
+          title: '',
+          email: '',
+          phone: '',
+          location: '',
+          summary: '',
+          sections: []
+        })
+        setShowWizard(true)
+        return
       }
       
       const urlRoomId = searchParams.get('room')
@@ -179,17 +185,37 @@ const EditorPageContent = () => {
         }
         setResumeData(emptyResumeData)
         setShowWizard(false)
+        return
+      }
+      
+      // Only load cached data if user is authenticated
+      if (isAuthenticated) {
+        const hasExistingResume = localStorage.getItem('resumeData')
+        if (hasExistingResume) {
+          try {
+            const existingData = JSON.parse(hasExistingResume)
+            console.log('Loading existing resume data from localStorage:', existingData)
+            setResumeData(existingData)
+            setShowWizard(false)
+          } catch (error) {
+            console.error('Error parsing resume data from localStorage:', error)
+          }
+        }
+      } else {
+        // For non-authenticated users, clear any cached data and show wizard
+        localStorage.removeItem('resumeData')
+        setShowWizard(true)
       }
     }
-  }, [searchParams, userName])
+  }, [searchParams, userName, isAuthenticated])
 
   // Save resume data to localStorage whenever it changes
   useEffect(() => {
-    if (typeof window !== 'undefined' && resumeData.name) {
+    if (typeof window !== 'undefined' && resumeData.name && isAuthenticated) {
       console.log('Saving resume data to localStorage:', resumeData)
       localStorage.setItem('resumeData', JSON.stringify(resumeData))
     }
-  }, [resumeData])
+  }, [resumeData, isAuthenticated])
 
   useEffect(() => {
     if (roomId && userName) {
