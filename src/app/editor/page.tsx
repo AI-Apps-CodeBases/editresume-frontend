@@ -20,7 +20,6 @@ import VersionComparisonModal from '@/components/editor/VersionComparisonModal'
 import ExportAnalyticsDashboard from '@/components/editor/ExportAnalyticsDashboard'
 import JobMatchAnalyticsDashboard from '@/components/editor/JobMatchAnalyticsDashboard'
 import ShareResumeModal from '@/components/editor/ShareResumeModal'
-import DebugPanel from '@/components/DebugPanel'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 
@@ -1604,8 +1603,6 @@ const EditorPageContent = () => {
         />
       )}
       
-      {/* Debug Panel - Remove in production */}
-      <DebugPanel />
     </div>
   )
 }
