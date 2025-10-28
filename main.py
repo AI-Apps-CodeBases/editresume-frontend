@@ -1,8 +1,8 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import os
 import re
 import json
@@ -12,6 +12,9 @@ from datetime import datetime
 from openai import OpenAI
 from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
+from sqlalchemy.orm import Session
+from database import get_db, create_tables, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView
+from version_control import VersionControlService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -81,6 +84,9 @@ else:
 # Initialize keyword extractor and grammar checker
 keyword_extractor = KeywordExtractor()
 grammar_checker = GrammarStyleChecker()
+
+# Initialize database
+create_tables()
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
 
@@ -183,6 +189,30 @@ class AIImprovementPayload(BaseModel):
     industry: Optional[str] = None
     strategy: Optional[str] = None  # Specific improvement strategy to focus on
 
+# Version Control Models
+class CreateVersionPayload(BaseModel):
+    resume_id: int
+    resume_data: Dict[str, Any]
+    change_summary: Optional[str] = None
+    is_auto_save: bool = False
+
+class RollbackVersionPayload(BaseModel):
+    version_id: int
+
+class CompareVersionsPayload(BaseModel):
+    version1_id: int
+    version2_id: int
+
+class SaveResumePayload(BaseModel):
+    name: str
+    title: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    summary: Optional[str] = None
+    sections: List[Section] = []
+    template: Optional[str] = "tech"
+
 users_db = {}
 user_stats = {}
 payment_history = {}
@@ -202,37 +232,78 @@ async def health():
         "openai": openai_status
     }
 
+@app.get("/api/test/db")
+async def test_db(db: Session = Depends(get_db)):
+    """Test database connection and table creation"""
+    try:
+        # Test if we can query users table
+        user_count = db.query(User).count()
+        
+        # Test if we can create a test user
+        test_user = User(
+            email="test-db@example.com",
+            name="Test DB User",
+            password="test123",
+            is_premium=False
+        )
+        db.add(test_user)
+        db.commit()
+        db.refresh(test_user)
+        
+        # Clean up test user
+        db.delete(test_user)
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Database connection working",
+            "user_count": user_count,
+            "test_user_created": True
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Database error: {str(e)}"
+        }
+
 @app.post("/api/auth/signup")
-async def signup(payload: SignupPayload):
-    if payload.email in users_db:
+async def signup(payload: SignupPayload, db: Session = Depends(get_db)):
+    # Check if user already exists
+    existing_user = db.query(User).filter(User.email == payload.email).first()
+    if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    token = secrets.token_urlsafe(32)
-    user = {
-        "email": payload.email,
-        "name": payload.name,
-        "password": payload.password,
-        "isPremium": not PREMIUM_MODE,
-        "created_at": datetime.now().isoformat()
-    }
-    users_db[payload.email] = user
+    # Create new user
+    new_user = User(
+        email=payload.email,
+        name=payload.name,
+        password=payload.password,  # In production, hash this password
+        is_premium=not PREMIUM_MODE
+    )
     
-    logger.info(f"New user signup: {payload.email} (Premium: {user['isPremium']})")
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    token = secrets.token_urlsafe(32)
+    
+    logger.info(f"New user signup: {payload.email} (Premium: {new_user.is_premium})")
     return {
         "token": token,
         "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "isPremium": user["isPremium"]
+            "email": new_user.email,
+            "name": new_user.name,
+            "isPremium": new_user.is_premium,
+            "createdAt": new_user.created_at.isoformat()
         },
         "message": "Account created successfully"
     }
 
 @app.post("/api/auth/login")
-async def login(payload: LoginPayload):
-    user = users_db.get(payload.email)
+async def login(payload: LoginPayload, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
     
-    if not user or user["password"] != payload.password:
+    if not user or user.password != payload.password:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     token = secrets.token_urlsafe(32)
@@ -241,10 +312,10 @@ async def login(payload: LoginPayload):
     return {
         "token": token,
         "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "isPremium": user["isPremium"],
-            "createdAt": user.get("created_at")
+            "email": user.email,
+            "name": user.name,
+            "isPremium": user.is_premium,
+            "createdAt": user.created_at.isoformat()
         },
         "message": "Login successful"
     }
@@ -393,7 +464,7 @@ async def get_openai_status():
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code == 200:
@@ -514,7 +585,7 @@ Return ONLY the refined bullet point, no explanations."""
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code != 200:
@@ -585,7 +656,7 @@ Return ONLY the bullet points, one per line, no numbering or explanations."""
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code != 200:
@@ -651,7 +722,7 @@ Return ONLY the summary text, no explanations or labels."""
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code != 200:
@@ -718,7 +789,7 @@ Return ONLY the bullet point text, no explanations or labels."""
                 "max_tokens": 150,
                 "temperature": 0.7
             },
-            timeout=30
+            timeout=60
         )
         
         if response.status_code != 200:
@@ -825,7 +896,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code != 200:
@@ -851,7 +922,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
         raise HTTPException(status_code=500, detail=error_message)
 
 @app.post("/api/ai/match_job_description")
-async def match_job_description(payload: JobDescriptionMatchPayload):
+async def match_job_description(payload: JobDescriptionMatchPayload, user_email: str = None, db: Session = Depends(get_db)):
     """Match job description with resume and calculate similarity score"""
     try:
         # Convert resume data to text for analysis
@@ -929,7 +1000,7 @@ Return as JSON array: [{{"category": "Technical Skills", "suggestion": "Add Pyth
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
                     json=data,
-                    timeout=30
+                    timeout=60
                 )
                 
                 if response.status_code == 200:
@@ -950,6 +1021,81 @@ Return as JSON array: [{{"category": "Technical Skills", "suggestion": "Add Pyth
                         
             except Exception as e:
                 logger.error(f"Error generating AI suggestions: {e}")
+        
+        return {
+            "success": True,
+            "match_analysis": {
+                "similarity_score": similarity_result.get('similarity_score', 0),
+                "technical_score": similarity_result.get('technical_score', 0),
+                "matching_keywords": similarity_result.get('matching_keywords', []),
+                "missing_keywords": similarity_result.get('missing_keywords', []),
+                "technical_matches": similarity_result.get('technical_matches', []),
+                "technical_missing": similarity_result.get('technical_missing', []),
+                "total_job_keywords": similarity_result.get('total_job_keywords', 0),
+                "match_count": similarity_result.get('match_count', 0),
+                "missing_count": similarity_result.get('missing_count', 0)
+            },
+            "keyword_suggestions": suggestions,
+            "improvement_suggestions": improvement_suggestions,
+            "analysis_summary": {
+                "overall_match": "Excellent" if similarity_result.get('similarity_score', 0) >= 80 else
+                               "Good" if similarity_result.get('similarity_score', 0) >= 60 else
+                               "Fair" if similarity_result.get('similarity_score', 0) >= 40 else
+                               "Needs Improvement",
+                "technical_match": "Strong" if similarity_result.get('technical_score', 0) >= 70 else
+                                 "Moderate" if similarity_result.get('technical_score', 0) >= 40 else
+                                 "Weak"
+            }
+        }
+        
+        # Track job match analytics
+        if user_email and db:
+            try:
+                user = db.query(User).filter(User.email == user_email).first()
+                if user:
+                    # Find or create resume record
+                    resume = db.query(Resume).filter(
+                        Resume.user_id == user.id,
+                        Resume.name == payload.resume_data.name
+                    ).first()
+                    
+                    if not resume:
+                        resume = Resume(
+                            user_id=user.id,
+                            name=payload.resume_data.name,
+                            title=payload.resume_data.title,
+                            email=payload.resume_data.email,
+                            phone=payload.resume_data.phone,
+                            location=payload.resume_data.location,
+                            summary=payload.resume_data.summary,
+                            template="tech"
+                        )
+                        db.add(resume)
+                        db.commit()
+                        db.refresh(resume)
+                    
+                    # Get latest version for this resume
+                    version_service = VersionControlService(db)
+                    latest_version = version_service.get_latest_version(resume.id, user.id)
+                    
+                    # Create job match record
+                    job_match = JobMatch(
+                        user_id=user.id,
+                        resume_id=resume.id,
+                        resume_version_id=latest_version.id if latest_version else None,
+                        job_description=payload.job_description,
+                        match_score=similarity_result.get('similarity_score', 0),
+                        keyword_matches=similarity_result.get('matching_keywords', []),
+                        missing_keywords=similarity_result.get('missing_keywords', []),
+                        improvement_suggestions=improvement_suggestions
+                    )
+                    
+                    db.add(job_match)
+                    db.commit()
+                    
+                    logger.info(f"Job match analytics tracked for user {user_email}: score {similarity_result.get('similarity_score', 0)}")
+            except Exception as e:
+                logger.error(f"Failed to track job match analytics: {e}")
         
         return {
             "success": True,
@@ -1059,7 +1205,7 @@ Return ONLY valid JSON, no markdown formatting."""
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code != 200:
@@ -1332,7 +1478,7 @@ async def generate_resume_content(payload: dict):
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code != 200:
@@ -2030,7 +2176,7 @@ def format_regular_bullets(bullets, replacements):
     return '\n'.join(html_parts)
 
 @app.post("/api/resume/export/pdf")
-async def export_pdf(payload: ExportPayload):
+async def export_pdf(payload: ExportPayload, user_email: str = None, db: Session = Depends(get_db)):
     try:
         from weasyprint import HTML
         from io import BytesIO
@@ -2222,6 +2368,48 @@ async def export_pdf(payload: ExportPayload):
         pdf_bytes = HTML(string=html_content).write_pdf()
         logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes")
         
+        # Track export analytics
+        if user_email and db:
+            try:
+                user = db.query(User).filter(User.email == user_email).first()
+                if user:
+                    # Find or create resume record
+                    resume = db.query(Resume).filter(
+                        Resume.user_id == user.id,
+                        Resume.name == payload.name
+                    ).first()
+                    
+                    if not resume:
+                        resume = Resume(
+                            user_id=user.id,
+                            name=payload.name,
+                            title=payload.title,
+                            email=payload.email,
+                            phone=payload.phone,
+                            location=payload.location,
+                            summary=payload.summary,
+                            template=template_id
+                        )
+                        db.add(resume)
+                        db.commit()
+                        db.refresh(resume)
+                    
+                    # Create export analytics record
+                    export_analytics = ExportAnalytics(
+                        user_id=user.id,
+                        resume_id=resume.id,
+                        export_format='pdf',
+                        template_used=template_id,
+                        file_size=len(pdf_bytes),
+                        export_success=True
+                    )
+                    db.add(export_analytics)
+                    db.commit()
+                    
+                    logger.info(f"Export analytics tracked for user {user_email}: PDF export")
+            except Exception as e:
+                logger.error(f"Failed to track export analytics: {e}")
+        
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -2377,6 +2565,8 @@ def parse_resume_with_ai(text: str) -> Dict:
     try:
         prompt = f"""Parse this resume text and extract structured information. This resume may have been exported from a resume builder app, so pay special attention to preserving the exact structure and content.
 
+CRITICAL: You MUST return valid JSON with ALL property names enclosed in double quotes. Do not use single quotes or unquoted property names.
+
 Return a JSON object with this exact structure:
 
 {{
@@ -2480,7 +2670,7 @@ Resume Text (Full Content):
                 'temperature': 0.3,
                 'max_tokens': max_tokens_for_resume
             },
-            timeout=45
+            timeout=120
         )
         
         if response.status_code != 200:
@@ -2490,10 +2680,23 @@ Resume Text (Full Content):
         result = response.json()
         ai_response = result['choices'][0]['message']['content'].strip()
         
+        # Clean up the response
         ai_response = re.sub(r'^```json\s*', '', ai_response)
         ai_response = re.sub(r'\s*```$', '', ai_response)
         
-        parsed_data = json.loads(ai_response)
+        # Try to fix common JSON formatting issues
+        try:
+            parsed_data = json.loads(ai_response)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Initial JSON parse failed: {e}")
+            # Try to fix common JSON issues
+            ai_response = re.sub(r'(\w+):', r'"\1":', ai_response)  # Add quotes to unquoted keys
+            ai_response = re.sub(r':\s*([^",\[\{][^,}\]]*?)([,}\]])', r': "\1"\2', ai_response)  # Add quotes to unquoted string values
+            try:
+                parsed_data = json.loads(ai_response)
+            except json.JSONDecodeError as e2:
+                logger.error(f"JSON cleanup failed: {e2}")
+                raise e2
         
         for i, section in enumerate(parsed_data.get('sections', [])):
             section['id'] = str(i)
@@ -2610,7 +2813,7 @@ def detect_parameterization(text: str) -> Dict[str, str]:
     return variables
 
 @app.post("/api/resume/export/docx")
-async def export_docx(payload: ExportPayload):
+async def export_docx(payload: ExportPayload, user_email: str = None, db: Session = Depends(get_db)):
     try:
         from docx import Document
         from docx.shared import Pt, Inches, RGBColor
@@ -2887,6 +3090,48 @@ async def export_docx(payload: ExportPayload):
         
         docx_bytes = buffer.getvalue()
         logger.info(f"DOCX generated successfully, size: {len(docx_bytes)} bytes")
+        
+        # Track export analytics
+        if user_email and db:
+            try:
+                user = db.query(User).filter(User.email == user_email).first()
+                if user:
+                    # Find or create resume record
+                    resume = db.query(Resume).filter(
+                        Resume.user_id == user.id,
+                        Resume.name == payload.name
+                    ).first()
+                    
+                    if not resume:
+                        resume = Resume(
+                            user_id=user.id,
+                            name=payload.name,
+                            title=payload.title,
+                            email=payload.email,
+                            phone=payload.phone,
+                            location=payload.location,
+                            summary=payload.summary,
+                            template=template_id
+                        )
+                        db.add(resume)
+                        db.commit()
+                        db.refresh(resume)
+                    
+                    # Create export analytics record
+                    export_analytics = ExportAnalytics(
+                        user_id=user.id,
+                        resume_id=resume.id,
+                        export_format='docx',
+                        template_used=template_id,
+                        file_size=len(docx_bytes),
+                        export_success=True
+                    )
+                    db.add(export_analytics)
+                    db.commit()
+                    
+                    logger.info(f"Export analytics tracked for user {user_email}: DOCX export")
+            except Exception as e:
+                logger.error(f"Failed to track export analytics: {e}")
         
         return Response(
             content=docx_bytes,
@@ -3614,7 +3859,7 @@ async def generate_work_experience(payload: WorkExperienceRequest):
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code != 200:
@@ -3763,4 +4008,693 @@ async def websocket_collab(websocket: WebSocket, room_id: str):
             "user_name": user_name,
             "active_users": active_users
         })
+
+# Version Control Endpoints
+
+@app.post("/api/resume/save")
+async def save_resume(payload: SaveResumePayload, user_email: str, db: Session = Depends(get_db)):
+    """Save or update a resume with version control"""
+    try:
+        # Get user from database
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if resume exists
+        resume = db.query(Resume).filter(
+            Resume.user_id == user.id,
+            Resume.name == payload.name
+        ).first()
+        
+        if resume:
+            # Update existing resume
+            resume.title = payload.title
+            resume.email = payload.email
+            resume.phone = payload.phone
+            resume.location = payload.location
+            resume.summary = payload.summary
+            resume.template = payload.template
+            resume.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(resume)
+        else:
+            # Create new resume
+            resume = Resume(
+                user_id=user.id,
+                name=payload.name,
+                title=payload.title,
+                email=payload.email,
+                phone=payload.phone,
+                location=payload.location,
+                summary=payload.summary,
+                template=payload.template
+            )
+            db.add(resume)
+            db.commit()
+            db.refresh(resume)
+        
+        # Create version
+        version_service = VersionControlService(db)
+        resume_data = {
+            "personalInfo": {
+                "name": payload.name,
+                "email": payload.email,
+                "phone": payload.phone,
+                "location": payload.location
+            },
+            "summary": payload.summary,
+            "sections": [{"id": s.id, "title": s.title, "bullets": [{"id": b.id, "text": b.text, "params": b.params} for b in s.bullets]} for s in payload.sections]
+        }
+        
+        version = version_service.create_version(
+            user_id=user.id,
+            resume_id=resume.id,
+            resume_data=resume_data,
+            change_summary="Manual save",
+            is_auto_save=False
+        )
+        
+        return {
+            "success": True,
+            "resume_id": resume.id,
+            "version_id": version.id,
+            "message": "Resume saved successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving resume: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save resume")
+
+@app.post("/api/resume/version/create")
+async def create_version(payload: CreateVersionPayload, user_email: str, db: Session = Depends(get_db)):
+    """Create a new version of a resume"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Verify resume belongs to user
+        resume = db.query(Resume).filter(
+            Resume.id == payload.resume_id,
+            Resume.user_id == user.id
+        ).first()
+        if not resume:
+            raise HTTPException(status_code=404, detail="Resume not found")
+        
+        version_service = VersionControlService(db)
+        version = version_service.create_version(
+            user_id=user.id,
+            resume_id=payload.resume_id,
+            resume_data=payload.resume_data,
+            change_summary=payload.change_summary,
+            is_auto_save=payload.is_auto_save
+        )
+        
+        return {
+            "success": True,
+            "version_id": version.id,
+            "version_number": version.version_number,
+            "message": "Version created successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating version: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create version")
+
+@app.get("/api/resume/{resume_id}/versions")
+async def get_resume_versions(resume_id: int, user_email: str, db: Session = Depends(get_db)):
+    """Get all versions for a resume"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Verify resume belongs to user
+        resume = db.query(Resume).filter(
+            Resume.id == resume_id,
+            Resume.user_id == user.id
+        ).first()
+        if not resume:
+            raise HTTPException(status_code=404, detail="Resume not found")
+        
+        version_service = VersionControlService(db)
+        versions = version_service.get_resume_versions(resume_id, user.id)
+        
+        return {
+            "success": True,
+            "versions": [
+                {
+                    "id": v.id,
+                    "version_number": v.version_number,
+                    "change_summary": v.change_summary,
+                    "is_auto_save": v.is_auto_save,
+                    "created_at": v.created_at.isoformat()
+                }
+                for v in versions
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting versions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get versions")
+
+@app.post("/api/resume/version/rollback")
+async def rollback_version(payload: RollbackVersionPayload, user_email: str, db: Session = Depends(get_db)):
+    """Rollback to a specific version"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        version_service = VersionControlService(db)
+        new_version = version_service.rollback_to_version(payload.version_id, user.id)
+        
+        if not new_version:
+            raise HTTPException(status_code=404, detail="Version not found")
+        
+        return {
+            "success": True,
+            "new_version_id": new_version.id,
+            "version_number": new_version.version_number,
+            "message": "Rollback successful"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error rolling back version: {e}")
+        raise HTTPException(status_code=500, detail="Failed to rollback version")
+
+@app.get("/api/resume/version/{version_id}")
+async def get_version(version_id: int, user_email: str, db: Session = Depends(get_db)):
+    """Get a specific version data"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        version_service = VersionControlService(db)
+        version = version_service.get_version(version_id, user.id)
+        
+        if not version:
+            raise HTTPException(status_code=404, detail="Version not found")
+        
+        return {
+            "success": True,
+            "version": {
+                "id": version.id,
+                "version_number": version.version_number,
+                "resume_data": version.resume_data,
+                "change_summary": version.change_summary,
+                "is_auto_save": version.is_auto_save,
+                "created_at": version.created_at.isoformat()
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting version: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get version")
+
+@app.post("/api/resume/version/compare")
+async def compare_versions(payload: CompareVersionsPayload, user_email: str, db: Session = Depends(get_db)):
+    """Compare two versions"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        version_service = VersionControlService(db)
+        comparison = version_service.compare_versions(
+            payload.version1_id, 
+            payload.version2_id, 
+            user.id
+        )
+        
+        if not comparison:
+            raise HTTPException(status_code=404, detail="Versions not found or incompatible")
+        
+        return {
+            "success": True,
+            "comparison": comparison
+        }
+        
+    except Exception as e:
+        logger.error(f"Error comparing versions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to compare versions")
+
+@app.delete("/api/resume/version/{version_id}")
+async def delete_version(version_id: int, user_email: str, db: Session = Depends(get_db)):
+    """Delete a specific version"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        version_service = VersionControlService(db)
+        success = version_service.delete_version(version_id, user.id)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Cannot delete version (only version or not found)")
+        
+        return {
+            "success": True,
+            "message": "Version deleted successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error deleting version: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete version")
+
+# Export Analytics Endpoints
+
+@app.get("/api/analytics/exports")
+async def get_export_analytics(user_email: str, db: Session = Depends(get_db)):
+    """Get export analytics for a user"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get export analytics
+        exports = db.query(ExportAnalytics).filter(
+            ExportAnalytics.user_id == user.id
+        ).order_by(ExportAnalytics.created_at.desc()).all()
+        
+        # Get summary statistics
+        total_exports = len(exports)
+        pdf_exports = len([e for e in exports if e.export_format == 'pdf'])
+        docx_exports = len([e for e in exports if e.export_format == 'docx'])
+        
+        # Get template usage
+        template_usage = {}
+        for export in exports:
+            template = export.template_used or 'unknown'
+            template_usage[template] = template_usage.get(template, 0) + 1
+        
+        # Get recent exports (last 30 days)
+        from datetime import datetime, timedelta
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        recent_exports = [e for e in exports if e.created_at >= thirty_days_ago]
+        
+        return {
+            "success": True,
+            "analytics": {
+                "total_exports": total_exports,
+                "pdf_exports": pdf_exports,
+                "docx_exports": docx_exports,
+                "recent_exports": len(recent_exports),
+                "template_usage": template_usage,
+                "exports": [
+                    {
+                        "id": e.id,
+                        "format": e.export_format,
+                        "template": e.template_used,
+                        "file_size": e.file_size,
+                        "success": e.export_success,
+                        "created_at": e.created_at.isoformat(),
+                        "resume_name": e.resume.name if e.resume else "Unknown"
+                    }
+                    for e in exports
+                ]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting export analytics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get export analytics")
+
+# Shared Resume Endpoints
+
+@app.post("/api/resume/share")
+async def create_shared_resume(resume_id: int, user_email: str, password: str = None, expires_days: int = None, db: Session = Depends(get_db)):
+    """Create a shareable link for a resume"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Verify resume belongs to user
+        resume = db.query(Resume).filter(
+            Resume.id == resume_id,
+            Resume.user_id == user.id
+        ).first()
+        if not resume:
+            raise HTTPException(status_code=404, detail="Resume not found")
+        
+        # Generate unique share token
+        share_token = secrets.token_urlsafe(32)
+        
+        # Calculate expiration date
+        expires_at = None
+        if expires_days:
+            from datetime import datetime, timedelta
+            expires_at = datetime.utcnow() + timedelta(days=expires_days)
+        
+        # Create shared resume record
+        shared_resume = SharedResume(
+            resume_id=resume_id,
+            user_id=user.id,
+            share_token=share_token,
+            password_protected=bool(password),
+            password_hash=password,  # In production, hash this password
+            expires_at=expires_at
+        )
+        
+        db.add(shared_resume)
+        db.commit()
+        db.refresh(shared_resume)
+        
+        # Generate shareable URL
+        base_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        share_url = f"{base_url}/shared/{share_token}"
+        
+        return {
+            "success": True,
+            "share_token": share_token,
+            "share_url": share_url,
+            "expires_at": expires_at.isoformat() if expires_at else None,
+            "password_protected": bool(password)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating shared resume: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create shared resume")
+
+@app.get("/api/resume/shared/{share_token}")
+async def get_shared_resume(share_token: str, password: str = None, db: Session = Depends(get_db)):
+    """Get a shared resume by token"""
+    try:
+        shared_resume = db.query(SharedResume).filter(
+            SharedResume.share_token == share_token,
+            SharedResume.is_active == True
+        ).first()
+        
+        if not shared_resume:
+            raise HTTPException(status_code=404, detail="Shared resume not found")
+        
+        # Check if expired
+        if shared_resume.expires_at and shared_resume.expires_at < datetime.utcnow():
+            raise HTTPException(status_code=410, detail="Shared resume has expired")
+        
+        # Check password if required
+        if shared_resume.password_protected:
+            if not password or password != shared_resume.password_hash:
+                raise HTTPException(status_code=401, detail="Password required")
+        
+        # Get resume data
+        resume = shared_resume.resume
+        if not resume:
+            raise HTTPException(status_code=404, detail="Resume not found")
+        
+        # Get latest version
+        version_service = VersionControlService(db)
+        latest_version = version_service.get_latest_version(resume.id, resume.user_id)
+        
+        resume_data = latest_version.resume_data if latest_version else {
+            "personalInfo": {
+                "name": resume.name,
+                "email": resume.email,
+                "phone": resume.phone,
+                "location": resume.location
+            },
+            "summary": resume.summary,
+            "sections": []
+        }
+        
+        return {
+            "success": True,
+            "resume": {
+                "id": resume.id,
+                "name": resume.name,
+                "title": resume.title,
+                "template": resume.template,
+                "created_at": resume.created_at.isoformat(),
+                "updated_at": resume.updated_at.isoformat()
+            },
+            "resume_data": resume_data,
+            "shared_info": {
+                "created_at": shared_resume.created_at.isoformat(),
+                "expires_at": shared_resume.expires_at.isoformat() if shared_resume.expires_at else None
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting shared resume: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get shared resume")
+
+@app.post("/api/resume/shared/{share_token}/view")
+async def track_resume_view(share_token: str, request: Request, db: Session = Depends(get_db)):
+    """Track a view of a shared resume"""
+    try:
+        shared_resume = db.query(SharedResume).filter(
+            SharedResume.share_token == share_token,
+            SharedResume.is_active == True
+        ).first()
+        
+        if not shared_resume:
+            raise HTTPException(status_code=404, detail="Shared resume not found")
+        
+        # Get client info
+        client_ip = request.client.host
+        user_agent = request.headers.get("user-agent", "")
+        referrer = request.headers.get("referer", "")
+        
+        # Create view record
+        view = ResumeView(
+            shared_resume_id=shared_resume.id,
+            viewer_ip=client_ip,
+            viewer_user_agent=user_agent,
+            referrer=referrer
+        )
+        
+        db.add(view)
+        db.commit()
+        
+        return {"success": True, "message": "View tracked"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error tracking view: {e}")
+        raise HTTPException(status_code=500, detail="Failed to track view")
+
+@app.get("/api/resume/shared/{share_token}/analytics")
+async def get_shared_resume_analytics(share_token: str, user_email: str, db: Session = Depends(get_db)):
+    """Get analytics for a shared resume"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        shared_resume = db.query(SharedResume).filter(
+            SharedResume.share_token == share_token,
+            SharedResume.user_id == user.id
+        ).first()
+        
+        if not shared_resume:
+            raise HTTPException(status_code=404, detail="Shared resume not found")
+        
+        # Get views
+        views = db.query(ResumeView).filter(
+            ResumeView.shared_resume_id == shared_resume.id
+        ).order_by(ResumeView.created_at.desc()).all()
+        
+        # Calculate analytics
+        total_views = len(views)
+        unique_ips = len(set(v.viewer_ip for v in views))
+        
+        # Group by date
+        from collections import defaultdict
+        views_by_date = defaultdict(int)
+        for view in views:
+            date_key = view.created_at.date().isoformat()
+            views_by_date[date_key] += 1
+        
+        return {
+            "success": True,
+            "analytics": {
+                "total_views": total_views,
+                "unique_visitors": unique_ips,
+                "views_by_date": dict(views_by_date),
+                "recent_views": [
+                    {
+                        "ip": v.viewer_ip,
+                        "user_agent": v.viewer_user_agent,
+                        "referrer": v.referrer,
+                        "created_at": v.created_at.isoformat()
+                    }
+                    for v in views[:10]  # Last 10 views
+                ]
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting shared resume analytics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get analytics")
+
+@app.delete("/api/resume/shared/{share_token}")
+async def deactivate_shared_resume(share_token: str, user_email: str, db: Session = Depends(get_db)):
+    """Deactivate a shared resume link"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        shared_resume = db.query(SharedResume).filter(
+            SharedResume.share_token == share_token,
+            SharedResume.user_id == user.id
+        ).first()
+        
+        if not shared_resume:
+            raise HTTPException(status_code=404, detail="Shared resume not found")
+        
+        shared_resume.is_active = False
+        db.commit()
+        
+        return {"success": True, "message": "Shared resume deactivated"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deactivating shared resume: {e}")
+        raise HTTPException(status_code=500, detail="Failed to deactivate shared resume")
+
+# Job Match Analytics Endpoints
+
+@app.get("/api/analytics/job-matches")
+async def get_job_match_analytics(user_email: str, db: Session = Depends(get_db)):
+    """Get job match analytics for a user"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get job matches
+        job_matches = db.query(JobMatch).filter(
+            JobMatch.user_id == user.id
+        ).order_by(JobMatch.created_at.desc()).all()
+        
+        # Calculate analytics
+        total_matches = len(job_matches)
+        if total_matches == 0:
+            return {
+                "success": True,
+                "analytics": {
+                    "total_matches": 0,
+                    "average_score": 0,
+                    "score_trend": [],
+                    "top_missing_keywords": [],
+                    "improvement_areas": [],
+                    "matches": []
+                }
+            }
+        
+        # Calculate average score
+        average_score = sum(match.match_score for match in job_matches) / total_matches
+        
+        # Calculate score trend (last 10 matches)
+        recent_matches = job_matches[:10]
+        score_trend = [
+            {
+                "date": match.created_at.date().isoformat(),
+                "score": match.match_score,
+                "resume_name": match.resume.name if match.resume else "Unknown"
+            }
+            for match in reversed(recent_matches)
+        ]
+        
+        # Get top missing keywords
+        all_missing_keywords = []
+        for match in job_matches:
+            if match.missing_keywords:
+                all_missing_keywords.extend(match.missing_keywords)
+        
+        from collections import Counter
+        keyword_counts = Counter(all_missing_keywords)
+        top_missing_keywords = [
+            {"keyword": keyword, "count": count}
+            for keyword, count in keyword_counts.most_common(10)
+        ]
+        
+        # Get improvement areas
+        improvement_areas = []
+        for match in job_matches:
+            if match.improvement_suggestions:
+                for suggestion in match.improvement_suggestions:
+                    if isinstance(suggestion, dict) and 'category' in suggestion:
+                        improvement_areas.append(suggestion['category'])
+        
+        improvement_counts = Counter(improvement_areas)
+        top_improvement_areas = [
+            {"area": area, "count": count}
+            for area, count in improvement_counts.most_common(5)
+        ]
+        
+        # Get recent matches with details
+        recent_matches_details = [
+            {
+                "id": match.id,
+                "resume_name": match.resume.name if match.resume else "Unknown",
+                "match_score": match.match_score,
+                "keyword_matches": match.keyword_matches or [],
+                "missing_keywords": match.missing_keywords or [],
+                "created_at": match.created_at.isoformat(),
+                "job_description_preview": match.job_description[:200] + "..." if len(match.job_description) > 200 else match.job_description
+            }
+            for match in job_matches[:20]  # Last 20 matches
+        ]
+        
+        return {
+            "success": True,
+            "analytics": {
+                "total_matches": total_matches,
+                "average_score": round(average_score, 1),
+                "score_trend": score_trend,
+                "top_missing_keywords": top_missing_keywords,
+                "improvement_areas": top_improvement_areas,
+                "matches": recent_matches_details
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting job match analytics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get job match analytics")
+
+@app.get("/api/analytics/job-matches/{match_id}")
+async def get_job_match_details(match_id: int, user_email: str, db: Session = Depends(get_db)):
+    """Get detailed information about a specific job match"""
+    try:
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        job_match = db.query(JobMatch).filter(
+            JobMatch.id == match_id,
+            JobMatch.user_id == user.id
+        ).first()
+        
+        if not job_match:
+            raise HTTPException(status_code=404, detail="Job match not found")
+        
+        return {
+            "success": True,
+            "match": {
+                "id": job_match.id,
+                "resume_name": job_match.resume.name if job_match.resume else "Unknown",
+                "match_score": job_match.match_score,
+                "keyword_matches": job_match.keyword_matches or [],
+                "missing_keywords": job_match.missing_keywords or [],
+                "improvement_suggestions": job_match.improvement_suggestions or [],
+                "job_description": job_match.job_description,
+                "created_at": job_match.created_at.isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting job match details: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get job match details")
 
