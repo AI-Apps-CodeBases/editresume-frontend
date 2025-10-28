@@ -7,19 +7,34 @@ import os
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./editresume.db")
 
-# Fix any ostgresql typos (Render sometimes provides this)
-if DATABASE_URL and "ostgresql" in DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace("ostgresql", "postgresql")
+# Fix common database URL typos and issues
+if DATABASE_URL:
+    # Fix ostgresql typos (Render sometimes provides this)
+    if "ostgresql" in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL.replace("ostgresql", "postgresql")
+    
+    # Fix osprgress typos (another common typo)
+    if "osprgress" in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL.replace("osprgress", "postgresql")
+    
+    # Normalize postgres:// to postgresql:// (common provider format)
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    
+    # Log the final database URL for debugging (without credentials)
+    safe_url = DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL
+    print(f"Database URL configured: {safe_url}")
 
-# Normalize postgres:// to postgresql:// (common provider format)
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-# Create engine
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-else:
-    engine = create_engine(DATABASE_URL)
+# Create engine with proper error handling
+try:
+    if DATABASE_URL.startswith("sqlite"):
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    else:
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
+    print("Database engine created successfully")
+except Exception as e:
+    print(f"Error creating database engine: {e}")
+    raise
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -146,7 +161,12 @@ class JobMatch(Base):
 
 # Create all tables
 def create_tables():
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Database tables created successfully")
+    except Exception as e:
+        print(f"Error creating database tables: {e}")
+        raise
 
 # Dependency to get database session
 def get_db():
