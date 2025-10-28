@@ -92,16 +92,16 @@ export default function UploadResume({ onUploadSuccess }: Props) {
     } catch (err) {
       console.error('=== UPLOAD ERROR ===')
       console.error('Error type:', typeof err)
-      console.error('Error message:', err.message)
-      console.error('Error stack:', err.stack)
+      console.error('Error message:', err instanceof Error ? err.message : String(err))
+      console.error('Error stack:', err instanceof Error ? err.stack : undefined)
       console.error('Full error:', err)
       
-      if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+      if (err instanceof Error && err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
         setError('Network error: Unable to connect to the server. Please check your internet connection and try again.')
-      } else if (err.name === 'TypeError' && err.message.includes('CORS')) {
+      } else if (err instanceof Error && err.name === 'TypeError' && err.message.includes('CORS')) {
         setError('CORS error: The server is not allowing requests from this domain.')
       } else {
-        setError(`Upload failed: ${err.message || 'Unknown error occurred'}`)
+        setError(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error occurred'}`)
       }
     } finally {
       setIsUploading(false)
