@@ -20,9 +20,12 @@ if DATABASE_URL:
 if DATABASE_URL.startswith("postgresql") and "@" in DATABASE_URL:
     print(f"Using PostgreSQL database: {DATABASE_URL.split('@', 1)[1]}")
 
-# Create engine
+# Create engine with explicit dialect
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+elif DATABASE_URL.startswith("postgresql"):
+    # Ensure we use the correct PostgreSQL dialect
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 else:
     engine = create_engine(DATABASE_URL)
 
