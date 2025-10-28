@@ -1357,8 +1357,11 @@ function EditorPageContent() {
 
       {/* ATS Score Widget */}
       {showATSScore && (
-        <ATSScoreWidget
+        <EnhancedATSScoreWidget
           resumeData={resumeData}
+          jobDescription=""
+          targetRole=""
+          industry=""
           onClose={() => setShowATSScore(false)}
         />
       )}

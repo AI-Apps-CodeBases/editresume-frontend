@@ -45,14 +45,19 @@ export default function SimpleResumeUpload({ onUploadSuccess, onClose, showClose
   }
 
   const handleFile = (file: File) => {
-    const validTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword'
-    ]
-
-    if (!validTypes.includes(file.type) && !file.name.match(/\.(pdf|docx|doc)$/i)) {
-      setError('Please upload a PDF or DOCX file')
+    // Validate file size
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File too large. Maximum size is 10MB.')
+      return
+    }
+    
+    // Validate file type
+    const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain']
+    const validExtensions = ['pdf', 'docx', 'doc', 'txt']
+    const fileExtension = file.name.split('.').pop()?.toLowerCase()
+    
+    if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension || '')) {
+      setError('Unsupported file type. Please upload PDF, DOCX, DOC, or TXT files.')
       return
     }
 
@@ -92,9 +97,24 @@ export default function SimpleResumeUpload({ onUploadSuccess, onClose, showClose
       let response
       
       if (parseMode === 'file' && uploadedFile) {
-        setParsingStep('Uploading and processing file...')
+        setParsingStep('Validating file...')
         console.log('Uploading file:', uploadedFile.name)
         
+        // Validate file size
+        if (uploadedFile.size > 10 * 1024 * 1024) {
+          throw new Error('File too large. Maximum size is 10MB.')
+        }
+        
+        // Validate file type
+        const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain']
+        const validExtensions = ['pdf', 'docx', 'doc', 'txt']
+        const fileExtension = uploadedFile.name.split('.').pop()?.toLowerCase()
+        
+        if (!validTypes.includes(uploadedFile.type) && !validExtensions.includes(fileExtension || '')) {
+          throw new Error('Unsupported file type. Please upload PDF, DOCX, DOC, or TXT files.')
+        }
+        
+        setParsingStep('Uploading and processing file...')
         const formData = new FormData()
         formData.append('file', uploadedFile)
         
