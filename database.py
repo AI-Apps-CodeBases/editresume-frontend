@@ -7,12 +7,18 @@ import os
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./editresume.db")
 
-# Debug: Print database URL (without password for security)
-if DATABASE_URL.startswith("postgresql"):
-    print(f"Using PostgreSQL database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'connection string'}")
-elif DATABASE_URL.startswith("ostgresql"):
-    print("ERROR: Database URL has typo - 'ostgresql' should be 'postgresql'")
-    raise ValueError("Database URL contains typo: 'ostgresql' should be 'postgresql'")
+# Normalize common PostgreSQL URL variants/typos from providers
+if DATABASE_URL:
+    # Fix missing leading 'p' in 'ostgresql://'
+    if DATABASE_URL.startswith("ostgresql://"):
+        DATABASE_URL = "p" + DATABASE_URL
+    # Render and others sometimes provide 'postgres://'
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Debug: Print sanitized scheme and host (without credentials)
+if DATABASE_URL.startswith("postgresql") and "@" in DATABASE_URL:
+    print(f"Using PostgreSQL database: {DATABASE_URL.split('@', 1)[1]}")
 
 # Create engine
 if DATABASE_URL.startswith("sqlite"):
