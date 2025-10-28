@@ -99,7 +99,8 @@ BASE_ALLOWED_ORIGINS = [
     "https://editresume.io",  # Production frontend
     "https://www.editresume.io",  # Production with www
     "https://editresume-staging.onrender.com",  # Staging backend (for testing)
-    "https://editresume-*-*-hasans-projects-d7f2163d.vercel.app",  # Vercel staging frontend
+    "https://editresume-staging-d4ang4wye-hasans-projects-d7f2163d.vercel.app",  # Vercel staging frontend
+    "https://editresume-staging-git-fixuploadissue-hasans-projects-d7f2163d.vercel.app",  # Vercel staging frontend (branch)
 ]
 
 # Add additional origins from environment variable
@@ -120,6 +121,30 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],  # Expose all headers to frontend
 )
+
+# Custom CORS handler for dynamic Vercel domains
+@app.middleware("http")
+async def custom_cors_handler(request: Request, call_next):
+    origin = request.headers.get("origin")
+    
+    # Check if it's a Vercel domain that should be allowed
+    if origin and "vercel.app" in origin and "hasans-projects-d7f2163d" in origin:
+        # Add the origin to allowed origins if not already present
+        if origin not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(origin)
+            print(f"Added dynamic Vercel origin: {origin}")
+    
+    response = await call_next(request)
+    
+    # Add CORS headers for Vercel domains
+    if origin and "vercel.app" in origin and "hasans-projects-d7f2163d" in origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "*"
+    
+    return response
 
 # Add explicit OPTIONS handler for CORS preflight requests
 @app.options("/{path:path}")
