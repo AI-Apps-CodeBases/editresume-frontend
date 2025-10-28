@@ -18,8 +18,7 @@ import VersionControlPanel from '@/components/editor/VersionControlPanel'
 import VersionComparisonModal from '@/components/editor/VersionComparisonModal'
 import ExportAnalyticsDashboard from '@/components/editor/ExportAnalyticsDashboard'
 import ShareResumeModal from '@/components/editor/ShareResumeModal'
-import JobMatchAnalyticsDashboard from '@/components/editor/JobMatchAnalyticsDashboard'
-import { useAuth } from '@/contexts/AuthContext'
+import DebugPanel from '@/components/DebugPanel'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 
@@ -1602,6 +1601,9 @@ function EditorPageContent() {
           onClose={() => setShowJobMatchAnalytics(false)}
         />
       )}
+      
+      {/* Debug Panel - Remove in production */}
+      <DebugPanel />
     </div>
   )
 }

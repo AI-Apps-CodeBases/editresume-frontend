@@ -50,6 +50,11 @@ export default function UploadResume({ onUploadSuccess }: Props) {
       return
     }
 
+    console.log('=== UPLOAD DEBUG START ===')
+    console.log('File selected:', file.name, file.size, file.type)
+    console.log('API Base URL:', process.env.NEXT_PUBLIC_API_BASE)
+    console.log('Current origin:', typeof window !== 'undefined' ? window.location.origin : 'server')
+
     setIsUploading(true)
     setError('')
 
@@ -57,13 +62,16 @@ export default function UploadResume({ onUploadSuccess }: Props) {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'https://editresume-staging.onrender.com'}/api/resume/upload`,
-        {
-          method: 'POST',
-          body: formData
-        }
-      )
+      const uploadUrl = `${process.env.NEXT_PUBLIC_API_BASE || 'https://editresume-staging.onrender.com'}/api/resume/upload`
+      console.log('Upload URL:', uploadUrl)
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData
+      })
+
+      console.log('Response status:', response.status)
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
 
       const result = await response.json()
       console.log('Upload response:', result)
@@ -82,8 +90,19 @@ export default function UploadResume({ onUploadSuccess }: Props) {
         }
       }
     } catch (err) {
-      console.error('Upload error:', err)
-      setError('Upload failed. Please try again.')
+      console.error('=== UPLOAD ERROR ===')
+      console.error('Error type:', typeof err)
+      console.error('Error message:', err.message)
+      console.error('Error stack:', err.stack)
+      console.error('Full error:', err)
+      
+      if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+        setError('Network error: Unable to connect to the server. Please check your internet connection and try again.')
+      } else if (err.name === 'TypeError' && err.message.includes('CORS')) {
+        setError('CORS error: The server is not allowing requests from this domain.')
+      } else {
+        setError(`Upload failed: ${err.message || 'Unknown error occurred'}`)
+      }
     } finally {
       setIsUploading(false)
     }
