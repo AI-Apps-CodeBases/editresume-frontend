@@ -132,14 +132,28 @@ def is_origin_allowed(origin: str) -> bool:
     
     return False
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"https://editresume-staging.*\.vercel\.app|https://editresume-staging-git.*\.vercel\.app|http://localhost:300[01]|https://(staging\.)?editresume\.io|https://www\.editresume\.io|https://editresume-staging\.onrender\.com",
-    allow_credentials=True,  # Allow credentials for authenticated requests
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
-    expose_headers=["*"],  # Expose all headers to frontend
-)
+# For staging environment, use more permissive CORS
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+if ENVIRONMENT == "staging":
+    # Allow all origins for staging (more permissive)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allow all origins in staging
+        allow_credentials=False,  # Must be False when allow_origins=["*"]
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+else:
+    # Production uses strict CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
 
 # Add explicit OPTIONS handler for CORS preflight requests
 @app.options("/{path:path}")
