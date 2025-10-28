@@ -90,13 +90,48 @@ create_tables()
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
 
+# CORS Configuration
+# Base allowed origins
+BASE_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Local development
+    "http://localhost:3001",  # Alternative local port
+    "https://staging.editresume.io",  # Staging frontend
+    "https://editresume.io",  # Production frontend
+    "https://www.editresume.io",  # Production with www
+    "https://editresume-staging.onrender.com",  # Staging backend (for testing)
+]
+
+# Add additional origins from environment variable
+ADDITIONAL_ORIGINS = os.getenv("ADDITIONAL_CORS_ORIGINS", "").split(",")
+ADDITIONAL_ORIGINS = [origin.strip() for origin in ADDITIONAL_ORIGINS if origin.strip()]
+
+# Combine all allowed origins
+ALLOWED_ORIGINS = BASE_ALLOWED_ORIGINS + ADDITIONAL_ORIGINS
+
+# Log CORS configuration for debugging
+print(f"CORS Allowed Origins: {ALLOWED_ORIGINS}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins temporarily
-    allow_credentials=False,  # Must be False when allow_origins=["*"]
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,  # Allow credentials for authenticated requests
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Expose all headers to frontend
 )
+
+# Add explicit OPTIONS handler for CORS preflight requests
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    )
 
 class BulletParam(BaseModel):
     id: Optional[str] = None
