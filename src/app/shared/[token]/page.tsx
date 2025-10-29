@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import PreviewPanel from '@/components/editor/PreviewPanel'
+import SharedResumeComments from '@/components/editor/SharedResumeComments'
 import { sharedResumeService, SharedResumeData } from '@/lib/services/sharedResume'
 
 export default function SharedResumePage() {
@@ -176,21 +177,35 @@ export default function SharedResumePage() {
 
       {/* Resume Preview */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="p-4 border-b bg-gray-50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Resume Preview</h2>
-              <div className="text-sm text-gray-600">
-                Template: {sharedInfo.resume.template}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Resume Preview */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+              <div className="p-4 border-b bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Resume Preview</h2>
+                  <div className="text-sm text-gray-600">
+                    Template: {sharedInfo.resume.template}
+                  </div>
+                </div>
+              </div>
+              <div className="p-6">
+                <PreviewPanel
+                  data={resumeData}
+                  template={(sharedInfo.resume.template || 'tech') as 'tech' | 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern'}
+                  replacements={{}}
+                  key="shared-resume-preview"
+                />
               </div>
             </div>
           </div>
-          <div className="p-6">
-            <PreviewPanel
-              data={resumeData}
-              template={(sharedInfo.resume.template || 'tech') as 'tech' | 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern'}
-              replacements={{}}
-              key="shared-resume-preview"
+
+          {/* Comments Sidebar */}
+          <div className="lg:col-span-1">
+            <SharedResumeComments 
+              shareToken={shareToken}
+              targetType="resume"
+              targetId="resume"
             />
           </div>
         </div>

@@ -168,6 +168,96 @@ html, body { height: 100%; }
     .mobile-heading {
       @apply text-lg;
     }
+
+    /* Enhanced mobile editor layout */
+    .mobile-editor-grid {
+      @apply grid-cols-1;
+    }
+
+    .mobile-preview-hidden {
+      @apply hidden;
+    }
+
+    .mobile-preview-bottom {
+      @apply order-2 mt-4;
+    }
+
+    .mobile-editor-full {
+      @apply order-1;
+    }
+
+    /* Mobile header improvements */
+    .mobile-header {
+      @apply flex-col gap-2;
+    }
+
+    .mobile-header-buttons {
+      @apply flex-wrap gap-2;
+    }
+
+    .mobile-header-button {
+      @apply text-xs px-2 py-1;
+    }
+
+    /* Mobile preview controls */
+    .mobile-preview-controls {
+      @apply flex-col gap-2;
+    }
+
+    .mobile-preview-scale {
+      @apply flex justify-center;
+    }
+
+    /* Mobile modal improvements */
+    .mobile-modal {
+      @apply p-4 max-h-[90vh] overflow-y-auto;
+    }
+
+    .mobile-modal-content {
+      @apply max-w-full;
+    }
+
+    /* Touch-friendly interactions */
+    .touch-target {
+      @apply min-h-[44px] min-w-[44px];
+    }
+
+    .mobile-button {
+      @apply py-3 px-4 text-base;
+    }
+
+    /* Mobile form improvements */
+    .mobile-form {
+      @apply space-y-4;
+    }
+
+    .mobile-input {
+      @apply text-base py-3 px-4;
+    }
+
+    /* Mobile navigation */
+    .mobile-nav {
+      @apply fixed bottom-0 left-0 right-0 bg-white border-t z-40;
+    }
+
+    .mobile-nav-item {
+      @apply flex-1 flex flex-col items-center py-2 text-xs;
+    }
+  }
+
+  /* Tablet improvements */
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .tablet-editor-grid {
+      @apply grid-cols-1;
+    }
+
+    .tablet-preview-side {
+      @apply order-2 mt-6;
+    }
+
+    .tablet-editor-main {
+      @apply order-1;
+    }
   }
 }
 

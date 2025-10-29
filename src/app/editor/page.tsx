@@ -80,6 +80,25 @@ const EditorPageContent = () => {
   const [replacements, setReplacements] = useState<Record<string, string>>({})
   const [isExporting, setIsExporting] = useState(false)
 
+  const generateResumeId = () => {
+    return Math.floor(Math.random() * 1000000) + 1
+  }
+
+  const handleAddComment = (text: string, targetType: string, targetId: string) => {
+    console.log('Adding comment:', { text, targetType, targetId })
+    // The collaboration hook will handle the actual API call
+  }
+
+  const handleResolveComment = (commentId: string) => {
+    console.log('Resolving comment:', commentId)
+    // The collaboration hook will handle the actual API call
+  }
+
+  const handleDeleteComment = (commentId: string) => {
+    console.log('Deleting comment:', commentId)
+    // The collaboration hook will handle the actual API call
+  }
+
   const handleWizardComplete = (data: any, template: string, layoutConfig?: any) => {
     console.log('Wizard complete:', { data, template, layoutConfig })
     
@@ -94,6 +113,7 @@ const EditorPageContent = () => {
     }
     
     setResumeData(newResumeData)
+    setCurrentResumeId(generateResumeId())
     
     setSelectedTemplate(template === 'visual' ? 'tech' : template as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech')
     if (typeof window !== 'undefined') {
@@ -806,9 +826,9 @@ const EditorPageContent = () => {
       {!showWizard && (
         <header className="bg-white border-b sticky top-0 z-20 shadow-sm">
           <div className="mx-auto max-w-[1600px] px-4 py-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mobile-header">
               <a href="/" className="text-xl font-bold text-primary">editresume.io</a>
-              <div className="flex gap-3 items-center">
+              <div className="flex gap-3 items-center mobile-header-buttons">
                 {isAuthenticated ? (
                   <div className="flex items-center gap-3">
                     <a
@@ -966,14 +986,18 @@ const EditorPageContent = () => {
               </div>
                 
                 {/* Two Column Layout for Visual Editor */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mobile-editor-grid">
                   {/* Left - Visual Editor (Larger) */}
-                  <div className="lg:col-span-2 space-y-4">
+                  <div className="lg:col-span-2 space-y-4 mobile-editor-full">
                     <VisualResumeEditor
                       data={resumeData}
                       onChange={handleResumeDataChange}
                       template={selectedTemplate}
                       onAddContent={handleAddContent}
+                      roomId={roomId}
+                      onAddComment={handleAddComment}
+                      onResolveComment={handleResolveComment}
+                      onDeleteComment={handleDeleteComment}
                       onAIImprove={async (text: string) => {
                         try {
                           console.log('AI Improve requested for:', text)
@@ -1005,12 +1029,12 @@ const EditorPageContent = () => {
                   </div>
 
                   {/* Right - Live Preview (Smaller) */}
-                  <div className="lg:col-span-1">
+                  <div className="lg:col-span-1 mobile-preview-bottom">
                     <div className="sticky top-4">
                       <div className="bg-white rounded-xl shadow-lg p-4 border">
                         <div className="flex items-center justify-between mb-3">
                           <h3 className="text-sm font-bold text-gray-700">📄 Live Preview</h3>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 mobile-preview-controls">
                             <button
                               onClick={() => setFullscreenPreview(true)}
                               className="px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary-dark text-xs font-semibold transition-all flex items-center gap-1"
@@ -1021,19 +1045,21 @@ const EditorPageContent = () => {
                               </svg>
                               Full Page
                             </button>
-                            <button
-                              onClick={() => setPreviewScale(Math.max(0.4, previewScale - 0.1))}
-                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold"
-                            >
-                              −
-                            </button>
-                            <span className="text-xs text-gray-600 min-w-[45px] text-center">{Math.round(previewScale * 100)}%</span>
-                            <button
-                              onClick={() => setPreviewScale(Math.min(1, previewScale + 0.1))}
-                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold"
-                            >
-                              +
-                            </button>
+                            <div className="mobile-preview-scale">
+                              <button
+                                onClick={() => setPreviewScale(Math.max(0.4, previewScale - 0.1))}
+                                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold touch-target"
+                              >
+                                −
+                              </button>
+                              <span className="text-xs text-gray-600 min-w-[45px] text-center">{Math.round(previewScale * 100)}%</span>
+                              <button
+                                onClick={() => setPreviewScale(Math.min(1, previewScale + 0.1))}
+                                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold touch-target"
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
                         </div>
                         <div 
@@ -1618,6 +1644,18 @@ const EditorPageContent = () => {
           onClose={() => setShowShareResume(false)}
           resumeId={currentResumeId}
           resumeName={resumeData.name || 'Untitled Resume'}
+          resumeData={{
+            personalInfo: {
+              name: resumeData.name,
+              title: resumeData.title,
+              email: resumeData.email,
+              phone: resumeData.phone,
+              location: resumeData.location
+            },
+            summary: resumeData.summary,
+            sections: resumeData.sections,
+            template: selectedTemplate
+          }}
         />
       )}
 

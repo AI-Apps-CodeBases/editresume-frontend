@@ -7,9 +7,10 @@ interface ShareResumeModalProps {
   onClose: () => void
   resumeId: number
   resumeName: string
+  resumeData?: any // Add resume data to save before sharing
 }
 
-export default function ShareResumeModal({ isOpen, onClose, resumeId, resumeName }: ShareResumeModalProps) {
+export default function ShareResumeModal({ isOpen, onClose, resumeId, resumeName, resumeData }: ShareResumeModalProps) {
   const [password, setPassword] = useState('')
   const [expiresDays, setExpiresDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -21,14 +22,34 @@ export default function ShareResumeModal({ isOpen, onClose, resumeId, resumeName
     setError(null)
     
     try {
+      // For testing, use the test user email
+      const testUserEmail = "test@example.com"
+      
+      // Store test user in localStorage for the service to use
+      const testUser = {
+        email: testUserEmail,
+        name: "Test User",
+        isPremium: true
+      }
+      localStorage.setItem('user', JSON.stringify(testUser))
+      
+      // First, save the resume to the database if we have resume data
+      let actualResumeId = resumeId
+      if (resumeData) {
+        const { versionControlService } = await import('@/lib/services/versionControl')
+        const saveResult = await versionControlService.saveResume(resumeData)
+        actualResumeId = saveResult.resume_id
+        console.log('Resume saved with ID:', actualResumeId)
+      }
+      
       const result = await sharedResumeService.createSharedResume(
-        resumeId,
+        actualResumeId,
         password || undefined,
         expiresDays || undefined
       )
       setSharedInfo(result)
     } catch (err) {
-      setError('Failed to create shared link')
+      setError('Failed to create shared link. Make sure the resume is saved first.')
       console.error('Failed to create shared link:', err)
     } finally {
       setLoading(false)

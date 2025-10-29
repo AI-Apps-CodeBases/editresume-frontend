@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useCollaboration } from '@/hooks/useCollaboration'
 
 interface Comment {
   id: string
@@ -32,12 +33,34 @@ export default function Comments({
   const [showInput, setShowInput] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [loading, setLoading] = useState(false)
+  const collaboration = useCollaboration()
 
   useEffect(() => {
     if (roomId) {
       loadComments()
     }
   }, [roomId, targetId])
+
+  // Set up real-time comment updates
+  useEffect(() => {
+    if (roomId) {
+      collaboration.onCommentAdded((comment) => {
+        if (comment.target_id === targetId) {
+          setComments(prev => [...prev, comment])
+        }
+      })
+
+      collaboration.onCommentResolved((commentId) => {
+        setComments(prev => prev.map(c => 
+          c.id === commentId ? { ...c, resolved: true } : c
+        ))
+      })
+
+      collaboration.onCommentDeleted((commentId) => {
+        setComments(prev => prev.filter(c => c.id !== commentId))
+      })
+    }
+  }, [roomId, targetId, collaboration])
 
   const loadComments = async () => {
     if (!roomId) return
@@ -57,10 +80,11 @@ export default function Comments({
     
     setLoading(true)
     try {
+      // Use collaboration hook for real-time updates
+      collaboration.addComment(commentText, targetType, targetId)
       onAddComment(commentText, targetType, targetId)
       setCommentText('')
       setShowInput(false)
-      setTimeout(loadComments, 100)
     } catch (error) {
       console.error('Failed to add comment:', error)
     } finally {
@@ -68,66 +92,82 @@ export default function Comments({
     }
   }
 
+  const handleResolveComment = (commentId: string) => {
+    collaboration.resolveComment(commentId)
+    onResolveComment(commentId)
+  }
+
+  const handleDeleteComment = (commentId: string) => {
+    collaboration.deleteComment(commentId)
+    onDeleteComment(commentId)
+  }
+
   const activeComments = comments.filter(c => !c.resolved)
   const resolvedComments = comments.filter(c => c.resolved)
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {activeComments.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {activeComments.map(comment => (
-            <div key={comment.id} className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3 text-xs">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-[10px]">
+            <div key={comment.id} className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 text-sm shadow-sm">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-sm touch-target">
                     {comment.user_name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <div className="font-bold text-gray-900">{comment.user_name}</div>
-                    <div className="text-[10px] text-gray-500">
+                    <div className="font-bold text-gray-900 text-sm">{comment.user_name}</div>
+                    <div className="text-xs text-gray-500">
                       {new Date(comment.timestamp).toLocaleString()}
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-2">
                   <button
-                    onClick={() => onResolveComment(comment.id)}
-                    className="text-[10px] px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                    onClick={() => handleResolveComment(comment.id)}
+                    className="text-xs px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors touch-target"
                     title="Mark as resolved"
                   >
-                    ✓
+                    ✓ Resolve
                   </button>
                   <button
-                    onClick={() => onDeleteComment(comment.id)}
-                    className="text-[10px] px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                    onClick={() => handleDeleteComment(comment.id)}
+                    className="text-xs px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors touch-target"
                     title="Delete"
                   >
-                    ×
+                    × Delete
                   </button>
                 </div>
               </div>
-              <p className="text-gray-700 whitespace-pre-wrap">{comment.text}</p>
+              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{comment.text}</p>
             </div>
           ))}
         </div>
       )}
 
       {resolvedComments.length > 0 && (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
-            {resolvedComments.length} resolved comments
+        <details className="text-sm">
+          <summary className="cursor-pointer text-gray-500 hover:text-gray-700 py-2 px-3 bg-gray-100 rounded-lg touch-target">
+            <div className="flex items-center gap-2">
+              <span className="text-green-600">✓</span>
+              <span>{resolvedComments.length} resolved comments</span>
+              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </summary>
-          <div className="mt-2 space-y-2">
+          <div className="mt-3 space-y-3">
             {resolvedComments.map(comment => (
-              <div key={comment.id} className="bg-gray-50 border border-gray-300 rounded-lg p-2 opacity-60">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-5 h-5 bg-gray-400 rounded-full flex items-center justify-center text-white font-bold text-[10px]">
+              <div key={comment.id} className="bg-gray-50 border border-gray-300 rounded-lg p-3 opacity-75">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white font-bold text-xs">
                     {comment.user_name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="font-bold text-gray-600">{comment.user_name}</span>
-                  <span className="text-green-600">✓ Resolved</span>
+                  <span className="font-bold text-gray-600 text-sm">{comment.user_name}</span>
+                  <span className="text-green-600 text-xs">✓ Resolved</span>
                 </div>
-                <p className="text-gray-600">{comment.text}</p>
+                <p className="text-gray-600 text-sm leading-relaxed">{comment.text}</p>
               </div>
             ))}
           </div>
@@ -137,34 +177,37 @@ export default function Comments({
       {!showInput ? (
         <button
           onClick={() => setShowInput(true)}
-          className="w-full py-2 border-2 border-dashed border-yellow-300 rounded-lg text-xs text-yellow-700 hover:border-yellow-400 hover:bg-yellow-50 transition-all flex items-center justify-center gap-2"
+          className="w-full py-3 border-2 border-dashed border-yellow-300 rounded-lg text-sm text-yellow-700 hover:border-yellow-400 hover:bg-yellow-50 transition-all flex items-center justify-center gap-2 touch-target"
         >
-          💬 Add Comment
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          Add Comment
         </button>
       ) : (
-        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3">
+        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4">
           <textarea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             placeholder="Leave a comment or suggestion..."
-            className="w-full px-3 py-2 border rounded-lg text-xs resize-none mb-2"
-            rows={3}
+            className="w-full px-4 py-3 border rounded-lg text-sm resize-none mb-3 mobile-input"
+            rows={4}
             autoFocus
           />
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <button
               onClick={() => {
                 setShowInput(false)
                 setCommentText('')
               }}
-              className="flex-1 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium"
+              className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors touch-target"
             >
               Cancel
             </button>
             <button
               onClick={handleAddComment}
               disabled={loading || !commentText.trim()}
-              className="flex-1 py-1.5 bg-yellow-500 text-white rounded-lg text-xs font-semibold hover:bg-yellow-600 disabled:opacity-50"
+              className="flex-1 py-3 bg-yellow-500 text-white rounded-lg text-sm font-semibold hover:bg-yellow-600 disabled:opacity-50 transition-colors touch-target"
             >
               {loading ? 'Posting...' : 'Post Comment'}
             </button>
@@ -179,7 +222,7 @@ export function CommentBadge({ count }: { count: number }) {
   if (count === 0) return null
   
   return (
-    <div className="absolute -top-2 -right-2 bg-yellow-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shadow-lg animate-pulse">
+    <div className="absolute -top-2 -right-2 bg-yellow-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg animate-pulse touch-target">
       {count}
     </div>
   )

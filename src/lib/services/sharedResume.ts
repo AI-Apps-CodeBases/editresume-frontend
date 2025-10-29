@@ -47,6 +47,9 @@ class SharedResumeService {
     
     // Add user email to query params for authenticated endpoints
     if (options.method === 'POST' || options.method === 'DELETE' || endpoint.includes('/analytics')) {
+      if (!user.email) {
+        throw new Error('User must be authenticated to perform this action');
+      }
       url.searchParams.set('user_email', user.email);
     }
     

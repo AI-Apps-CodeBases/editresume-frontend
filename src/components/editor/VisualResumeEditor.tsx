@@ -4,6 +4,7 @@ import InlineGrammarChecker from './InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
 import AIWorkExperience from './AIWorkExperience'
 import AISectionAssistant from './AISectionAssistant'
+import Comments from './Comments'
 import { useSettings } from '@/contexts/SettingsContext'
 
 interface Bullet {
@@ -34,9 +35,23 @@ interface Props {
   template?: string
   onAIImprove?: (text: string, context?: string) => Promise<string>
   onAddContent?: (newContent: any) => void
+  roomId?: string | null
+  onAddComment?: (text: string, targetType: string, targetId: string) => void
+  onResolveComment?: (commentId: string) => void
+  onDeleteComment?: (commentId: string) => void
 }
 
-export default function VisualResumeEditor({ data, onChange, template = 'tech', onAIImprove, onAddContent }: Props) {
+export default function VisualResumeEditor({ 
+  data, 
+  onChange, 
+  template = 'tech', 
+  onAIImprove, 
+  onAddContent,
+  roomId,
+  onAddComment,
+  onResolveComment,
+  onDeleteComment
+}: Props) {
   // Add page break styles
   useEffect(() => {
     const style = document.createElement('style')
@@ -98,6 +113,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
   const [isAILoading, setIsAILoading] = useState(false)
   const [isSummaryGenerating, setIsSummaryGenerating] = useState(false)
   const [isGeneratingBullet, setIsGeneratingBullet] = useState(false)
+  const [showComments, setShowComments] = useState<string | null>(null)
   const [currentEditingContext, setCurrentEditingContext] = useState<{ type: 'bullet' | 'field', sectionId?: string, bulletId?: string, field?: keyof ResumeData } | null>(null)
   const [useNewExperienceLayout, setUseNewExperienceLayout] = useState(true)
   const [isParsingResume, setIsParsingResume] = useState(false)
@@ -944,7 +960,7 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                 </div>
 
                 {/* Section Title */}
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center justify-between gap-2 mb-3">
                   <div
                     contentEditable
                     suppressContentEditableWarning
@@ -955,10 +971,31 @@ export default function VisualResumeEditor({ data, onChange, template = 'tech', 
                   >
                     {section.title}
                   </div>
+                  {roomId && onAddComment && (
+                    <button
+                      onClick={() => setShowComments(showComments === section.id ? null : section.id)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors touch-target"
+                    >
+                      💬 Comments
+                    </button>
+                  )}
                 </div>
 
                 <div className="border-b-2 border-gray-300 mb-3"></div>
 
+                {/* Comments Section */}
+                {showComments === section.id && roomId && onAddComment && onResolveComment && onDeleteComment && (
+                  <div className="mb-4">
+                    <Comments
+                      roomId={roomId}
+                      targetType="section"
+                      targetId={section.id}
+                      onAddComment={onAddComment}
+                      onResolveComment={onResolveComment}
+                      onDeleteComment={onDeleteComment}
+                    />
+                  </div>
+                )}
 
                 {/* Modern Experience Layout - All Sections */}
                   <div className="space-y-6">
