@@ -4468,6 +4468,9 @@ async def create_shared_resume(resume_id: int, user_email: str, password: str = 
             "password_protected": bool(password)
         }
         
+    except HTTPException:
+        # Bubble up known errors like 404 User/Resume not found
+        raise
     except Exception as e:
         logger.error(f"Error creating shared resume: {e}")
         raise HTTPException(status_code=500, detail="Failed to create shared resume")
