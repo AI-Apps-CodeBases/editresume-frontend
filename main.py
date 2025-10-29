@@ -4458,6 +4458,8 @@ async def create_shared_resume(resume_id: int, user_email: str, password: str = 
         
         # Generate shareable URL
         base_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        if not base_url or base_url == "http://localhost:3000":
+            logger.warning("FRONTEND_URL not set or using localhost - this will break in production!")
         share_url = f"{base_url}/shared/{share_token}"
         
         return {
