@@ -132,6 +132,22 @@ class ResumeView(Base):
     # Relationships
     shared_resume = relationship("SharedResume", back_populates="views")
 
+class SharedResumeComment(Base):
+    __tablename__ = "shared_resume_comments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    shared_resume_id = Column(Integer, ForeignKey("shared_resumes.id"), nullable=False)
+    commenter_name = Column(String, nullable=False)
+    commenter_email = Column(String)
+    text = Column(Text, nullable=False)
+    target_type = Column(String, nullable=False)  # 'resume', 'section', 'bullet'
+    target_id = Column(String, nullable=False)    # ID of the specific element
+    resolved = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    shared_resume = relationship("SharedResume")
+
 class JobMatch(Base):
     __tablename__ = "job_matches"
     

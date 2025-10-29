@@ -13,7 +13,7 @@ from openai import OpenAI
 from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
 from sqlalchemy.orm import Session
-from database import get_db, create_tables, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, DATABASE_URL
+from database import get_db, create_tables, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, SharedResumeComment, DATABASE_URL
 from version_control import VersionControlService
 
 logging.basicConfig(level=logging.INFO)
@@ -4407,9 +4407,15 @@ async def get_export_analytics(user_email: str, db: Session = Depends(get_db)):
 async def create_shared_resume(resume_id: int, user_email: str, password: str = None, expires_days: int = None, db: Session = Depends(get_db)):
     """Create a shareable link for a resume"""
     try:
-        user = db.query(User).filter(User.email == user_email).first()
+        logger.info(f"Creating shared resume for resume_id={resume_id}, user_email={user_email}")
+        
+        # Try case-insensitive lookup
+        user = db.query(User).filter(User.email.ilike(user_email)).first()
         if not user:
+            logger.error(f"User not found for email: {user_email}")
             raise HTTPException(status_code=404, detail="User not found")
+        
+        logger.info(f"Found user: {user.id}")
         
         # Verify resume belongs to user
         resume = db.query(Resume).filter(
@@ -4417,7 +4423,10 @@ async def create_shared_resume(resume_id: int, user_email: str, password: str = 
             Resume.user_id == user.id
         ).first()
         if not resume:
+            logger.error(f"Resume not found for resume_id={resume_id}, user_id={user.id}")
             raise HTTPException(status_code=404, detail="Resume not found")
+        
+        logger.info(f"Found resume: {resume.id}")
         
         # Generate unique share token
         share_token = secrets.token_urlsafe(32)
@@ -4429,6 +4438,7 @@ async def create_shared_resume(resume_id: int, user_email: str, password: str = 
             expires_at = datetime.utcnow() + timedelta(days=expires_days)
         
         # Create shared resume record
+        logger.info(f"Creating SharedResume record with resume_id={resume_id}, user_id={user.id}")
         shared_resume = SharedResume(
             resume_id=resume_id,
             user_id=user.id,
@@ -4438,9 +4448,13 @@ async def create_shared_resume(resume_id: int, user_email: str, password: str = 
             expires_at=expires_at
         )
         
+        logger.info(f"Adding shared resume to database")
         db.add(shared_resume)
+        logger.info(f"Committing to database")
         db.commit()
+        logger.info(f"Refreshing shared resume")
         db.refresh(shared_resume)
+        logger.info(f"Shared resume created with ID: {shared_resume.id}")
         
         # Generate shareable URL
         base_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -4640,6 +4654,167 @@ async def deactivate_shared_resume(share_token: str, user_email: str, db: Sessio
     except Exception as e:
         logger.error(f"Error deactivating shared resume: {e}")
         raise HTTPException(status_code=500, detail="Failed to deactivate shared resume")
+
+# Shared Resume Comments Endpoints
+
+class SharedResumeCommentPayload(BaseModel):
+    commenter_name: str
+    commenter_email: Optional[str] = None
+    text: str
+    target_type: str  # 'resume', 'section', 'bullet'
+    target_id: str    # ID of the specific element
+
+@app.get("/api/resume/shared/{share_token}/comments")
+async def get_shared_resume_comments(share_token: str, db: Session = Depends(get_db)):
+    """Get comments for a shared resume"""
+    try:
+        shared_resume = db.query(SharedResume).filter(
+            SharedResume.share_token == share_token,
+            SharedResume.is_active == True
+        ).first()
+        
+        if not shared_resume:
+            raise HTTPException(status_code=404, detail="Shared resume not found")
+        
+        comments = db.query(SharedResumeComment).filter(
+            SharedResumeComment.shared_resume_id == shared_resume.id
+        ).order_by(SharedResumeComment.created_at.desc()).all()
+        
+        return {
+            "success": True,
+            "comments": [
+                {
+                    "id": comment.id,
+                    "commenter_name": comment.commenter_name,
+                    "commenter_email": comment.commenter_email,
+                    "text": comment.text,
+                    "target_type": comment.target_type,
+                    "target_id": comment.target_id,
+                    "resolved": comment.resolved,
+                    "created_at": comment.created_at.isoformat()
+                }
+                for comment in comments
+            ]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting shared resume comments: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get comments")
+
+@app.post("/api/resume/shared/{share_token}/comments")
+async def add_shared_resume_comment(share_token: str, payload: SharedResumeCommentPayload, db: Session = Depends(get_db)):
+    """Add a comment to a shared resume"""
+    try:
+        shared_resume = db.query(SharedResume).filter(
+            SharedResume.share_token == share_token,
+            SharedResume.is_active == True
+        ).first()
+        
+        if not shared_resume:
+            raise HTTPException(status_code=404, detail="Shared resume not found")
+        
+        comment = SharedResumeComment(
+            shared_resume_id=shared_resume.id,
+            commenter_name=payload.commenter_name,
+            commenter_email=payload.commenter_email,
+            text=payload.text,
+            target_type=payload.target_type,
+            target_id=payload.target_id
+        )
+        
+        db.add(comment)
+        db.commit()
+        db.refresh(comment)
+        
+        logger.info(f"Added comment to shared resume {share_token}: {comment.id}")
+        
+        return {
+            "success": True,
+            "comment": {
+                "id": comment.id,
+                "commenter_name": comment.commenter_name,
+                "commenter_email": comment.commenter_email,
+                "text": comment.text,
+                "target_type": comment.target_type,
+                "target_id": comment.target_id,
+                "resolved": comment.resolved,
+                "created_at": comment.created_at.isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding shared resume comment: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add comment")
+
+@app.post("/api/resume/shared/{share_token}/comments/{comment_id}/resolve")
+async def resolve_shared_resume_comment(share_token: str, comment_id: int, db: Session = Depends(get_db)):
+    """Resolve a comment on a shared resume"""
+    try:
+        shared_resume = db.query(SharedResume).filter(
+            SharedResume.share_token == share_token,
+            SharedResume.is_active == True
+        ).first()
+        
+        if not shared_resume:
+            raise HTTPException(status_code=404, detail="Shared resume not found")
+        
+        comment = db.query(SharedResumeComment).filter(
+            SharedResumeComment.id == comment_id,
+            SharedResumeComment.shared_resume_id == shared_resume.id
+        ).first()
+        
+        if not comment:
+            raise HTTPException(status_code=404, detail="Comment not found")
+        
+        comment.resolved = True
+        db.commit()
+        
+        logger.info(f"Resolved comment {comment_id} on shared resume {share_token}")
+        
+        return {"success": True, "message": "Comment resolved"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving shared resume comment: {e}")
+        raise HTTPException(status_code=500, detail="Failed to resolve comment")
+
+@app.delete("/api/resume/shared/{share_token}/comments/{comment_id}")
+async def delete_shared_resume_comment(share_token: str, comment_id: int, db: Session = Depends(get_db)):
+    """Delete a comment from a shared resume"""
+    try:
+        shared_resume = db.query(SharedResume).filter(
+            SharedResume.share_token == share_token,
+            SharedResume.is_active == True
+        ).first()
+        
+        if not shared_resume:
+            raise HTTPException(status_code=404, detail="Shared resume not found")
+        
+        comment = db.query(SharedResumeComment).filter(
+            SharedResumeComment.id == comment_id,
+            SharedResumeComment.shared_resume_id == shared_resume.id
+        ).first()
+        
+        if not comment:
+            raise HTTPException(status_code=404, detail="Comment not found")
+        
+        db.delete(comment)
+        db.commit()
+        
+        logger.info(f"Deleted comment {comment_id} from shared resume {share_token}")
+        
+        return {"success": True, "message": "Comment deleted"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting shared resume comment: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete comment")
 
 # Job Match Analytics Endpoints
 
