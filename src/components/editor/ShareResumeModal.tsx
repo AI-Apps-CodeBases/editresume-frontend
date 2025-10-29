@@ -22,16 +22,12 @@ export default function ShareResumeModal({ isOpen, onClose, resumeId, resumeName
     setError(null)
     
     try {
-      // For testing, use the test user email
-      const testUserEmail = "test@example.com"
-      
-      // Store test user in localStorage for the service to use
-      const testUser = {
-        email: testUserEmail,
-        name: "Test User",
-        isPremium: true
+      // Get the current authenticated user
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
+      if (!currentUser.email) {
+        setError('Please log in first to share your resume.')
+        return
       }
-      localStorage.setItem('user', JSON.stringify(testUser))
       
       // First, save the resume to the database if we have resume data
       let actualResumeId = resumeId
