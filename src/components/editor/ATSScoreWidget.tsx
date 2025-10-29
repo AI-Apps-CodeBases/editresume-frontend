@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
+import config from '@/lib/config';
 interface ResumeData {
   name: string
   title: string
@@ -44,7 +45,7 @@ export default function ATSScoreWidget({ resumeData, onClose }: Props) {
   const analyzeResume = async () => {
     setIsAnalyzing(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/ats_score`, {
+      const response = await fetch(`${config.apiBase}/api/ai/ats_score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

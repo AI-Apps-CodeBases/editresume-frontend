@@ -1,4 +1,6 @@
 // Job Match Analytics Service for Frontend
+import config from '../config';
+
 export interface JobMatchAnalytics {
   total_matches: number;
   average_score: number;
@@ -41,7 +43,7 @@ class JobMatchAnalyticsService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+    this.baseUrl = config.apiBase;
   }
 
   private async makeRequest(endpoint: string, options: RequestInit = {}) {

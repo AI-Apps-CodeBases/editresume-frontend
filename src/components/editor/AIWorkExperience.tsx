@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 
+import config from '@/lib/config';
 interface Props {
   companyName: string
   jobTitle: string
@@ -29,7 +30,7 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
 
     setIsGenerating(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate-work-experience`, {
+      const response = await fetch(`${config.apiBase}/api/ai/generate-work-experience`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

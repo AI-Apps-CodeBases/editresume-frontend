@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 
+import config from '@/lib/config';
 interface Template {
   id: string
   name: string
@@ -17,7 +18,7 @@ export default function TemplateSelector({ selected, onChange }: Props) {
   const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/templates`)
+    fetch(`${config.apiBase}/api/resume/templates`)
       .then(res => res.json())
       .then(data => setTemplates(data.templates))
       .catch(err => console.error('Failed to load templates:', err))

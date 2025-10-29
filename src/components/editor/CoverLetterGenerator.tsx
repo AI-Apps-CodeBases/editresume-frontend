@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 
+import config from '@/lib/config';
 interface ResumeData {
   name: string
   title: string
@@ -56,7 +57,7 @@ export default function CoverLetterGenerator({ resumeData, onClose }: Props) {
 
     setIsGenerating(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/cover_letter`, {
+      const response = await fetch(`${config.apiBase}/api/ai/cover_letter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -121,7 +122,7 @@ export default function CoverLetterGenerator({ resumeData, onClose }: Props) {
     if (!coverLetter) return
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/export/${format}`, {
+      const response = await fetch(`${config.apiBase}/api/resume/export/${format}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

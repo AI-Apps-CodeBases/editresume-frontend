@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
+import config from '@/lib/config';
 interface ResumeData {
   name: string
   title: string
@@ -64,7 +65,7 @@ export default function AIImprovementWidget({
   const getImprovementSuggestions = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/improvement_suggestions`, {
+      const response = await fetch(`${config.apiBase}/api/ai/improvement_suggestions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +100,7 @@ export default function AIImprovementWidget({
   const applyImprovement = async (improvement: ImprovementSuggestion) => {
     setIsApplyingImprovement(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/apply_improvement`, {
+      const response = await fetch(`${config.apiBase}/api/ai/apply_improvement`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

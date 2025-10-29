@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 
+import config from '@/lib/config';
 interface AISectionAssistantProps {
   isOpen: boolean
   onClose: () => void
@@ -29,7 +30,7 @@ export default function AISectionAssistant({ isOpen, onClose, onUpdate, context 
 
     setIsGenerating(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate-section-content`, {
+      const response = await fetch(`${config.apiBase}/api/ai/generate-section-content`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

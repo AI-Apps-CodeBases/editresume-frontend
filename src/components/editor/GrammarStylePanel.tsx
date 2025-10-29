@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import config from '@/lib/config';
 import GrammarChecker from './GrammarChecker'
 
 interface StyleScore {
@@ -71,7 +72,7 @@ export default function GrammarStylePanel({ resumeData, onApplySuggestion, class
 
     try {
       const fullText = getAllText()
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/grammar_check`, {
+      const response = await fetch(`${config.apiBase}/api/ai/grammar_check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 
+import config from '@/lib/config';
 interface Props {
   onPasteSuccess: (data: any) => void
 }
@@ -29,7 +30,7 @@ export default function PasteResume({ onPasteSuccess }: Props) {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/parse-text`,
+        `${config.apiBase}/api/resume/parse-text`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

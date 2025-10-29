@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 
+import config from '@/lib/config';
 interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
@@ -25,7 +26,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, mode = 'logi
 
     try {
       const endpoint = currentMode === 'login' ? '/api/auth/login' : '/api/auth/signup'
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}${endpoint}`, {
+      const response = await fetch(`${config.apiBase}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import config from '@/lib/config';
 import InlineGrammarChecker from './InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
 import AIWorkExperience from './AIWorkExperience'
@@ -647,7 +648,7 @@ export default function VisualResumeEditor({
   const generateSummaryFromExperience = async () => {
     setIsSummaryGenerating(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_summary_from_experience`, {
+      const response = await fetch(`${config.apiBase}/api/ai/generate_summary_from_experience`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -713,7 +714,7 @@ export default function VisualResumeEditor({
       }
       console.log('Sending request:', requestBody)
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_bullet_from_keywords`, {
+      const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)

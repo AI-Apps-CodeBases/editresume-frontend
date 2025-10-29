@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 
+import config from '@/lib/config';
 interface ImproveResumeButtonProps {
   jobDescription: string;
   resumeData: any;
@@ -28,7 +29,7 @@ export default function ImproveResumeButton({
     setError(null);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/match_job_description`, {
+      const response = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

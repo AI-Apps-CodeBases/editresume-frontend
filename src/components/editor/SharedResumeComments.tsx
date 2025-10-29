@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
+import config from '@/lib/config';
 interface Comment {
   id: number
   commenter_name: string
@@ -34,7 +35,7 @@ export default function SharedResumeComments({ shareToken, targetType = 'resume'
   const loadComments = async () => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/shared/${shareToken}/comments`
+        `${config.apiBase}/api/resume/shared/${shareToken}/comments`
       )
       const data = await response.json()
       
@@ -60,7 +61,7 @@ export default function SharedResumeComments({ shareToken, targetType = 'resume'
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/shared/${shareToken}/comments`,
+        `${config.apiBase}/api/resume/shared/${shareToken}/comments`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -94,7 +95,7 @@ export default function SharedResumeComments({ shareToken, targetType = 'resume'
   const handleResolveComment = async (commentId: number) => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/shared/${shareToken}/comments/${commentId}/resolve`,
+        `${config.apiBase}/api/resume/shared/${shareToken}/comments/${commentId}/resolve`,
         { method: 'POST' }
       )
 
@@ -113,7 +114,7 @@ export default function SharedResumeComments({ shareToken, targetType = 'resume'
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/shared/${shareToken}/comments/${commentId}`,
+        `${config.apiBase}/api/resume/shared/${shareToken}/comments/${commentId}`,
         { method: 'DELETE' }
       )
 

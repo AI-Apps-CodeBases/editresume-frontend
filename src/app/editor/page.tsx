@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense } from 'react'
+import config from '@/lib/config';
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import PreviewPanel from '@/components/editor/PreviewPanel'
@@ -273,7 +274,7 @@ const EditorPageContent = () => {
 
   const handleCreateRoom = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/collab/room/create`)
+      const response = await fetch(`${config.apiBase}/api/collab/room/create`)
       const data = await response.json()
       const name = userName || prompt('Enter your name:')
       if (name) {
@@ -342,7 +343,7 @@ const EditorPageContent = () => {
     
     if (isAuthenticated && user?.email) {
       try {
-        await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/user/track-export`, {
+        await fetch(`${config.apiBase}/api/user/track-export`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: user.email })
@@ -354,7 +355,7 @@ const EditorPageContent = () => {
 
     setIsExporting(true)
     try {
-      const exportUrl = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/export/${format}`
+      const exportUrl = `${config.apiBase}/api/resume/export/${format}`
       console.log('Export URL:', exportUrl)
       
       // Add user email to URL for analytics tracking
@@ -1001,7 +1002,7 @@ const EditorPageContent = () => {
                       onAIImprove={async (text: string) => {
                         try {
                           console.log('AI Improve requested for:', text)
-                          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/openai/improve-bullet`, {
+                          const response = await fetch(`${config.apiBase}/api/openai/improve-bullet`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ bullet: text, tone: 'professional' })

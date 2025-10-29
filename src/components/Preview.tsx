@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 
+import config from '@/lib/config';
 export default function Preview() {
   const [name, setName] = useState('Hasan Tutac')
   const [title, setTitle] = useState('DevOps / SRE Engineer')
@@ -9,7 +10,7 @@ export default function Preview() {
   const previewText = `${name} — ${title}\n\nExperience\n• ${bullets.join('\n• ')}`
 
   const callPreview = async () => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/preview`, {
+    const res = await fetch(`${config.apiBase}/api/resume/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

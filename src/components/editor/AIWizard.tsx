@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 
+import config from '@/lib/config';
 interface ResumeData {
   name: string
   title: string
@@ -122,7 +123,7 @@ export default function AIWizard({ resumeData, onAddContent, onClose, context }:
       
       console.log('Sending payload to backend:', payload)
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_resume_content`, {
+      const response = await fetch(`${config.apiBase}/api/ai/generate_resume_content`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -493,7 +494,7 @@ export default function AIWizard({ resumeData, onAddContent, onClose, context }:
                 onClick={async () => {
                   console.log('=== TESTING BACKEND CONNECTION ===')
                   try {
-                    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/generate_resume_content`, {
+                    const response = await fetch(`${config.apiBase}/api/ai/generate_resume_content`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import config from '@/lib/config';
 import { useCollaboration } from '@/hooks/useCollaboration'
 
 interface Comment {
@@ -66,7 +67,7 @@ export default function Comments({
     if (!roomId) return
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/collab/room/${roomId}/comments?target_id=${targetId}`
+        `${config.apiBase}/api/collab/room/${roomId}/comments?target_id=${targetId}`
       )
       const data = await response.json()
       setComments(data.comments || [])

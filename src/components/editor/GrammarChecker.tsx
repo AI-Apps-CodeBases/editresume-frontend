@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
+import config from '@/lib/config';
 interface GrammarIssue {
   message: string
   replacements: string[]
@@ -61,7 +62,7 @@ export default function GrammarChecker({ text, onApplySuggestion, className = ''
     setError(null)
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/grammar_check`, {
+      const response = await fetch(`${config.apiBase}/api/ai/grammar_check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

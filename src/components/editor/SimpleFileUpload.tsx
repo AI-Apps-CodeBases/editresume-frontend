@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 
+import config from '@/lib/config';
 interface SimpleFileUploadProps {
   onUploadSuccess: (data: any) => void
   onClose: () => void
@@ -19,7 +20,7 @@ export default function SimpleFileUpload({ onUploadSuccess, onClose }: SimpleFil
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/parse-file`, {
+      const response = await fetch(`${config.apiBase}/api/resume/parse-file`, {
         method: 'POST',
         body: formData
       })

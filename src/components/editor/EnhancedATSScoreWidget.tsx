@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
+import config from '@/lib/config';
 interface ResumeData {
   name: string
   title: string
@@ -70,7 +71,7 @@ export default function EnhancedATSScoreWidget({
   const analyzeResume = async () => {
     setIsAnalyzing(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/enhanced_ats_score`, {
+      const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -103,7 +104,7 @@ export default function EnhancedATSScoreWidget({
   const applyImprovement = async (improvement: AIImprovement) => {
     setIsApplyingImprovement(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/apply_improvement`, {
+      const response = await fetch(`${config.apiBase}/api/ai/apply_improvement`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +135,7 @@ export default function EnhancedATSScoreWidget({
   const improveATSScore = async () => {
     setIsImprovingATS(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/improve_ats_score`, {
+      const response = await fetch(`${config.apiBase}/api/ai/improve_ats_score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

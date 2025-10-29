@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import config from '@/lib/config';
 import ImproveResumeButton from './ImproveResumeButton';
 
 interface MatchAnalysis {
@@ -55,7 +56,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
     setError(null);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/match_job_description`, {
+      const response = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -86,7 +87,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
     try {
       // Apply each improvement suggestion
       for (const improvement of improvements) {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/ai/apply_improvement`, {
+        const response = await fetch(`${config.apiBase}/api/ai/apply_improvement`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

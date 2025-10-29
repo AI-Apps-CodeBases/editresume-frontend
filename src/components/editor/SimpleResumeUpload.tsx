@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 
+import config from '@/lib/config';
 interface Props {
   onUploadSuccess: (data: any) => void
   onClose?: () => void
@@ -118,7 +119,7 @@ export default function SimpleResumeUpload({ onUploadSuccess, onClose, showClose
         const formData = new FormData()
         formData.append('file', uploadedFile)
         
-        response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/parse-file`, {
+        response = await fetch(`${config.apiBase}/api/resume/parse-file`, {
           method: 'POST',
           body: formData
         })
@@ -126,7 +127,7 @@ export default function SimpleResumeUpload({ onUploadSuccess, onClose, showClose
         setParsingStep('Sending to AI for analysis...')
         console.log('Sending text to AI...')
         
-        response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/parse-text`, {
+        response = await fetch(`${config.apiBase}/api/resume/parse-text`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
