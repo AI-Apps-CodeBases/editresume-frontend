@@ -81,7 +81,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
     }
   }, [])
 
-  // Debug logging removed for production
+  // Live-only PreviewPanel; page-level controls handle mode
 
   // Helper function for border styling
   const getBorderClass = () => {
@@ -213,7 +213,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
         </div>
       </div>
 
-      <div className={`space-y-6 ${fontFamily}`}>
+        <div className={`space-y-6 ${fontFamily}`}>
         {data.name && (
           <div className={`${headerAlign === 'center' ? 'text-center' : 'text-left'} ${headerBorder} pb-4`}>
             <h1 className="text-3xl font-bold">{applyReplacements(data.name)}</h1>

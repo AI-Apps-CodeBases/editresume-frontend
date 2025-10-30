@@ -51,6 +51,7 @@ interface Props {
   targetRole?: string
   industry?: string
   onClose: () => void
+  inline?: boolean
 }
 
 export default function EnhancedATSScoreWidget({ 
@@ -58,7 +59,8 @@ export default function EnhancedATSScoreWidget({
   jobDescription, 
   targetRole, 
   industry, 
-  onClose 
+  onClose,
+  inline = false
 }: Props) {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [atsResult, setAtsResult] = useState<EnhancedATSResult | null>(null)
@@ -225,19 +227,21 @@ export default function EnhancedATSScoreWidget({
   }, [])
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className={inline ? '' : 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'}>
+      <div className={inline ? 'bg-white rounded-lg shadow-sm border w-full' : 'bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto'}>
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Enhanced ATS Analysis & AI Improvements</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {!inline && (
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {isAnalyzing && (
@@ -427,8 +431,8 @@ export default function EnhancedATSScoreWidget({
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4">
                 <button
                   onClick={improveATSScore}
                   disabled={isImprovingATS || !atsResult?.ai_improvements?.length}
@@ -443,12 +447,14 @@ export default function EnhancedATSScoreWidget({
                 >
                   {isAnalyzing ? 'Analyzing...' : 'Re-analyze Resume'}
                 </button>
-                <button
-                  onClick={onClose}
-                  className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Close
-                </button>
+            {!inline && (
+              <button
+                onClick={onClose}
+                className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Close
+              </button>
+            )}
               </div>
             </div>
           )}

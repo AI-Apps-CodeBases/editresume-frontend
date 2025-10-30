@@ -15,6 +15,7 @@ import ImproveResumeButton from '@/components/editor/ImproveResumeButton'
 import CoverLetterGenerator from '@/components/editor/CoverLetterGenerator'
 import ATSScoreWidget from '@/components/editor/ATSScoreWidget'
 import EnhancedATSScoreWidget from '@/components/editor/EnhancedATSScoreWidget'
+import JobDescriptionMatcher from '@/components/editor/JobDescriptionMatcher'
 import AIImprovementWidget from '@/components/editor/AIImprovementWidget'
 import VersionControlPanel from '@/components/editor/VersionControlPanel'
 import VersionComparisonModal from '@/components/editor/VersionComparisonModal'
@@ -80,6 +81,31 @@ const EditorPageContent = () => {
 
   const [replacements, setReplacements] = useState<Record<string, string>>({})
   const [isExporting, setIsExporting] = useState(false)
+  const [previewMode, setPreviewMode] = useState<'live' | 'match' | 'analysis'>(() => {
+    if (typeof window === 'undefined') return 'live'
+    const saved = localStorage.getItem('previewMode')
+    return (saved === 'match' || saved === 'analysis') ? saved : 'live'
+  })
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('previewMode', previewMode)
+    }
+  }, [previewMode])
+
+  // Global keyboard: ESC returns to Live mode and closes fullscreen
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPreviewMode('live')
+        setFullscreenPreview(false)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  
 
   const generateResumeId = () => {
     return Math.floor(Math.random() * 1000000) + 1
@@ -486,6 +512,13 @@ const EditorPageContent = () => {
 
   const [previewScale, setPreviewScale] = useState(0.6)
   const [fullscreenPreview, setFullscreenPreview] = useState(false)
+
+  // Safety: if fullscreen is active, force Live mode
+  useEffect(() => {
+    if (fullscreenPreview && previewMode !== 'live') {
+      setPreviewMode('live')
+    }
+  }, [fullscreenPreview, previewMode])
 
   const handleWorkExperienceUpdate = (newContent: any) => {
     console.log('=== HANDLING WORK EXPERIENCE UPDATE ===')
@@ -987,9 +1020,9 @@ const EditorPageContent = () => {
               </div>
                 
                 {/* Two Column Layout for Visual Editor */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mobile-editor-grid">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mobile-editor-grid">
                   {/* Left - Visual Editor (Larger) */}
-                  <div className="lg:col-span-2 space-y-4 mobile-editor-full">
+                  <div className="lg:col-span-3 space-y-4 mobile-editor-full">
                     <VisualResumeEditor
                       data={resumeData}
                       onChange={handleResumeDataChange}
@@ -1030,16 +1063,42 @@ const EditorPageContent = () => {
                   </div>
 
                   {/* Right - Live Preview (Smaller) */}
-                  <div className="lg:col-span-1 mobile-preview-bottom">
+                  <div className="lg:col-span-2 mobile-preview-bottom">
                     <div className="sticky top-4">
                       <div className="bg-white rounded-xl shadow-lg p-4 border">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-sm font-bold text-gray-700">📄 Live Preview</h3>
+                          <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-bold text-gray-700">📄 {previewMode === 'live' ? 'Live Preview' : previewMode === 'match' ? 'Match Job Description' : 'Analysis'}</h3>
+                            <div className="inline-flex bg-gray-100 rounded-lg p-1 text-xs">
+                              <button
+                                className={`px-3 py-1 rounded-md ${previewMode === 'live' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                                onClick={() => setPreviewMode('live')}
+                              >
+                                Live
+                              </button>
+                              <button
+                                className={`px-3 py-1 rounded-md ${previewMode === 'match' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                                onClick={() => setPreviewMode('match')}
+                              >
+                                Match JD
+                              </button>
+                              <button
+                                className={`px-3 py-1 rounded-md ${previewMode === 'analysis' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                                onClick={() => setPreviewMode('analysis')}
+                              >
+                                Analysis
+                              </button>
+                            </div>
+                          </div>
                           <div className="flex items-center gap-2 mobile-preview-controls">
-                            <button
-                              onClick={() => setFullscreenPreview(true)}
-                              className="px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary-dark text-xs font-semibold transition-all flex items-center gap-1"
-                              title="View fullscreen preview"
+                          <button
+                              onClick={() => {
+                                if (previewMode !== 'live') setPreviewMode('live')
+                                setFullscreenPreview(true)
+                              }}
+                              disabled={previewMode !== 'live'}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${previewMode === 'live' ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
+                              title={previewMode === 'live' ? 'View fullscreen preview' : 'Fullscreen available only in Live mode'}
                             >
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -1070,19 +1129,29 @@ const EditorPageContent = () => {
                             minHeight: '400px'
                           }}
                         >
-                          <div style={{ 
-                            transform: `scale(${previewScale})`,
-                            transformOrigin: 'top center',
-                            width: '850px',
-                            margin: '0 auto'
-                          }}>
-                            <PreviewPanel
-                              key={previewKey}
-                              data={resumeData}
-                              replacements={replacements}
-                              template={selectedTemplate}
-                            />
-                          </div>
+                          {previewMode === 'live' ? (
+                            <div style={{ 
+                              transform: `scale(${previewScale})`,
+                              transformOrigin: 'top center',
+                              width: '850px',
+                              margin: '0 auto'
+                            }}>
+                              <PreviewPanel
+                                key={previewKey}
+                                data={resumeData}
+                                replacements={replacements}
+                                template={selectedTemplate}
+                              />
+                            </div>
+                          ) : (
+                            <div className="p-3 w-full max-w-4xl">
+                              {previewMode === 'match' ? (
+                                <JobDescriptionMatcher resumeData={resumeData as any} standalone={false} onClose={() => {}} />
+                              ) : (
+                                <EnhancedATSScoreWidget resumeData={resumeData as any} onClose={() => {}} inline={true} />
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1140,7 +1209,7 @@ const EditorPageContent = () => {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setShowEnhancedATS(true)}
+                        onClick={() => setPreviewMode('analysis')}
                         className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                       >
                         🎯 Enhanced ATS Score
@@ -1278,6 +1347,7 @@ const EditorPageContent = () => {
                   margin: '0 auto'
                 }}
               >
+                {/* Fullscreen always shows Live Preview */}
                 <PreviewPanel
                   data={resumeData}
                   replacements={replacements}
@@ -1554,27 +1624,7 @@ const EditorPageContent = () => {
         />
       )}
 
-      {/* ATS Score Widget */}
-      {showATSScore && (
-        <EnhancedATSScoreWidget
-          resumeData={resumeData}
-          jobDescription=""
-          targetRole=""
-          industry=""
-          onClose={() => setShowATSScore(false)}
-        />
-      )}
-
-      {/* Enhanced ATS Score Widget */}
-      {showEnhancedATS && (
-        <EnhancedATSScoreWidget
-          resumeData={resumeData}
-          jobDescription=""
-          targetRole=""
-          industry=""
-          onClose={() => setShowEnhancedATS(false)}
-        />
-      )}
+      {/* ATS/Analysis modals removed: Analysis lives only in side preview via previewMode */}
 
       {/* AI Improvement Widget */}
       {showAIImprovements && (
