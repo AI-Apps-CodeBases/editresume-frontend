@@ -24,7 +24,8 @@ export default function ProfilePage() {
   const router = useRouter()
   const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
-  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'billing' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'jobs' | 'billing' | 'settings'>('overview')
+  const [savedJDs, setSavedJDs] = useState<Array<{id:number,title:string,company?:string,source?:string,url?:string,created_at?:string}>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -59,6 +60,21 @@ export default function ProfilePage() {
       ])
     }
   }
+
+  useEffect(() => {
+    const fetchJDs = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions`)
+        if (res.ok) {
+          const data = await res.json()
+          setSavedJDs(data || [])
+        }
+      } catch (e) {
+        console.error('Failed to load job descriptions', e)
+      }
+    }
+    if (isAuthenticated) fetchJDs()
+  }, [isAuthenticated])
 
   const handleDeleteAccount = () => {
     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
@@ -148,7 +164,7 @@ export default function ProfilePage() {
         <div className="bg-white rounded-2xl shadow-lg mb-6">
           <div className="border-b">
             <div className="flex gap-1 p-2">
-              {(['overview', 'history', 'billing', 'settings'] as const).map((tab) => (
+              {(['overview', 'history', 'jobs', 'billing', 'settings'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -254,6 +270,100 @@ export default function ProfilePage() {
                         </button>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'jobs' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900">Saved Job Descriptions</h2>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions`)
+                        if (res.ok) setSavedJDs(await res.json())
+                      } catch (e) {}
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {savedJDs.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">🗂️</div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No saved jobs yet</h3>
+                    <p className="text-gray-600">Use the browser extension to save LinkedIn jobs.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden border rounded-xl">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 text-left text-sm text-gray-600">
+                        <tr>
+                          <th className="p-3">Title</th>
+                          <th className="p-3">Company</th>
+                          <th className="p-3">Source</th>
+                          <th className="p-3">Saved</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {savedJDs.map((jd) => (
+                          <tr key={jd.id} className="hover:bg-gray-50">
+                            <td className="p-3 font-medium text-gray-900 max-w-[320px] truncate">{jd.title}</td>
+                            <td className="p-3 text-gray-700">{jd.company || '-'}</td>
+                            <td className="p-3 text-gray-700">{jd.source || 'extension'}</td>
+                            <td className="p-3 text-gray-500">{jd.created_at ? new Date(jd.created_at).toLocaleString() : '-'}</td>
+                            <td className="p-3">
+                              <div className="flex justify-end gap-2">
+                                <a
+                                  href={`/editor?jdId=${jd.id}`}
+                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                                >
+                                  Analyze
+                                </a>
+                                {jd.last_match && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs">
+                                      Last export score: {jd.last_match.score}
+                                    </span>
+                                    {jd.last_match.resume_name && (
+                                      <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs">
+                                        Resume: {jd.last_match.resume_name}
+                                      </span>
+                                    )}
+                                    {jd.last_match.resume_version_id && (
+                                      <a
+                                        href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${jd.last_match.resume_version_id}`}
+                                        className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs hover:bg-blue-100"
+                                        target="_blank"
+                                      >
+                                        View Version
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm('Delete this saved job?')) return
+                                    try {
+                                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}`, { method: 'DELETE' })
+                                      if (res.ok) setSavedJDs((prev) => prev.filter((x) => x.id !== jd.id))
+                                    } catch (e) {}
+                                  }}
+                                  className="px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>

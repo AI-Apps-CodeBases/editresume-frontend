@@ -95,6 +95,7 @@ const EditorPageContent = () => {
 
   // Deep link: ?jdId=123 to load JD and switch to match mode
   const [deepLinkedJD, setDeepLinkedJD] = useState<string | null>(null)
+  const [activeJobDescriptionId, setActiveJobDescriptionId] = useState<number | null>(null)
   useEffect(() => {
     const id = searchParams.get('jdId')
     if (id) {
@@ -104,6 +105,7 @@ const EditorPageContent = () => {
           if (data && data.content) {
             setDeepLinkedJD(data.content)
             setPreviewMode('match')
+            setActiveJobDescriptionId(Number(id))
           }
         })
         .catch(() => {})
@@ -432,6 +434,25 @@ const EditorPageContent = () => {
       
       console.log('Export response status:', response.status)
       console.log('Export response ok:', response.ok)
+      // After successful export, record match session if a JD is active
+      if (response.ok && activeJobDescriptionId) {
+        try {
+          await fetch(`${config.apiBase}/api/matches`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              resumeId: currentResumeId || undefined,
+              jobDescriptionId: activeJobDescriptionId,
+              user_email: user?.email || undefined,
+              resume_name: resumeData.name,
+              resume_title: resumeData.title,
+              resume_snapshot: exportData
+            })
+          })
+        } catch (e) {
+          console.log('Failed to create match session for export')
+        }
+      }
       
       // Debug logging
       const debugInfo = {
@@ -1163,7 +1184,13 @@ const EditorPageContent = () => {
                           ) : (
                             <div className="p-3 w-full max-w-4xl">
                               {previewMode === 'match' ? (
-                                <JobDescriptionMatcher resumeData={resumeData as any} standalone={false} onClose={() => {}} initialJobDescription={deepLinkedJD || undefined} />
+                                <JobDescriptionMatcher
+                                  resumeData={resumeData as any}
+                                  standalone={false}
+                                  onClose={() => {}}
+                                  initialJobDescription={deepLinkedJD || undefined}
+                                  onSelectJobDescriptionId={(id) => setActiveJobDescriptionId(id)}
+                                />
                               ) : (
                                 <EnhancedATSScoreWidget resumeData={resumeData as any} onClose={() => {}} inline={true} />
                               )}

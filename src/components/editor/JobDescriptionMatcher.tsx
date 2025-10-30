@@ -39,9 +39,10 @@ interface JobDescriptionMatcherProps {
   onClose?: () => void;
   standalone?: boolean; // If true, renders with popup wrapper
   initialJobDescription?: string;
+  onSelectJobDescriptionId?: (id: number | null) => void;
 }
 
-export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClose, standalone = true, initialJobDescription }: JobDescriptionMatcherProps) {
+export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClose, standalone = true, initialJobDescription, onSelectJobDescriptionId }: JobDescriptionMatcherProps) {
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   useEffect(() => {
     if (initialJobDescription) setJobDescription(initialJobDescription);
@@ -59,9 +60,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
         const res = await fetch(`${config.apiBase}/api/job-descriptions`);
         if (res.ok) {
           const items = await res.json();
-          setSavedJDs(items || []);
+          const list = Array.isArray(items) ? items : Array.isArray(items?.results) ? items.results : [];
+          setSavedJDs(list);
+        } else {
+          setSavedJDs([]);
         }
-      } catch (_) {}
+      } catch (_) { setSavedJDs([]); }
       setIsLoadingSaved(false);
     };
     load();
@@ -180,14 +184,19 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
         <div>
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium text-gray-700">Saved Job Descriptions</div>
-            <button
+              <button
               onClick={async () => {
                 setIsLoadingSaved(true);
                 try {
                   const res = await fetch(`${config.apiBase}/api/job-descriptions`);
-                  const items = await res.json();
-                  setSavedJDs(items || []);
-                } catch (_) {}
+                  if (res.ok) {
+                    const items = await res.json();
+                    const list = Array.isArray(items) ? items : Array.isArray(items?.results) ? items.results : [];
+                    setSavedJDs(list);
+                  } else {
+                    setSavedJDs([]);
+                  }
+                } catch (_) { setSavedJDs([]); }
                 setIsLoadingSaved(false);
               }}
               className="text-xs text-blue-600 hover:underline"
@@ -212,6 +221,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
                           if (res.ok) {
                             const full = await res.json();
                             if (full && full.content) setJobDescription(full.content);
+                            if (onSelectJobDescriptionId) onSelectJobDescriptionId(jd.id)
                           }
                         } catch (_) {}
                       }}
