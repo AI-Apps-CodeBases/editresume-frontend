@@ -4,8 +4,11 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import os
 
-# Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./editresume.db")
+# Database configuration - PostgreSQL only
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is required. Please set it to your PostgreSQL connection string.")
 
 # Fix any ostgresql typos (Render sometimes provides this)
 if DATABASE_URL and "ostgresql" in DATABASE_URL and not DATABASE_URL.startswith("postgresql"):
@@ -15,13 +18,14 @@ if DATABASE_URL and "ostgresql" in DATABASE_URL and not DATABASE_URL.startswith(
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# Ensure we're using PostgreSQL
+if not DATABASE_URL.startswith("postgresql"):
+    raise ValueError(f"Only PostgreSQL is supported. Invalid DATABASE_URL: {DATABASE_URL[:20]}...")
+
 # Create engine with proper error handling
 try:
-    if DATABASE_URL.startswith("sqlite"):
-        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-    else:
-        engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
-    print("Database engine created successfully")
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
+    print("PostgreSQL database engine created successfully")
 except Exception as e:
     print(f"Error creating database engine: {e}")
     raise
