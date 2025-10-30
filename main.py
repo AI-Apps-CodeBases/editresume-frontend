@@ -13,7 +13,7 @@ from openai import OpenAI
 from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
 from sqlalchemy.orm import Session
-from database import get_db, create_tables, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, SharedResumeComment, DATABASE_URL, JobDescription, MatchSession
+from database import get_db, create_tables, migrate_schema, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, SharedResumeComment, DATABASE_URL, JobDescription, MatchSession
 from version_control import VersionControlService
 
 logging.basicConfig(level=logging.INFO)
@@ -87,6 +87,7 @@ grammar_checker = GrammarStyleChecker()
 
 # Initialize database
 create_tables()
+migrate_schema()
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
 
@@ -5086,6 +5087,23 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get('/job-descriptions/{jd_id}')
+def get_job_description(jd_id: int, db: Session = Depends(get_db)):
+    jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
+    if not jd:
+        raise HTTPException(status_code=404, detail='Job description not found')
+    return {
+        'id': jd.id,
+        'title': jd.title,
+        'company': jd.company,
+        'source': jd.source,
+        'url': jd.url,
+        'content': jd.content,
+        'extracted_keywords': jd.extracted_keywords,
+        'priority_keywords': jd.priority_keywords,
+        'created_at': jd.created_at.isoformat(),
+    }
+
 @app.post('/matches')
 def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
     try:
@@ -5138,4 +5156,25 @@ def get_match(match_id: int, db: Session = Depends(get_db)):
         'excess_keywords': ms.excess_keywords,
         'created_at': ms.created_at.isoformat(),
     }
+
+# Compatibility aliases under /api/* for existing clients
+@app.post('/api/job-descriptions')
+def create_or_update_job_description_api(payload: JobDescriptionCreate, db: Session = Depends(get_db)):
+    return create_or_update_job_description(payload, db)
+
+@app.get('/api/job-descriptions')
+def list_job_descriptions_api(user_email: Optional[str] = None, db: Session = Depends(get_db)):
+    return list_job_descriptions(user_email, db)
+
+@app.get('/api/job-descriptions/{jd_id}')
+def get_job_description_api(jd_id: int, db: Session = Depends(get_db)):
+    return get_job_description(jd_id, db)
+
+@app.post('/api/matches')
+def create_match_api(payload: MatchCreate, db: Session = Depends(get_db)):
+    return create_match(payload, db)
+
+@app.get('/api/matches/{match_id}')
+def get_match_api(match_id: int, db: Session = Depends(get_db)):
+    return get_match(match_id, db)
 

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Float
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Float, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -217,4 +217,25 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def migrate_schema():
+    """Lightweight, idempotent migrations for production without Alembic.
+    Currently ensures job_descriptions.user_id allows NULL on Postgres.
+    """
+    try:
+        backend = engine.url.get_backend_name()
+        if backend == 'postgresql':
+            with engine.connect() as conn:
+                # Check nullability
+                result = conn.execute(text("""
+                    SELECT is_nullable FROM information_schema.columns
+                    WHERE table_name='job_descriptions' AND column_name='user_id'
+                """))
+                row = result.fetchone()
+                if row and row[0] == 'NO':
+                    print('Migrating: dropping NOT NULL on job_descriptions.user_id')
+                    conn.execute(text("ALTER TABLE job_descriptions ALTER COLUMN user_id DROP NOT NULL"))
+                    conn.commit()
+    except Exception as e:
+        print(f"Schema migration check failed (non-fatal): {e}")
 
