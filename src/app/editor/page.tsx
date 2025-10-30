@@ -93,6 +93,23 @@ const EditorPageContent = () => {
     }
   }, [previewMode])
 
+  // Deep link: ?jdId=123 to load JD and switch to match mode
+  const [deepLinkedJD, setDeepLinkedJD] = useState<string | null>(null)
+  useEffect(() => {
+    const id = searchParams.get('jdId')
+    if (id) {
+      fetch(`${config.apiBase}/api/job-descriptions/${id}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && data.content) {
+            setDeepLinkedJD(data.content)
+            setPreviewMode('match')
+          }
+        })
+        .catch(() => {})
+    }
+  }, [searchParams])
+
   // Global keyboard: ESC returns to Live mode and closes fullscreen
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1146,7 +1163,7 @@ const EditorPageContent = () => {
                           ) : (
                             <div className="p-3 w-full max-w-4xl">
                               {previewMode === 'match' ? (
-                                <JobDescriptionMatcher resumeData={resumeData as any} standalone={false} onClose={() => {}} />
+                                <JobDescriptionMatcher resumeData={resumeData as any} standalone={false} onClose={() => {}} initialJobDescription={deepLinkedJD || undefined} />
                               ) : (
                                 <EnhancedATSScoreWidget resumeData={resumeData as any} onClose={() => {}} inline={true} />
                               )}

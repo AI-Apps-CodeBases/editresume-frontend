@@ -38,13 +38,34 @@ interface JobDescriptionMatcherProps {
   onMatchResult?: (result: JobMatchResult) => void;
   onClose?: () => void;
   standalone?: boolean; // If true, renders with popup wrapper
+  initialJobDescription?: string;
 }
 
-export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClose, standalone = true }: JobDescriptionMatcherProps) {
-  const [jobDescription, setJobDescription] = useState('');
+export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClose, standalone = true, initialJobDescription }: JobDescriptionMatcherProps) {
+  const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
+  useEffect(() => {
+    if (initialJobDescription) setJobDescription(initialJobDescription);
+  }, [initialJobDescription]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [matchResult, setMatchResult] = useState<JobMatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedJDs, setSavedJDs] = useState<Array<{id:number,title:string,company?:string,created_at?:string}>>([]);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      setIsLoadingSaved(true);
+      try {
+        const res = await fetch(`${config.apiBase}/api/job-descriptions`);
+        if (res.ok) {
+          const items = await res.json();
+          setSavedJDs(items || []);
+        }
+      } catch (_) {}
+      setIsLoadingSaved(false);
+    };
+    load();
+  }, []);
 
   const analyzeMatch = async () => {
     if (!jobDescription.trim()) {
@@ -142,7 +163,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
             </p>
           </div>
 
-      <div className="mb-4">
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
         <label htmlFor="job-description" className="block text-sm font-medium text-gray-700 mb-2">
           Job Description
         </label>
@@ -153,6 +175,56 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
           placeholder="Paste the job description here... Example: 'We are looking for a DevOps Engineer with experience in AWS, Kubernetes, and CI/CD pipelines. The ideal candidate should have 3+ years of experience with infrastructure automation and monitoring tools.'"
           className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
         />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-gray-700">Saved Job Descriptions</div>
+            <button
+              onClick={async () => {
+                setIsLoadingSaved(true);
+                try {
+                  const res = await fetch(`${config.apiBase}/api/job-descriptions`);
+                  const items = await res.json();
+                  setSavedJDs(items || []);
+                } catch (_) {}
+                setIsLoadingSaved(false);
+              }}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Refresh
+            </button>
+          </div>
+          <div className="border rounded-md max-h-40 overflow-y-auto">
+            {isLoadingSaved ? (
+              <div className="p-3 text-sm text-gray-500">Loading…</div>
+            ) : savedJDs.length === 0 ? (
+              <div className="p-3 text-sm text-gray-500">No saved job descriptions yet.</div>
+            ) : (
+              <ul className="divide-y">
+                {savedJDs.map((jd) => (
+                  <li key={jd.id}>
+                    <button
+                      className="w-full text-left p-3 hover:bg-gray-50"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}`);
+                          if (res.ok) {
+                            const full = await res.json();
+                            if (full && full.content) setJobDescription(full.content);
+                          }
+                        } catch (_) {}
+                      }}
+                    >
+                      <div className="text-sm font-semibold text-gray-800 line-clamp-1">{jd.title}</div>
+                      {jd.company && <div className="text-xs text-gray-500">{jd.company}</div>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
 
       <button
@@ -171,15 +243,20 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
 
       {matchResult && (
         <div className="mt-6 space-y-6">
-          {/* Overall Score */}
+          {/* Overall Score + Gauge */}
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="text-lg font-semibold text-gray-900 mb-3">Match Analysis</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="text-center">
-                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${getScoreBgColor(matchResult.match_analysis.similarity_score)}`}>
-                  <span className={`text-2xl font-bold ${getScoreColor(matchResult.match_analysis.similarity_score)}`}>
-                    {matchResult.match_analysis.similarity_score}%
-                  </span>
+                <div className="relative inline-block">
+                  <svg viewBox="0 0 36 36" className="w-20 h-20">
+                    <path className="text-gray-200" stroke="currentColor" strokeWidth="4" fill="none" d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32" />
+                    <path className={`${getScoreColor(matchResult.match_analysis.similarity_score).replace('text-','stroke-')}`} strokeLinecap="round" strokeWidth="4" fill="none"
+                      strokeDasharray={`${Math.max(0, Math.min(100, matchResult.match_analysis.similarity_score))}, 100`} d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-xl font-bold ${getScoreColor(matchResult.match_analysis.similarity_score)}`}>{matchResult.match_analysis.similarity_score}%</span>
+                  </div>
                 </div>
                 <p className="text-sm text-gray-600 mt-2">Overall Match</p>
                 <p className="text-xs text-gray-500">{matchResult.analysis_summary.overall_match}</p>
@@ -196,7 +273,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
             </div>
           </div>
 
-          {/* Matching Keywords */}
+          {/* Matching Keywords (priority chips shown if available) */}
           {matchResult.match_analysis.matching_keywords.length > 0 && (
             <div>
               <h4 className="text-lg font-semibold text-gray-900 mb-3">
@@ -206,7 +283,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
                 {matchResult.match_analysis.matching_keywords.map((keyword, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full"
+                    className={`px-3 py-1 text-sm rounded-full ${ (matchResult as any).priority_keywords?.includes?.(keyword) ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-green-100 text-green-800'}`}
                   >
                     {keyword}
                   </span>
@@ -225,7 +302,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
                 {matchResult.match_analysis.missing_keywords.map((keyword, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-red-100 text-red-800 text-sm rounded-full"
+                    className={`px-3 py-1 text-sm rounded-full ${ (matchResult as any).priority_keywords?.includes?.(keyword) ? 'bg-red-100 text-red-800 border border-red-300' : 'bg-orange-50 text-orange-800 border border-orange-200'}`}
                   >
                     {keyword}
                   </span>
