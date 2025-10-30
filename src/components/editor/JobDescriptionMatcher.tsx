@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import config from '@/lib/config';
-import ImproveResumeButton from './ImproveResumeButton';
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -83,42 +82,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
     }
   };
 
-  const applyImprovementsToResume = async (improvements: ImprovementSuggestion[]) => {
-    try {
-      // Apply each improvement suggestion
-      for (const improvement of improvements) {
-        const response = await fetch(`${config.apiBase}/api/ai/apply_improvement`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            resume_data: resumeData,
-            job_description: jobDescription,
-            strategy: improvement.category.toLowerCase().replace(/\s+/g, '_')
-          }),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.improved_content) {
-            // Update resume data with improved content
-            if (onMatchResult && matchResult) {
-              onMatchResult({
-                ...matchResult,
-                applied_improvements: [...(matchResult.applied_improvements || []), improvement]
-              });
-            }
-          }
-        }
-      }
-      
-      alert('Improvements applied successfully! Your resume has been updated.');
-    } catch (error) {
-      console.error('Error applying improvements:', error);
-      alert('Failed to apply some improvements. Please try again.');
-    }
-  };
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600';
@@ -291,28 +254,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
             )}
           </div>
 
-          {/* Improve Resume Button */}
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <ImproveResumeButton
-              jobDescription={jobDescription}
-              resumeData={resumeData}
-              onImprovementGenerated={(improvements) => {
-                console.log('Improvement suggestions:', improvements);
-                // Show improvements in a modal for user to review and apply
-                if (improvements && improvements.length > 0) {
-                  const improvementText = improvements.map((imp: ImprovementSuggestion, index: number) => 
-                    `${index + 1}. [${imp.category}] ${imp.suggestion}`
-                  ).join('\n\n');
-                  
-                  if (confirm(`AI Improvement Suggestions:\n\n${improvementText}\n\nWould you like to apply these improvements to your resume?`)) {
-                    // Apply improvements by calling the backend improvement endpoint
-                    applyImprovementsToResume(improvements);
-                  }
-                }
-              }}
-              className="w-full"
-            />
-          </div>
         </div>
       )}
     </div>
@@ -320,7 +261,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onClo
 
   if (standalone) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4" onClick={onClose}>
         <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">

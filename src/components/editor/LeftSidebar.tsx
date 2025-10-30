@@ -1,11 +1,11 @@
 'use client'
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useSettings } from '@/contexts/SettingsContext'
 import AIWizard from './AIWizard'
 import JobDescriptionMatcher from './JobDescriptionMatcher'
 import CoverLetterGenerator from './CoverLetterGenerator'
 import GrammarStylePanel from './GrammarStylePanel'
-import ATSScoreWidget from './ATSScoreWidget'
 import EnhancedATSScoreWidget from './EnhancedATSScoreWidget'
 
 interface Props {
@@ -34,6 +34,11 @@ interface Props {
 export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove, onAddContent }: Props) {
   const { settings } = useSettings()
   const [activePopup, setActivePopup] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Force close any popups and ensure clean state on mount
   React.useEffect(() => {
@@ -138,18 +143,14 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
     }
   }
 
-  // Emergency close function - can be called from anywhere
-  const forceCloseAllPopups = () => {
-    setActivePopup(null)
-  }
-
   // Expose the close function globally for emergency use
   React.useEffect(() => {
-    (window as any).closeAllPopups = forceCloseAllPopups
+    const forceCloseAllPopups = () => setActivePopup(null)
+    ;(window as any).closeAllPopups = forceCloseAllPopups
     return () => {
       delete (window as any).closeAllPopups
     }
-  }, [forceCloseAllPopups])
+  }, [])
 
   const renderPopup = () => {
     if (!activePopup) {
@@ -167,7 +168,7 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
       case 'job-matcher':
         return (
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4" 
             onClick={() => setActivePopup(null)}
             onKeyDown={(e) => e.key === 'Escape' && setActivePopup(null)}
           >
@@ -198,7 +199,7 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
         return <CoverLetterGenerator {...commonProps} onClose={() => setActivePopup(null)} />
       case 'grammar-check':
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setActivePopup(null)}>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4" onClick={() => setActivePopup(null)}>
             <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -224,7 +225,7 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
         return <EnhancedATSScoreWidget resumeData={resumeData} onClose={() => setActivePopup(null)} />
       case 'collaboration':
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setActivePopup(null)}>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4" onClick={() => setActivePopup(null)}>
             <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -251,7 +252,7 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
         )
       case 'comments':
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setActivePopup(null)}>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4" onClick={() => setActivePopup(null)}>
             <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -355,8 +356,11 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
         </div>
       </div>
 
-      {/* Popup Overlays */}
-      {renderPopup()}
+      {/* Popup Overlays - Rendered in Portal */}
+      {mounted && typeof window !== 'undefined' && (() => {
+        const popup = renderPopup()
+        return popup ? createPortal(popup, document.body) : null
+      })()}
     </>
   )
 }

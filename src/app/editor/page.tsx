@@ -11,9 +11,7 @@ import AuthModal from '@/components/auth/AuthModal'
 import CollaborationPanel from '@/components/editor/CollaborationPanel'
 import VisualResumeEditor from '@/components/editor/VisualResumeEditor'
 import AIWizard from '@/components/editor/AIWizard'
-import ImproveResumeButton from '@/components/editor/ImproveResumeButton'
 import CoverLetterGenerator from '@/components/editor/CoverLetterGenerator'
-import ATSScoreWidget from '@/components/editor/ATSScoreWidget'
 import EnhancedATSScoreWidget from '@/components/editor/EnhancedATSScoreWidget'
 import AIImprovementWidget from '@/components/editor/AIImprovementWidget'
 import VersionControlPanel from '@/components/editor/VersionControlPanel'
@@ -987,7 +985,7 @@ const EditorPageContent = () => {
               </div>
                 
                 {/* Two Column Layout for Visual Editor */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mobile-editor-grid">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mobile-editor-grid" style={{ isolation: 'isolate' }}>
                   {/* Left - Visual Editor (Larger) */}
                   <div className="lg:col-span-2 space-y-4 mobile-editor-full">
                     <VisualResumeEditor
