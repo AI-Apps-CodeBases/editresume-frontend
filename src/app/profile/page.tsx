@@ -25,7 +25,22 @@ export default function ProfilePage() {
   const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'jobs' | 'billing' | 'settings'>('overview')
-  const [savedJDs, setSavedJDs] = useState<Array<{id:number,title:string,company?:string,source?:string,url?:string,created_at?:string}>>([])
+  const [savedJDs, setSavedJDs] = useState<Array<{
+    id: number
+    title: string
+    company?: string
+    source?: string
+    url?: string
+    created_at?: string
+    last_match?: {
+      id: number
+      score: number
+      resume_id: number
+      resume_name?: string | null
+      resume_version_id?: number | null
+      created_at?: string
+    } | null
+  }>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -328,16 +343,16 @@ export default function ProfilePage() {
                                 {jd.last_match && (
                                   <div className="flex items-center gap-2">
                                     <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs">
-                                      Last export score: {jd.last_match.score}
+                                      Last export score: {jd.last_match?.score}
                                     </span>
-                                    {jd.last_match.resume_name && (
+                                    {jd.last_match?.resume_name && (
                                       <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs">
-                                        Resume: {jd.last_match.resume_name}
+                                        Resume: {jd.last_match?.resume_name}
                                       </span>
                                     )}
-                                    {jd.last_match.resume_version_id && (
+                                    {jd.last_match?.resume_version_id && (
                                       <a
-                                        href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${jd.last_match.resume_version_id}`}
+                                        href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${jd.last_match?.resume_version_id}`}
                                         className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs hover:bg-blue-100"
                                         target="_blank"
                                       >

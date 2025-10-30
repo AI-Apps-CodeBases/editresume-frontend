@@ -2,12 +2,15 @@
   "name": "editresume-frontend",
   "private": true,
   "version": "0.1.0",
+  "engines": {
+    "node": ">=18.17.0"
+  },
   "scripts": {
-    "dev": "NODE_OPTIONS='--no-warnings' next dev -p 3000",
-    "dev:force": "NODE_OPTIONS='--no-warnings --max-old-space-size=4096' next dev -p 3000",
-    "build": "NODE_OPTIONS='--no-warnings' next build",
+    "dev": "next dev -p 3000",
+    "dev:force": "NODE_OPTIONS=--max-old-space-size=4096 next dev -p 3000",
+    "build": "next build",
     "start": "next start -p 3000",
-    "lint": "NODE_OPTIONS='--no-warnings' next lint"
+    "lint": "next lint"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

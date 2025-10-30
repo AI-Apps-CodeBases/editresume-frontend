@@ -1,5 +1,6 @@
 'use client'
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useSettings } from '@/contexts/SettingsContext'
 import AIWizard from './AIWizard'
 import JobDescriptionMatcher from './JobDescriptionMatcher'
@@ -34,9 +35,11 @@ interface Props {
 export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove, onAddContent }: Props) {
   const { settings } = useSettings()
   const [activePopup, setActivePopup] = useState<string | null>(null)
+  const [mounted, setMounted] = React.useState(false)
 
   // Force close any popups and ensure clean state on mount
   React.useEffect(() => {
+    setMounted(true)
     // Clear any persisted popup state
     setActivePopup(null)
     
@@ -155,6 +158,7 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
     if (!activePopup) {
       return null
     }
+    if (!mounted) return null
 
     const commonProps = {
       onClose: () => setActivePopup(null),
@@ -163,16 +167,25 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
 
     switch (activePopup) {
       case 'ai-wizard':
-        return <AIWizard {...commonProps} onAddContent={onAddContent} />
-      case 'job-matcher':
-        return (
+        return createPortal((
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" 
+            onClick={() => setActivePopup(null)}
+          >
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden z-[10001]" onClick={(e) => e.stopPropagation()}>
+              <AIWizard {...commonProps} onAddContent={onAddContent} onClose={() => setActivePopup(null)} />
+            </div>
+          </div>
+        ), document.body)
+      case 'job-matcher':
+        return createPortal((
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" 
             onClick={() => setActivePopup(null)}
             onKeyDown={(e) => e.key === 'Escape' && setActivePopup(null)}
           >
             <div 
-              className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" 
+              className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden z-[10001]" 
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -193,13 +206,16 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
               <JobDescriptionMatcher {...commonProps} standalone={false} />
             </div>
           </div>
-        )
+        ), document.body)
       case 'cover-letter':
-        return <CoverLetterGenerator {...commonProps} onClose={() => setActivePopup(null)} />
+        return createPortal(
+          <CoverLetterGenerator {...commonProps} onClose={() => setActivePopup(null)} />,
+          document.body
+        )
       case 'grammar-check':
-        return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setActivePopup(null)}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        return createPortal((
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => setActivePopup(null)}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden z-[10001]" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   📚 Grammar & Style Checker
@@ -219,13 +235,16 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
               </div>
             </div>
           </div>
-        )
+        ), document.body)
       case 'ats-score':
-        return <EnhancedATSScoreWidget resumeData={resumeData} onClose={() => setActivePopup(null)} />
+        return createPortal(
+          <EnhancedATSScoreWidget resumeData={resumeData} onClose={() => setActivePopup(null)} />,
+          document.body
+        )
       case 'collaboration':
-        return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setActivePopup(null)}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
+        return createPortal((
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => setActivePopup(null)}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full z-[10001]" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   👥 Real-time Collaboration
@@ -248,11 +267,11 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
               </div>
             </div>
           </div>
-        )
+        ), document.body)
       case 'comments':
-        return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setActivePopup(null)}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
+        return createPortal((
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => setActivePopup(null)}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full z-[10001]" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   💬 Comments & Feedback
@@ -275,7 +294,7 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
               </div>
             </div>
           </div>
-        )
+        ), document.body)
       default:
         return null
     }
