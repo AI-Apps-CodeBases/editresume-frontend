@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -66,6 +66,25 @@ class Resume(Base):
     versions = relationship("ResumeVersion", back_populates="resume", cascade="all, delete-orphan")
     exports = relationship("ExportAnalytics", back_populates="resume", cascade="all, delete-orphan")
     shared_resumes = relationship("SharedResume", back_populates="resume")
+    match_sessions = relationship("MatchSession", back_populates="resume", cascade="all, delete-orphan")
+
+class JobDescription(Base):
+    __tablename__ = "job_descriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    title = Column(String, nullable=False)
+    company = Column(String)
+    source = Column(String)  # e.g., 'LinkedIn', 'Glassdoor', 'Manual'
+    url = Column(String)
+    content = Column(Text, nullable=False)
+    extracted_keywords = Column(JSON)  # list of keywords extracted from JD
+    priority_keywords = Column(JSON)   # list of must-have/high-priority keywords
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    match_sessions = relationship("MatchSession", back_populates="job_description", cascade="all, delete-orphan")
+    user = relationship("User")
 
 class ResumeVersion(Base):
     __tablename__ = "resume_versions"
@@ -164,6 +183,23 @@ class JobMatch(Base):
     
     # Relationships
     user = relationship("User", back_populates="job_matches")
+
+class MatchSession(Base):
+    __tablename__ = "match_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
+    job_description_id = Column(Integer, ForeignKey("job_descriptions.id"), nullable=False)
+    score = Column(Integer, nullable=False)  # overall match score 0-100
+    keyword_coverage = Column(Float)  # percentage 0-100
+    matched_keywords = Column(JSON)   # list of matched keywords
+    missing_keywords = Column(JSON)   # list of missing keywords
+    excess_keywords = Column(JSON)    # keywords in resume but not in JD (optional)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    resume = relationship("Resume", back_populates="match_sessions")
+    job_description = relationship("JobDescription", back_populates="match_sessions")
 
 # Create all tables
 def create_tables():

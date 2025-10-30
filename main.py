@@ -13,7 +13,7 @@ from openai import OpenAI
 from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
 from sqlalchemy.orm import Session
-from database import get_db, create_tables, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, SharedResumeComment, DATABASE_URL
+from database import get_db, create_tables, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, SharedResumeComment, DATABASE_URL, JobDescription, MatchSession
 from version_control import VersionControlService
 
 logging.basicConfig(level=logging.INFO)
@@ -4957,4 +4957,185 @@ async def get_job_match_details(match_id: int, user_email: str, db: Session = De
     except Exception as e:
         logger.error(f"Error getting job match details: {e}")
         raise HTTPException(status_code=500, detail="Failed to get job match details")
+
+# ==========================
+# Job Descriptions & Matches
+# ==========================
+class JobDescriptionCreate(BaseModel):
+    id: Optional[int] = None
+    title: str
+    company: Optional[str] = None
+    source: Optional[str] = None
+    url: Optional[str] = None
+    content: str
+    user_email: Optional[str] = None
+
+class MatchCreate(BaseModel):
+    resumeId: int
+    jobDescriptionId: int
+
+def _classify_priority_keywords(extracted: Dict[str, Any]) -> Dict[str, List[str]]:
+    keyword_freq: Dict[str, int] = extracted.get('keyword_frequency', {}) if isinstance(extracted, dict) else {}
+    technical = set(extracted.get('technical_keywords', [])) if isinstance(extracted, dict) else set()
+    high_priority: List[str] = []
+    regular: List[str] = []
+    for kw, cnt in keyword_freq.items():
+        if cnt >= 3 or kw in technical:
+            high_priority.append(kw)
+        else:
+            regular.append(kw)
+    return { 'high_priority': list(sorted(set(high_priority))), 'regular': list(sorted(set(regular))) }
+
+def _resume_to_text(resume_data: Dict[str, Any]) -> str:
+    parts: List[str] = []
+    for key in ['name','title','summary','email','phone','location']:
+        val = resume_data.get(key)
+        if isinstance(val, str):
+            parts.append(val)
+    for section in resume_data.get('sections', []) or []:
+        parts.append(section.get('title',''))
+        for b in section.get('bullets', []) or []:
+            txt = b.get('text') if isinstance(b, dict) else None
+            if txt:
+                parts.append(txt)
+    return '\n'.join([p for p in parts if p])
+
+def _compute_match_breakdown(jd_text: str, resume_text: str, extracted_jd: Dict[str, Any]) -> Dict[str, Any]:
+    similarity = keyword_extractor.calculate_similarity(jd_text, resume_text)
+    hp = set(_classify_priority_keywords(extracted_jd)['high_priority'])
+    matched = set(similarity['matching_keywords'])
+    missing = set(similarity['missing_keywords'])
+
+    total = len(hp) * 2 + max(1, similarity.get('total_job_keywords', 0) - len(hp))
+    score = 0
+    for kw in matched:
+        score += 2 if kw in hp else 1
+    critical_misses = len([k for k in missing if k in hp])
+    score -= critical_misses
+    score_pct = max(0, min(100, int(round((score / max(1, total)) * 100))))
+
+    return {
+        'score': score_pct,
+        'matched_keywords': sorted(list(matched)),
+        'missing_keywords': sorted(list(missing)),
+        'priority_keywords': sorted(list(hp)),
+        'keyword_coverage': round((len(matched) / max(1, similarity.get('total_job_keywords', 0))) * 100, 2),
+        'similarity': similarity
+    }
+
+@app.post('/job-descriptions')
+def create_or_update_job_description(payload: JobDescriptionCreate, db: Session = Depends(get_db)):
+    try:
+        user = None
+        if payload.user_email:
+            user = db.query(User).filter(User.email == payload.user_email).first()
+        jd = None
+        if payload.id:
+            jd = db.query(JobDescription).filter(JobDescription.id == payload.id).first()
+            if not jd:
+                raise HTTPException(status_code=404, detail='Job description not found')
+        else:
+            jd = JobDescription()
+
+        jd.user_id = user.id if user else jd.user_id
+        jd.title = payload.title
+        jd.company = payload.company
+        jd.source = payload.source
+        jd.url = payload.url
+        jd.content = payload.content
+
+        extracted = keyword_extractor.extract_keywords(payload.content)
+        pri = _classify_priority_keywords(extracted)
+        jd.extracted_keywords = extracted
+        jd.priority_keywords = pri.get('high_priority', [])
+
+        db.add(jd)
+        db.commit()
+        db.refresh(jd)
+        return {'id': jd.id, 'message': 'saved', 'extracted': extracted, 'priority_keywords': jd.priority_keywords}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception('Failed to save job description')
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get('/job-descriptions')
+def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depends(get_db)):
+    try:
+        q = db.query(JobDescription)
+        if user_email:
+            user = db.query(User).filter(User.email == user_email).first()
+            if user:
+                q = q.filter(JobDescription.user_id == user.id)
+            else:
+                return []
+        items = q.order_by(JobDescription.created_at.desc()).limit(100).all()
+        return [
+            {
+                'id': it.id,
+                'title': it.title,
+                'company': it.company,
+                'source': it.source,
+                'url': it.url,
+                'created_at': it.created_at.isoformat(),
+                'priority_keywords': it.priority_keywords,
+            }
+            for it in items
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post('/matches')
+def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
+    try:
+        resume = db.query(Resume).filter(Resume.id == payload.resumeId).first()
+        if not resume:
+            raise HTTPException(status_code=404, detail='Resume not found')
+        jd = db.query(JobDescription).filter(JobDescription.id == payload.jobDescriptionId).first()
+        if not jd:
+            raise HTTPException(status_code=404, detail='Job description not found')
+
+        rv = db.query(ResumeVersion).filter(ResumeVersion.resume_id == resume.id).order_by(ResumeVersion.version_number.desc()).first()
+        resume_text = _resume_to_text(rv.resume_data) if rv else '\n'.join([resume.name or '', resume.title or '', resume.summary or ''])
+
+        breakdown = _compute_match_breakdown(jd.content, resume_text, jd.extracted_keywords or {})
+
+        ms = MatchSession(
+            resume_id=resume.id,
+            job_description_id=jd.id,
+            score=breakdown['score'],
+            keyword_coverage=breakdown['keyword_coverage'],
+            matched_keywords=breakdown['matched_keywords'],
+            missing_keywords=breakdown['missing_keywords'],
+            excess_keywords=[],
+        )
+        db.add(ms)
+        db.commit()
+        db.refresh(ms)
+
+        return { 'id': ms.id, **breakdown }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception('Failed to create match')
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get('/matches/{match_id}')
+def get_match(match_id: int, db: Session = Depends(get_db)):
+    ms = db.query(MatchSession).filter(MatchSession.id == match_id).first()
+    if not ms:
+        raise HTTPException(status_code=404, detail='Match not found')
+    return {
+        'id': ms.id,
+        'resume_id': ms.resume_id,
+        'job_description_id': ms.job_description_id,
+        'score': ms.score,
+        'keyword_coverage': ms.keyword_coverage,
+        'matched_keywords': ms.matched_keywords,
+        'missing_keywords': ms.missing_keywords,
+        'excess_keywords': ms.excess_keywords,
+        'created_at': ms.created_at.isoformat(),
+    }
 
