@@ -574,32 +574,72 @@ const EditorPageContent = () => {
               resumeId = saveData.resume_id;
               resumeVersionId = saveData.version_id;
               
+              console.log('Resume saved successfully:', { resumeId, resumeVersionId });
+              
               // Update current resume ID
               if (!currentResumeId) {
+                setCurrentResumeId(resumeId);
                 // Store it for future use
                 localStorage.setItem('currentResumeId', String(resumeId));
               }
+            } else {
+              const errorText = await saveResumeRes.text();
+              console.error('Failed to save resume:', saveResumeRes.status, errorText);
             }
           } catch (e) {
             console.error('Failed to save resume version:', e);
           }
           
-          // Then create match session with version ID
+          // Then create match session with version ID (even if save failed, try with available data)
           try {
-            await fetch(`${config.apiBase}/api/matches`, {
+            const matchPayload: any = {
+              jobDescriptionId: activeJobDescriptionId,
+              user_email: user.email,
+              resume_name: resumeData.name,
+              resume_title: resumeData.title,
+            };
+            
+            // Only include resumeId if we have it
+            if (resumeId) {
+              matchPayload.resumeId = resumeId;
+            }
+            
+            // Include version ID and snapshot if available
+            if (resumeVersionId) {
+              matchPayload.resume_version_id = resumeVersionId;
+            }
+            
+            if (exportData) {
+              // Transform exportData to match expected resume_snapshot structure
+              matchPayload.resume_snapshot = {
+                personalInfo: {
+                  name: exportData.name,
+                  title: exportData.title,
+                  email: exportData.email || '',
+                  phone: exportData.phone || '',
+                  location: exportData.location || ''
+                },
+                summary: exportData.summary || '',
+                sections: exportData.sections || [],
+                template: exportData.template || selectedTemplate
+              };
+            }
+            
+            console.log('Creating match session with payload:', matchPayload);
+            
+            const matchResponse = await fetch(`${config.apiBase}/api/matches`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                resumeId: resumeId || undefined,
-                jobDescriptionId: activeJobDescriptionId,
-                user_email: user.email,
-                resume_name: resumeData.name,
-                resume_title: resumeData.title,
-                resume_snapshot: exportData,
-                resume_version_id: resumeVersionId || undefined
-              })
+              body: JSON.stringify(matchPayload)
             });
-            console.log('Match session recorded with resume version');
+            
+            if (matchResponse.ok) {
+              const matchData = await matchResponse.json();
+              console.log('Match session recorded successfully:', matchData);
+            } else {
+              const errorText = await matchResponse.text();
+              console.error('Failed to create match session:', matchResponse.status, errorText);
+            }
           } catch (e) {
             console.error('Failed to create match session:', e);
           }
