@@ -192,6 +192,7 @@ class MatchSession(Base):
     __tablename__ = "match_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
     job_description_id = Column(Integer, ForeignKey("job_descriptions.id"), nullable=False)
     score = Column(Integer, nullable=False)  # overall match score 0-100
@@ -202,6 +203,7 @@ class MatchSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
+    user = relationship("User")
     resume = relationship("Resume", back_populates="match_sessions")
     job_description = relationship("JobDescription", back_populates="match_sessions")
 
@@ -224,13 +226,13 @@ def get_db():
 
 def migrate_schema():
     """Lightweight, idempotent migrations for production without Alembic.
-    Currently ensures job_descriptions.user_id allows NULL on Postgres.
+    Ensures database schema matches current models.
     """
     try:
         backend = engine.url.get_backend_name()
         if backend == 'postgresql':
             with engine.connect() as conn:
-                # Check nullability
+                # Check and fix job_descriptions.user_id nullability
                 result = conn.execute(text("""
                     SELECT is_nullable FROM information_schema.columns
                     WHERE table_name='job_descriptions' AND column_name='user_id'
@@ -240,6 +242,30 @@ def migrate_schema():
                     print('Migrating: dropping NOT NULL on job_descriptions.user_id')
                     conn.execute(text("ALTER TABLE job_descriptions ALTER COLUMN user_id DROP NOT NULL"))
                     conn.commit()
+                
+                # Check if match_sessions.user_id exists, add it if not
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='match_sessions' AND column_name='user_id'
+                """))
+                row = result.fetchone()
+                if not row:
+                    print('Migrating: adding user_id column to match_sessions')
+                    conn.execute(text("""
+                        ALTER TABLE match_sessions 
+                        ADD COLUMN user_id INTEGER REFERENCES users(id)
+                    """))
+                    # Update existing rows with user_id from resume
+                    conn.execute(text("""
+                        UPDATE match_sessions ms
+                        SET user_id = r.user_id
+                        FROM resumes r
+                        WHERE ms.resume_id = r.id AND ms.user_id IS NULL
+                    """))
+                    # Make it NOT NULL after backfilling
+                    conn.execute(text("ALTER TABLE match_sessions ALTER COLUMN user_id SET NOT NULL"))
+                    conn.commit()
+                    print('Migrating: match_sessions.user_id column added and backfilled')
     except Exception as e:
         print(f"Schema migration check failed (non-fatal): {e}")
 

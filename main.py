@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request, Query, Header
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -4092,6 +4092,163 @@ async def websocket_collab(websocket: WebSocket, room_id: str):
 
 # Version Control Endpoints
 
+@app.get("/api/resumes")
+async def list_user_resumes(user_email: str = Query(..., description="User email for authentication"), db: Session = Depends(get_db)):
+    """Get all resumes for a user"""
+    try:
+        logger.info(f"list_user_resumes: Request received for user {user_email}")
+        
+        if not user_email:
+            raise HTTPException(status_code=400, detail="user_email is required")
+        
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            logger.error(f"list_user_resumes: User not found for email {user_email}")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        logger.info(f"list_user_resumes: User found with id {user.id}")
+        
+        resumes = db.query(Resume).filter(Resume.user_id == user.id).order_by(Resume.updated_at.desc()).all()
+        logger.info(f"list_user_resumes: Found {len(resumes)} resumes for user {user.id}")
+        
+        result = []
+        for resume in resumes:
+            # Get latest version info
+            latest_version = db.query(ResumeVersion).filter(
+                ResumeVersion.resume_id == resume.id
+            ).order_by(ResumeVersion.version_number.desc()).first()
+            
+            # Get match sessions for this resume with JD and version info
+            match_sessions = db.query(MatchSession).filter(
+                MatchSession.resume_id == resume.id
+            ).order_by(MatchSession.created_at.desc()).limit(5).all()
+            
+            recent_matches_data = []
+            for ms in match_sessions:
+                # Get job description details
+                jd = db.query(JobDescription).filter(JobDescription.id == ms.job_description_id).first()
+                
+                # Get resume version for this match (if available via relationship)
+                # Try to find the version that was used for this match
+                # We'll look for versions created around the same time or the latest version before the match
+                match_version = None
+                if latest_version:
+                    # Check if there's a version created before or at the match time
+                    version_query = db.query(ResumeVersion).filter(
+                        ResumeVersion.resume_id == resume.id,
+                        ResumeVersion.created_at <= ms.created_at
+                    ).order_by(ResumeVersion.version_number.desc()).first()
+                    if version_query:
+                        match_version = version_query
+                    else:
+                        # Fallback to latest version
+                        match_version = latest_version
+                
+                recent_matches_data.append({
+                    'id': ms.id,
+                    'job_description_id': ms.job_description_id,
+                    'jd_title': jd.title if jd else 'Unknown Job',
+                    'jd_company': jd.company if jd else None,
+                    'score': ms.score,
+                    'keyword_coverage': ms.keyword_coverage,
+                    'resume_version_id': match_version.id if match_version else None,
+                    'resume_version_number': match_version.version_number if match_version else None,
+                    'created_at': ms.created_at.isoformat() if ms.created_at else None
+                })
+            
+            result.append({
+                'id': resume.id,
+                'name': resume.name,
+                'title': resume.title,
+                'template': resume.template,
+                'created_at': resume.created_at.isoformat() if resume.created_at else None,
+                'updated_at': resume.updated_at.isoformat() if resume.updated_at else None,
+                'latest_version_id': latest_version.id if latest_version else None,
+                'latest_version_number': latest_version.version_number if latest_version else None,
+                'version_count': db.query(ResumeVersion).filter(ResumeVersion.resume_id == resume.id).count(),
+                'match_count': len(match_sessions),
+                'recent_matches': recent_matches_data
+            })
+        
+        logger.info(f"list_user_resumes: Returning {len(result)} resumes")
+        return {
+            "success": True,
+            "resumes": result,
+            "count": len(result)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing resumes: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list resumes")
+
+@app.delete("/api/resumes/{resume_id}")
+async def delete_resume(resume_id: int, user_email: str = Query(..., description="User email for authentication"), db: Session = Depends(get_db)):
+    """Delete a resume and all its associated data"""
+    try:
+        logger.info(f"delete_resume: Attempting to delete resume {resume_id} for user {user_email}")
+        
+        if not user_email:
+            raise HTTPException(status_code=400, detail="user_email is required")
+        
+        user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            logger.error(f"delete_resume: User not found for email {user_email}")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Find the resume and verify ownership
+        resume = db.query(Resume).filter(
+            Resume.id == resume_id,
+            Resume.user_id == user.id
+        ).first()
+        
+        if not resume:
+            logger.warning(f"delete_resume: Resume {resume_id} not found or doesn't belong to user {user_email}")
+            raise HTTPException(status_code=404, detail="Resume not found or access denied")
+        
+        # Delete associated data (cascade should handle most, but we'll be explicit)
+        # Delete match sessions
+        match_sessions = db.query(MatchSession).filter(MatchSession.resume_id == resume_id).all()
+        for ms in match_sessions:
+            db.delete(ms)
+        logger.info(f"delete_resume: Deleted {len(match_sessions)} match sessions")
+        
+        # Delete shared resumes
+        shared_resumes = db.query(SharedResume).filter(SharedResume.resume_id == resume_id).all()
+        for sr in shared_resumes:
+            db.delete(sr)
+        logger.info(f"delete_resume: Deleted {len(shared_resumes)} shared resume records")
+        
+        # Delete export analytics
+        export_analytics = db.query(ExportAnalytics).filter(ExportAnalytics.resume_id == resume_id).all()
+        for ea in export_analytics:
+            db.delete(ea)
+        logger.info(f"delete_resume: Deleted {len(export_analytics)} export analytics records")
+        
+        # Delete job matches
+        job_matches = db.query(JobMatch).filter(JobMatch.resume_id == resume_id).all()
+        for jm in job_matches:
+            db.delete(jm)
+        logger.info(f"delete_resume: Deleted {len(job_matches)} job matches")
+        
+        # Resume versions will be deleted by cascade
+        # Delete the resume itself
+        db.delete(resume)
+        db.commit()
+        
+        logger.info(f"delete_resume: Successfully deleted resume {resume_id}")
+        return {
+            "success": True,
+            "message": "Resume deleted successfully",
+            "resume_id": resume_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_resume: Error deleting resume {resume_id}: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete resume: {str(e)}")
+
 @app.post("/api/resume/save")
 async def save_resume(payload: SaveResumePayload, user_email: str = Query(..., description="User email for authentication"), db: Session = Depends(get_db)):
     """Save or update a resume with version control"""
@@ -5373,14 +5530,49 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
 
         breakdown = _compute_match_breakdown(jd.content, resume_text, jd.extracted_keywords or {})
 
+        # Ensure JSON fields are Python lists/dicts, not JSON strings
+        matched_kw = breakdown.get('matched_keywords', [])
+        missing_kw = breakdown.get('missing_keywords', [])
+        
+        logger.info(f"create_match: Raw breakdown data types - matched_keywords: {type(matched_kw)}, missing_keywords: {type(missing_kw)}")
+        
+        # Convert to list if it's already a string (defensive)
+        if isinstance(matched_kw, str):
+            logger.warning(f"create_match: matched_keywords is string, parsing: {matched_kw[:50]}")
+            try:
+                matched_kw = json.loads(matched_kw)
+            except Exception as e:
+                logger.error(f"create_match: Failed to parse matched_keywords string: {e}")
+                matched_kw = []
+        if isinstance(missing_kw, str):
+            logger.warning(f"create_match: missing_keywords is string, parsing: {missing_kw[:50]}")
+            try:
+                missing_kw = json.loads(missing_kw)
+            except Exception as e:
+                logger.error(f"create_match: Failed to parse missing_keywords string: {e}")
+                missing_kw = []
+        
+        # Ensure they're lists (handle sets, tuples, etc.)
+        if not isinstance(matched_kw, list):
+            matched_kw = list(matched_kw) if matched_kw else []
+        if not isinstance(missing_kw, list):
+            missing_kw = list(missing_kw) if missing_kw else []
+        
+        logger.info(f"create_match: Final data types - matched_keywords: {type(matched_kw)} (len={len(matched_kw)}), missing_keywords: {type(missing_kw)} (len={len(missing_kw)})")
+
+        # Get user_id from resume
+        if not resume.user_id:
+            raise HTTPException(status_code=400, detail="Resume must belong to a user to create match session")
+
         ms = MatchSession(
+            user_id=resume.user_id,
             resume_id=resume.id,
             job_description_id=jd.id,
-            score=breakdown['score'],
-            keyword_coverage=breakdown['keyword_coverage'],
-            matched_keywords=breakdown['matched_keywords'],
-            missing_keywords=breakdown['missing_keywords'],
-            excess_keywords=[],
+            score=int(breakdown.get('score', 0)),
+            keyword_coverage=float(breakdown.get('keyword_coverage', 0.0)) if breakdown.get('keyword_coverage') is not None else 0.0,
+            matched_keywords=matched_kw,
+            missing_keywords=missing_kw,
+            excess_keywords=[],  # Empty list for now
         )
         db.add(ms)
         db.commit()
@@ -5414,8 +5606,45 @@ def get_match(match_id: int, db: Session = Depends(get_db)):
 
 # Compatibility aliases under /api/* for existing clients
 @app.post('/api/job-descriptions')
-def create_or_update_job_description_api(payload: JobDescriptionCreate, db: Session = Depends(get_db)):
-    return create_or_update_job_description(payload, db)
+def create_or_update_job_description_api(
+    payload: JobDescriptionCreate,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    db: Session = Depends(get_db)
+):
+    """Create or update job description, supporting both token-based (extension) and email-based auth"""
+    try:
+        logger.info(f"create_or_update_job_description_api: Received request with title={payload.title}, company={payload.company}")
+        
+        # Validate required fields
+        if not payload.title or not payload.title.strip():
+            raise HTTPException(status_code=400, detail="Title is required")
+        if not payload.content or not payload.content.strip():
+            raise HTTPException(status_code=400, detail="Content is required")
+        
+        # Extract user_email from payload if provided
+        user_email = payload.user_email
+        
+        # If Authorization header is provided, try to extract user info
+        # Note: Currently tokens are not validated/stored, so we allow saving without auth
+        # This allows extension to work even if token validation isn't fully implemented
+        if authorization and authorization.startswith('Bearer '):
+            token = authorization.replace('Bearer ', '').strip()
+            logger.info(f"create_or_update_job_description_api: Received token (not validated yet)")
+            # TODO: Implement token validation to extract user_email from token
+            # For now, allow saving without user (extension users can save anonymously)
+        
+        # If no user_email in payload and no token validation, allow saving without user
+        if not user_email:
+            logger.info("create_or_update_job_description_api: Saving job description without user (anonymous)")
+        
+        result = create_or_update_job_description(payload, db)
+        logger.info(f"create_or_update_job_description_api: Successfully saved job description with id={result.get('id')}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"create_or_update_job_description_api: Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save job description: {str(e)}")
 
 @app.get('/api/job-descriptions')
 def list_job_descriptions_api(user_email: Optional[str] = None, db: Session = Depends(get_db)):
@@ -5460,6 +5689,47 @@ def list_job_descriptions_api(user_email: Optional[str] = None, db: Session = De
     except Exception as e:
         logger.exception(f'Failed to list job descriptions via API (user_email: {user_email})')
         return []
+
+@app.delete('/api/job-descriptions/{jd_id}')
+def delete_job_description_api(jd_id: int, user_email: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    """Delete a job description"""
+    try:
+        logger.info(f"delete_job_description_api: Attempting to delete JD {jd_id}")
+        
+        # Find the job description
+        jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
+        if not jd:
+            logger.warning(f"delete_job_description_api: JD {jd_id} not found")
+            raise HTTPException(status_code=404, detail='Job description not found')
+        
+        # If user_email is provided, verify ownership (optional for now, allow deletion)
+        if user_email:
+            user = db.query(User).filter(User.email == user_email).first()
+            if user and jd.user_id and jd.user_id != user.id:
+                logger.warning(f"delete_job_description_api: User {user_email} doesn't own JD {jd_id}")
+                raise HTTPException(status_code=403, detail='Not authorized to delete this job description')
+        
+        # Delete associated match sessions first (if cascade doesn't handle it)
+        match_sessions = db.query(MatchSession).filter(MatchSession.job_description_id == jd_id).all()
+        for ms in match_sessions:
+            db.delete(ms)
+        
+        # Delete the job description
+        db.delete(jd)
+        db.commit()
+        
+        logger.info(f"delete_job_description_api: Successfully deleted JD {jd_id}")
+        return {
+            "success": True,
+            "message": "Job description deleted successfully",
+            "id": jd_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_job_description_api: Error deleting JD {jd_id}: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete job description: {str(e)}")
 
 @app.get('/api/job-descriptions/{jd_id}')
 def get_job_description_api(jd_id: int, db: Session = Depends(get_db)):
