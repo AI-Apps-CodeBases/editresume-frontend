@@ -29,7 +29,8 @@ const EditorPageContent = () => {
   const { user, isAuthenticated, login, logout, checkPremiumAccess } = useAuth()
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [showWizard, setShowWizard] = useState(true)
+  const [mounted, setMounted] = useState(false)
+  const [showWizard, setShowWizard] = useState(true) // Always start with true to match server render
   const [showAIWizard, setShowAIWizard] = useState(false)
   const [aiWizardContext, setAiWizardContext] = useState<any>(null)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
@@ -78,6 +79,41 @@ const EditorPageContent = () => {
       }>
     }>
   })
+
+  // Handle client-side mounting to avoid hydration errors
+  useEffect(() => {
+    setMounted(true)
+    
+    // Load resume data from localStorage after mount
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('resumeData')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (parsed && (parsed.name || parsed.sections?.length > 0)) {
+            console.log('📂 Loading resume from localStorage on mount:', parsed)
+            setResumeData(parsed)
+            // Check URL params for wizard forcing
+            const urlParams = new URLSearchParams(window.location.search)
+            const forceWizard = urlParams.get('upload') === 'true' || urlParams.get('new') === 'true'
+            setShowWizard(forceWizard)
+          } else {
+            // No meaningful data, check if we should show wizard
+            const urlParams = new URLSearchParams(window.location.search)
+            const forceWizard = urlParams.get('upload') === 'true' || urlParams.get('new') === 'true'
+            setShowWizard(forceWizard || !resumeData.name)
+          }
+        } else {
+          // No saved data, check URL params
+          const urlParams = new URLSearchParams(window.location.search)
+          const forceWizard = urlParams.get('upload') === 'true' || urlParams.get('new') === 'true'
+          setShowWizard(forceWizard)
+        }
+      } catch (e) {
+        console.error('Error loading resume from localStorage:', e)
+      }
+    }
+  }, []) // Only run once on mount
 
   const [replacements, setReplacements] = useState<Record<string, string>>({})
   const [isExporting, setIsExporting] = useState(false)
@@ -161,6 +197,15 @@ const EditorPageContent = () => {
     setResumeData(newResumeData)
     setCurrentResumeId(generateResumeId())
     
+    // Immediately save to localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('resumeData', JSON.stringify(newResumeData))
+      } catch (error) {
+        console.error('Error saving resume data:', error)
+      }
+    }
+    
     setSelectedTemplate(template === 'visual' ? 'tech' : template as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech')
     if (typeof window !== 'undefined') {
       localStorage.setItem('selectedTemplate', template === 'visual' ? 'tech' : template)
@@ -180,108 +225,176 @@ const EditorPageContent = () => {
   }
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Check if user wants to upload a resume
-      const isUploadResume = searchParams.get('upload') === 'true'
-      if (isUploadResume) {
-        // Clear any cached data and show upload wizard
-        localStorage.removeItem('resumeData')
-        setResumeData({
-          name: '',
-          title: '',
-          email: '',
-          phone: '',
-          location: '',
-          summary: '',
-          sections: []
-        })
-        setShowWizard(true)
-        return
-      }
+    if (typeof window === 'undefined') return
+    
+    // Check if user wants to upload a resume
+    const isUploadResume = searchParams.get('upload') === 'true'
+    if (isUploadResume) {
+      // Clear any cached data and show upload wizard
+      localStorage.removeItem('resumeData')
+      setResumeData({
+        name: '',
+        title: '',
+        email: '',
+        phone: '',
+        location: '',
+        summary: '',
+        sections: []
+      })
+      setShowWizard(true)
+      return
+    }
+    
+    const urlRoomId = searchParams.get('room')
+    if (urlRoomId) {
+      setRoomId(urlRoomId)
+      setShowWizard(false)
       
-      const urlRoomId = searchParams.get('room')
-      if (urlRoomId) {
-        setRoomId(urlRoomId)
-        setShowWizard(false)
-        
-        if (!userName) {
-          const name = prompt('Enter your name for collaboration:')
-          if (name) {
-            setUserName(name)
-            localStorage.setItem('userName', name)
-          }
+      if (!userName) {
+        const name = prompt('Enter your name for collaboration:')
+        if (name) {
+          setUserName(name)
+          localStorage.setItem('userName', name)
         }
-      }
-      
-      // Check if user wants to create a new resume from scratch
-      const isNewResume = searchParams.get('new') === 'true'
-      if (isNewResume) {
-        // Create empty resume data and skip wizard
-        const emptyResumeData = {
-          name: '',
-          title: '',
-          email: '',
-          phone: '',
-          location: '',
-          summary: '',
-          sections: [
-            {
-              id: '1',
-              title: 'Professional Summary',
-              bullets: [{ id: '1', text: '', params: {} }]
-            },
-            {
-              id: '2', 
-              title: 'Experience',
-              bullets: [{ id: '2', text: '', params: {} }]
-            },
-            {
-              id: '3',
-              title: 'Skills', 
-              bullets: [{ id: '3', text: '', params: {} }]
-            },
-            {
-              id: '4',
-              title: 'Education',
-              bullets: [{ id: '4', text: '', params: {} }]
-            }
-          ],
-          template: 'tech',
-          layoutConfig: {}
-        }
-        setResumeData(emptyResumeData)
-        setShowWizard(false)
-        return
-      }
-      
-      // Only load cached data if user is authenticated
-      if (isAuthenticated) {
-        const hasExistingResume = localStorage.getItem('resumeData')
-        if (hasExistingResume) {
-          try {
-            const existingData = JSON.parse(hasExistingResume)
-            console.log('Loading existing resume data from localStorage:', existingData)
-            setResumeData(existingData)
-            setShowWizard(false)
-          } catch (error) {
-            console.error('Error parsing resume data from localStorage:', error)
-          }
-        }
-      } else {
-        // For non-authenticated users, clear any cached data and show wizard
-        localStorage.removeItem('resumeData')
-        setShowWizard(true)
       }
     }
-  }, [searchParams, userName, isAuthenticated])
+    
+    // Check if user wants to create a new resume from scratch
+    const isNewResume = searchParams.get('new') === 'true'
+    if (isNewResume) {
+      // Create empty resume data and skip wizard
+      const emptyResumeData = {
+        name: '',
+        title: '',
+        email: '',
+        phone: '',
+        location: '',
+        summary: '',
+        sections: [
+          {
+            id: '1',
+            title: 'Professional Summary',
+            bullets: [{ id: '1', text: '', params: {} }]
+          },
+          {
+            id: '2', 
+            title: 'Experience',
+            bullets: [{ id: '2', text: '', params: {} }]
+          },
+          {
+            id: '3',
+            title: 'Skills', 
+            bullets: [{ id: '3', text: '', params: {} }]
+          },
+          {
+            id: '4',
+            title: 'Education',
+            bullets: [{ id: '4', text: '', params: {} }]
+          }
+        ],
+        template: 'tech',
+        layoutConfig: {}
+      }
+      setResumeData(emptyResumeData)
+      setShowWizard(false)
+      return
+    }
+    
+    // Load cached resume data (works for both authenticated and non-authenticated users)
+    // This runs on mount and when navigating back to ensure resume loads
+    const savedResumeData = localStorage.getItem('resumeData')
+    if (savedResumeData) {
+      try {
+        const existingData = JSON.parse(savedResumeData)
+        // Only load if there's meaningful content
+        if (existingData && (existingData.name || existingData.sections?.length > 0)) {
+          console.log('📂 Loading existing resume data from localStorage (useEffect):', existingData)
+          // Always update to ensure we have the latest from localStorage
+          // This ensures resume persists when navigating back from profile
+          setResumeData(existingData)
+          setShowWizard(false)
+          return
+        }
+      } catch (error) {
+        console.error('Error parsing resume data from localStorage:', error)
+      }
+    }
 
-  // Save resume data to localStorage whenever it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined' && resumeData.name && isAuthenticated) {
-      console.log('Saving resume data to localStorage:', resumeData)
-      localStorage.setItem('resumeData', JSON.stringify(resumeData))
+    // If no saved data, handle wizard display
+    if (!savedResumeData) {
+      // Only show wizard if user explicitly wants new resume or has no data
+      const wantsNew = searchParams.get('new') === 'true'
+      if (wantsNew) {
+        setShowWizard(true)
+      } else if (!isAuthenticated) {
+        // For non-authenticated users with no saved data, show wizard
+        setShowWizard(true)
+      }
+    } else {
+      // If we have saved data, ensure wizard is hidden
+      setShowWizard(false)
     }
-  }, [resumeData, isAuthenticated])
+  }, [searchParams, userName, isAuthenticated]) // Intentionally exclude resumeData to avoid loops
+
+  // Save resume data to localStorage whenever it changes (with debouncing)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    
+    // Only save if there's meaningful data (has name or has sections with content)
+    const hasContent = resumeData.name || 
+      (resumeData.sections && resumeData.sections.length > 0 && 
+       resumeData.sections.some((s: any) => s.bullets && s.bullets.some((b: any) => b.text?.trim())))
+    
+    if (!hasContent) return
+
+    const timeoutId = setTimeout(() => {
+      try {
+        localStorage.setItem('resumeData', JSON.stringify(resumeData))
+        console.log('💾 Resume data saved to localStorage')
+      } catch (error) {
+        console.error('Error saving resume data:', error)
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [resumeData])
+
+  // Save resume data before page unload or navigation
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const hasContent = resumeData.name || 
+      (resumeData.sections && resumeData.sections.length > 0 && 
+       resumeData.sections.some((s: any) => s.bullets && s.bullets.some((b: any) => b.text?.trim())))
+
+    if (!hasContent) return
+
+    const handleBeforeUnload = () => {
+      try {
+        localStorage.setItem('resumeData', JSON.stringify(resumeData))
+      } catch (error) {
+        console.error('Error saving resume on unload:', error)
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        try {
+          localStorage.setItem('resumeData', JSON.stringify(resumeData))
+        } catch (error) {
+          console.error('Error saving resume on visibility change:', error)
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [resumeData])
 
   useEffect(() => {
     if (roomId && userName) {
@@ -895,7 +1008,7 @@ const EditorPageContent = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
-      {!showWizard && (
+      {mounted && !showWizard && (
         <header className="bg-white border-b sticky top-0 z-20 shadow-sm">
           <div className="mx-auto max-w-[1600px] px-4 py-3">
             <div className="flex items-center justify-between mobile-header">
@@ -1002,7 +1115,7 @@ const EditorPageContent = () => {
       )}
 
       <div className="mx-auto max-w-[1800px] px-4 py-4">
-        {showWizard ? (
+        {!mounted || showWizard ? (
           <NewResumeWizard
             onComplete={handleWizardComplete}
             onCancel={() => setShowWizard(false)}
@@ -1188,6 +1301,19 @@ const EditorPageContent = () => {
                                   resumeData={resumeData as any}
                                   standalone={false}
                                   onClose={() => {}}
+                                  onResumeUpdate={(updatedResume) => {
+                                    setResumeData(updatedResume);
+                                    setPreviewKey(prev => prev + 1);
+                                    // Immediately save improved resume to localStorage
+                                    if (typeof window !== 'undefined') {
+                                      try {
+                                        localStorage.setItem('resumeData', JSON.stringify(updatedResume));
+                                        console.log('💾 Improved resume saved to localStorage');
+                                      } catch (error) {
+                                        console.error('Error saving improved resume:', error);
+                                      }
+                                    }
+                                  }}
                                   initialJobDescription={deepLinkedJD || undefined}
                                   onSelectJobDescriptionId={(id) => setActiveJobDescriptionId(id)}
                                 />

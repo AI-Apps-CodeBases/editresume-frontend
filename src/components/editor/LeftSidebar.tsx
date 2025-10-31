@@ -27,12 +27,13 @@ interface Props {
       }>
     }>
   }
+  onResumeUpdate?: (updatedResume: any) => void
   onApplySuggestion?: (sectionId: string, bulletId: string, newText: string) => void
   onAIImprove?: (text: string, context?: string) => Promise<string>
   onAddContent?: (newContent: any) => void
 }
 
-export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove, onAddContent }: Props) {
+export default function LeftSidebar({ resumeData, onResumeUpdate, onApplySuggestion, onAIImprove, onAddContent }: Props) {
   const { settings } = useSettings()
   const [activePopup, setActivePopup] = useState<string | null>(null)
   const [mounted, setMounted] = React.useState(false)
@@ -162,7 +163,8 @@ export default function LeftSidebar({ resumeData, onApplySuggestion, onAIImprove
 
     const commonProps = {
       onClose: () => setActivePopup(null),
-      resumeData
+      resumeData,
+      onResumeUpdate
     }
 
     switch (activePopup) {
