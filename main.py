@@ -5072,8 +5072,21 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
             else:
                 return []
         items = q.order_by(JobDescription.created_at.desc()).limit(100).all()
-        return [
-            {
+        result = []
+        for it in items:
+            # Get latest match session for this JD
+            latest_match = db.query(MatchSession).filter(
+                MatchSession.job_description_id == it.id
+            ).order_by(MatchSession.created_at.desc()).first()
+            
+            # Get resume info if available
+            resume_name = None
+            if latest_match and latest_match.resume_id:
+                resume = db.query(Resume).filter(Resume.id == latest_match.resume_id).first()
+                if resume:
+                    resume_name = resume.name
+            
+            item_data = {
                 'id': it.id,
                 'title': it.title,
                 'company': it.company,
@@ -5082,8 +5095,20 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                 'created_at': it.created_at.isoformat(),
                 'priority_keywords': it.priority_keywords,
             }
-            for it in items
-        ]
+            
+            if latest_match:
+                item_data['last_match'] = {
+                    'id': latest_match.id,
+                    'score': latest_match.score,
+                    'resume_id': latest_match.resume_id,
+                    'resume_name': resume_name,
+                    'resume_version_id': latest_match.resume_version_id,
+                    'created_at': latest_match.created_at.isoformat(),
+                }
+            
+            result.append(item_data)
+        
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -5177,4 +5202,35 @@ def create_match_api(payload: MatchCreate, db: Session = Depends(get_db)):
 @app.get('/api/matches/{match_id}')
 def get_match_api(match_id: int, db: Session = Depends(get_db)):
     return get_match(match_id, db)
+
+@app.get('/api/job-descriptions/{jd_id}/matches')
+def get_job_description_matches(jd_id: int, db: Session = Depends(get_db)):
+    """Get all match sessions for a specific job description"""
+    try:
+        matches = db.query(MatchSession).filter(
+            MatchSession.job_description_id == jd_id
+        ).order_by(MatchSession.created_at.desc()).all()
+        
+        result = []
+        for match in matches:
+            resume_name = None
+            if match.resume_id:
+                resume = db.query(Resume).filter(Resume.id == match.resume_id).first()
+                if resume:
+                    resume_name = resume.name
+            
+            result.append({
+                'id': match.id,
+                'score': match.score,
+                'resume_id': match.resume_id,
+                'resume_name': resume_name,
+                'resume_version_id': match.resume_version_id,
+                'keyword_coverage': match.keyword_coverage,
+                'created_at': match.created_at.isoformat(),
+            })
+        
+        return result
+    except Exception as e:
+        logger.exception('Failed to get job description matches')
+        raise HTTPException(status_code=500, detail=str(e))
 
