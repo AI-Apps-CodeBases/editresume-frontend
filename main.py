@@ -5034,8 +5034,13 @@ class JobDescriptionCreate(BaseModel):
     user_email: Optional[str] = None
 
 class MatchCreate(BaseModel):
-    resumeId: int
+    resumeId: Optional[int] = None
     jobDescriptionId: int
+    user_email: Optional[str] = None
+    resume_name: Optional[str] = None
+    resume_title: Optional[str] = None
+    resume_snapshot: Optional[Dict[str, Any]] = None
+    resume_version_id: Optional[int] = None
 
 def _classify_priority_keywords(extracted: Dict[str, Any]) -> Dict[str, List[str]]:
     keyword_freq: Dict[str, int] = extracted.get('keyword_frequency', {}) if isinstance(extracted, dict) else {}
@@ -5274,16 +5279,97 @@ def get_job_description(jd_id: int, db: Session = Depends(get_db)):
 
 @app.post('/matches')
 def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
+    """Create a match session between resume and job description"""
     try:
-        resume = db.query(Resume).filter(Resume.id == payload.resumeId).first()
+        logger.info(f"create_match: Starting match creation for JD {payload.jobDescriptionId}, resumeId: {payload.resumeId}")
+        
+        # Find or create resume if needed
+        resume = None
+        if payload.resumeId:
+            resume = db.query(Resume).filter(Resume.id == payload.resumeId).first()
+            if not resume:
+                logger.warning(f"create_match: Resume {payload.resumeId} not found, will try to create if user_email provided")
+        
+        # If resume doesn't exist but we have user_email and resume data, create it
+        if not resume and payload.user_email and payload.resume_name:
+            try:
+                user = db.query(User).filter(User.email == payload.user_email).first()
+                if user:
+                    logger.info(f"create_match: Creating new resume for user {user.email}")
+                    # Check if resume with this name already exists
+                    existing_resume = db.query(Resume).filter(
+                        Resume.user_id == user.id,
+                        Resume.name == payload.resume_name
+                    ).first()
+                    
+                    if existing_resume:
+                        resume = existing_resume
+                        logger.info(f"create_match: Found existing resume {resume.id} with same name")
+                    else:
+                        # Create new resume from snapshot or basic info
+                        resume = Resume(
+                            user_id=user.id,
+                            name=payload.resume_name,
+                            title=payload.resume_title or '',
+                            email='',
+                            phone='',
+                            location='',
+                            summary='',
+                            template='tech'
+                        )
+                        db.add(resume)
+                        db.commit()
+                        db.refresh(resume)
+                        logger.info(f"create_match: Created new resume {resume.id}")
+                        
+                        # Create version if snapshot provided
+                        if payload.resume_snapshot:
+                            try:
+                                version_service = VersionControlService(db)
+                                resume_data = {
+                                    "personalInfo": payload.resume_snapshot.get('personalInfo', {
+                                        "name": payload.resume_name,
+                                        "title": payload.resume_title or '',
+                                        "email": "",
+                                        "phone": "",
+                                        "location": ""
+                                    }),
+                                    "summary": payload.resume_snapshot.get('summary', ''),
+                                    "sections": payload.resume_snapshot.get('sections', [])
+                                }
+                                version = version_service.create_version(
+                                    user_id=user.id,
+                                    resume_id=resume.id,
+                                    resume_data=resume_data,
+                                    change_summary="Auto-created from match session",
+                                    is_auto_save=False
+                                )
+                                logger.info(f"create_match: Created version {version.id} for resume {resume.id}")
+                            except Exception as e:
+                                logger.warning(f"create_match: Failed to create version: {e}")
+                else:
+                    logger.warning(f"create_match: User {payload.user_email} not found")
+            except Exception as e:
+                logger.error(f"create_match: Error creating resume: {e}")
+        
         if not resume:
-            raise HTTPException(status_code=404, detail='Resume not found')
+            raise HTTPException(status_code=404, detail='Resume not found and could not be created. Provide resumeId or user_email with resume_name.')
+        
+        # Get job description
         jd = db.query(JobDescription).filter(JobDescription.id == payload.jobDescriptionId).first()
         if not jd:
             raise HTTPException(status_code=404, detail='Job description not found')
 
-        rv = db.query(ResumeVersion).filter(ResumeVersion.resume_id == resume.id).order_by(ResumeVersion.version_number.desc()).first()
-        resume_text = _resume_to_text(rv.resume_data) if rv else '\n'.join([resume.name or '', resume.title or '', resume.summary or ''])
+        # Get resume text from version or resume data
+        resume_text = ''
+        if payload.resume_version_id:
+            rv = db.query(ResumeVersion).filter(ResumeVersion.id == payload.resume_version_id).first()
+            if rv:
+                resume_text = _resume_to_text(rv.resume_data)
+        
+        if not resume_text:
+            rv = db.query(ResumeVersion).filter(ResumeVersion.resume_id == resume.id).order_by(ResumeVersion.version_number.desc()).first()
+            resume_text = _resume_to_text(rv.resume_data) if rv else '\n'.join([resume.name or '', resume.title or '', resume.summary or ''])
 
         breakdown = _compute_match_breakdown(jd.content, resume_text, jd.extracted_keywords or {})
 
@@ -5300,6 +5386,7 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(ms)
 
+        logger.info(f"create_match: Successfully created match session {ms.id} with score {ms.score}")
         return { 'id': ms.id, **breakdown }
     except HTTPException:
         raise
