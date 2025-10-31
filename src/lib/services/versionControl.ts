@@ -41,28 +41,56 @@ class VersionControlService {
   }
 
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      throw new Error('User not authenticated. Please sign in.');
+    }
+    
+    const user = JSON.parse(userStr);
+    if (!user || !user.email) {
+      throw new Error('User email not found. Please sign in again.');
+    }
+    
     const url = new URL(endpoint, this.baseUrl);
     url.searchParams.set('user_email', user.email);
     
-    const response = await fetch(url.toString(), {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      ...options,
-    });
+    try {
+      const response = await fetch(url.toString(), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        ...options,
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.detail || errorJson.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error. Please check your connection.');
     }
-
-    return response.json();
   }
 
   async saveResume(resumeData: any): Promise<{ resume_id: number; version_id: number }> {
+    if (!resumeData.personalInfo?.name || !resumeData.personalInfo.name.trim()) {
+      throw new Error('Resume name is required to save.');
+    }
+
     const payload = {
-      name: resumeData.personalInfo?.name || '',
+      name: resumeData.personalInfo.name.trim(),
       title: resumeData.personalInfo?.title || '',
       email: resumeData.personalInfo?.email || '',
       phone: resumeData.personalInfo?.phone || '',
@@ -72,15 +100,28 @@ class VersionControlService {
       template: resumeData.template || 'tech'
     };
 
-    const result = await this.makeRequest('/api/resume/save', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    console.log('Saving resume with payload:', { ...payload, sectionsCount: payload.sections.length });
 
-    return {
-      resume_id: result.resume_id,
-      version_id: result.version_id
-    };
+    try {
+      const result = await this.makeRequest('/api/resume/save', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to save resume');
+      }
+
+      console.log('Resume saved successfully:', result);
+
+      return {
+        resume_id: result.resume_id,
+        version_id: result.version_id
+      };
+    } catch (error) {
+      console.error('Error saving resume:', error);
+      throw error;
+    }
   }
 
   async createVersion(resumeId: number, resumeData: any, changeSummary?: string, isAutoSave: boolean = false): Promise<ResumeVersion> {

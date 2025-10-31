@@ -654,27 +654,41 @@ const EditorPageContent = () => {
       return
     }
 
+    if (!resumeData.name || !resumeData.name.trim()) {
+      alert('Please enter your name in the resume before saving.')
+      return
+    }
+
     try {
       const resumeDataForSave = {
         personalInfo: {
           name: resumeData.name,
-          email: resumeData.email,
-          phone: resumeData.phone,
-          location: resumeData.location
+          title: resumeData.title || '',
+          email: resumeData.email || '',
+          phone: resumeData.phone || '',
+          location: resumeData.location || ''
         },
-        summary: resumeData.summary,
-        sections: resumeData.sections,
+        summary: resumeData.summary || '',
+        sections: resumeData.sections || [],
         template: selectedTemplate
       }
+
+      console.log('Saving resume...', { name: resumeDataForSave.personalInfo.name, sectionsCount: resumeDataForSave.sections.length })
 
       const result = await versionControlService.saveResume(resumeDataForSave)
       setCurrentResumeId(result.resume_id)
       
-      // Show success message
-      console.log('Resume saved successfully')
+      // Store resume ID in localStorage for persistence
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('currentResumeId', String(result.resume_id))
+      }
+      
+      console.log('Resume saved successfully:', result)
+      alert('✅ Resume saved successfully to your profile!')
     } catch (error) {
       console.error('Failed to save resume:', error)
-      alert('Failed to save resume. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Failed to save resume: ${errorMessage}`)
     }
   }
 
