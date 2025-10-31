@@ -792,7 +792,7 @@ export default function VisualResumeEditor({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 relative" ref={editorRef}>
+      <div className="flex-1" ref={editorRef}>
         {/* Mobile Sidebar Toggle */}
         <div className="lg:hidden fixed top-4 left-4 z-40">
           <button

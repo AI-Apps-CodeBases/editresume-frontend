@@ -6,7 +6,6 @@ import AIWizard from './AIWizard'
 import JobDescriptionMatcher from './JobDescriptionMatcher'
 import CoverLetterGenerator from './CoverLetterGenerator'
 import GrammarStylePanel from './GrammarStylePanel'
-import ATSScoreWidget from './ATSScoreWidget'
 import EnhancedATSScoreWidget from './EnhancedATSScoreWidget'
 
 interface Props {
@@ -142,18 +141,14 @@ export default function LeftSidebar({ resumeData, onResumeUpdate, onApplySuggest
     }
   }
 
-  // Emergency close function - can be called from anywhere
-  const forceCloseAllPopups = () => {
-    setActivePopup(null)
-  }
-
   // Expose the close function globally for emergency use
   React.useEffect(() => {
-    (window as any).closeAllPopups = forceCloseAllPopups
+    const forceCloseAllPopups = () => setActivePopup(null)
+    ;(window as any).closeAllPopups = forceCloseAllPopups
     return () => {
       delete (window as any).closeAllPopups
     }
-  }, [forceCloseAllPopups])
+  }, [])
 
   const renderPopup = () => {
     if (!activePopup) {
@@ -376,8 +371,11 @@ export default function LeftSidebar({ resumeData, onResumeUpdate, onApplySuggest
         </div>
       </div>
 
-      {/* Popup Overlays */}
-      {renderPopup()}
+      {/* Popup Overlays - Rendered in Portal */}
+      {mounted && typeof window !== 'undefined' && (() => {
+        const popup = renderPopup()
+        return popup ? createPortal(popup, document.body) : null
+      })()}
     </>
   )
 }
