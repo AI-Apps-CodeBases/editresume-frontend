@@ -5038,7 +5038,7 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
         else:
             jd = JobDescription()
 
-        jd.user_id = user.id if user else jd.user_id
+        jd.user_id = user.id if user else None
         jd.title = payload.title
         jd.company = payload.company
         jd.source = payload.source
@@ -5070,46 +5070,91 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
             if user:
                 q = q.filter(JobDescription.user_id == user.id)
             else:
-                return []
+                # User not found, but still return jobs that might not have user_id set
+                # This handles cases where jobs were saved without user_email
+                q = q.filter((JobDescription.user_id == None) | (JobDescription.user_id == 0))
+        else:
+            # No user_email provided, return all jobs (for admin or when user not logged in)
+            pass
         items = q.order_by(JobDescription.created_at.desc()).limit(100).all()
         result = []
         for it in items:
-            # Get latest match session for this JD
-            latest_match = db.query(MatchSession).filter(
-                MatchSession.job_description_id == it.id
-            ).order_by(MatchSession.created_at.desc()).first()
-            
-            # Get resume info if available
-            resume_name = None
-            if latest_match and latest_match.resume_id:
-                resume = db.query(Resume).filter(Resume.id == latest_match.resume_id).first()
-                if resume:
-                    resume_name = resume.name
-            
-            item_data = {
-                'id': it.id,
-                'title': it.title,
-                'company': it.company,
-                'source': it.source,
-                'url': it.url,
-                'created_at': it.created_at.isoformat(),
-                'priority_keywords': it.priority_keywords,
-            }
-            
-            if latest_match:
-                item_data['last_match'] = {
-                    'id': latest_match.id,
-                    'score': latest_match.score,
-                    'resume_id': latest_match.resume_id,
-                    'resume_name': resume_name,
-                    'resume_version_id': latest_match.resume_version_id,
-                    'created_at': latest_match.created_at.isoformat(),
+            try:
+                # Get latest match session for this JD
+                latest_match = None
+                try:
+                    latest_match = db.query(MatchSession).filter(
+                        MatchSession.job_description_id == it.id
+                    ).order_by(MatchSession.created_at.desc()).first()
+                except Exception as e:
+                    logger.warning(f'Failed to get match session for JD {it.id}: {e}')
+                    latest_match = None
+                
+                # Get resume info if available
+                resume_name = None
+                if latest_match and latest_match.resume_id:
+                    try:
+                        resume = db.query(Resume).filter(Resume.id == latest_match.resume_id).first()
+                        if resume:
+                            resume_name = resume.name
+                    except Exception as e:
+                        logger.warning(f'Failed to get resume for match {latest_match.id}: {e}')
+                
+                # Handle priority_keywords - ensure it's serializable
+                priority_kw = it.priority_keywords
+                if priority_kw is not None:
+                    if isinstance(priority_kw, str):
+                        try:
+                            priority_kw = json.loads(priority_kw)
+                        except:
+                            priority_kw = []
+                    elif not isinstance(priority_kw, list):
+                        priority_kw = []
+                
+                item_data = {
+                    'id': it.id,
+                    'title': it.title or '',
+                    'company': it.company or '',
+                    'source': it.source or '',
+                    'url': it.url or '',
+                    'created_at': it.created_at.isoformat() if it.created_at else None,
+                    'priority_keywords': priority_kw or [],
                 }
-            
-            result.append(item_data)
+                
+                if latest_match:
+                    try:
+                        item_data['last_match'] = {
+                            'id': latest_match.id,
+                            'score': latest_match.score or 0,
+                            'resume_id': latest_match.resume_id,
+                            'resume_name': resume_name,
+                            'resume_version_id': latest_match.resume_version_id,
+                            'created_at': latest_match.created_at.isoformat() if latest_match.created_at else None,
+                        }
+                    except Exception as e:
+                        logger.warning(f'Failed to build last_match for JD {it.id}: {e}')
+                        item_data['last_match'] = None
+                else:
+                    item_data['last_match'] = None
+                
+                result.append(item_data)
+            except Exception as e:
+                logger.error(f'Error processing JD {it.id}: {e}')
+                # Still include the JD with minimal data
+                result.append({
+                    'id': it.id,
+                    'title': it.title or '',
+                    'company': it.company or '',
+                    'source': it.source or '',
+                    'url': it.url or '',
+                    'created_at': it.created_at.isoformat() if it.created_at else None,
+                    'priority_keywords': [],
+                    'last_match': None,
+                })
         
         return result
     except Exception as e:
+        logger.exception('Failed to list job descriptions')
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get('/job-descriptions/{jd_id}')
@@ -5117,16 +5162,36 @@ def get_job_description(jd_id: int, db: Session = Depends(get_db)):
     jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
     if not jd:
         raise HTTPException(status_code=404, detail='Job description not found')
+    
+    # Handle JSON fields safely
+    extracted_kw = jd.extracted_keywords
+    if isinstance(extracted_kw, str):
+        try:
+            extracted_kw = json.loads(extracted_kw)
+        except:
+            extracted_kw = {}
+    elif extracted_kw is None:
+        extracted_kw = {}
+    
+    priority_kw = jd.priority_keywords
+    if isinstance(priority_kw, str):
+        try:
+            priority_kw = json.loads(priority_kw)
+        except:
+            priority_kw = []
+    elif priority_kw is None:
+        priority_kw = []
+    
     return {
         'id': jd.id,
-        'title': jd.title,
-        'company': jd.company,
-        'source': jd.source,
-        'url': jd.url,
-        'content': jd.content,
-        'extracted_keywords': jd.extracted_keywords,
-        'priority_keywords': jd.priority_keywords,
-        'created_at': jd.created_at.isoformat(),
+        'title': jd.title or '',
+        'company': jd.company or '',
+        'source': jd.source or '',
+        'url': jd.url or '',
+        'content': jd.content or '',
+        'extracted_keywords': extracted_kw,
+        'priority_keywords': priority_kw,
+        'created_at': jd.created_at.isoformat() if jd.created_at else None,
     }
 
 @app.post('/matches')
@@ -5189,7 +5254,47 @@ def create_or_update_job_description_api(payload: JobDescriptionCreate, db: Sess
 
 @app.get('/api/job-descriptions')
 def list_job_descriptions_api(user_email: Optional[str] = None, db: Session = Depends(get_db)):
-    return list_job_descriptions(user_email, db)
+    try:
+        # If no user_email provided, return jobs with no user_id (for extension without login)
+        if not user_email:
+            # Return jobs that were saved without user_id (from extension)
+            items = db.query(JobDescription).filter(
+                JobDescription.user_id.is_(None)
+            ).order_by(JobDescription.created_at.desc()).limit(100).all()
+            
+            result = []
+            for it in items:
+                try:
+                    priority_kw = it.priority_keywords
+                    if priority_kw is not None:
+                        if isinstance(priority_kw, str):
+                            try:
+                                priority_kw = json.loads(priority_kw)
+                            except:
+                                priority_kw = []
+                        elif not isinstance(priority_kw, list):
+                            priority_kw = []
+                    
+                    result.append({
+                        'id': it.id,
+                        'title': it.title or '',
+                        'company': it.company or '',
+                        'source': it.source or '',
+                        'url': it.url or '',
+                        'created_at': it.created_at.isoformat() if it.created_at else None,
+                        'priority_keywords': priority_kw or [],
+                        'last_match': None,
+                    })
+                except Exception as e:
+                    logger.warning(f'Error processing JD {it.id}: {e}')
+                    continue
+            
+            return result
+        
+        return list_job_descriptions(user_email, db)
+    except Exception as e:
+        logger.exception(f'Failed to list job descriptions via API (user_email: {user_email})')
+        return []
 
 @app.get('/api/job-descriptions/{jd_id}')
 def get_job_description_api(jd_id: int, db: Session = Depends(get_db)):
