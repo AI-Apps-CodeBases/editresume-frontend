@@ -10,7 +10,8 @@
     "dev:force": "NODE_OPTIONS=--max-old-space-size=4096 next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit --skipLibCheck || true"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

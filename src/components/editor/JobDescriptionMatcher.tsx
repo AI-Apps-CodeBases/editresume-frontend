@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import config from '@/lib/config';
-import ImproveResumeButton from './ImproveResumeButton';
+import dynamic from 'next/dynamic';
+
+const ImproveResumeButton = dynamic(
+  () => import('./ImproveResumeButton'),
+  { ssr: false }
+);
 
 interface MatchAnalysis {
   similarity_score: number;
