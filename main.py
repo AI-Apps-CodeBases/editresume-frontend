@@ -5185,12 +5185,28 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                 
                 if latest_match:
                     try:
+                        # Get resume version ID if available
+                        resume_version_id = None
+                        if latest_match.resume_id:
+                            try:
+                                latest_version = db.query(ResumeVersion).filter(
+                                    ResumeVersion.resume_id == latest_match.resume_id
+                                ).order_by(ResumeVersion.version_number.desc()).first()
+                                if latest_version:
+                                    resume_version_id = latest_version.id
+                            except Exception as e:
+                                logger.warning(f'Failed to get resume version for resume {latest_match.resume_id}: {e}')
+                        
                         item_data['last_match'] = {
                             'id': latest_match.id,
                             'score': latest_match.score or 0,
                             'resume_id': latest_match.resume_id,
                             'resume_name': resume_name,
-                            'resume_version_id': latest_match.resume_version_id,
+                            'resume_version_id': resume_version_id,
+                            'keyword_coverage': latest_match.keyword_coverage,
+                            'matched_keywords': latest_match.matched_keywords or [],
+                            'missing_keywords': latest_match.missing_keywords or [],
+                            'excess_keywords': latest_match.excess_keywords or [],
                             'created_at': latest_match.created_at.isoformat() if latest_match.created_at else None,
                         }
                     except Exception as e:
@@ -5381,19 +5397,33 @@ def get_job_description_matches(jd_id: int, db: Session = Depends(get_db)):
         result = []
         for match in matches:
             resume_name = None
+            resume_version_id = None
+            
             if match.resume_id:
                 resume = db.query(Resume).filter(Resume.id == match.resume_id).first()
                 if resume:
                     resume_name = resume.name
+                    # Get latest version ID if available
+                    try:
+                        latest_version = db.query(ResumeVersion).filter(
+                            ResumeVersion.resume_id == resume.id
+                        ).order_by(ResumeVersion.version_number.desc()).first()
+                        if latest_version:
+                            resume_version_id = latest_version.id
+                    except Exception as e:
+                        logger.warning(f'Failed to get resume version for resume {resume.id}: {e}')
             
             result.append({
                 'id': match.id,
                 'score': match.score,
                 'resume_id': match.resume_id,
                 'resume_name': resume_name,
-                'resume_version_id': match.resume_version_id,
+                'resume_version_id': resume_version_id,
                 'keyword_coverage': match.keyword_coverage,
-                'created_at': match.created_at.isoformat(),
+                'matched_keywords': match.matched_keywords or [],
+                'missing_keywords': match.missing_keywords or [],
+                'excess_keywords': match.excess_keywords or [],
+                'created_at': match.created_at.isoformat() if match.created_at else None,
             })
         
         return result
