@@ -49,6 +49,29 @@ export default function ProfilePage() {
       created_at?: string
     }>
   }>>([])
+  const [savedResumes, setSavedResumes] = useState<Array<{
+    id: number
+    name: string
+    title?: string
+    template?: string
+    created_at?: string
+    updated_at?: string
+    latest_version_id?: number | null
+    latest_version_number?: number | null
+    version_count?: number
+    match_count?: number
+    recent_matches?: Array<{
+      id: number
+      job_description_id: number
+      jd_title?: string
+      jd_company?: string
+      score: number
+      keyword_coverage?: number
+      resume_version_id?: number | null
+      resume_version_number?: number | null
+      created_at?: string
+    }>
+  }>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -85,9 +108,26 @@ export default function ProfilePage() {
   }
 
   useEffect(() => {
-    const fetchJDs = async () => {
+    const fetchData = async () => {
+      if (!isAuthenticated || !user?.email) return
+      
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions`)
+        // Fetch saved resumes
+        const resumesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+        if (resumesRes.ok) {
+          const resumesData = await resumesRes.json()
+          setSavedResumes(resumesData.resumes || [])
+          console.log('✅ Loaded saved resumes:', resumesData.resumes?.length || 0)
+        } else {
+          console.error('Failed to load resumes:', resumesRes.status)
+        }
+      } catch (e) {
+        console.error('Failed to load resumes', e)
+      }
+
+      try {
+        // Fetch job descriptions
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
         if (res.ok) {
           const data = await res.json()
           const jds = Array.isArray(data) ? data : data.results || []
@@ -113,8 +153,10 @@ export default function ProfilePage() {
         console.error('Failed to load job descriptions', e)
       }
     }
-    if (isAuthenticated) fetchJDs()
-  }, [isAuthenticated])
+    if (isAuthenticated && user?.email) {
+      fetchData()
+    }
+  }, [isAuthenticated, user])
 
   const handleDeleteAccount = () => {
     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
@@ -317,14 +359,223 @@ export default function ProfilePage() {
 
             {activeTab === 'jobs' && (
               <div className="space-y-6">
+                {/* Saved Resumes Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-gray-900">Saved Resumes</h2>
+                    <button
+                      onClick={async () => {
+                        if (!user?.email) return
+                        try {
+                          const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+                          if (res.ok) {
+                            const data = await res.json()
+                            setSavedResumes(data.resumes || [])
+                          }
+                        } catch (e) {
+                          console.error('Failed to refresh resumes:', e)
+                        }
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  {savedResumes.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-gray-200">
+                      <div className="text-4xl mb-3">📄</div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-2">No saved resumes yet</h3>
+                      <p className="text-gray-600 mb-4">Save your resume after creating or editing it in the editor.</p>
+                      <a
+                        href="/editor"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                      >
+                        Create Resume
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {savedResumes.map((resume) => (
+                        <div
+                          key={resume.id}
+                          className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-bold text-gray-900">{resume.name}</h3>
+                              {resume.title && (
+                                <p className="text-sm text-gray-600">{resume.title}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <a
+                                href="/editor"
+                                className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 font-semibold"
+                              >
+                                Open
+                              </a>
+                              <button
+                                onClick={async (e) => {
+                                  const { showCustomConfirm } = await import('@/lib/modals')
+                                  const confirmed = await showCustomConfirm(
+                                    `Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`,
+                                    {
+                                      title: 'Delete Resume',
+                                      type: 'danger',
+                                      icon: '🗑️',
+                                      confirmText: 'Delete',
+                                      cancelText: 'Cancel'
+                                    }
+                                  )
+                                  if (!confirmed) return
+                                  
+                                  const deleteBtn = e.currentTarget
+                                  const originalText = deleteBtn.textContent
+                                  deleteBtn.disabled = true
+                                  deleteBtn.textContent = 'Deleting...'
+                                  
+                                  try {
+                                    const url = new URL(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resumes/${resume.id}`)
+                                    if (user?.email) {
+                                      url.searchParams.append('user_email', user.email)
+                                    }
+                                    
+                                    const res = await fetch(url.toString(), { 
+                                      method: 'DELETE',
+                                      headers: {
+                                        'Content-Type': 'application/json'
+                                      }
+                                    })
+                                    
+                                    if (res.ok) {
+                                      // Remove from UI immediately
+                                      setSavedResumes((prev) => prev.filter((x) => x.id !== resume.id))
+                                      // Show success message
+                                      const successMsg = document.createElement('div')
+                                      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+                                      successMsg.textContent = '✅ Resume deleted successfully'
+                                      document.body.appendChild(successMsg)
+                                      setTimeout(() => {
+                                        document.body.removeChild(successMsg)
+                                      }, 3000)
+                                    } else {
+                                      const errorData = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
+                                      alert(`Failed to delete: ${errorData.detail || 'Unknown error'}`)
+                                      deleteBtn.disabled = false
+                                      deleteBtn.textContent = originalText
+                                    }
+                                  } catch (error) {
+                                    console.error('Failed to delete resume:', error)
+                                    const { showCustomAlert } = await import('@/lib/modals')
+                                    await showCustomAlert(
+                                      `Failed to delete resume: ${error instanceof Error ? error.message : 'Network error'}`,
+                                      { type: 'error', title: 'Error' }
+                                    )
+                                    deleteBtn.disabled = false
+                                    deleteBtn.textContent = originalText
+                                  }
+                                }}
+                                className="px-3 py-1 bg-red-50 text-red-700 rounded-lg text-xs hover:bg-red-100 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Delete this resume"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-3">
+                            <span>Template: {resume.template || 'tech'}</span>
+                            <span>•</span>
+                            <span>{resume.version_count || 0} versions</span>
+                            {resume.match_count && resume.match_count > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="text-green-600 font-semibold">{resume.match_count} matches</span>
+                              </>
+                            )}
+                          </div>
+                          {resume.recent_matches && resume.recent_matches.length > 0 && (
+                            <div className="space-y-2 pt-3 border-t border-blue-200">
+                              <div className="text-xs text-gray-600 mb-2 font-medium">Recent Matches:</div>
+                              {resume.recent_matches.map((match: any) => (
+                                <div
+                                  key={match.id}
+                                  className="p-2 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
+                                >
+                                  <div className="flex items-start justify-between gap-2 mb-1">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold text-gray-900 text-sm truncate">
+                                        {match.jd_title || 'Unknown Job'}
+                                      </div>
+                                      {match.jd_company && (
+                                        <div className="text-xs text-gray-600 truncate">
+                                          {match.jd_company}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <span
+                                        className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${
+                                          match.score >= 80 ? 'bg-green-100 text-green-700 border border-green-300' :
+                                          match.score >= 60 ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                                          'bg-orange-100 text-orange-700 border border-orange-300'
+                                        }`}
+                                      >
+                                        {match.score}%
+                                      </span>
+                                      {match.resume_version_number && (
+                                        <a
+                                          href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${match.resume_version_id}`}
+                                          target="_blank"
+                                          className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs hover:bg-blue-100 font-medium"
+                                          title="View resume version"
+                                        >
+                                          v{match.resume_version_number}
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {match.keyword_coverage !== null && match.keyword_coverage !== undefined && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      Keyword coverage: {match.keyword_coverage.toFixed(1)}%
+                                    </div>
+                                  )}
+                                  {match.created_at && (
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      Matched: {new Date(match.created_at).toLocaleDateString()}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {resume.updated_at && (
+                            <div className="text-xs text-gray-500 mt-2">
+                              Updated: {new Date(resume.updated_at).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Saved Job Descriptions Section */}
+                <div className="space-y-4 mt-8">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold text-gray-900">Saved Job Descriptions</h2>
                   <button
                     onClick={async () => {
-                      try {
-                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions`)
-                        if (res.ok) setSavedJDs(await res.json())
-                      } catch (e) {}
+                        if (!user?.email) return
+                        try {
+                          const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
+                          if (res.ok) {
+                            const data = await res.json()
+                            setSavedJDs(Array.isArray(data) ? data : data.results || [])
+                          }
+                        } catch (e) {
+                          console.error('Failed to refresh job descriptions:', e)
+                        }
                     }}
                     className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                   >
@@ -417,14 +668,53 @@ export default function ProfilePage() {
                                   </div>
                                 )}
                                 <button
-                                  onClick={async () => {
-                                    if (!confirm('Delete this saved job?')) return
+                                  onClick={async (e) => {
+                                    if (!confirm(`Are you sure you want to delete "${jd.title}"? This action cannot be undone.`)) return
+                                    
+                                    const deleteBtn = e.currentTarget
+                                    const originalText = deleteBtn.textContent
+                                    deleteBtn.disabled = true
+                                    deleteBtn.textContent = 'Deleting...'
+                                    
                                     try {
-                                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}`, { method: 'DELETE' })
-                                      if (res.ok) setSavedJDs((prev) => prev.filter((x) => x.id !== jd.id))
-                                    } catch (e) {}
+                                      const url = new URL(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}`)
+                                      if (user?.email) {
+                                        url.searchParams.append('user_email', user.email)
+                                      }
+                                      
+                                      const res = await fetch(url.toString(), { 
+                                        method: 'DELETE',
+                                        headers: {
+                                          'Content-Type': 'application/json'
+                                        }
+                                      })
+                                      
+                                      if (res.ok) {
+                                        // Remove from UI immediately
+                                        setSavedJDs((prev) => prev.filter((x) => x.id !== jd.id))
+                                        // Show success message
+                                        const successMsg = document.createElement('div')
+                                        successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+                                        successMsg.textContent = '✅ Job description deleted successfully'
+                                        document.body.appendChild(successMsg)
+                                        setTimeout(() => {
+                                          document.body.removeChild(successMsg)
+                                        }, 3000)
+                                      } else {
+                                        const errorData = await res.json().catch(() => ({ detail: 'Failed to delete job description' }))
+                                        alert(`Failed to delete: ${errorData.detail || 'Unknown error'}`)
+                                        deleteBtn.disabled = false
+                                        deleteBtn.textContent = originalText
+                                      }
+                                    } catch (e) {
+                                      console.error('Failed to delete job description:', e)
+                                      alert(`Failed to delete job description: ${e instanceof Error ? e.message : 'Network error'}`)
+                                      deleteBtn.disabled = false
+                                      deleteBtn.textContent = originalText
+                                    }
                                   }}
-                                  className="px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100"
+                                  className="px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Delete this job description"
                                 >
                                   Delete
                                 </button>
@@ -436,6 +726,7 @@ export default function ProfilePage() {
                     </table>
                   </div>
                 )}
+                </div>
               </div>
             )}
 

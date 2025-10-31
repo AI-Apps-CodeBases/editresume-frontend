@@ -116,13 +116,35 @@ export default function AIImprovementWidget({
 
       const result = await response.json()
       if (result.success) {
-        alert(`AI Improvement Applied!\n\n${result.improved_content}`)
+        const { showCustomAlert } = await import('@/lib/modals')
+        await showCustomAlert(
+          `AI Improvement Applied!\n\n${result.improved_content}`,
+          {
+            title: 'AI Improvement Applied!',
+            type: 'success',
+            icon: '✨'
+          }
+        )
       } else {
-        alert(`Failed to apply improvement: ${result.error}`)
+        const { showCustomAlert } = await import('@/lib/modals')
+        await showCustomAlert(
+          `Failed to apply improvement: ${result.error}`,
+          {
+            title: 'Error',
+            type: 'error'
+          }
+        )
       }
     } catch (error) {
       console.error('Improvement application error:', error)
-      alert('Failed to apply improvement. Please try again.')
+      const { showCustomAlert } = await import('@/lib/modals')
+      await showCustomAlert(
+        'Failed to apply improvement. Please try again.',
+        {
+          title: 'Error',
+          type: 'error'
+        }
+      )
     } finally {
       setIsApplyingImprovement(false)
     }

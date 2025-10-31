@@ -122,7 +122,15 @@ export default function EnhancedATSScoreWidget({
 
       const result = await response.json()
       if (result.success) {
-        alert(`AI Improvement Applied!\n\n${result.improved_content}`)
+        const { showCustomAlert } = await import('@/lib/modals')
+        await showCustomAlert(
+          `AI Improvement Applied!\n\n${result.improved_content}`,
+          {
+            title: 'AI Improvement Applied!',
+            type: 'success',
+            icon: '✨'
+          }
+        )
       } else {
         alert(`Failed to apply improvement: ${result.error}`)
       }
@@ -165,7 +173,18 @@ export default function EnhancedATSScoreWidget({
           ).join('\n') +
           `\n\n${result.remaining_improvements} more improvements available.`
         
-        if (confirm(improvementText + '\n\nWould you like to apply these improvements to your resume?')) {
+        const { showCustomConfirm } = await import('@/lib/modals')
+        const confirmed = await showCustomConfirm(
+          improvementText + '\n\nWould you like to apply these improvements to your resume?',
+          {
+            title: 'Apply ATS Improvements',
+            type: 'info',
+            icon: '🎯',
+            confirmText: 'Apply',
+            cancelText: 'Cancel'
+          }
+        )
+        if (confirmed) {
           // Update the resume data with improvements
           // This would typically call a parent callback to update the resume
           alert('Resume improvements applied! Your ATS score has been optimized.')
