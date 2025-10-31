@@ -40,6 +40,14 @@ export default function ProfilePage() {
       resume_version_id?: number | null
       created_at?: string
     } | null
+    all_matches?: Array<{
+      id: number
+      score: number
+      resume_id: number
+      resume_name?: string | null
+      resume_version_id?: number | null
+      created_at?: string
+    }>
   }>>([])
   const [loading, setLoading] = useState(true)
 
@@ -82,7 +90,24 @@ export default function ProfilePage() {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions`)
         if (res.ok) {
           const data = await res.json()
-          setSavedJDs(data || [])
+          const jds = Array.isArray(data) ? data : data.results || []
+          
+          // For each JD, fetch all match sessions to show all matched versions
+          const jdsWithMatches = await Promise.all(jds.map(async (jd: any) => {
+            try {
+              const matchesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}/matches`)
+              if (matchesRes.ok) {
+                const matchesData = await matchesRes.json()
+                jd.all_matches = Array.isArray(matchesData) ? matchesData : matchesData.matches || []
+              }
+            } catch (e) {
+              console.error('Failed to load matches for JD:', jd.id, e)
+              jd.all_matches = []
+            }
+            return jd
+          }))
+          
+          setSavedJDs(jdsWithMatches)
         }
       } catch (e) {
         console.error('Failed to load job descriptions', e)
@@ -341,23 +366,53 @@ export default function ProfilePage() {
                                   Analyze
                                 </a>
                                 {jd.last_match && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs">
-                                      Last export score: {jd.last_match?.score}
-                                    </span>
-                                    {jd.last_match?.resume_name && (
-                                      <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs">
-                                        Resume: {jd.last_match?.resume_name}
+                                  <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs font-semibold">
+                                        Latest Match: {jd.last_match?.score}%
                                       </span>
-                                    )}
-                                    {jd.last_match?.resume_version_id && (
-                                      <a
-                                        href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${jd.last_match?.resume_version_id}`}
-                                        className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs hover:bg-blue-100"
-                                        target="_blank"
-                                      >
-                                        View Version
-                                      </a>
+                                      {jd.last_match?.resume_name && (
+                                        <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs">
+                                          Resume: {jd.last_match?.resume_name}
+                                        </span>
+                                      )}
+                                      {jd.last_match?.resume_version_id && (
+                                        <a
+                                          href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${jd.last_match?.resume_version_id}`}
+                                          className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs hover:bg-blue-100"
+                                          target="_blank"
+                                        >
+                                          View Latest Version
+                                        </a>
+                                      )}
+                                    </div>
+                                    {jd.all_matches && jd.all_matches.length > 1 && (
+                                      <div className="mt-2 pt-2 border-t border-gray-200">
+                                        <div className="text-xs text-gray-600 mb-1 font-medium">All Matched Versions ({jd.all_matches.length}):</div>
+                                        <div className="flex flex-wrap gap-2">
+                                          {jd.all_matches.map((match: any, idx: number) => (
+                                            <div key={match.id} className="flex items-center gap-1">
+                                              <span className={`px-2 py-1 rounded text-xs ${
+                                                match.score >= 80 ? 'bg-green-100 text-green-700 border border-green-300' :
+                                                match.score >= 60 ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                                                'bg-orange-100 text-orange-700 border border-orange-300'
+                                              }`}>
+                                                {match.score}%
+                                              </span>
+                                              {match.resume_version_id && (
+                                                <a
+                                                  href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${match.resume_version_id}`}
+                                                  className="px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs hover:bg-blue-100"
+                                                  target="_blank"
+                                                  title={`Version from ${new Date(match.created_at).toLocaleDateString()}`}
+                                                >
+                                                  v{idx + 1}
+                                                </a>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
                                 )}

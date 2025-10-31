@@ -545,23 +545,66 @@ const EditorPageContent = () => {
       
       console.log('Export response status:', response.status)
       console.log('Export response ok:', response.ok)
-      // After successful export, record match session if a JD is active
-      if (response.ok && activeJobDescriptionId) {
+      // After successful export, save resume version and record match session if a JD is active
+      if (response.ok && activeJobDescriptionId && isAuthenticated && user?.email) {
         try {
-          await fetch(`${config.apiBase}/api/matches`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              resumeId: currentResumeId || undefined,
-              jobDescriptionId: activeJobDescriptionId,
-              user_email: user?.email || undefined,
-              resume_name: resumeData.name,
-              resume_title: resumeData.title,
-              resume_snapshot: exportData
-            })
-          })
+          // First, save or update resume and create a version
+          let resumeId = currentResumeId;
+          let resumeVersionId = null;
+          
+          try {
+            // Save resume and get version
+            const saveResumeRes = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: resumeData.name,
+                title: resumeData.title,
+                email: resumeData.email,
+                phone: resumeData.phone,
+                location: resumeData.location,
+                summary: resumeData.summary,
+                template: selectedTemplate,
+                sections: resumeData.sections
+              })
+            });
+            
+            if (saveResumeRes.ok) {
+              const saveData = await saveResumeRes.json();
+              resumeId = saveData.resume_id;
+              resumeVersionId = saveData.version_id;
+              
+              // Update current resume ID
+              if (!currentResumeId) {
+                // Store it for future use
+                localStorage.setItem('currentResumeId', String(resumeId));
+              }
+            }
+          } catch (e) {
+            console.error('Failed to save resume version:', e);
+          }
+          
+          // Then create match session with version ID
+          try {
+            await fetch(`${config.apiBase}/api/matches`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                resumeId: resumeId || undefined,
+                jobDescriptionId: activeJobDescriptionId,
+                user_email: user.email,
+                resume_name: resumeData.name,
+                resume_title: resumeData.title,
+                resume_snapshot: exportData,
+                resume_version_id: resumeVersionId || undefined
+              })
+            });
+            console.log('Match session recorded with resume version');
+          } catch (e) {
+            console.error('Failed to create match session:', e);
+          }
         } catch (e) {
-          console.log('Failed to create match session for export')
+          console.error('Failed to save matched resume:', e);
         }
       }
       
@@ -1169,9 +1212,9 @@ const EditorPageContent = () => {
               </div>
                 
                 {/* Two Column Layout for Visual Editor */}
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mobile-editor-grid">
-                  {/* Left - Visual Editor (Larger) */}
-                  <div className="lg:col-span-3 space-y-4 mobile-editor-full">
+                <div className="grid grid-cols-1 lg:grid-cols-7 gap-6 mobile-editor-grid">
+                  {/* Left - Visual Editor (More space for editing) */}
+                  <div className="lg:col-span-4 space-y-4 mobile-editor-full">
                     <VisualResumeEditor
                       data={resumeData}
                       onChange={handleResumeDataChange}
@@ -1211,8 +1254,8 @@ const EditorPageContent = () => {
                     />
                   </div>
 
-                  {/* Right - Live Preview (Smaller) */}
-                  <div className="lg:col-span-2 mobile-preview-bottom">
+                  {/* Right - Live Preview */}
+                  <div className="lg:col-span-3 mobile-preview-bottom">
                     <div className="sticky top-4">
                       <div className="bg-white rounded-xl shadow-lg p-4 border">
                           <div className="flex items-center justify-between mb-3">
@@ -1314,6 +1357,7 @@ const EditorPageContent = () => {
                                   }}
                                   initialJobDescription={deepLinkedJD || undefined}
                                   onSelectJobDescriptionId={(id) => setActiveJobDescriptionId(id)}
+                                  currentJobDescriptionId={activeJobDescriptionId}
                                 />
                               ) : (
                                 <EnhancedATSScoreWidget resumeData={resumeData as any} onClose={() => {}} inline={true} />

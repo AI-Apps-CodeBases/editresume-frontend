@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import config from '@/lib/config';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -41,6 +42,7 @@ interface JobDescriptionMatcherProps {
   standalone?: boolean; // If true, renders with popup wrapper
   initialJobDescription?: string;
   onSelectJobDescriptionId?: (id: number | null) => void;
+  currentJobDescriptionId?: number | null; // Pass the current JD ID
 }
 
 // Helper functions to extract metadata (same as extension)
@@ -129,7 +131,8 @@ interface JobMetadata {
   keywords?: string[];
 }
 
-export default function JobDescriptionMatcher({ resumeData, onMatchResult, onResumeUpdate, onClose, standalone = true, initialJobDescription, onSelectJobDescriptionId }: JobDescriptionMatcherProps) {
+export default function JobDescriptionMatcher({ resumeData, onMatchResult, onResumeUpdate, onClose, standalone = true, initialJobDescription, onSelectJobDescriptionId, currentJobDescriptionId }: JobDescriptionMatcherProps) {
+  const { user, isAuthenticated } = useAuth();
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [selectedJobMetadata, setSelectedJobMetadata] = useState<JobMetadata | null>(null);
   useEffect(() => {
@@ -392,113 +395,220 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-        <label htmlFor="job-description" className="block text-sm font-medium text-gray-700 mb-2">
-          Job Description
-        </label>
-        <textarea
-          id="job-description"
-          value={jobDescription}
-          onChange={(e) => {
-            setJobDescription(e.target.value);
-            // Clear metadata when user manually edits
-            if (selectedJobMetadata) setSelectedJobMetadata(null);
-          }}
-          placeholder="Paste the job description here... Example: 'We are looking for a DevOps Engineer with experience in AWS, Kubernetes, and CI/CD pipelines. The ideal candidate should have 3+ years of experience with infrastructure automation and monitoring tools.'"
-          className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-        />
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium text-gray-700">Saved Job Descriptions</div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column: Saved Jobs & Job Description Input */}
+        <div className="space-y-4">
+          {/* Saved Jobs (Top) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">Saved Jobs</label>
               <button
-              onClick={async () => {
-                setIsLoadingSaved(true);
-                try {
-                  const res = await fetch(`${config.apiBase}/api/job-descriptions`);
-                  if (res.ok) {
-                    const items = await res.json();
-                    const list = Array.isArray(items) ? items : Array.isArray(items?.results) ? items.results : [];
-                    setSavedJDs(list);
-                  } else {
-                    setSavedJDs([]);
-                  }
-                } catch (_) { setSavedJDs([]); }
-                setIsLoadingSaved(false);
-              }}
-              className="text-xs text-blue-600 hover:underline"
-            >
-              Refresh
-            </button>
-          </div>
-          <div className="border rounded-md max-h-40 overflow-y-auto">
+                onClick={async () => {
+                  setIsLoadingSaved(true);
+                  try {
+                    const res = await fetch(`${config.apiBase}/api/job-descriptions`);
+                    if (res.ok) {
+                      const items = await res.json();
+                      const list = Array.isArray(items) ? items : Array.isArray(items?.results) ? items.results : [];
+                      setSavedJDs(list);
+                    } else {
+                      setSavedJDs([]);
+                    }
+                  } catch (_) { setSavedJDs([]); }
+                  setIsLoadingSaved(false);
+                }}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Refresh
+              </button>
+            </div>
             {isLoadingSaved ? (
-              <div className="p-3 text-sm text-gray-500">Loading…</div>
+              <div className="p-3 text-sm text-gray-500 border rounded-md">Loading…</div>
             ) : savedJDs.length === 0 ? (
-              <div className="p-3 text-sm text-gray-500">No saved job descriptions yet.</div>
+              <div className="p-3 text-sm text-gray-500 border rounded-md">No saved job descriptions yet.</div>
             ) : (
-              <ul className="divide-y">
-                {savedJDs.map((jd) => (
-                  <li key={jd.id}>
-                    <button
-                      className="w-full text-left p-3 hover:bg-gray-50"
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}`);
-                          if (res.ok) {
-                            const full = await res.json();
-                            if (full && full.content) {
-                              setJobDescription(full.content);
-                              
-                              // Extract and set metadata (same as extension)
-                              const location = ''; // Could extract from full.location if available
-                              const metadata: JobMetadata = {
-                                title: full.title,
-                                company: full.company,
-                                jobType: extractJobType(full.content, location),
-                                remoteStatus: extractRemoteStatus(full.content, location),
-                                location: location,
-                                budget: extractBudget(full.content),
-                                keywords: extractTopKeywords(full.content),
-                                skills: extractSkills(full.content),
-                              };
-                              setSelectedJobMetadata(metadata);
+              <div className="border rounded-md max-h-48 overflow-y-auto">
+                <ul className="divide-y">
+                  {savedJDs.map((jd) => (
+                    <li key={jd.id}>
+                      <button
+                        className="w-full text-left p-3 hover:bg-gray-50 text-sm"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}`);
+                            if (res.ok) {
+                              const full = await res.json();
+                              if (full && full.content) {
+                                setJobDescription(full.content);
+                                
+                                const location = '';
+                                const metadata: JobMetadata = {
+                                  title: full.title,
+                                  company: full.company,
+                                  jobType: extractJobType(full.content, location),
+                                  remoteStatus: extractRemoteStatus(full.content, location),
+                                  location: location,
+                                  budget: extractBudget(full.content),
+                                  keywords: extractTopKeywords(full.content),
+                                  skills: extractSkills(full.content),
+                                };
+                                setSelectedJobMetadata(metadata);
+                              }
+                              if (onSelectJobDescriptionId) onSelectJobDescriptionId(jd.id)
                             }
-                            if (onSelectJobDescriptionId) onSelectJobDescriptionId(jd.id)
-                          }
-                        } catch (_) {}
-                      }}
-                    >
-                      <div className="text-sm font-semibold text-gray-800 line-clamp-1">{jd.title}</div>
-                      {jd.company && <div className="text-xs text-gray-500">{jd.company}</div>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                          } catch (_) {}
+                        }}
+                      >
+                        <div className="text-sm font-semibold text-gray-800 line-clamp-1">{jd.title}</div>
+                        {jd.company && <div className="text-xs text-gray-500">{jd.company}</div>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
+
+          {/* Job Description Input */}
+          <div>
+            <label htmlFor="job-description" className="block text-sm font-medium text-gray-700 mb-2">
+              Job Description
+            </label>
+            <textarea
+              id="job-description"
+              value={jobDescription}
+              onChange={(e) => {
+                setJobDescription(e.target.value);
+                // Extract metadata when user types
+                if (e.target.value.trim()) {
+                  const location = '';
+                  const metadata: JobMetadata = {
+                    title: undefined,
+                    company: undefined,
+                    jobType: extractJobType(e.target.value, location),
+                    remoteStatus: extractRemoteStatus(e.target.value, location),
+                    location: location,
+                    budget: extractBudget(e.target.value),
+                    keywords: extractTopKeywords(e.target.value),
+                    skills: extractSkills(e.target.value),
+                  };
+                  setSelectedJobMetadata(metadata);
+                } else {
+                  setSelectedJobMetadata(null);
+                }
+              }}
+              placeholder="Paste the job description here..."
+              className="w-full h-96 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+            />
+          </div>
+
+          {/* Analyze Button */}
+          <div>
+            <button
+              onClick={analyzeMatch}
+              disabled={isAnalyzing || !jobDescription.trim()}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
+            </button>
+          </div>
+
+          {error && (
+            <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
+              {error}
+            </div>
+          )}
         </div>
-      </div>
 
-      <button
-        onClick={analyzeMatch}
-        disabled={isAnalyzing || !jobDescription.trim()}
-        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-      >
-        {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
-      </button>
+        {/* Right Column: Metadata Graphics */}
+        <div className="space-y-4">
+          {selectedJobMetadata || jobDescription ? (
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 rounded-lg p-6 space-y-6">
+              {/* Job Title & Company */}
+              {(selectedJobMetadata?.title || jobDescription) && (
+                <div>
+                  {selectedJobMetadata?.title && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xl">📌</span>
+                      <h3 className="text-lg font-bold text-gray-900">{selectedJobMetadata.title}</h3>
+                    </div>
+                  )}
+                  {selectedJobMetadata?.company && (
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-lg">🏢</span>
+                      <span className="text-base font-semibold text-gray-700">{selectedJobMetadata.company}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
-      {error && (
-        <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-          {error}
-        </div>
-      )}
+              {/* Job Metadata Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                {selectedJobMetadata?.jobType && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span>💼</span>
+                      <span className="text-xs font-semibold text-gray-600 uppercase">Job Type</span>
+                    </div>
+                    <div className="text-sm font-bold text-gray-900">{selectedJobMetadata.jobType}</div>
+                  </div>
+                )}
+                {selectedJobMetadata?.remoteStatus && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span>🌐</span>
+                      <span className="text-xs font-semibold text-gray-600 uppercase">Location</span>
+                    </div>
+                    <div className="text-sm font-bold text-gray-900">{selectedJobMetadata.remoteStatus}</div>
+                  </div>
+                )}
+                {selectedJobMetadata?.budget && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200 col-span-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span>💰</span>
+                      <span className="text-xs font-semibold text-gray-600 uppercase">Budget</span>
+                    </div>
+                    <div className="text-sm font-bold text-green-600">{selectedJobMetadata.budget}</div>
+                  </div>
+                )}
+              </div>
 
-      {matchResult && (
-        <div className="mt-6 space-y-6">
-          {/* Overall Score + Gauge */}
+              {/* Technical Skills */}
+              {selectedJobMetadata?.skills && selectedJobMetadata.skills.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <span>⚙️</span> Technical Skills
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedJobMetadata.skills.map((skill, idx) => (
+                      <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-500 to-green-600 text-white">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Top Keywords */}
+              {selectedJobMetadata?.keywords && selectedJobMetadata.keywords.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <span>📊</span> Top Keywords
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedJobMetadata.keywords.map((keyword, idx) => (
+                      <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Match Results (if available) */}
+              {matchResult ? (
+            <div className="space-y-6">
+              {/* Overall Score + Gauge */}
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="text-lg font-semibold text-gray-900 mb-3">Match Analysis</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -597,43 +707,43 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             </div>
           )}
 
-          {/* Technical Skills Analysis */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {matchResult.match_analysis.technical_matches.length > 0 && (
-              <div>
-                <h5 className="font-semibold text-gray-900 mb-2">Technical Skills Match</h5>
-                <div className="flex flex-wrap gap-1">
-                  {matchResult.match_analysis.technical_matches.map((skill, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+              {/* Technical Skills Analysis */}
+              <div className="grid grid-cols-1 gap-4">
+                {matchResult.match_analysis.technical_matches.length > 0 && (
+                  <div>
+                    <h5 className="font-semibold text-gray-900 mb-2 text-sm">Technical Skills Match</h5>
+                    <div className="flex flex-wrap gap-1">
+                      {matchResult.match_analysis.technical_matches.map((skill, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-            {matchResult.match_analysis.technical_missing.length > 0 && (
-              <div>
-                <h5 className="font-semibold text-gray-900 mb-2">Missing Technical Skills</h5>
-                <div className="flex flex-wrap gap-1">
-                  {matchResult.match_analysis.technical_missing.map((skill, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+                {matchResult.match_analysis.technical_missing.length > 0 && (
+                  <div>
+                    <h5 className="font-semibold text-gray-900 mb-2 text-sm">Missing Technical Skills</h5>
+                    <div className="flex flex-wrap gap-1">
+                      {matchResult.match_analysis.technical_missing.map((skill, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Improve Resume Button */}
-          <div className="mt-6 pt-4 border-t border-gray-200">
+              {/* Improve Resume & Save Buttons */}
+              <div className="pt-4 border-t border-gray-200 space-y-3">
             <button
               onClick={async () => {
                 if (!jobDescription.trim()) {
@@ -670,9 +780,86 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </>
               )}
             </button>
+            
+            {matchResult && currentJobDescriptionId && (
+              <button
+                onClick={async () => {
+                  if (!currentJobDescriptionId) {
+                    alert('Please select a job description first');
+                    return;
+                  }
+                  
+                  try {
+                    // Get user email from auth context
+                    if (!isAuthenticated || !user?.email) {
+                      alert('Please sign in to save resumes to your profile');
+                      return;
+                    }
+                    
+                    const userEmail = user.email;
+                    
+                    // Save resume version
+                    const saveRes = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(userEmail)}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        name: resumeData.name,
+                        title: resumeData.title,
+                        email: resumeData.email,
+                        phone: resumeData.phone,
+                        location: resumeData.location,
+                        summary: resumeData.summary,
+                        template: 'tech', // Default template
+                        sections: resumeData.sections || []
+                      })
+                    });
+                    
+                    if (!saveRes.ok) throw new Error('Failed to save resume');
+                    
+                    const saveData = await saveRes.json();
+                    
+                    // Create match session
+                    await fetch(`${config.apiBase}/api/matches`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        resumeId: saveData.resume_id,
+                        jobDescriptionId: currentJobDescriptionId,
+                        user_email: userEmail,
+                        resume_name: resumeData.name,
+                        resume_title: resumeData.title,
+                        resume_snapshot: resumeData,
+                        resume_version_id: saveData.version_id
+                      })
+                    });
+                    
+                    alert(`✅ Resume saved to Profile/Jobs with match score: ${matchResult.match_analysis.similarity_score}%`);
+                  } catch (error) {
+                    console.error('Failed to save to jobs:', error);
+                    alert('Failed to save resume to jobs. Please try again.');
+                  }
+                }}
+                className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Save to Profile/Jobs</span>
+              </button>
+            )}
           </div>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 rounded-lg p-8 text-center border-2 border-dashed border-gray-300">
+              <div className="text-gray-400 mb-2 text-4xl">📋</div>
+              <p className="text-sm text-gray-500 font-medium">Job metadata will appear here</p>
+              <p className="text-xs text-gray-400 mt-1">Paste a job description to extract information</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 

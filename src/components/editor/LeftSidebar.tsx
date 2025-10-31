@@ -300,7 +300,7 @@ export default function LeftSidebar({ resumeData, onResumeUpdate, onApplySuggest
   return (
     <>
       {/* Sidebar */}
-      <div className="w-56 bg-white border-r border-gray-200 shadow-xl flex flex-col h-full">
+      <div className="w-40 bg-white border-r border-gray-200 shadow-xl flex flex-col h-full">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
           <div className="flex items-center justify-between">
