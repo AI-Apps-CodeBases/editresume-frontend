@@ -2,12 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import config from '@/lib/config';
-import dynamic from 'next/dynamic';
-
-const ImproveResumeButton = dynamic(
-  () => import('./ImproveResumeButton'),
-  { ssr: false }
-);
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -640,23 +634,42 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
           {/* Improve Resume Button */}
           <div className="mt-6 pt-4 border-t border-gray-200">
-            <ImproveResumeButton
-              jobDescription={jobDescription}
-              resumeData={resumeData}
-              onImprovementGenerated={(improvements) => {
-                console.log('Improvement suggestions:', improvements);
-                // Clean and parse improvements before showing
-                if (improvements && improvements.length > 0) {
-                  const cleanedImprovements = improvements.map((imp: any) => ({
-                    category: imp.category || 'General',
-                    suggestion: parseSuggestionText(imp.suggestion || imp.description || JSON.stringify(imp))
-                  }));
-                  setPendingImprovements(cleanedImprovements);
-                  setShowImprovementsModal(true);
+            <button
+              onClick={async () => {
+                if (!jobDescription.trim()) {
+                  alert('Please enter a job description first');
+                  return;
+                }
+                setIsApplying(true);
+                try {
+                  await applyImprovementsToResume(matchResult.improvement_suggestions || []);
+                } catch (error) {
+                  console.error('Failed to improve resume:', error);
+                  alert('Failed to improve resume. Please try again.');
+                } finally {
+                  setIsApplying(false);
                 }
               }}
-              className="w-full"
-            />
+              disabled={isApplying || !jobDescription.trim()}
+              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center space-x-2"
+            >
+              {isApplying ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Generating Improvements...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span>Improve My Resume for This Job</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}
