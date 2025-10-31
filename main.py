@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request, Query
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -4093,13 +4093,27 @@ async def websocket_collab(websocket: WebSocket, room_id: str):
 # Version Control Endpoints
 
 @app.post("/api/resume/save")
-async def save_resume(payload: SaveResumePayload, user_email: str, db: Session = Depends(get_db)):
+async def save_resume(payload: SaveResumePayload, user_email: str = Query(..., description="User email for authentication"), db: Session = Depends(get_db)):
     """Save or update a resume with version control"""
     try:
+        if not user_email:
+            logger.error("save_resume: user_email is required")
+            raise HTTPException(status_code=400, detail="user_email is required")
+        
+        logger.info(f"save_resume: Attempting to save resume for user {user_email}, resume name: {payload.name}")
+        
         # Get user from database
         user = db.query(User).filter(User.email == user_email).first()
         if not user:
+            logger.error(f"save_resume: User not found for email {user_email}")
             raise HTTPException(status_code=404, detail="User not found")
+        
+        logger.info(f"save_resume: User found with id {user.id}")
+        
+        # Validate payload
+        if not payload.name or not payload.name.strip():
+            logger.error(f"save_resume: Resume name is required")
+            raise HTTPException(status_code=400, detail="Resume name is required")
         
         # Check if resume exists
         resume = db.query(Resume).filter(
@@ -4107,67 +4121,115 @@ async def save_resume(payload: SaveResumePayload, user_email: str, db: Session =
             Resume.name == payload.name
         ).first()
         
-        if resume:
-            # Update existing resume
-            resume.title = payload.title
-            resume.email = payload.email
-            resume.phone = payload.phone
-            resume.location = payload.location
-            resume.summary = payload.summary
-            resume.template = payload.template
-            resume.updated_at = datetime.utcnow()
-            db.commit()
-            db.refresh(resume)
-        else:
-            # Create new resume
-            resume = Resume(
+        try:
+            if resume:
+                # Update existing resume
+                logger.info(f"save_resume: Updating existing resume id {resume.id}")
+                resume.title = payload.title
+                resume.email = payload.email
+                resume.phone = payload.phone
+                resume.location = payload.location
+                resume.summary = payload.summary
+                resume.template = payload.template or "tech"
+                resume.updated_at = datetime.utcnow()
+                db.commit()
+                db.refresh(resume)
+            else:
+                # Create new resume
+                logger.info(f"save_resume: Creating new resume")
+                resume = Resume(
+                    user_id=user.id,
+                    name=payload.name,
+                    title=payload.title or "",
+                    email=payload.email or "",
+                    phone=payload.phone or "",
+                    location=payload.location or "",
+                    summary=payload.summary or "",
+                    template=payload.template or "tech"
+                )
+                db.add(resume)
+                db.commit()
+                db.refresh(resume)
+                logger.info(f"save_resume: Created resume with id {resume.id}")
+            
+            # Create version with safe section processing
+            version_service = VersionControlService(db)
+            
+            # Safely process sections to handle missing attributes
+            sections_data = []
+            for s in payload.sections or []:
+                try:
+                    section_id = getattr(s, 'id', str(datetime.utcnow().timestamp()))
+                    section_title = getattr(s, 'title', 'Untitled Section')
+                    bullets_data = []
+                    
+                    for b in getattr(s, 'bullets', []):
+                        try:
+                            bullet_id = getattr(b, 'id', str(datetime.utcnow().timestamp()))
+                            bullet_text = getattr(b, 'text', '')
+                            bullet_params = getattr(b, 'params', {})
+                            if not isinstance(bullet_params, dict):
+                                bullet_params = {}
+                            bullets_data.append({
+                                "id": str(bullet_id),
+                                "text": str(bullet_text),
+                                "params": bullet_params
+                            })
+                        except Exception as bullet_error:
+                            logger.warning(f"save_resume: Error processing bullet: {bullet_error}")
+                            continue
+                    
+                    sections_data.append({
+                        "id": str(section_id),
+                        "title": str(section_title),
+                        "bullets": bullets_data
+                    })
+                except Exception as section_error:
+                    logger.warning(f"save_resume: Error processing section: {section_error}")
+                    continue
+            
+            resume_data = {
+                "personalInfo": {
+                    "name": payload.name or "",
+                    "email": payload.email or "",
+                    "phone": payload.phone or "",
+                    "location": payload.location or ""
+                },
+                "summary": payload.summary or "",
+                "sections": sections_data
+            }
+            
+            logger.info(f"save_resume: Creating version with {len(sections_data)} sections")
+            version = version_service.create_version(
                 user_id=user.id,
-                name=payload.name,
-                title=payload.title,
-                email=payload.email,
-                phone=payload.phone,
-                location=payload.location,
-                summary=payload.summary,
-                template=payload.template
+                resume_id=resume.id,
+                resume_data=resume_data,
+                change_summary="Manual save",
+                is_auto_save=False
             )
-            db.add(resume)
-            db.commit()
-            db.refresh(resume)
+            
+            logger.info(f"save_resume: Successfully saved resume id {resume.id}, version id {version.id}")
+            
+            return {
+                "success": True,
+                "resume_id": resume.id,
+                "version_id": version.id,
+                "message": "Resume saved successfully"
+            }
+            
+        except Exception as db_error:
+            db.rollback()
+            logger.error(f"save_resume: Database error: {str(db_error)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Database error: {str(db_error)}")
         
-        # Create version
-        version_service = VersionControlService(db)
-        resume_data = {
-            "personalInfo": {
-                "name": payload.name,
-                "email": payload.email,
-                "phone": payload.phone,
-                "location": payload.location
-            },
-            "summary": payload.summary,
-            "sections": [{"id": s.id, "title": s.title, "bullets": [{"id": b.id, "text": b.text, "params": b.params} for b in s.bullets]} for s in payload.sections]
-        }
-        
-        version = version_service.create_version(
-            user_id=user.id,
-            resume_id=resume.id,
-            resume_data=resume_data,
-            change_summary="Manual save",
-            is_auto_save=False
-        )
-        
-        return {
-            "success": True,
-            "resume_id": resume.id,
-            "version_id": version.id,
-            "message": "Resume saved successfully"
-        }
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error saving resume: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save resume")
+        logger.error(f"save_resume: Unexpected error saving resume for {user_email}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save resume: {str(e)}")
 
 @app.post("/api/resume/version/create")
-async def create_version(payload: CreateVersionPayload, user_email: str, db: Session = Depends(get_db)):
+async def create_version(payload: CreateVersionPayload, user_email: str = Query(..., description="User email for authentication"), db: Session = Depends(get_db)):
     """Create a new version of a resume"""
     try:
         user = db.query(User).filter(User.email == user_email).first()
