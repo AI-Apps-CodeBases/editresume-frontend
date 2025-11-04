@@ -1,7 +1,7 @@
 'use client'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import SettingsPanel from '@/components/SettingsPanel'
 
 interface ResumeHistory {
@@ -19,7 +19,7 @@ interface PaymentHistory {
   plan: string
 }
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const { user, isAuthenticated, logout } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -900,6 +900,21 @@ export default function ProfilePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-bounce">📄</div>
+          <p className="text-xl text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    }>
+      <ProfilePageContent />
+    </Suspense>
   )
 }
 
