@@ -101,8 +101,36 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
                              sectionTitle.toLowerCase().includes('work') || 
                              sectionTitle.toLowerCase().includes('employment')
     
-    // Filter out empty bullets but keep all non-empty ones
-    const validBullets = bullets.filter(b => b.text && b.text.trim())
+    // Filter out empty bullets and hidden bullets (visible: false)
+    // For work experience, also hide bullets if their parent company header is hidden
+    let validBullets: any[] = []
+    
+    if (isWorkExperience) {
+      // For work experience, process headers and their associated bullets
+      let currentHeaderVisible = true
+      for (let i = 0; i < bullets.length; i++) {
+        const bullet = bullets[i]
+        const isHeader = bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)
+        
+        if (isHeader) {
+          // Check if this header is visible
+          currentHeaderVisible = bullet.params?.visible !== false && bullet.text?.trim()
+          if (currentHeaderVisible) {
+            validBullets.push(bullet)
+          }
+        } else {
+          // This is a bullet point - only include if current header is visible and bullet itself is visible
+          if (currentHeaderVisible && bullet.params?.visible !== false && bullet.text?.trim()) {
+            validBullets.push(bullet)
+          }
+        }
+      }
+    } else {
+      // For non-work experience sections, just filter by visibility
+      validBullets = bullets.filter(b => 
+        b.text && b.text.trim() && b.params?.visible !== false
+      )
+    }
     
     if (validBullets.length === 0) {
       return <div className="text-gray-500 text-sm">No content available</div>
@@ -214,14 +242,14 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
       </div>
 
         <div className={`space-y-6 ${fontFamily}`}>
-        {data.name && (
+        {data.name && (data as any).fieldsVisible?.name !== false && (
           <div className={`${headerAlign === 'center' ? 'text-center' : 'text-left'} ${headerBorder} pb-4`}>
             <h1 className="text-3xl font-bold">{applyReplacements(data.name)}</h1>
-            {data.title && <p className="text-lg text-gray-700 mt-1">{applyReplacements(data.title)}</p>}
+            {data.title && (data as any).fieldsVisible?.title !== false && <p className="text-lg text-gray-700 mt-1">{applyReplacements(data.title)}</p>}
             <div className={`flex items-center ${headerAlign === 'center' ? 'justify-center' : 'justify-start'} gap-3 mt-2 text-sm text-gray-600`}>
-              {data.email && <span>{applyReplacements(data.email)}</span>}
-              {data.phone && <span>• {applyReplacements(data.phone)}</span>}
-              {data.location && <span>• {applyReplacements(data.location)}</span>}
+              {data.email && (data as any).fieldsVisible?.email !== false && <span>{applyReplacements(data.email)}</span>}
+              {data.phone && (data as any).fieldsVisible?.phone !== false && <span>• {applyReplacements(data.phone)}</span>}
+              {data.location && (data as any).fieldsVisible?.location !== false && <span>• {applyReplacements(data.location)}</span>}
             </div>
           </div>
         )}
@@ -230,7 +258,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
         {isTwoColumn ? (
           <div className="grid gap-8" style={{ gridTemplateColumns: `${leftWidth}% ${100 - leftWidth}%` }}>
             <div className="space-y-6">
-              {data.summary && (
+              {data.summary && (data as any).fieldsVisible?.summary !== false && (
                 <div>
                   <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
                     Professional Summary
@@ -244,7 +272,9 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               {/* Page Layout Indicator - After Summary */}
               {data.summary && <hr className="page-layout-indicator" />}
 
-              {data.sections.filter((s) => leftSectionIds.includes(s.id)).map((section) => (
+              {data.sections.filter((s) => 
+                leftSectionIds.includes(s.id) && s.params?.visible !== false
+              ).map((section) => (
                 <div key={section.id}>
                   <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
                     {applyReplacements(section.title)}
@@ -255,7 +285,9 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
             </div>
             
             <div className="space-y-6">
-              {data.sections.filter((s) => rightSectionIds.includes(s.id)).map((section) => (
+              {data.sections.filter((s) => 
+                rightSectionIds.includes(s.id) && s.params?.visible !== false
+              ).map((section) => (
                 <div key={section.id}>
                   <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
                     {applyReplacements(section.title)}
@@ -267,7 +299,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
           </div>
         ) : (
           <>
-            {data.summary && (
+            {data.summary && (data as any).fieldsVisible?.summary !== false && (
               <div>
                 <p className="text-sm leading-relaxed text-gray-700">
                   {applyReplacements(data.summary)}
@@ -275,7 +307,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               </div>
             )}
 
-            {data.sections.map((section) => (
+            {data.sections.filter((s) => s.params?.visible !== false).map((section) => (
               <div key={section.id}>
                 <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
                   {applyReplacements(section.title)}

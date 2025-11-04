@@ -828,58 +828,128 @@ export default function VisualResumeEditor({
         <div className="p-6 lg:p-12">
           {/* Header Section */}
           <div className="text-center mb-8 pb-6 border-b-2 border-gray-300">
-            <div
-              contentEditable
-              suppressContentEditableWarning
-              data-editable-type="field"
-              data-field="name"
-              onBlur={(e) => updateField('name', e.currentTarget.textContent || '')}
-              className="text-4xl font-bold text-gray-900 mb-2 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
-            >
-              {data.name || 'Click to edit name'}
-            </div>
-            <div
-              contentEditable
-              suppressContentEditableWarning
-              data-editable-type="field"
-              data-field="title"
-              onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
-              className="text-xl text-gray-600 mb-3 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
-            >
-              {data.title || 'Click to edit title'}
-            </div>
-            <div className="flex justify-center gap-4 text-sm text-gray-600 flex-wrap">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <input
+                type="checkbox"
+                checked={(data as any).fieldsVisible?.name !== false}
+                onChange={(e) => {
+                  const fieldsVisible = { ...(data as any).fieldsVisible, name: e.target.checked }
+                  onChange({ ...data, fieldsVisible })
+                }}
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                title="Toggle name visibility in preview"
+              />
               <div
                 contentEditable
                 suppressContentEditableWarning
                 data-editable-type="field"
-                data-field="email"
-                onBlur={(e) => updateField('email', e.currentTarget.textContent || '')}
-                className="outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
+                data-field="name"
+                onBlur={(e) => updateField('name', e.currentTarget.textContent || '')}
+                className={`text-4xl font-bold mb-2 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                  (data as any).fieldsVisible?.name === false ? 'text-gray-400 line-through' : 'text-gray-900'
+                }`}
               >
-                {data.email || '📧 email'}
+                {data.name || 'Click to edit name'}
+              </div>
+            </div>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <input
+                type="checkbox"
+                checked={(data as any).fieldsVisible?.title !== false}
+                onChange={(e) => {
+                  const fieldsVisible = { ...(data as any).fieldsVisible, title: e.target.checked }
+                  onChange({ ...data, fieldsVisible })
+                }}
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                title="Toggle title visibility in preview"
+              />
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                data-editable-type="field"
+                data-field="title"
+                onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
+                className={`text-xl mb-3 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                  (data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-600'
+                }`}
+              >
+                {data.title || 'Click to edit title'}
+              </div>
+            </div>
+            <div className="flex justify-center gap-4 text-sm text-gray-600 flex-wrap items-center">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={(data as any).fieldsVisible?.email !== false}
+                  onChange={(e) => {
+                    const fieldsVisible = { ...(data as any).fieldsVisible, email: e.target.checked }
+                    onChange({ ...data, fieldsVisible })
+                  }}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  title="Toggle email visibility in preview"
+                />
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-editable-type="field"
+                  data-field="email"
+                  onBlur={(e) => updateField('email', e.currentTarget.textContent || '')}
+                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                    (data as any).fieldsVisible?.email === false ? 'text-gray-400 line-through' : ''
+                  }`}
+                >
+                  {data.email || '📧 email'}
+                </div>
               </div>
               <span className="text-gray-400">•</span>
-              <div
-                contentEditable
-                suppressContentEditableWarning
-                data-editable-type="field"
-                data-field="phone"
-                onBlur={(e) => updateField('phone', e.currentTarget.textContent || '')}
-                className="outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
-              >
-                {data.phone || '📱 phone'}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={(data as any).fieldsVisible?.phone !== false}
+                  onChange={(e) => {
+                    const fieldsVisible = { ...(data as any).fieldsVisible, phone: e.target.checked }
+                    onChange({ ...data, fieldsVisible })
+                  }}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  title="Toggle phone visibility in preview"
+                />
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-editable-type="field"
+                  data-field="phone"
+                  onBlur={(e) => updateField('phone', e.currentTarget.textContent || '')}
+                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                    (data as any).fieldsVisible?.phone === false ? 'text-gray-400 line-through' : ''
+                  }`}
+                >
+                  {data.phone || '📱 phone'}
+                </div>
               </div>
               <span className="text-gray-400">•</span>
-              <div
-                contentEditable
-                suppressContentEditableWarning
-                data-editable-type="field"
-                data-field="location"
-                onBlur={(e) => updateField('location', e.currentTarget.textContent || '')}
-                className="outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
-              >
-                {data.location || '📍 location'}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={(data as any).fieldsVisible?.location !== false}
+                  onChange={(e) => {
+                    const fieldsVisible = { ...(data as any).fieldsVisible, location: e.target.checked }
+                    onChange({ ...data, fieldsVisible })
+                  }}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  title="Toggle location visibility in preview"
+                />
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-editable-type="field"
+                  data-field="location"
+                  onBlur={(e) => updateField('location', e.currentTarget.textContent || '')}
+                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                    (data as any).fieldsVisible?.location === false ? 'text-gray-400 line-through' : ''
+                  }`}
+                >
+                  {data.location || '📍 location'}
+                </div>
               </div>
             </div>
           </div>
@@ -889,7 +959,21 @@ export default function VisualResumeEditor({
           {/* Professional Summary Section */}
           <div className="mb-6 bg-blue-50 rounded-lg p-4 border border-blue-200">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-blue-900">Professional Summary</h3>
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={(data as any).fieldsVisible?.summary !== false}
+                  onChange={(e) => {
+                    const fieldsVisible = { ...(data as any).fieldsVisible, summary: e.target.checked }
+                    onChange({ ...data, fieldsVisible })
+                  }}
+                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  title="Toggle summary visibility in preview"
+                />
+                <h3 className={`text-sm font-bold ${
+                  (data as any).fieldsVisible?.summary === false ? 'text-gray-400 line-through' : 'text-blue-900'
+                }`}>Professional Summary</h3>
+              </div>
               <button
                 onClick={generateSummaryFromExperience}
                 disabled={isSummaryGenerating || !data.sections.length}
@@ -962,15 +1046,33 @@ export default function VisualResumeEditor({
 
                 {/* Section Title */}
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <div
-                    contentEditable
-                    suppressContentEditableWarning
-                    data-editable-type="section-title"
-                    data-section-id={section.id}
-                    onBlur={(e) => updateSection(section.id, { title: e.currentTarget.textContent || '' })}
-                    className="text-xl font-bold text-gray-900 uppercase tracking-wide outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text flex-1"
-                  >
-                    {section.title}
+                  <div className="flex items-center gap-3 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={section.params?.visible !== false}
+                      onChange={(e) => {
+                        const sections = data.sections.map(s =>
+                          s.id === section.id
+                            ? { ...s, params: { ...s.params, visible: e.target.checked } }
+                            : s
+                        )
+                        onChange({ ...data, sections })
+                      }}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                      title="Toggle section visibility in preview"
+                    />
+                    <div
+                      contentEditable
+                      suppressContentEditableWarning
+                      data-editable-type="section-title"
+                      data-section-id={section.id}
+                      onBlur={(e) => updateSection(section.id, { title: e.currentTarget.textContent || '' })}
+                      className={`text-xl font-bold uppercase tracking-wide outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text flex-1 ${
+                        section.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
+                      }`}
+                    >
+                      {section.title}
+                    </div>
                   </div>
                   {roomId && onAddComment && (
                     <button
@@ -1080,8 +1182,29 @@ export default function VisualResumeEditor({
                           >
                             {/* Company Header with Controls */}
                             <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                              <div className="flex items-center gap-3 flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={bullet.params?.visible !== false}
+                                  onChange={(e) => {
+                                    const sections = data.sections.map(s =>
+                                      s.id === section.id
+                                        ? {
+                                            ...s,
+                                            bullets: s.bullets.map(b =>
+                                              b.id === bullet.id
+                                                ? { ...b, params: { ...b.params, visible: e.target.checked } }
+                                                : b
+                                            )
+                                          }
+                                        : s
+                                    )
+                                    onChange({ ...data, sections })
+                                  }}
+                                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                                  title="Toggle this work experience entry visibility in preview"
+                                />
+                                <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
                                 <div className="flex-1">
                                   <div 
                                     contentEditable
@@ -1093,7 +1216,9 @@ export default function VisualResumeEditor({
                                       const newText = `**${e.currentTarget.textContent || 'Company Name'} / ${jobTitle} / ${dateRange}**`
                                       updateBullet(section.id, bullet.id, newText)
                                     }}
-                                    className="text-lg font-bold text-gray-900 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
+                                    className={`text-lg font-bold outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                                      bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
+                                    }`}
                                   >
                                     {companyName}
                                   </div>
@@ -1107,7 +1232,9 @@ export default function VisualResumeEditor({
                                       const newText = `**${companyName} / ${e.currentTarget.textContent || 'Job Title'} / ${dateRange}**`
                                       updateBullet(section.id, bullet.id, newText)
                                     }}
-                                    className="text-sm text-gray-600 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
+                                    className={`text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                                      bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-600'
+                                    }`}
                                   >
                                     {jobTitle}
                                   </div>
@@ -1191,6 +1318,27 @@ export default function VisualResumeEditor({
                               <div className="space-y-3">
                                 {companyBullets.map((companyBullet, bulletIdx) => (
                                   <div key={companyBullet.id} className="group flex items-start gap-3">
+                                    <input
+                                      type="checkbox"
+                                      checked={companyBullet.params?.visible !== false}
+                                      onChange={(e) => {
+                                        const sections = data.sections.map(s =>
+                                          s.id === section.id
+                                            ? {
+                                                ...s,
+                                                bullets: s.bullets.map(b =>
+                                                  b.id === companyBullet.id
+                                                    ? { ...b, params: { ...b.params, visible: e.target.checked } }
+                                                    : b
+                                                )
+                                              }
+                                            : s
+                                        )
+                                        onChange({ ...data, sections })
+                                      }}
+                                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
+                                      title="Toggle bullet visibility in preview"
+                                    />
                                     <div className="w-2 h-2 bg-black rounded-full mt-2 flex-shrink-0"></div>
                                     <div
                                       contentEditable
@@ -1199,7 +1347,9 @@ export default function VisualResumeEditor({
                                       data-section-id={section.id}
                                       data-bullet-id={companyBullet.id}
                                       onBlur={(e) => updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '')}
-                                      className="flex-1 text-sm text-gray-700 outline-none hover:bg-white focus:bg-white px-2 py-1 rounded transition-colors cursor-text"
+                                      className={`flex-1 text-sm outline-none hover:bg-white focus:bg-white px-2 py-1 rounded transition-colors cursor-text ${
+                                        companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                      }`}
                                     >
                                       {companyBullet.text.replace(/^•\s*/, '')}
                                     </div>
@@ -1288,6 +1438,27 @@ export default function VisualResumeEditor({
                           >
                             {/* Simple Bullet Point */}
                             <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={bullet.params?.visible !== false}
+                                onChange={(e) => {
+                                  const sections = data.sections.map(s =>
+                                    s.id === section.id
+                                      ? {
+                                          ...s,
+                                          bullets: s.bullets.map(b =>
+                                            b.id === bullet.id
+                                              ? { ...b, params: { ...b.params, visible: e.target.checked } }
+                                              : b
+                                          )
+                                        }
+                                      : s
+                                  )
+                                  onChange({ ...data, sections })
+                                }}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
+                                title="Toggle bullet visibility in preview"
+                              />
                               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
                               <div className="flex-1">
                                 <div 
@@ -1297,7 +1468,9 @@ export default function VisualResumeEditor({
                                   data-section-id={section.id}
                                   data-bullet-id={bullet.id}
                                   onBlur={(e) => updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')}
-                                  className="text-sm text-gray-700 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
+                                  className={`text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                                    bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                  }`}
                                 >
                                   {bullet.text.replace(/^•\s*/, '')}
                                 </div>

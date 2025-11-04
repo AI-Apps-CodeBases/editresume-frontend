@@ -146,6 +146,169 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [showImprovementsModal, setShowImprovementsModal] = useState(false);
   const [pendingImprovements, setPendingImprovements] = useState<ImprovementSuggestion[]>([]);
   const [isApplying, setIsApplying] = useState(false);
+  const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
+  const [showBulletGenerator, setShowBulletGenerator] = useState(false);
+  const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
+  const [selectedWorkExpSection, setSelectedWorkExpSection] = useState<string>('');
+  const [bulletGeneratorCompany, setBulletGeneratorCompany] = useState<string>('');
+  const [bulletGeneratorJobTitle, setBulletGeneratorJobTitle] = useState<string>('');
+  const [generatedBullets, setGeneratedBullets] = useState<string[]>([]);
+  const [showWorkExpSelector, setShowWorkExpSelector] = useState(false);
+  const [workExpEntries, setWorkExpEntries] = useState<Array<{sectionId: string, bulletId: string, companyName: string, jobTitle: string, dateRange: string, sectionTitle: string, sectionType: 'work' | 'project'}>>([]);
+  const [selectedBulletIndices, setSelectedBulletIndices] = useState<Set<number>>(new Set());
+  const [bulletAssignments, setBulletAssignments] = useState<Map<number, string>>(new Map());
+  const [showSaveNameModal, setShowSaveNameModal] = useState(false);
+  const [resumeSaveName, setResumeSaveName] = useState('');
+  const [updatedResumeData, setUpdatedResumeData] = useState<any>(null);
+  const [currentJDInfo, setCurrentJDInfo] = useState<{company?: string, title?: string} | null>(null);
+
+  const handleSaveResumeWithName = async () => {
+    if (!resumeSaveName || !resumeSaveName.trim()) {
+      alert('Please enter a resume name.');
+      return;
+    }
+
+    if (!isAuthenticated || !user?.email) {
+      alert('Please sign in to save resumes to your profile');
+      return;
+    }
+
+    if (!updatedResumeData) {
+      alert('No resume data to save');
+      return;
+    }
+
+    try {
+      const saveName = resumeSaveName.trim();
+      const apiBase = config.apiBase || 'http://localhost:8000';
+      
+      // Check if resume with this name already exists to show appropriate message
+      let isExistingResume = false;
+      let existingVersionCount = 0;
+      try {
+        const checkUrl = `${apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`;
+        const checkRes = await fetch(checkUrl);
+        
+        if (checkRes.ok) {
+          const resumesData = await checkRes.json();
+          const existingResumes = resumesData.resumes || [];
+          const existingResume = existingResumes.find((r: any) => r.name === saveName);
+          
+          if (existingResume) {
+            isExistingResume = true;
+            existingVersionCount = existingResume.version_count || 0;
+          }
+        }
+      } catch (error) {
+        console.log('Could not check existing resumes:', error);
+      }
+
+      const url = `${apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`;
+
+      // Clean resume data - remove fieldsVisible and ensure params are compatible
+      const cleanedSections = (updatedResumeData.sections || []).map((section: any) => ({
+        id: section.id,
+        title: section.title,
+        bullets: (section.bullets || []).map((bullet: any) => ({
+          id: bullet.id,
+          text: bullet.text,
+          params: {} // Remove visible flag from params for API compatibility
+        }))
+      }));
+
+      const payload = {
+        name: saveName,
+        title: updatedResumeData.title || '',
+        email: updatedResumeData.email || '',
+        phone: updatedResumeData.phone || '',
+        location: updatedResumeData.location || '',
+        summary: updatedResumeData.summary || '',
+        sections: cleanedSections,
+        template: 'tech'
+      };
+
+      console.log('Saving resume with name:', saveName);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Save failed:', response.status, errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { detail: errorText || `HTTP ${response.status}: ${response.statusText}` };
+        }
+        throw new Error(errorData.detail || `Failed to save resume (HTTP ${response.status})`);
+      }
+
+      const result = await response.json();
+      console.log('Save successful:', result);
+
+      if (!result.success) {
+        throw new Error(result.message || 'Save failed on server');
+      }
+
+      // Create match session if we have a currentJobDescriptionId
+      if (currentJobDescriptionId) {
+        try {
+          await fetch(`${apiBase}/api/matches`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              resumeId: result.resume_id,
+              jobDescriptionId: currentJobDescriptionId,
+              user_email: user.email,
+              resume_name: saveName,
+              resume_title: updatedResumeData.title || '',
+              resume_snapshot: updatedResumeData,
+              resume_version_id: result.version_id
+            })
+          });
+          console.log('Match session created successfully');
+        } catch (matchError) {
+          console.error('Failed to create match session:', matchError);
+          // Don't fail the save if match session creation fails
+        }
+      }
+
+      // Clean up states
+      setShowSaveNameModal(false);
+      setResumeSaveName('');
+      setUpdatedResumeData(null);
+      setGeneratedBullets([]);
+      setWorkExpEntries([]);
+      setSelectedBulletIndices(new Set());
+      setBulletAssignments(new Map());
+      setSelectedKeywords(new Set());
+      setSelectedWorkExpSection('');
+      setBulletGeneratorCompany('');
+      setBulletGeneratorJobTitle('');
+
+      // Show appropriate success message
+      const newVersionNumber = existingVersionCount + 1;
+      const matchScoreText = matchResult ? ` (Match Score: ${matchResult.match_analysis.similarity_score}%)` : '';
+      const successMessage = isExistingResume
+        ? `✅ Resume "${saveName}" updated successfully!${matchScoreText}\n\nVersion ${newVersionNumber} created. Previous versions are preserved.\n\nWould you like to view it in your profile?`
+        : `✅ Resume "${saveName}" saved successfully!${matchScoreText}\n\nWould you like to view it in your profile?`;
+
+      const shouldNavigate = confirm(successMessage);
+      if (shouldNavigate) {
+        window.location.href = '/profile?tab=jobs';
+      }
+    } catch (error) {
+      console.error('Failed to save resume:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to save resume: ${errorMessage}`);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -165,6 +328,29 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     load();
   }, []);
 
+  // Fetch JD info when currentJobDescriptionId changes
+  useEffect(() => {
+    const fetchJDInfo = async () => {
+      if (currentJobDescriptionId) {
+        try {
+          const res = await fetch(`${config.apiBase}/api/job-descriptions/${currentJobDescriptionId}`);
+          if (res.ok) {
+            const jd = await res.json();
+            setCurrentJDInfo({
+              company: jd.company || '',
+              title: jd.title || ''
+            });
+          }
+        } catch (error) {
+          console.error('Failed to fetch JD info:', error);
+        }
+      } else {
+        setCurrentJDInfo(null);
+      }
+    };
+    fetchJDInfo();
+  }, [currentJobDescriptionId]);
+
   const analyzeMatch = async () => {
     if (!jobDescription.trim()) {
       setError('Please enter a job description');
@@ -175,6 +361,25 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     setError(null);
 
     try {
+      // Clean resume data - remove fieldsVisible and ensure compatibility with backend
+      const cleanedResumeData = {
+        name: resumeData.name || '',
+        title: resumeData.title || '',
+        email: resumeData.email || '',
+        phone: resumeData.phone || '',
+        location: resumeData.location || '',
+        summary: resumeData.summary || '',
+        sections: resumeData.sections.map((section: any) => ({
+          id: section.id,
+          title: section.title,
+          bullets: section.bullets.map((bullet: any) => ({
+            id: bullet.id,
+            text: bullet.text,
+            params: {} // Remove visible flag from params for API compatibility
+          }))
+        }))
+      };
+
       const response = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
         method: 'POST',
         headers: {
@@ -182,7 +387,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         },
         body: JSON.stringify({
           job_description: jobDescription,
-          resume_data: resumeData
+          resume_data: cleanedResumeData
         }),
       });
 
@@ -192,6 +397,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
       const result = await response.json();
       setMatchResult(result);
+      setSelectedKeywords(new Set());
       if (onMatchResult) {
         onMatchResult(result);
       }
@@ -660,17 +866,58 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           {/* Missing Keywords */}
           {matchResult.match_analysis.missing_keywords.length > 0 && (
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                Missing Keywords ({matchResult.match_analysis.missing_count})
-              </h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-lg font-semibold text-gray-900">
+                  Missing Keywords ({matchResult.match_analysis.missing_count})
+                </h4>
+                {selectedKeywords.size > 0 && (
+                  <button
+                    onClick={() => {
+                      const workExpSections = resumeData.sections.filter((s: any) => 
+                        s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')
+                      );
+                      if (workExpSections.length > 0) {
+                        setSelectedWorkExpSection(workExpSections[0].id);
+                      }
+                      setShowBulletGenerator(true);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create Bullets ({selectedKeywords.size})
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {matchResult.match_analysis.missing_keywords.map((keyword, index) => (
-                  <span
+                  <label
                     key={index}
-                    className={`px-3 py-1 text-sm rounded-full ${ (matchResult as any).priority_keywords?.includes?.(keyword) ? 'bg-red-100 text-red-800 border border-red-300' : 'bg-orange-50 text-orange-800 border border-orange-200'}`}
+                    className={`px-3 py-1 text-sm rounded-full cursor-pointer border transition-all flex items-center gap-2 ${
+                      selectedKeywords.has(keyword)
+                        ? 'bg-blue-100 text-blue-800 border-blue-300'
+                        : (matchResult as any).priority_keywords?.includes?.(keyword)
+                        ? 'bg-red-100 text-red-800 border-red-300'
+                        : 'bg-orange-50 text-orange-800 border-orange-200'
+                    }`}
                   >
-                    {keyword}
-                  </span>
+                    <input
+                      type="checkbox"
+                      checked={selectedKeywords.has(keyword)}
+                      onChange={(e) => {
+                        const newSelected = new Set(selectedKeywords);
+                        if (e.target.checked) {
+                          newSelected.add(keyword);
+                        } else {
+                          newSelected.delete(keyword);
+                        }
+                        setSelectedKeywords(newSelected);
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span>{keyword}</span>
+                  </label>
                 ))}
               </div>
             </div>
@@ -783,61 +1030,39 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             
             {matchResult && currentJobDescriptionId && (
               <button
-                onClick={async () => {
+                onClick={() => {
                   if (!currentJobDescriptionId) {
                     alert('Please select a job description first');
                     return;
                   }
                   
-                  try {
-                    // Get user email from auth context
-                    if (!isAuthenticated || !user?.email) {
-                      alert('Please sign in to save resumes to your profile');
-                      return;
-                    }
-                    
-                    const userEmail = user.email;
-                    
-                    // Save resume version
-                    const saveRes = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(userEmail)}`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        name: resumeData.name,
-                        title: resumeData.title,
-                        email: resumeData.email,
-                        phone: resumeData.phone,
-                        location: resumeData.location,
-                        summary: resumeData.summary,
-                        template: 'tech', // Default template
-                        sections: resumeData.sections || []
-                      })
-                    });
-                    
-                    if (!saveRes.ok) throw new Error('Failed to save resume');
-                    
-                    const saveData = await saveRes.json();
-                    
-                    // Create match session
-                    await fetch(`${config.apiBase}/api/matches`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        resumeId: saveData.resume_id,
-                        jobDescriptionId: currentJobDescriptionId,
-                        user_email: userEmail,
-                        resume_name: resumeData.name,
-                        resume_title: resumeData.title,
-                        resume_snapshot: resumeData,
-                        resume_version_id: saveData.version_id
-                      })
-                    });
-                    
-                    alert(`✅ Resume saved to Profile/Jobs with match score: ${matchResult.match_analysis.similarity_score}%`);
-                  } catch (error) {
-                    console.error('Failed to save to jobs:', error);
-                    alert('Failed to save resume to jobs. Please try again.');
+                  if (!isAuthenticated || !user?.email) {
+                    alert('Please sign in to save resumes to your profile');
+                    return;
                   }
+
+                  // Generate smart resume name based on JD
+                  let suggestedName = '';
+                  if (currentJDInfo?.company) {
+                    const companyName = currentJDInfo.company.trim();
+                    const jobTitle = currentJDInfo.title ? ` - ${currentJDInfo.title.trim()}` : '';
+                    suggestedName = `${companyName}${jobTitle} Resume`;
+                  } else if (currentJDInfo?.title) {
+                    suggestedName = `${currentJDInfo.title.trim()} Resume`;
+                  } else if (selectedJobMetadata?.company) {
+                    const companyName = selectedJobMetadata.company.trim();
+                    const jobTitle = selectedJobMetadata.title ? ` - ${selectedJobMetadata.title.trim()}` : '';
+                    suggestedName = `${companyName}${jobTitle} Resume`;
+                  } else if (selectedJobMetadata?.title) {
+                    suggestedName = `${selectedJobMetadata.title.trim()} Resume`;
+                  } else {
+                    suggestedName = resumeData.name ? `${resumeData.name} Resume` : 'My Resume';
+                  }
+
+                  // Store current resume data and show save name modal
+                  setUpdatedResumeData(resumeData);
+                  setResumeSaveName(suggestedName);
+                  setShowSaveNameModal(true);
                 }}
                 className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
               >
@@ -889,6 +1114,775 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   return (
     <>
       {content}
+      {/* Bullet Generator Modal */}
+      {showBulletGenerator && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
+          setShowBulletGenerator(false);
+          setSelectedWorkExpSection('');
+          setBulletGeneratorCompany('');
+          setBulletGeneratorJobTitle('');
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
+              <h2 className="text-2xl font-bold text-white">✨ Generate Bullet Points from Keywords</h2>
+              <button
+                onClick={() => {
+                  setShowBulletGenerator(false);
+                  setSelectedWorkExpSection('');
+                  setBulletGeneratorCompany('');
+                  setBulletGeneratorJobTitle('');
+                }}
+                className="text-white hover:text-gray-200 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+              <div className="mb-4">
+                <p className="text-gray-600 mb-4">
+                  Selected keywords: <span className="font-semibold text-blue-600">{Array.from(selectedKeywords).join(', ')}</span>
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Work Experience Section
+                  </label>
+                  <select
+                    value={selectedWorkExpSection}
+                    onChange={(e) => setSelectedWorkExpSection(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Select a section --</option>
+                    {resumeData.sections
+                      .filter((s: any) => s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work'))
+                      .map((section: any) => (
+                        <option key={section.id} value={section.id}>
+                          {section.title}
+                        </option>
+                      ))}
+                  </select>
+                  {resumeData.sections.filter((s: any) => s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')).length === 0 && (
+                    <p className="text-sm text-red-600 mt-1">No work experience section found. Please add one first.</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Company Name (Optional - for context)
+                  </label>
+                  <input
+                    type="text"
+                    value={bulletGeneratorCompany}
+                    onChange={(e) => setBulletGeneratorCompany(e.target.value)}
+                    placeholder="e.g., Google, Microsoft"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Job Title (Optional - for context)
+                  </label>
+                  <input
+                    type="text"
+                    value={bulletGeneratorJobTitle}
+                    onChange={(e) => setBulletGeneratorJobTitle(e.target.value)}
+                    placeholder="e.g., DevOps Engineer, Software Engineer"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowBulletGenerator(false);
+                  setSelectedWorkExpSection('');
+                  setBulletGeneratorCompany('');
+                  setBulletGeneratorJobTitle('');
+                }}
+                className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!selectedWorkExpSection) {
+                    alert('Please select a work experience section');
+                    return;
+                  }
+
+                  setIsGeneratingBullets(true);
+                  try {
+                    // First, check existing unmarked bullets for keywords
+                    const keywordsArray = Array.from(selectedKeywords);
+                    const keywordsToGenerate = new Set<string>();
+                    const markedBullets: Array<{sectionId: string, bulletId: string, keyword: string}> = [];
+                    
+                    // Get all unmarked bullets (visible !== false means visible or undefined)
+                    const allUnmarkedBullets: Array<{sectionId: string, bulletId: string, text: string}> = [];
+                    resumeData.sections.forEach((section: any) => {
+                      section.bullets.forEach((bullet: any) => {
+                        // Skip company headers (work experience headers)
+                        if (!bullet.text?.startsWith('**') && bullet.text?.trim()) {
+                          // Check if bullet is unmarked (visible is false or undefined, but we want unmarked = visible !== false)
+                          // Actually, we want to check bullets that are currently hidden (visible === false)
+                          // But the user wants to check unmarked bullets - I think they mean bullets that are currently unchecked (visible === false)
+                          // Let me re-read: "existing unmarked bullet points" - I think they mean bullets that are currently hidden/unchecked
+                          // So we check bullets where visible === false
+                          if (bullet.params?.visible === false) {
+                            allUnmarkedBullets.push({
+                              sectionId: section.id,
+                              bulletId: bullet.id,
+                              text: bullet.text
+                            });
+                          }
+                        }
+                      });
+                    });
+                    
+                    // Check each keyword against existing unmarked bullets
+                    keywordsArray.forEach(keyword => {
+                      const keywordLower = keyword.toLowerCase();
+                      let found = false;
+                      
+                      for (const bullet of allUnmarkedBullets) {
+                        const bulletTextLower = bullet.text.toLowerCase();
+                        // Check if keyword appears in bullet text (case-insensitive)
+                        if (bulletTextLower.includes(keywordLower)) {
+                          markedBullets.push({
+                            sectionId: bullet.sectionId,
+                            bulletId: bullet.bulletId,
+                            keyword: keyword
+                          });
+                          found = true;
+                          break; // Found a match, move to next keyword
+                        }
+                      }
+                      
+                      // If keyword not found in existing bullets, add to generation list
+                      if (!found) {
+                        keywordsToGenerate.add(keyword);
+                      }
+                    });
+                    
+                    // Mark matched bullets by updating resume data
+                    if (markedBullets.length > 0) {
+                      const updatedSections = resumeData.sections.map((section: any) => {
+                        const sectionMarkedBullets = markedBullets.filter(m => m.sectionId === section.id);
+                        if (sectionMarkedBullets.length > 0) {
+                          return {
+                            ...section,
+                            bullets: section.bullets.map((bullet: any) => {
+                              const marked = sectionMarkedBullets.find(m => m.bulletId === bullet.id);
+                              if (marked) {
+                                // Mark bullet as visible
+                                return {
+                                  ...bullet,
+                                  params: { ...bullet.params, visible: true }
+                                };
+                              }
+                              return bullet;
+                            })
+                          };
+                        }
+                        return section;
+                      });
+                      
+                      const updatedResume = {
+                        ...resumeData,
+                        sections: updatedSections
+                      };
+                      
+                      if (onResumeUpdate) {
+                        onResumeUpdate(updatedResume);
+                      }
+                    }
+                    
+                    // Generate bullets only for keywords not found in existing bullets
+                    let generatedBulletsList: string[] = [];
+                    if (keywordsToGenerate.size > 0) {
+                      const response = await fetch(`${config.apiBase}/api/ai/generate_bullets_from_keywords`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          keywords: Array.from(keywordsToGenerate),
+                          job_description: jobDescription,
+                          company_title: bulletGeneratorCompany,
+                          job_title: bulletGeneratorJobTitle
+                        }),
+                      });
+
+                      if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                      }
+
+                      const result = await response.json();
+                      
+                      if (result.success && result.bullets && result.bullets.length > 0) {
+                        generatedBulletsList = result.bullets;
+                      }
+                    }
+                    
+                    // Show summary if bullets were marked
+                    if (markedBullets.length > 0) {
+                      const summary = `✅ Found ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} with matching keywords and marked them as visible.\n\n` +
+                        (generatedBulletsList.length > 0 
+                          ? `Generated ${generatedBulletsList.length} new bullet${generatedBulletsList.length > 1 ? 's' : ''} for unmatched keywords.`
+                          : 'All keywords were found in existing bullets - no new bullets needed.');
+                      
+                      if (generatedBulletsList.length === 0) {
+                        // All keywords found, just show success message
+                        alert(summary);
+                        setShowBulletGenerator(false);
+                        setSelectedKeywords(new Set());
+                        setSelectedWorkExpSection('');
+                        setBulletGeneratorCompany('');
+                        setBulletGeneratorJobTitle('');
+                        setIsGeneratingBullets(false);
+                        return;
+                      } else {
+                        // Show summary and continue with assignment
+                        console.log(summary);
+                      }
+                    }
+                    
+                    if (generatedBulletsList.length > 0 || markedBullets.length > 0) {
+                      setGeneratedBullets(generatedBulletsList);
+                      
+                      // Parse work experience and project entries from ALL sections
+                      const entries: Array<{sectionId: string, bulletId: string, companyName: string, jobTitle: string, dateRange: string, sectionTitle: string, sectionType: 'work' | 'project'}> = [];
+                      
+                      resumeData.sections
+                        .filter((s: any) => {
+                          const title = s.title.toLowerCase();
+                          return title.includes('experience') || title.includes('work') || title.includes('project');
+                        })
+                        .forEach((section: any) => {
+                          const sectionType = section.title.toLowerCase().includes('project') ? 'project' : 'work';
+                          section.bullets.forEach((bullet: any) => {
+                            const isItemHeader = bullet.text?.startsWith('**') && bullet.text?.includes('**', 2);
+                            if (isItemHeader) {
+                              const headerText = bullet.text.replace(/\*\*/g, '').trim();
+                              const parts = headerText.split(' / ');
+                              const companyName = parts[0]?.trim() || 'Unknown Company';
+                              const jobTitle = parts[1]?.trim() || 'Unknown Role';
+                              const dateRange = parts[2]?.trim() || 'Unknown Date';
+                              
+                              entries.push({
+                                sectionId: section.id,
+                                bulletId: bullet.id,
+                                companyName,
+                                jobTitle,
+                                dateRange,
+                                sectionTitle: section.title,
+                                sectionType
+                              });
+                            }
+                          });
+                        });
+
+                      if (entries.length === 0) {
+                        // No work experience entries found, add bullets directly to selected section
+                        const selectedSection = resumeData.sections.find((s: any) => s.id === selectedWorkExpSection);
+                        if (!selectedSection) {
+                          throw new Error('Selected section not found');
+                        }
+                        if (generatedBulletsList.length > 0) {
+                          // No work experience entries found, add bullets directly to section
+                          const newBullets = generatedBulletsList.map((bulletText: string) => ({
+                            id: `bullet-${Date.now()}-${Math.random()}`,
+                            text: bulletText,
+                            params: {}
+                          }));
+
+                          const updatedSections = resumeData.sections.map((s: any) => {
+                            if (s.id === selectedWorkExpSection) {
+                              return {
+                                ...s,
+                                bullets: [...s.bullets, ...newBullets]
+                              };
+                            }
+                            return s;
+                          });
+
+                          const updatedResume = {
+                            ...resumeData,
+                            sections: updatedSections
+                          };
+
+                          if (onResumeUpdate) {
+                            onResumeUpdate(updatedResume);
+                          }
+
+                          const successMsg = markedBullets.length > 0
+                            ? `✅ Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} and added ${generatedBulletsList.length} new bullet point${generatedBulletsList.length > 1 ? 's' : ''} to ${selectedSection.title}!`
+                            : `✅ Successfully generated and added ${generatedBulletsList.length} bullet point${generatedBulletsList.length > 1 ? 's' : ''} to ${selectedSection.title}!`;
+                          
+                          alert(successMsg);
+                        } else if (markedBullets.length > 0) {
+                          // Only marked existing bullets, no new ones generated
+                          alert(`✅ Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} - all keywords found in your resume!`);
+                        }
+
+                        setShowBulletGenerator(false);
+                        setSelectedKeywords(new Set());
+                        setSelectedWorkExpSection('');
+                        setBulletGeneratorCompany('');
+                        setBulletGeneratorJobTitle('');
+                      } else {
+                        // Show work experience selector only if we have new bullets to assign
+                        if (generatedBulletsList.length > 0) {
+                          setWorkExpEntries(entries);
+                          setSelectedBulletIndices(new Set(generatedBulletsList.map((_: any, idx: number) => idx)));
+                          setBulletAssignments(new Map());
+                          setShowBulletGenerator(false);
+                          setShowWorkExpSelector(true);
+                        } else {
+                          // All keywords found in existing bullets, just close
+                          setShowBulletGenerator(false);
+                          setSelectedKeywords(new Set());
+                          setSelectedWorkExpSection('');
+                          setBulletGeneratorCompany('');
+                          setBulletGeneratorJobTitle('');
+                        }
+                      }
+                    } else if (markedBullets.length > 0) {
+                      // Only marked bullets, no generation needed
+                      setShowBulletGenerator(false);
+                      setSelectedKeywords(new Set());
+                      setSelectedWorkExpSection('');
+                      setBulletGeneratorCompany('');
+                      setBulletGeneratorJobTitle('');
+                    } else {
+                      throw new Error('No bullet points generated or found');
+                    }
+                  } catch (error) {
+                    console.error('Error generating bullet points:', error);
+                    alert('Failed to generate bullet points: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                  } finally {
+                    setIsGeneratingBullets(false);
+                  }
+                }}
+                disabled={isGeneratingBullets || !selectedWorkExpSection || resumeData.sections.filter((s: any) => s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')).length === 0}
+                className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
+              >
+                {isGeneratingBullets ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </span>
+                ) : (
+                  'Generate & Add Bullets'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Work Experience Selector Modal */}
+      {showWorkExpSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
+          setShowWorkExpSelector(false);
+          setGeneratedBullets([]);
+          setWorkExpEntries([]);
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-600 to-blue-600">
+              <h2 className="text-2xl font-bold text-white">📍 Assign Bullet Points</h2>
+              <button
+                onClick={() => {
+                  setShowWorkExpSelector(false);
+                  setGeneratedBullets([]);
+                  setWorkExpEntries([]);
+                }}
+                className="text-white hover:text-gray-200 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Generated Bullet Points ({generatedBullets.filter((_, idx) => !bulletAssignments.has(idx)).length} remaining):
+                  </h3>
+                  {(() => {
+                    const unassignedIndices = generatedBullets
+                      .map((_, idx) => idx)
+                      .filter((idx: number) => !bulletAssignments.has(idx));
+                    const allSelected = unassignedIndices.length > 0 && unassignedIndices.every((idx: number) => selectedBulletIndices.has(idx));
+                    
+                    return unassignedIndices.length > 0 ? (
+                      <button
+                        onClick={() => {
+                          if (allSelected) {
+                            setSelectedBulletIndices(new Set());
+                          } else {
+                            setSelectedBulletIndices(new Set(unassignedIndices));
+                          }
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {allSelected ? 'Deselect All' : 'Select All'}
+                      </button>
+                    ) : null;
+                  })()}
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+                  {generatedBullets
+                    .map((bullet, idx) => ({ bullet, idx }))
+                    .filter(({ idx }) => !bulletAssignments.has(idx))
+                    .map(({ bullet, idx }) => {
+                      const isSelected = selectedBulletIndices.has(idx);
+                      return (
+                        <div key={idx} className={`flex items-start gap-3 p-2 rounded ${isSelected ? 'bg-blue-100' : 'bg-white'}`}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const newSelected = new Set(selectedBulletIndices);
+                              if (e.target.checked) {
+                                newSelected.add(idx);
+                              } else {
+                                newSelected.delete(idx);
+                              }
+                              setSelectedBulletIndices(newSelected);
+                            }}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start gap-2">
+                              <span className="text-blue-600 mt-1">•</span>
+                              <span className="text-gray-800 text-sm">{bullet}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {generatedBullets.filter((_, idx) => !bulletAssignments.has(idx)).length === 0 && (
+                    <div className="text-center py-4 text-gray-500 text-sm">
+                      All bullets have been assigned ✓
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Assign bullets to work experience or projects:</h3>
+                {workExpEntries.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No work experience entries found in your resume.</p>
+                    <p className="text-sm mt-2">Please add work experience entries first.</p>
+                  </div>
+                ) : (
+                <div className="space-y-3">
+                  {workExpEntries.map((entry, idx) => {
+                    const entryKey = `${entry.sectionId}-${entry.bulletId}`;
+                    const assignedBullets = Array.from(bulletAssignments.entries())
+                      .filter(([_, assignedKey]) => assignedKey === entryKey)
+                      .map(([bulletIdx]) => bulletIdx);
+                    return (
+                      <div
+                        key={idx}
+                        className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 transition-all shadow-sm"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                              entry.sectionType === 'project' 
+                                ? 'text-purple-600 bg-purple-50' 
+                                : 'text-blue-600 bg-blue-50'
+                            }`}>
+                              {entry.sectionType === 'project' ? '📁' : '💼'} {entry.sectionTitle}
+                            </span>
+                          </div>
+                            <div className="font-bold text-gray-900 text-lg">{entry.companyName}</div>
+                            <div className="text-gray-600 text-sm mt-1">{entry.jobTitle}</div>
+                            <div className="text-gray-500 text-xs mt-1">{entry.dateRange}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const unassignedSelected = Array.from(selectedBulletIndices).filter(idx => !bulletAssignments.has(idx));
+                              if (unassignedSelected.length === 0) {
+                                alert('Please select at least one unassigned bullet point');
+                                return;
+                              }
+                              
+                              const newAssignments = new Map(bulletAssignments);
+                              unassignedSelected.forEach(bulletIdx => {
+                                newAssignments.set(bulletIdx, entryKey);
+                              });
+                              setBulletAssignments(newAssignments);
+                              setSelectedBulletIndices(new Set());
+                            }}
+                            disabled={selectedBulletIndices.size === 0 || Array.from(selectedBulletIndices).every(idx => bulletAssignments.has(idx))}
+                            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Assign Selected ({Array.from(selectedBulletIndices).filter(idx => !bulletAssignments.has(idx)).length})
+                          </button>
+                        </div>
+                        {assignedBullets.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="text-xs font-semibold text-gray-600 mb-2">
+                              Assigned bullets ({assignedBullets.length}):
+                            </div>
+                            <div className="space-y-1 max-h-32 overflow-y-auto">
+                              {assignedBullets.map(bulletIdx => (
+                                <div key={bulletIdx} className="flex items-center justify-between text-xs bg-green-50 p-2 rounded">
+                                  <span className="text-gray-700 flex-1">• {generatedBullets[bulletIdx]}</span>
+                                  <button
+                                    onClick={() => {
+                                      const newAssignments = new Map(bulletAssignments);
+                                      newAssignments.delete(bulletIdx);
+                                      setBulletAssignments(newAssignments);
+                                    }}
+                                    className="text-red-600 hover:text-red-800 ml-2 font-bold"
+                                    title="Remove assignment"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+              <div className="text-sm text-gray-600">
+                {bulletAssignments.size > 0 && (
+                  <span>
+                    {bulletAssignments.size} bullet{bulletAssignments.size > 1 ? 's' : ''} assigned
+                    {generatedBullets.filter((_, idx) => !bulletAssignments.has(idx)).length > 0 && (
+                      <span className="text-orange-600 ml-2">
+                        ({generatedBullets.filter((_, idx) => !bulletAssignments.has(idx)).length} remaining)
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setShowWorkExpSelector(false);
+                    setGeneratedBullets([]);
+                    setWorkExpEntries([]);
+                    setSelectedBulletIndices(new Set());
+                    setBulletAssignments(new Map());
+                  }}
+                  className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (bulletAssignments.size === 0) {
+                      alert('Please assign at least one bullet point to a work experience or project entry');
+                      return;
+                    }
+                    
+                    const unassignedCount = generatedBullets.filter((_, idx) => !bulletAssignments.has(idx)).length;
+                    if (unassignedCount > 0) {
+                      const proceed = confirm(`${unassignedCount} bullet${unassignedCount > 1 ? 's' : ''} will not be added. Do you want to continue?`);
+                      if (!proceed) return;
+                    }
+
+                    // Group bullets by work experience entry
+                    const entriesByKey = new Map<string, {entry: typeof workExpEntries[0], bulletIndices: number[]}>();
+                    
+                    bulletAssignments.forEach((entryKey, bulletIdx) => {
+                      if (!entriesByKey.has(entryKey)) {
+                        const entry = workExpEntries.find(e => `${e.sectionId}-${e.bulletId}` === entryKey);
+                        if (entry) {
+                          entriesByKey.set(entryKey, { entry, bulletIndices: [] });
+                        }
+                      }
+                      entriesByKey.get(entryKey)?.bulletIndices.push(bulletIdx);
+                    });
+
+                    // Update resume with all assignments
+                    let updatedSections = [...resumeData.sections];
+                    const assignmentResults: string[] = [];
+
+                    entriesByKey.forEach(({ entry, bulletIndices }) => {
+                      const selectedSection = updatedSections.find((s: any) => s.id === entry.sectionId);
+                      if (!selectedSection) return;
+
+                      // Find the index of the header bullet
+                      const headerBulletIndex = selectedSection.bullets.findIndex((b: any) => b.id === entry.bulletId);
+                      if (headerBulletIndex === -1) return;
+
+                      // Find where to insert (after all bullets for this entry, before next header or end)
+                      let insertIndex = headerBulletIndex + 1;
+                      for (let i = headerBulletIndex + 1; i < selectedSection.bullets.length; i++) {
+                        const bullet = selectedSection.bullets[i];
+                        if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
+                          insertIndex = i;
+                          break;
+                        }
+                        insertIndex = i + 1;
+                      }
+
+                      // Create new bullet points for this entry
+                      const newBullets = bulletIndices.map((bulletIdx: number) => ({
+                        id: `bullet-${Date.now()}-${Math.random()}-${bulletIdx}`,
+                        text: generatedBullets[bulletIdx].startsWith('•') 
+                          ? generatedBullets[bulletIdx] 
+                          : `• ${generatedBullets[bulletIdx]}`,
+                        params: {}
+                      }));
+
+                      // Insert bullets at the correct position
+                      selectedSection.bullets = [
+                        ...selectedSection.bullets.slice(0, insertIndex),
+                        ...newBullets,
+                        ...selectedSection.bullets.slice(insertIndex)
+                      ];
+
+                      assignmentResults.push(`${bulletIndices.length} bullet${bulletIndices.length > 1 ? 's' : ''} to ${entry.companyName}`);
+                    });
+
+                    const updatedResume = {
+                      ...resumeData,
+                      sections: updatedSections
+                    };
+
+                    if (onResumeUpdate) {
+                      onResumeUpdate(updatedResume);
+                    }
+
+                    // Generate smart resume name based on JD
+                    let suggestedName = '';
+                    if (currentJDInfo?.company) {
+                      const companyName = currentJDInfo.company.trim();
+                      const jobTitle = currentJDInfo.title ? ` - ${currentJDInfo.title.trim()}` : '';
+                      suggestedName = `${companyName}${jobTitle} Resume`;
+                    } else if (currentJDInfo?.title) {
+                      suggestedName = `${currentJDInfo.title.trim()} Resume`;
+                    } else if (selectedJobMetadata?.company) {
+                      const companyName = selectedJobMetadata.company.trim();
+                      const jobTitle = selectedJobMetadata.title ? ` - ${selectedJobMetadata.title.trim()}` : '';
+                      suggestedName = `${companyName}${jobTitle} Resume`;
+                    } else if (selectedJobMetadata?.title) {
+                      suggestedName = `${selectedJobMetadata.title.trim()} Resume`;
+                    } else {
+                      suggestedName = resumeData.name ? `${resumeData.name} Resume` : 'My Resume';
+                    }
+
+                    // Store updated resume data and show save name modal
+                    setUpdatedResumeData(updatedResume);
+                    setResumeSaveName(suggestedName);
+                    setShowWorkExpSelector(false);
+                    setShowSaveNameModal(true);
+                  }}
+                  disabled={bulletAssignments.size === 0}
+                  className="px-6 py-2 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
+                >
+                  Save & Close ({bulletAssignments.size})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Resume Name Modal */}
+      {showSaveNameModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] flex items-center justify-center p-4" onClick={() => {
+          setShowSaveNameModal(false);
+          setResumeSaveName('');
+          setUpdatedResumeData(null);
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-600 to-blue-600">
+              <h2 className="text-2xl font-bold text-white">💾 Save Resume</h2>
+              <button
+                onClick={() => {
+                  setShowSaveNameModal(false);
+                  setResumeSaveName('');
+                  setUpdatedResumeData(null);
+                }}
+                className="text-white hover:text-gray-200 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Resume Name
+                </label>
+                <input
+                  type="text"
+                  value={resumeSaveName}
+                  onChange={(e) => setResumeSaveName(e.target.value)}
+                  placeholder="e.g., Software Engineer Resume, DevOps Resume"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveResumeWithName();
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {currentJDInfo?.company 
+                    ? `Auto-generated from JD: ${currentJDInfo.company}${currentJDInfo.title ? ` - ${currentJDInfo.title}` : ''}. You can edit if needed.`
+                    : 'Choose a name for this resume. You can save multiple resumes with different names.'}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveResumeWithName}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 font-semibold transition-all"
+                >
+                  Save Resume
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSaveNameModal(false);
+                    setResumeSaveName('');
+                    setUpdatedResumeData(null);
+                    // Clean up bullet generation states
+                    setGeneratedBullets([]);
+                    setWorkExpEntries([]);
+                    setSelectedBulletIndices(new Set());
+                    setBulletAssignments(new Map());
+                    setSelectedKeywords(new Set());
+                    setSelectedWorkExpSection('');
+                    setBulletGeneratorCompany('');
+                    setBulletGeneratorJobTitle('');
+                  }}
+                  className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold transition-colors"
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Improvement Suggestions Modal */}
       {showImprovementsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowImprovementsModal(false)}>

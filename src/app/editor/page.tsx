@@ -687,50 +687,7 @@ const EditorPageContent = () => {
     }
   }
 
-  // Version Control Handlers
-  const handleSaveResume = async () => {
-    if (!user) {
-      setShowAuthModal(true)
-      return
-    }
-
-    if (!resumeData.name || !resumeData.name.trim()) {
-      alert('Please enter your name in the resume before saving.')
-      return
-    }
-
-    try {
-      const resumeDataForSave = {
-        personalInfo: {
-          name: resumeData.name,
-          title: resumeData.title || '',
-          email: resumeData.email || '',
-          phone: resumeData.phone || '',
-          location: resumeData.location || ''
-        },
-        summary: resumeData.summary || '',
-        sections: resumeData.sections || [],
-        template: selectedTemplate
-      }
-
-      console.log('Saving resume...', { name: resumeDataForSave.personalInfo.name, sectionsCount: resumeDataForSave.sections.length })
-
-      const result = await versionControlService.saveResume(resumeDataForSave)
-      setCurrentResumeId(result.resume_id)
-      
-      // Store resume ID in localStorage for persistence
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('currentResumeId', String(result.resume_id))
-      }
-      
-      console.log('Resume saved successfully:', result)
-      alert('✅ Resume saved successfully to your profile!')
-    } catch (error) {
-      console.error('Failed to save resume:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to save resume: ${errorMessage}`)
-    }
-  }
+  // Version Control Handlers (Save functionality moved to JobDescriptionMatcher)
 
   const handleVersionLoad = (versionData: any) => {
     const newResumeData = {
@@ -1983,6 +1940,7 @@ const EditorPageContent = () => {
           onClose={() => setShowJobMatchAnalytics(false)}
         />
       )}
+
       
     </div>
   )

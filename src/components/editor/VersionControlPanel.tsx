@@ -238,6 +238,70 @@ export default function VersionControlPanel({
                       Load
                     </button>
                     <button
+                      onClick={async () => {
+                        try {
+                          const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                          const userStr = localStorage.getItem('user')
+                          if (!userStr) {
+                            alert('Please sign in to export resumes')
+                            return
+                          }
+                          const user = JSON.parse(userStr)
+                          
+                          // Fetch version data
+                          const versionRes = await fetch(`${apiBase}/api/resume/version/${version.id}?user_email=${encodeURIComponent(user.email)}`)
+                          if (!versionRes.ok) {
+                            throw new Error('Failed to fetch version data')
+                          }
+                          
+                          const versionData = await versionRes.json()
+                          const resumeData = versionData.version.resume_data
+                          
+                          // Export as PDF
+                          const exportUrl = `${apiBase}/api/resume/export/pdf?user_email=${encodeURIComponent(user.email)}`
+                          const exportResponse = await fetch(exportUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              name: resumeData.personalInfo?.name || resumeData.name || 'Resume',
+                              title: resumeData.personalInfo?.title || resumeData.title || '',
+                              email: resumeData.personalInfo?.email || resumeData.email || '',
+                              phone: resumeData.personalInfo?.phone || resumeData.phone || '',
+                              location: resumeData.personalInfo?.location || resumeData.location || '',
+                              summary: resumeData.summary || '',
+                              sections: resumeData.sections || [],
+                              replacements: {},
+                              template: resumeData.template || 'tech',
+                              two_column_left: [],
+                              two_column_right: [],
+                              two_column_left_width: 50
+                            })
+                          })
+                          
+                          if (exportResponse.ok) {
+                            const blob = await exportResponse.blob()
+                            const url = window.URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `Resume_v${version.version_number}.pdf`
+                            document.body.appendChild(a)
+                            a.click()
+                            document.body.removeChild(a)
+                            window.URL.revokeObjectURL(url)
+                          } else {
+                            throw new Error(`Export failed: ${exportResponse.status}`)
+                          }
+                        } catch (error) {
+                          console.error('Failed to export version:', error)
+                          alert(`Failed to export version: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                        }
+                      }}
+                      className="px-2 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200"
+                      title="Export as PDF"
+                    >
+                      📄 PDF
+                    </button>
+                    <button
                       onClick={() => handleRollback(version.id)}
                       className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-sm hover:bg-orange-200"
                     >

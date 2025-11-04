@@ -1,7 +1,7 @@
 'use client'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState, useCallback } from 'react'
 import SettingsPanel from '@/components/SettingsPanel'
 
 interface ResumeHistory {
@@ -22,6 +22,7 @@ interface PaymentHistory {
 export default function ProfilePage() {
   const { user, isAuthenticated, logout } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'jobs' | 'billing' | 'settings'>('overview')
@@ -84,8 +85,14 @@ export default function ProfilePage() {
       setLoading(false)
     }, 100)
     
+    // Check for tab parameter in URL
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['overview', 'history', 'jobs', 'billing', 'settings'].includes(tabParam)) {
+      setActiveTab(tabParam as typeof activeTab)
+    }
+    
     return () => clearTimeout(checkAuth)
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, router, searchParams])
 
   const loadUserData = () => {
     const savedResumes = localStorage.getItem('resumeHistory')
@@ -107,23 +114,29 @@ export default function ProfilePage() {
     }
   }
 
+  const fetchSavedResumes = useCallback(async () => {
+    if (!isAuthenticated || !user?.email) return
+    
+    try {
+      // Fetch saved resumes
+      const resumesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+      if (resumesRes.ok) {
+        const resumesData = await resumesRes.json()
+        setSavedResumes(resumesData.resumes || [])
+        console.log('✅ Loaded saved resumes:', resumesData.resumes?.length || 0)
+      } else {
+        console.error('Failed to load resumes:', resumesRes.status)
+      }
+    } catch (e) {
+      console.error('Failed to load resumes', e)
+    }
+  }, [isAuthenticated, user?.email])
+
   useEffect(() => {
     const fetchData = async () => {
       if (!isAuthenticated || !user?.email) return
       
-      try {
-        // Fetch saved resumes
-        const resumesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
-        if (resumesRes.ok) {
-          const resumesData = await resumesRes.json()
-          setSavedResumes(resumesData.resumes || [])
-          console.log('✅ Loaded saved resumes:', resumesData.resumes?.length || 0)
-        } else {
-          console.error('Failed to load resumes:', resumesRes.status)
-        }
-      } catch (e) {
-        console.error('Failed to load resumes', e)
-      }
+      await fetchSavedResumes()
 
       try {
         // Fetch job descriptions
@@ -156,7 +169,14 @@ export default function ProfilePage() {
     if (isAuthenticated && user?.email) {
       fetchData()
     }
-  }, [isAuthenticated, user])
+  }, [isAuthenticated, user, activeTab])
+
+  // Refresh resumes when tab changes to jobs
+  useEffect(() => {
+    if (activeTab === 'jobs' && isAuthenticated && user?.email) {
+      fetchSavedResumes()
+    }
+  }, [activeTab, isAuthenticated, user, fetchSavedResumes])
 
   const handleDeleteAccount = () => {
     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
@@ -417,70 +437,137 @@ export default function ProfilePage() {
                               </a>
                               <button
                                 onClick={async (e) => {
-                                  const { showCustomConfirm } = await import('@/lib/modals')
-                                  const confirmed = await showCustomConfirm(
-                                    `Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`,
-                                    {
-                                      title: 'Delete Resume',
-                                      type: 'danger',
-                                      icon: '🗑️',
-                                      confirmText: 'Delete',
-                                      cancelText: 'Cancel'
-                                    }
-                                  )
-                                  if (!confirmed) return
-                                  
-                                  const deleteBtn = e.currentTarget
-                                  const originalText = deleteBtn.textContent
-                                  deleteBtn.disabled = true
-                                  deleteBtn.textContent = 'Deleting...'
+                                  e.stopPropagation()
+                                  const exportBtn = e.currentTarget
+                                  const originalText = exportBtn.textContent
+                                  exportBtn.disabled = true
+                                  exportBtn.textContent = 'Exporting...'
                                   
                                   try {
-                                    const url = new URL(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resumes/${resume.id}`)
-                                    if (user?.email) {
-                                      url.searchParams.append('user_email', user.email)
+                                    const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                                    
+                                    // Fetch the latest version of the resume
+                                    let resumeData = null
+                                    if (resume.latest_version_id) {
+                                      const versionRes = await fetch(`${apiBase}/api/resume/version/${resume.latest_version_id}?user_email=${encodeURIComponent(user?.email || '')}`)
+                                      if (versionRes.ok) {
+                                        const versionData = await versionRes.json()
+                                        resumeData = versionData.version.resume_data
+                                      }
                                     }
                                     
-                                    const res = await fetch(url.toString(), { 
-                                      method: 'DELETE',
-                                      headers: {
-                                        'Content-Type': 'application/json'
+                                    // If no version data, construct basic resume data
+                                    if (!resumeData) {
+                                      resumeData = {
+                                        name: resume.name,
+                                        title: resume.title || '',
+                                        email: '',
+                                        phone: '',
+                                        location: '',
+                                        summary: '',
+                                        sections: [],
+                                        template: resume.template || 'tech'
                                       }
+                                    }
+                                    
+                                    // Normalize resume data structure (handle both personalInfo and flat structure)
+                                    const normalizedData = {
+                                      name: resumeData.personalInfo?.name || resumeData.name || resume.name,
+                                      title: resumeData.personalInfo?.title || resumeData.title || resume.title || '',
+                                      email: resumeData.personalInfo?.email || resumeData.email || '',
+                                      phone: resumeData.personalInfo?.phone || resumeData.phone || '',
+                                      location: resumeData.personalInfo?.location || resumeData.location || '',
+                                      summary: resumeData.summary || '',
+                                      sections: resumeData.sections || [],
+                                      replacements: {},
+                                      template: resumeData.template || resume.template || 'tech',
+                                      two_column_left: [],
+                                      two_column_right: [],
+                                      two_column_left_width: 50
+                                    }
+                                    
+                                    // Export as PDF
+                                    const exportUrl = `${apiBase}/api/resume/export/pdf${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`
+                                    const exportResponse = await fetch(exportUrl, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify(normalizedData)
                                     })
                                     
-                                    if (res.ok) {
-                                      // Remove from UI immediately
-                                      setSavedResumes((prev) => prev.filter((x) => x.id !== resume.id))
-                                      // Show success message
-                                      const successMsg = document.createElement('div')
-                                      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
-                                      successMsg.textContent = '✅ Resume deleted successfully'
-                                      document.body.appendChild(successMsg)
-                                      setTimeout(() => {
-                                        document.body.removeChild(successMsg)
-                                      }, 3000)
+                                    if (exportResponse.ok) {
+                                      const blob = await exportResponse.blob()
+                                      const url = window.URL.createObjectURL(blob)
+                                      const a = document.createElement('a')
+                                      a.href = url
+                                      a.download = `${resume.name.replace(/[^a-z0-9]/gi, '_')}.pdf`
+                                      document.body.appendChild(a)
+                                      a.click()
+                                      document.body.removeChild(a)
+                                      window.URL.revokeObjectURL(url)
                                     } else {
-                                      const errorData = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
-                                      alert(`Failed to delete: ${errorData.detail || 'Unknown error'}`)
+                                      throw new Error(`Export failed: ${exportResponse.status}`)
+                                    }
+                                  } catch (error) {
+                                    console.error('Failed to export resume:', error)
+                                    alert(`Failed to export resume: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                                  } finally {
+                                    exportBtn.disabled = false
+                                    exportBtn.textContent = originalText
+                                  }
+                                }}
+                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 font-semibold"
+                                title="Export as PDF"
+                              >
+                                📄 PDF
+                              </button>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    if (!confirm(`Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`)) return
+                                    
+                                    const deleteBtn = e.currentTarget
+                                    const originalText = deleteBtn.textContent
+                                    deleteBtn.disabled = true
+                                    deleteBtn.textContent = 'Deleting...'
+                                    
+                                    try {
+                                      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                                      const url = `${apiBase}/api/resumes/${resume.id}?user_email=${encodeURIComponent(user?.email || '')}`
+                                      
+                                      const res = await fetch(url, { 
+                                        method: 'DELETE',
+                                        headers: {
+                                          'Content-Type': 'application/json'
+                                        }
+                                      })
+                                      
+                                      if (res.ok) {
+                                        setSavedResumes((prev) => prev.filter((x) => x.id !== resume.id))
+                                        const successMsg = document.createElement('div')
+                                        successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+                                        successMsg.textContent = '✅ Resume deleted successfully'
+                                        document.body.appendChild(successMsg)
+                                        setTimeout(() => {
+                                          document.body.removeChild(successMsg)
+                                        }, 3000)
+                                      } else {
+                                        const errorData = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
+                                        alert(`Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`)
+                                        deleteBtn.disabled = false
+                                        deleteBtn.textContent = originalText
+                                      }
+                                    } catch (error) {
+                                      console.error('Failed to delete resume:', error)
+                                      alert(`Failed to delete resume: ${error instanceof Error ? error.message : 'Network error'}`)
                                       deleteBtn.disabled = false
                                       deleteBtn.textContent = originalText
                                     }
-                                  } catch (error) {
-                                    console.error('Failed to delete resume:', error)
-                                    const { showCustomAlert } = await import('@/lib/modals')
-                                    await showCustomAlert(
-                                      `Failed to delete resume: ${error instanceof Error ? error.message : 'Network error'}`,
-                                      { type: 'error', title: 'Error' }
-                                    )
-                                    deleteBtn.disabled = false
-                                    deleteBtn.textContent = originalText
-                                  }
-                                }}
-                                className="px-3 py-1 bg-red-50 text-red-700 rounded-lg text-xs hover:bg-red-100 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Delete this resume"
-                              >
-                                Delete
-                              </button>
+                                  }}
+                                  className="px-3 py-1 bg-red-50 text-red-700 rounded-lg text-xs hover:bg-red-100 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Delete this resume"
+                                >
+                                  Delete
+                                </button>
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-3">
@@ -669,6 +756,7 @@ export default function ProfilePage() {
                                 )}
                                 <button
                                   onClick={async (e) => {
+                                    e.stopPropagation()
                                     if (!confirm(`Are you sure you want to delete "${jd.title}"? This action cannot be undone.`)) return
                                     
                                     const deleteBtn = e.currentTarget
@@ -677,12 +765,10 @@ export default function ProfilePage() {
                                     deleteBtn.textContent = 'Deleting...'
                                     
                                     try {
-                                      const url = new URL(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}`)
-                                      if (user?.email) {
-                                        url.searchParams.append('user_email', user.email)
-                                      }
+                                      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                                      const url = `${apiBase}/api/job-descriptions/${jd.id}${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`
                                       
-                                      const res = await fetch(url.toString(), { 
+                                      const res = await fetch(url, { 
                                         method: 'DELETE',
                                         headers: {
                                           'Content-Type': 'application/json'
@@ -690,9 +776,7 @@ export default function ProfilePage() {
                                       })
                                       
                                       if (res.ok) {
-                                        // Remove from UI immediately
                                         setSavedJDs((prev) => prev.filter((x) => x.id !== jd.id))
-                                        // Show success message
                                         const successMsg = document.createElement('div')
                                         successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
                                         successMsg.textContent = '✅ Job description deleted successfully'
@@ -702,7 +786,7 @@ export default function ProfilePage() {
                                         }, 3000)
                                       } else {
                                         const errorData = await res.json().catch(() => ({ detail: 'Failed to delete job description' }))
-                                        alert(`Failed to delete: ${errorData.detail || 'Unknown error'}`)
+                                        alert(`Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`)
                                         deleteBtn.disabled = false
                                         deleteBtn.textContent = originalText
                                       }
