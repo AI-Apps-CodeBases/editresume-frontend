@@ -11,13 +11,14 @@ import { useSettings } from '@/contexts/SettingsContext'
 interface Bullet {
   id: string
   text: string
-  params: Record<string, string>
+  params?: Record<string, any>
 }
 
 interface Section {
   id: string
   title: string
   bullets: Bullet[]
+  params?: Record<string, any>
 }
 
 interface ResumeData {
@@ -28,6 +29,7 @@ interface ResumeData {
   location: string
   summary: string
   sections: Section[]
+  fieldsVisible?: Record<string, boolean>
 }
 
 interface Props {

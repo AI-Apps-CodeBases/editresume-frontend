@@ -36,9 +36,11 @@ interface Props {
       bullets: Array<{
         id: string
         text: string
-        params: Record<string, string>
+        params?: Record<string, any>
       }>
+      params?: Record<string, any>
     }>
+    fieldsVisible?: Record<string, boolean>
   }
   onApplySuggestion?: (sectionId: string, bulletId: string, newText: string) => void
   className?: string

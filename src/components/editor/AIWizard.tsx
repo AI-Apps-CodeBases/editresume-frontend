@@ -15,9 +15,11 @@ interface ResumeData {
     bullets: Array<{
       id: string
       text: string
-      params: Record<string, string>
+      params?: Record<string, any>
     }>
+    params?: Record<string, any>
   }>
+  fieldsVisible?: Record<string, boolean>
 }
 
 interface Props {
