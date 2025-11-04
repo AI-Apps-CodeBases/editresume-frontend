@@ -62,7 +62,23 @@ export default function CoverLetterGenerator({ resumeData, onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_description: jobDescription,
-          resume_data: resumeData,
+          resume_data: {
+            name: resumeData.name || '',
+            title: resumeData.title || '',
+            email: resumeData.email || '',
+            phone: resumeData.phone || '',
+            location: resumeData.location || '',
+            summary: resumeData.summary || '',
+            sections: (resumeData.sections || []).map((section: any) => ({
+              id: section.id,
+              title: section.title,
+              bullets: (section.bullets || []).map((bullet: any) => ({
+                id: bullet.id,
+                text: bullet.text,
+                params: {}
+              }))
+            }))
+          },
           company_name: companyName,
           position_title: positionTitle,
           tone: tone,

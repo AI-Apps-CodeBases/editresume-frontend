@@ -20,9 +20,34 @@ interface ResumeData {
 }
 
 interface Props {
-  data: ResumeData
+  data: ResumeData & {
+    design?: {
+      fonts?: {
+        heading?: string
+        body?: string
+        size?: {
+          heading?: number
+          body?: number
+        }
+      }
+      colors?: {
+        primary?: string
+        secondary?: string
+        accent?: string
+        text?: string
+      }
+      spacing?: {
+        section?: number
+        bullet?: number
+      }
+      layout?: {
+        columns?: 1 | 2
+        columnWidth?: number
+      }
+    }
+  }
   replacements: Record<string, string>
-  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
+  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'modern-one' | 'classic-one' | 'minimal-one' | 'executive-one'
 }
 
 export default function PreviewPanel({ data, replacements, template = 'clean' as const }: Props) {
@@ -96,6 +121,29 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
     return result
   }
 
+  const design = data.design || {}
+  const fonts = design.fonts || {}
+  const colors = design.colors || {}
+  const spacing = design.spacing || {}
+  const layout = design.layout || {}
+  
+  const headerAlign = template === 'clean' || template === 'two-column' || template === 'compact' ? 'center' : 'left'
+  const headerBorder = template === 'clean' ? 'border-b-2 border-black' : template === 'minimal' ? 'border-b border-gray-300' : 'border-b'
+  const sectionUppercase = template === 'clean' || template === 'compact'
+  const fontFamily = template === 'clean' ? 'font-serif' : 'font-sans'
+  const isTwoColumn = layout.columns === 2 || template === 'two-column'
+  
+  const headingFont = fonts.heading || (template === 'clean' ? 'serif' : 'sans-serif')
+  const bodyFont = fonts.body || (template === 'clean' ? 'serif' : 'sans-serif')
+  const headingSize = fonts.size?.heading || 18
+  const bodySize = fonts.size?.body || 12
+  const primaryColor = colors.primary || '#2563eb'
+  const secondaryColor = colors.secondary || '#6b7280'
+  const accentColor = colors.accent || '#8b5cf6'
+  const textColor = colors.text || '#111827'
+  const sectionSpacing = spacing.section || 16
+  const bulletSpacing = spacing.bullet || 8
+
   const renderBullets = (bullets: any[], sectionTitle: string) => {
     const isWorkExperience = sectionTitle.toLowerCase().includes('experience') || 
                              sectionTitle.toLowerCase().includes('work') || 
@@ -144,7 +192,17 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
           
           if (isHeader) {
             return (
-              <li key={bullet.id} className="font-bold text-base mb-2 mt-4 first:mt-0">
+              <li 
+                key={bullet.id} 
+                className="font-bold text-base mb-2 mt-4 first:mt-0"
+                style={{ 
+                  fontFamily: headingFont,
+                  fontSize: `${headingSize}px`,
+                  color: primaryColor,
+                  marginBottom: `${bulletSpacing * 2}px`,
+                  marginTop: `${bulletSpacing * 2}px`
+                }}
+              >
                 <span dangerouslySetInnerHTML={{ 
                   __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
                 }} />
@@ -163,11 +221,28 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               cleanText = cleanText.substring(2)
             }
             return (
-              <li key={bullet.id} className="text-sm leading-relaxed flex">
-                <span className="mr-2">•</span>
-                <span className="flex-1" dangerouslySetInnerHTML={{ 
-                  __html: applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-                }} />
+              <li 
+                key={bullet.id} 
+                className="text-sm leading-relaxed flex"
+                style={{ 
+                  fontFamily: bodyFont,
+                  fontSize: `${bodySize}px`,
+                  color: textColor,
+                  marginBottom: `${bulletSpacing}px`
+                }}
+              >
+                <span 
+                  className="mr-2"
+                  style={{ color: primaryColor }}
+                >
+                  •
+                </span>
+                <span 
+                  className="flex-1" 
+                  dangerouslySetInnerHTML={{ 
+                    __html: applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                  }} 
+                />
               </li>
             )
           }
@@ -176,12 +251,6 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
     )
   }
 
-  const headerAlign = template === 'clean' || template === 'two-column' || template === 'compact' ? 'center' : 'left'
-  const headerBorder = template === 'clean' ? 'border-b-2 border-black' : template === 'minimal' ? 'border-b border-gray-300' : 'border-b'
-  const sectionUppercase = template === 'clean' || template === 'compact'
-  const fontFamily = template === 'clean' ? 'font-serif' : 'font-sans'
-  const isTwoColumn = template === 'two-column'
-  
   // State for two-column layout configuration
   const [leftSectionIds, setLeftSectionIds] = useState<string[]>([])
   const [rightSectionIds, setRightSectionIds] = useState<string[]>([])
@@ -223,7 +292,19 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
   }, [isTwoColumn])
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-soft-lg p-8 preview-resume-container hover-lift">
+    <div 
+      className="bg-white rounded-2xl border border-gray-200 shadow-soft-lg p-8 preview-resume-container hover-lift"
+      style={{
+        fontFamily: bodyFont,
+        color: textColor,
+        '--primary-color': primaryColor,
+        '--secondary-color': secondaryColor,
+        '--accent-color': accentColor,
+        '--text-color': textColor,
+        '--section-spacing': `${sectionSpacing}px`,
+        '--bullet-spacing': `${bulletSpacing}px`
+      } as React.CSSProperties & Record<string, string>}
+    >
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
@@ -241,12 +322,39 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
         </div>
       </div>
 
-        <div className={`space-y-6 ${fontFamily}`}>
+        <div className={`space-y-6 ${fontFamily}`} style={{ gap: `${sectionSpacing}px` }}>
         {data.name && (data as any).fieldsVisible?.name !== false && (
           <div className={`${headerAlign === 'center' ? 'text-center' : 'text-left'} ${headerBorder} pb-4`}>
-            <h1 className="text-3xl font-bold">{applyReplacements(data.name)}</h1>
-            {data.title && (data as any).fieldsVisible?.title !== false && <p className="text-lg text-gray-700 mt-1">{applyReplacements(data.title)}</p>}
-            <div className={`flex items-center ${headerAlign === 'center' ? 'justify-center' : 'justify-start'} gap-3 mt-2 text-sm text-gray-600`}>
+            <h1 
+              className="text-3xl font-bold"
+              style={{ 
+                fontFamily: headingFont,
+                fontSize: `${headingSize * 1.67}px`,
+                color: primaryColor
+              }}
+            >
+              {applyReplacements(data.name)}
+            </h1>
+            {data.title && (data as any).fieldsVisible?.title !== false && (
+              <p 
+                className="text-lg mt-1"
+                style={{ 
+                  fontFamily: bodyFont,
+                  fontSize: `${bodySize * 1.5}px`,
+                  color: secondaryColor
+                }}
+              >
+                {applyReplacements(data.title)}
+              </p>
+            )}
+            <div 
+              className={`flex items-center ${headerAlign === 'center' ? 'justify-center' : 'justify-start'} gap-3 mt-2 text-sm`}
+              style={{ 
+                fontFamily: bodyFont,
+                fontSize: `${bodySize}px`,
+                color: secondaryColor
+              }}
+            >
               {data.email && (data as any).fieldsVisible?.email !== false && <span>{applyReplacements(data.email)}</span>}
               {data.phone && (data as any).fieldsVisible?.phone !== false && <span>• {applyReplacements(data.phone)}</span>}
               {data.location && (data as any).fieldsVisible?.location !== false && <span>• {applyReplacements(data.location)}</span>}
@@ -259,11 +367,27 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
           <div className="grid gap-8" style={{ gridTemplateColumns: `${leftWidth}% ${100 - leftWidth}%` }}>
             <div className="space-y-6">
               {data.summary && (data as any).fieldsVisible?.summary !== false && (
-                <div>
-                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
+                <div style={{ marginBottom: `${sectionSpacing}px` }}>
+                  <h2 
+                    className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
+                    style={{ 
+                      fontFamily: headingFont,
+                      fontSize: `${headingSize}px`,
+                      color: primaryColor,
+                      borderColor: primaryColor,
+                      marginBottom: `${sectionSpacing}px`
+                    }}
+                  >
                     Professional Summary
                   </h2>
-                  <p className="text-sm leading-relaxed text-gray-700">
+                  <p 
+                    className="text-sm leading-relaxed"
+                    style={{ 
+                      fontFamily: bodyFont,
+                      fontSize: `${bodySize}px`,
+                      color: textColor
+                    }}
+                  >
                     {applyReplacements(data.summary)}
                   </p>
                 </div>
@@ -275,8 +399,17 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               {data.sections.filter((s) => 
                 leftSectionIds.includes(s.id) && s.params?.visible !== false
               ).map((section) => (
-                <div key={section.id}>
-                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
+                <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
+                  <h2 
+                    className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
+                    style={{ 
+                      fontFamily: headingFont,
+                      fontSize: `${headingSize}px`,
+                      color: primaryColor,
+                      borderColor: primaryColor,
+                      marginBottom: `${sectionSpacing}px`
+                    }}
+                  >
                     {applyReplacements(section.title)}
                   </h2>
                   {renderBullets(section.bullets, section.title)}
@@ -288,8 +421,17 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               {data.sections.filter((s) => 
                 rightSectionIds.includes(s.id) && s.params?.visible !== false
               ).map((section) => (
-                <div key={section.id}>
-                  <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}>
+                <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
+                  <h2 
+                    className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
+                    style={{ 
+                      fontFamily: headingFont,
+                      fontSize: `${headingSize}px`,
+                      color: primaryColor,
+                      borderColor: primaryColor,
+                      marginBottom: `${sectionSpacing}px`
+                    }}
+                  >
                     {applyReplacements(section.title)}
                   </h2>
                   {renderBullets(section.bullets, section.title)}
@@ -300,16 +442,44 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
         ) : (
           <>
             {data.summary && (data as any).fieldsVisible?.summary !== false && (
-              <div>
-                <p className="text-sm leading-relaxed text-gray-700">
+              <div style={{ marginBottom: `${sectionSpacing}px` }}>
+                <h2 
+                  className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
+                  style={{ 
+                    fontFamily: headingFont,
+                    fontSize: `${headingSize}px`,
+                    color: primaryColor,
+                    borderColor: primaryColor,
+                    marginBottom: `${sectionSpacing}px`
+                  }}
+                >
+                  Professional Summary
+                </h2>
+                <p 
+                  className="text-sm leading-relaxed"
+                  style={{ 
+                    fontFamily: bodyFont,
+                    fontSize: `${bodySize}px`,
+                    color: textColor
+                  }}
+                >
                   {applyReplacements(data.summary)}
                 </p>
               </div>
             )}
 
             {data.sections.filter((s) => s.params?.visible !== false).map((section) => (
-              <div key={section.id}>
-                <h2 className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}>
+              <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
+                <h2 
+                  className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
+                  style={{ 
+                    fontFamily: headingFont,
+                    fontSize: `${headingSize}px`,
+                    color: primaryColor,
+                    borderColor: primaryColor,
+                    marginBottom: `${sectionSpacing}px`
+                  }}
+                >
                   {applyReplacements(section.title)}
                 </h2>
                 {renderBullets(section.bullets, section.title)}

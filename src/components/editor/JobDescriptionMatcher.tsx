@@ -454,7 +454,23 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resume_data: resumeData,
+          resume_data: {
+            name: resumeData.name || '',
+            title: resumeData.title || '',
+            email: resumeData.email || '',
+            phone: resumeData.phone || '',
+            location: resumeData.location || '',
+            summary: resumeData.summary || '',
+            sections: (resumeData.sections || []).map((section: any) => ({
+              id: section.id,
+              title: section.title,
+              bullets: (section.bullets || []).map((bullet: any) => ({
+                id: bullet.id,
+                text: bullet.text,
+                params: {}
+              }))
+            }))
+          },
           job_description: jobDescription,
           target_role: '',
           industry: ''
@@ -675,39 +691,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             )}
           </div>
 
-          {/* Job Description Input */}
-          <div>
-            <label htmlFor="job-description" className="block text-sm font-medium text-gray-700 mb-2">
-              Job Description
-            </label>
-            <textarea
-              id="job-description"
-              value={jobDescription}
-              onChange={(e) => {
-                setJobDescription(e.target.value);
-                // Extract metadata when user types
-                if (e.target.value.trim()) {
-                  const location = '';
-                  const metadata: JobMetadata = {
-                    title: undefined,
-                    company: undefined,
-                    jobType: extractJobType(e.target.value, location),
-                    remoteStatus: extractRemoteStatus(e.target.value, location),
-                    location: location,
-                    budget: extractBudget(e.target.value),
-                    keywords: extractTopKeywords(e.target.value),
-                    skills: extractSkills(e.target.value),
-                  };
-                  setSelectedJobMetadata(metadata);
-                } else {
-                  setSelectedJobMetadata(null);
-                }
-              }}
-              placeholder="Paste the job description here..."
-              className="w-full h-96 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-            />
-          </div>
-
           {/* Analyze Button */}
           <div>
             <button
@@ -717,6 +700,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             >
               {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
             </button>
+            {!jobDescription.trim() && (
+              <p className="text-sm text-gray-500 mt-2 text-center">
+                Select a saved job description to analyze
+              </p>
+            )}
           </div>
 
           {error && (

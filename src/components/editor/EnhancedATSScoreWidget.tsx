@@ -73,13 +73,32 @@ export default function EnhancedATSScoreWidget({
   const analyzeResume = async () => {
     setIsAnalyzing(true)
     try {
+      // Clean resume data - remove fieldsVisible and ensure params are compatible
+      const cleanedResumeData = {
+        name: resumeData.name || '',
+        title: resumeData.title || '',
+        email: resumeData.email || '',
+        phone: resumeData.phone || '',
+        location: resumeData.location || '',
+        summary: resumeData.summary || '',
+        sections: (resumeData.sections || []).map((section: any) => ({
+          id: section.id,
+          title: section.title,
+          bullets: (section.bullets || []).map((bullet: any) => ({
+            id: bullet.id,
+            text: bullet.text,
+            params: {} // Remove visible flag from params for API compatibility
+          }))
+        }))
+      };
+
       const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resume_data: resumeData,
+          resume_data: cleanedResumeData,
           job_description: jobDescription,
           target_role: targetRole,
           industry: industry
@@ -106,13 +125,32 @@ export default function EnhancedATSScoreWidget({
   const applyImprovement = async (improvement: AIImprovement) => {
     setIsApplyingImprovement(true)
     try {
+      // Clean resume data - remove fieldsVisible and ensure params are compatible
+      const cleanedResumeData = {
+        name: resumeData.name || '',
+        title: resumeData.title || '',
+        email: resumeData.email || '',
+        phone: resumeData.phone || '',
+        location: resumeData.location || '',
+        summary: resumeData.summary || '',
+        sections: (resumeData.sections || []).map((section: any) => ({
+          id: section.id,
+          title: section.title,
+          bullets: (section.bullets || []).map((bullet: any) => ({
+            id: bullet.id,
+            text: bullet.text,
+            params: {} // Remove visible flag from params for API compatibility
+          }))
+        }))
+      };
+
       const response = await fetch(`${config.apiBase}/api/ai/apply_improvement`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resume_data: resumeData,
+          resume_data: cleanedResumeData,
           job_description: jobDescription,
           target_role: targetRole,
           industry: industry,
@@ -145,13 +183,32 @@ export default function EnhancedATSScoreWidget({
   const improveATSScore = async () => {
     setIsImprovingATS(true)
     try {
+      // Clean resume data - remove fieldsVisible and ensure params are compatible
+      const cleanedResumeData = {
+        name: resumeData.name || '',
+        title: resumeData.title || '',
+        email: resumeData.email || '',
+        phone: resumeData.phone || '',
+        location: resumeData.location || '',
+        summary: resumeData.summary || '',
+        sections: (resumeData.sections || []).map((section: any) => ({
+          id: section.id,
+          title: section.title,
+          bullets: (section.bullets || []).map((bullet: any) => ({
+            id: bullet.id,
+            text: bullet.text,
+            params: {} // Remove visible flag from params for API compatibility
+          }))
+        }))
+      };
+
       const response = await fetch(`${config.apiBase}/api/ai/improve_ats_score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resume_data: resumeData,
+          resume_data: cleanedResumeData,
           job_description: jobDescription,
           target_role: targetRole,
           industry: industry

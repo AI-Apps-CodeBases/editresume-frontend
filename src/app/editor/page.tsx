@@ -1221,168 +1221,167 @@ const EditorPageContent = () => {
                   <p className="text-sm text-emerald-700">Click any text to edit • Drag sections/bullets to reorder • Select text for AI improvements</p>
                 </div>
               </div>
-                
-                {/* Two Column Layout for Visual Editor */}
-                <div className="grid grid-cols-1 lg:grid-cols-7 gap-6 mobile-editor-grid">
-                  {/* Left - Visual Editor (More space for editing) */}
-                  <div className="lg:col-span-4 space-y-4 mobile-editor-full">
-                    <VisualResumeEditor
-                      data={resumeData}
-                      onChange={handleResumeDataChange}
-                      template={selectedTemplate}
-                      onAddContent={handleAddContent}
-                      roomId={roomId}
-                      onAddComment={handleAddComment}
-                      onResolveComment={handleResolveComment}
-                      onDeleteComment={handleDeleteComment}
-                      onAIImprove={async (text: string) => {
-                        try {
-                          console.log('AI Improve requested for:', text)
-                          const response = await fetch(`${config.apiBase}/api/openai/improve-bullet`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ bullet: text, tone: 'professional' })
-                          })
-                          
-                          if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`)
-                          }
-                          
-                          const data = await response.json()
-                          console.log('AI Improve response:', data)
-                          
-                          let improved = data.improved || data.improved_bullet || text
-                          improved = improved.replace(/^["']|["']$/g, '')
-                          
-                          console.log('Final improved text:', improved)
-                          return improved
-                        } catch (error) {
-                          console.error('AI improvement failed:', error)
-                          alert('AI improvement failed: ' + (error as Error).message)
-                          return text
+              
+              {/* Two Column Layout for Visual Editor */}
+              <div className="grid grid-cols-1 lg:grid-cols-7 gap-6 mobile-editor-grid">
+                {/* Left - Visual Editor (More space for editing) */}
+                <div className="lg:col-span-4 space-y-4 mobile-editor-full">
+                  <VisualResumeEditor
+                    data={resumeData}
+                    onChange={handleResumeDataChange}
+                    template={selectedTemplate}
+                    onAddContent={handleAddContent}
+                    roomId={roomId}
+                    onAddComment={handleAddComment}
+                    onResolveComment={handleResolveComment}
+                    onDeleteComment={handleDeleteComment}
+                    onAIImprove={async (text: string) => {
+                      try {
+                        console.log('AI Improve requested for:', text)
+                        const response = await fetch(`${config.apiBase}/api/openai/improve-bullet`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ bullet: text, tone: 'professional' })
+                        })
+                        
+                        if (!response.ok) {
+                          throw new Error(`HTTP error! status: ${response.status}`)
                         }
-                      }}
-                    />
-                  </div>
+                        
+                        const data = await response.json()
+                        console.log('AI Improve response:', data)
+                        
+                        let improved = data.improved || data.improved_bullet || text
+                        improved = improved.replace(/^["']|["']$/g, '')
+                        
+                        console.log('Final improved text:', improved)
+                        return improved
+                      } catch (error) {
+                        console.error('AI improvement failed:', error)
+                        alert('AI improvement failed: ' + (error as Error).message)
+                        return text
+                      }
+                    }}
+                  />
+                </div>
 
-                  {/* Right - Live Preview */}
-                  <div className="lg:col-span-3 mobile-preview-bottom">
-                    <div className="sticky top-4">
-                      <div className="bg-white rounded-xl shadow-lg p-4 border">
-                          <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-bold text-gray-700">📄 {previewMode === 'live' ? 'Live Preview' : previewMode === 'match' ? 'Match Job Description' : 'Analysis'}</h3>
-                            <div className="inline-flex bg-gray-100 rounded-lg p-1 text-xs">
-                              <button
-                                className={`px-3 py-1 rounded-md ${previewMode === 'live' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-                                onClick={() => setPreviewMode('live')}
-                              >
-                                Live
-                              </button>
-                              <button
-                                className={`px-3 py-1 rounded-md ${previewMode === 'match' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-                                onClick={() => setPreviewMode('match')}
-                              >
-                                Match JD
-                              </button>
-                              <button
-                                className={`px-3 py-1 rounded-md ${previewMode === 'analysis' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-                                onClick={() => setPreviewMode('analysis')}
-                              >
-                                Analysis
-                              </button>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 mobile-preview-controls">
-                          <button
-                              onClick={() => {
-                                if (previewMode !== 'live') setPreviewMode('live')
-                                setFullscreenPreview(true)
-                              }}
-                              disabled={previewMode !== 'live'}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${previewMode === 'live' ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
-                              title={previewMode === 'live' ? 'View fullscreen preview' : 'Fullscreen available only in Live mode'}
+                {/* Right - Live Preview */}
+                <div className="lg:col-span-3 mobile-preview-bottom">
+                  <div className="sticky top-4">
+                    <div className="bg-white rounded-xl shadow-lg p-4 border">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-gray-700">📄 {previewMode === 'live' ? 'Live Preview' : previewMode === 'match' ? 'Match Job Description' : 'Analysis'}</h3>
+                          <div className="inline-flex bg-gray-100 rounded-lg p-1 text-xs">
+                            <button
+                              className={`px-3 py-1 rounded-md ${previewMode === 'live' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                              onClick={() => setPreviewMode('live')}
                             >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                              </svg>
-                              Full Page
+                              Live
                             </button>
-                            <div className="mobile-preview-scale">
-                              <button
-                                onClick={() => setPreviewScale(Math.max(0.4, previewScale - 0.1))}
-                                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold touch-target"
-                              >
-                                −
-                              </button>
-                              <span className="text-xs text-gray-600 min-w-[45px] text-center">{Math.round(previewScale * 100)}%</span>
-                              <button
-                                onClick={() => setPreviewScale(Math.min(1, previewScale + 0.1))}
-                                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold touch-target"
-                              >
-                                +
-                              </button>
-                            </div>
+                            <button
+                              className={`px-3 py-1 rounded-md ${previewMode === 'match' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                              onClick={() => setPreviewMode('match')}
+                            >
+                              Match JD
+                            </button>
+                            <button
+                              className={`px-3 py-1 rounded-md ${previewMode === 'analysis' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                              onClick={() => setPreviewMode('analysis')}
+                            >
+                              Analysis
+                            </button>
                           </div>
                         </div>
-                        <div 
-                          className="overflow-y-auto overflow-x-hidden border-2 rounded-lg bg-gray-50 flex justify-center" 
-                          style={{ 
-                            maxHeight: 'calc(100vh - 300px)',
-                            minHeight: '400px'
-                          }}
-                        >
-                          {previewMode === 'live' ? (
-                            <div style={{ 
-                              transform: `scale(${previewScale})`,
-                              transformOrigin: 'top center',
-                              width: '850px',
-                              margin: '0 auto'
-                            }}>
-                              <PreviewPanel
-                                key={previewKey}
-                                data={resumeData}
-                                replacements={replacements}
-                                template={selectedTemplate}
-                              />
-                            </div>
-                          ) : (
-                            <div className="p-3 w-full max-w-4xl">
-                              {previewMode === 'match' ? (
-                                <JobDescriptionMatcher
-                                  resumeData={resumeData as any}
-                                  standalone={false}
-                                  onClose={() => {}}
-                                  onResumeUpdate={(updatedResume) => {
-                                    setResumeData(updatedResume);
-                                    setPreviewKey(prev => prev + 1);
-                                    // Immediately save improved resume to localStorage
-                                    if (typeof window !== 'undefined') {
-                                      try {
-                                        localStorage.setItem('resumeData', JSON.stringify(updatedResume));
-                                        console.log('💾 Improved resume saved to localStorage');
-                                      } catch (error) {
-                                        console.error('Error saving improved resume:', error);
-                                      }
-                                    }
-                                  }}
-                                  initialJobDescription={deepLinkedJD || undefined}
-                                  onSelectJobDescriptionId={(id) => setActiveJobDescriptionId(id)}
-                                  currentJobDescriptionId={activeJobDescriptionId}
-                                />
-                              ) : (
-                                <EnhancedATSScoreWidget resumeData={resumeData as any} onClose={() => {}} inline={true} />
-                              )}
-                            </div>
-                          )}
+                        <div className="flex items-center gap-2 mobile-preview-controls">
+                          <button
+                            onClick={() => {
+                              if (previewMode !== 'live') setPreviewMode('live')
+                              setFullscreenPreview(true)
+                            }}
+                            disabled={previewMode !== 'live'}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${previewMode === 'live' ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
+                            title={previewMode === 'live' ? 'View fullscreen preview' : 'Fullscreen available only in Live mode'}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                            Full Page
+                          </button>
+                          <div className="mobile-preview-scale">
+                            <button
+                              onClick={() => setPreviewScale(Math.max(0.4, previewScale - 0.1))}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold touch-target"
+                            >
+                              −
+                            </button>
+                            <span className="text-xs text-gray-600 min-w-[45px] text-center">{Math.round(previewScale * 100)}%</span>
+                            <button
+                              onClick={() => setPreviewScale(Math.min(1, previewScale + 0.1))}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold touch-target"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
+                    <div 
+                      className="overflow-y-auto overflow-x-hidden border-2 rounded-lg bg-gray-50 flex justify-center" 
+                      style={{ 
+                        maxHeight: 'calc(100vh - 300px)',
+                        minHeight: '400px'
+                      }}
+                    >
+                      {previewMode === 'live' ? (
+                        <div style={{ 
+                          transform: `scale(${previewScale})`,
+                          transformOrigin: 'top center',
+                          width: '850px',
+                          margin: '0 auto'
+                        }}>
+                          <PreviewPanel
+                            key={previewKey}
+                            data={resumeData}
+                            replacements={replacements}
+                            template={selectedTemplate}
+                          />
+                        </div>
+                      ) : previewMode === 'match' ? (
+                        <div className="p-3 w-full max-w-4xl">
+                          <JobDescriptionMatcher
+                            resumeData={resumeData as any}
+                            standalone={false}
+                            onClose={() => {}}
+                            onResumeUpdate={(updatedResume) => {
+                              setResumeData(updatedResume);
+                              setPreviewKey(prev => prev + 1);
+                              if (typeof window !== 'undefined') {
+                                try {
+                                  localStorage.setItem('resumeData', JSON.stringify(updatedResume));
+                                  console.log('💾 Improved resume saved to localStorage');
+                                } catch (error) {
+                                  console.error('Error saving improved resume:', error);
+                                }
+                              }
+                            }}
+                            initialJobDescription={deepLinkedJD || undefined}
+                            onSelectJobDescriptionId={(id) => setActiveJobDescriptionId(id)}
+                            currentJobDescriptionId={activeJobDescriptionId}
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-3 w-full max-w-4xl">
+                          <EnhancedATSScoreWidget resumeData={resumeData as any} onClose={() => {}} inline={true} />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                {/* AI Content Wizard */}
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
+              </div>
+              
+              {/* AI Content Wizard */}
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4 mt-4">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="text-lg font-bold text-purple-900 mb-1">🤖 AI Content Wizard</h3>
@@ -1521,7 +1520,7 @@ const EditorPageContent = () => {
                     </p>
                   </div>
                 </div>
-              </div>
+            </div>
           </div>
         )}
       </div>
