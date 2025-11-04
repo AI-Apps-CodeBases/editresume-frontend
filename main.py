@@ -158,16 +158,28 @@ else:
 
 # Add explicit OPTIONS handler for CORS preflight requests
 @app.options("/{path:path}")
-async def options_handler(path: str):
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-        }
-    )
+async def options_handler(path: str, request: Request):
+    origin = request.headers.get("origin")
+    headers = {
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+        "Access-Control-Allow-Headers": "*",
+    }
+    
+    # Allow chrome-extension origins (extensions bypass CORS but we handle it here)
+    if origin and origin.startswith("chrome-extension://"):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    elif ENVIRONMENT == "staging":
+        headers["Access-Control-Allow-Origin"] = "*"
+        headers["Access-Control-Allow-Credentials"] = "false"
+    elif origin and is_origin_allowed(origin):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    else:
+        headers["Access-Control-Allow-Origin"] = "*"
+        headers["Access-Control-Allow-Credentials"] = "false"
+    
+    return Response(status_code=200, headers=headers)
 
 class BulletParam(BaseModel):
     id: Optional[str] = None
@@ -884,6 +896,113 @@ Return ONLY the bullet point text, no explanations or labels."""
         
     except Exception as e:
         logger.error(f"OpenAI generate bullet from keywords error: {str(e)}")
+        error_message = "AI generation failed: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
+
+@app.post("/api/ai/generate_bullets_from_keywords")
+async def generate_bullets_from_keywords(payload: dict):
+    """Generate multiple bullet points from selected keywords for a work experience entry"""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI service not available")
+    
+    try:
+        keywords_list = payload.get('keywords', [])
+        job_description = payload.get('job_description', '')
+        company_title = payload.get('company_title', '')
+        job_title = payload.get('job_title', '')
+        
+        if not keywords_list or len(keywords_list) == 0:
+            raise HTTPException(status_code=400, detail="Keywords list is required")
+        
+        keywords_str = ', '.join(keywords_list)
+        
+        context = f"""Generate professional resume bullet points based on these selected keywords and job description context:
+
+Job Description Context:
+{job_description[:500] if job_description else 'Not provided'}
+
+Company: {company_title or 'Not specified'}
+Job Title: {job_title or 'Not specified'}
+Selected Keywords: {keywords_str}
+
+Requirements:
+- Generate {len(keywords_list)} professional bullet points (one per keyword or group related keywords)
+- Each bullet should naturally incorporate the keywords
+- Use action-oriented language (Led, Implemented, Developed, Optimized, etc.)
+- Include specific technologies/tools mentioned in keywords
+- Make them achievement-focused with metrics when possible
+- Each bullet should be 1-2 lines maximum
+- Professional, ATS-optimized tone
+- Ensure keywords are naturally integrated, not forced
+- Make bullets diverse and cover different aspects of the role
+
+Return ONLY a JSON array of bullet point strings, no explanations or labels.
+Example format: ["Implemented scalable microservices architecture using Kubernetes", "Optimized CI/CD pipelines reducing deployment time by 40%"]"""
+
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": openai_client['model'],
+            "messages": [
+                {"role": "system", "content": "You are a professional resume writer. Create compelling bullet points that highlight achievements and technical skills while naturally incorporating keywords."},
+                {"role": "user", "content": context}
+            ],
+            "max_tokens": 800,
+            "temperature": 0.7
+        }
+        
+        response = openai_client['requests'].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+        
+        if response.status_code != 200:
+            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            raise HTTPException(status_code=500, detail="AI service error")
+        
+        result = response.json()
+        bullets_text = result['choices'][0]['message']['content'].strip()
+        
+        # Try to parse as JSON array
+        try:
+            import json
+            bullets = json.loads(bullets_text)
+            if not isinstance(bullets, list):
+                # If not a list, try to extract bullet points from text
+                bullets = [line.strip().replace('•', '').replace('*', '').replace('-', '').strip() 
+                          for line in bullets_text.split('\n') if line.strip()]
+        except json.JSONDecodeError:
+            # Parse as plain text - extract bullet points
+            bullets = [line.strip().replace('•', '').replace('*', '').replace('-', '').strip() 
+                      for line in bullets_text.split('\n') if line.strip() and len(line.strip()) > 10]
+        
+        # Clean up bullets
+        cleaned_bullets = []
+        for bullet in bullets:
+            bullet = bullet.strip()
+            if bullet and len(bullet) > 10:
+                # Remove common prefixes
+                for prefix in ['•', '*', '-', '1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.']:
+                    if bullet.startswith(prefix):
+                        bullet = bullet[len(prefix):].strip()
+                cleaned_bullets.append(bullet)
+        
+        return {
+            "success": True,
+            "bullets": cleaned_bullets[:len(keywords_list) + 2],  # Limit to reasonable number
+            "keywords_used": keywords_list,
+            "company_title": company_title,
+            "job_title": job_title,
+            "tokens_used": result.get('usage', {}).get('total_tokens', 0)
+        }
+        
+    except Exception as e:
+        logger.error(f"OpenAI generate bullets from keywords error: {str(e)}")
         error_message = "AI generation failed: " + str(e)
         raise HTTPException(status_code=500, detail=error_message)
 
