@@ -46,22 +46,57 @@ interface JobDescriptionMatcherProps {
 }
 
 // Helper functions to extract metadata (same as extension)
-const extractJobType = (text: string, location: string = ''): string | null => {
+const extractJobType = (text: string): string | null => {
   if (!text) return null;
-  const lowerText = ((text || '') + ' ' + (location || '')).toLowerCase();
-  if (/full.?time|ft\b|permanent/i.test(lowerText) && !/contract/i.test(lowerText)) return 'Full-time';
-  if (/contract|contractor|contract-to-hire|temporary/i.test(lowerText)) return 'Contract';
+  const lowerText = text.toLowerCase();
+  if (/contractor|contract-to-hire|contract basis/i.test(lowerText)) return 'Contractor';
+  if (/contract|temporary|temp/i.test(lowerText)) return 'Contractor';
   if (/part.?time|pt\b/i.test(lowerText)) return 'Part-time';
   if (/intern|internship/i.test(lowerText)) return 'Internship';
-  return 'Full-time';
+  if (/full.?time|ft\b|permanent/i.test(lowerText)) return 'Full Time';
+  return 'Full Time';
 };
 
-const extractRemoteStatus = (text: string, location: string = ''): string | null => {
-  if (!text) return null;
-  const lowerText = ((text || '') + ' ' + (location || '')).toLowerCase();
-  if (/remote|work from home|wfh|fully remote/i.test(lowerText) && !/hybrid/i.test(lowerText)) return 'Remote';
-  if (/hybrid|partially remote/i.test(lowerText)) return 'Hybrid';
-  if (/on.?site|on.?premise|office/i.test(lowerText) && !/remote/i.test(lowerText)) return 'On-site';
+const extractWorkType = (text: string, locationText: string = ''): string | null => {
+  if (!text && !locationText) return null;
+  
+  // Combine text and location for analysis
+  const combinedText = ((text || '') + ' ' + (locationText || '')).toLowerCase();
+  
+  // Check for explicit patterns like "(Remote)", "(Hybrid)", "(On-site)" in location text
+  if (locationText) {
+    const locationLower = locationText.toLowerCase();
+    if (locationLower.includes('(remote)') || locationLower.match(/\(remote\)/i)) {
+      return 'Remote';
+    }
+    if (locationLower.includes('(hybrid)') || locationLower.match(/\(hybrid\)/i)) {
+      return 'Hybrid';
+    }
+    if (locationLower.includes('(on-site)') || locationLower.includes('(onsite)') || locationLower.match(/\(on.?site\)/i)) {
+      return 'Onsite';
+    }
+  }
+  
+  // Look for explicit remote indicators first
+  if (/remote|work from home|wfh|fully remote|work remotely|remote work|100% remote|fully distributed/i.test(combinedText)) {
+    // Check if hybrid is also mentioned
+    if (/hybrid|partially remote|some remote|flexible|2-3 days|3 days|few days/i.test(combinedText)) {
+      return 'Hybrid';
+    }
+    return 'Remote';
+  }
+  
+  // Look for hybrid indicators
+  if (/hybrid|partially remote|some remote|flexible remote|remote.*office|office.*remote|2-3 days remote|3 days remote|few days remote/i.test(combinedText)) {
+    return 'Hybrid';
+  }
+  
+  // Look for on-site indicators (only if remote/hybrid not mentioned)
+  if (/on.?site|on.?premise|on.?premises|in.?office|in.?person|at office|in office|office based/i.test(combinedText) && 
+      !/remote|hybrid|work from home|wfh/i.test(combinedText)) {
+    return 'Onsite';
+  }
+  
   return null;
 };
 
@@ -129,6 +164,13 @@ interface JobMetadata {
   budget?: string | null;
   skills?: string[];
   keywords?: string[];
+  soft_skills?: string[];
+  high_frequency_keywords?: Array<{keyword: string, frequency: number, importance: string}>;
+  ats_insights?: {
+    action_verbs?: string[];
+    metrics?: string[];
+    industry_terms?: string[];
+  };
 }
 
 export default function JobDescriptionMatcher({ resumeData, onMatchResult, onResumeUpdate, onClose, standalone = true, initialJobDescription, onSelectJobDescriptionId, currentJobDescriptionId }: JobDescriptionMatcherProps) {
@@ -160,7 +202,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [showSaveNameModal, setShowSaveNameModal] = useState(false);
   const [resumeSaveName, setResumeSaveName] = useState('');
   const [updatedResumeData, setUpdatedResumeData] = useState<any>(null);
-  const [currentJDInfo, setCurrentJDInfo] = useState<{company?: string, title?: string} | null>(null);
+  const [currentJDInfo, setCurrentJDInfo] = useState<{company?: string, title?: string, easy_apply_url?: string} | null>(null);
 
   const handleSaveResumeWithName = async () => {
     if (!resumeSaveName || !resumeSaveName.trim()) {
@@ -336,9 +378,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           const res = await fetch(`${config.apiBase}/api/job-descriptions/${currentJobDescriptionId}`);
           if (res.ok) {
             const jd = await res.json();
+            console.log('📋 Fetched JD info:', { 
+              id: currentJobDescriptionId, 
+              company: jd.company, 
+              title: jd.title, 
+              easy_apply_url: jd.easy_apply_url 
+            });
             setCurrentJDInfo({
               company: jd.company || '',
-              title: jd.title || ''
+              title: jd.title || '',
+              easy_apply_url: jd.easy_apply_url || ''
             });
           }
         } catch (error) {
@@ -546,6 +595,27 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             </p>
           </div>
 
+      {/* Easy Apply Button - Always visible when JD is loaded */}
+      {currentJDInfo?.easy_apply_url && (
+        <div className="mb-4 flex items-center justify-end">
+          <a
+            href={currentJDInfo.easy_apply_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3 bg-[#0077b5] hover:bg-[#006399] text-white text-base font-semibold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(currentJDInfo.easy_apply_url, '_blank');
+            }}
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+            </svg>
+            Easy Apply
+          </a>
+        </div>
+      )}
+
       {/* Extension-style metadata display */}
       {selectedJobMetadata && (
         <div className="mb-4 bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 rounded-lg p-4">
@@ -574,7 +644,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 {selectedJobMetadata.remoteStatus && (
                   <div className="flex items-center gap-1">
                     <span>🌐</span>
-                    <span className="text-gray-700">{selectedJobMetadata.remoteStatus}</span>
+                    <span className="text-gray-700">Work Type: {selectedJobMetadata.remoteStatus}</span>
                   </div>
                 )}
                 {selectedJobMetadata.budget && (
@@ -651,39 +721,80 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             ) : (
               <div className="border rounded-md max-h-48 overflow-y-auto">
                 <ul className="divide-y">
-                  {savedJDs.map((jd) => (
-                    <li key={jd.id}>
-                      <button
-                        className="w-full text-left p-3 hover:bg-gray-50 text-sm"
-                        onClick={async () => {
-                          try {
-                            const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}`);
-                            if (res.ok) {
-                              const full = await res.json();
-                              if (full && full.content) {
-                                setJobDescription(full.content);
-                                
-                                const location = '';
-                                const metadata: JobMetadata = {
-                                  title: full.title,
-                                  company: full.company,
-                                  jobType: extractJobType(full.content, location),
-                                  remoteStatus: extractRemoteStatus(full.content, location),
-                                  location: location,
-                                  budget: extractBudget(full.content),
-                                  keywords: extractTopKeywords(full.content),
-                                  skills: extractSkills(full.content),
-                                };
-                                setSelectedJobMetadata(metadata);
+                  {savedJDs.map((jd: any) => (
+                    <li key={jd.id} className="group">
+                      <div className="flex items-center gap-2 p-3 hover:bg-gray-50">
+                        <button
+                          className="flex-1 text-left text-sm"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}`);
+                              if (res.ok) {
+                                const full = await res.json();
+                                if (full && full.content) {
+                                  setJobDescription(full.content);
+                                  
+                                  const workType = full.work_type || extractWorkType(full.content || '', full.location || '');
+                                  const jobType = full.job_type || extractJobType(full.content || '');
+                                  
+                                  // Only show location if work_type is NOT Remote
+                                  let locationText = '';
+                                  if (workType && workType.toLowerCase() !== 'remote') {
+                                    locationText = full.location || '';
+                                  }
+                                  
+                                  const metadata: JobMetadata = {
+                                    title: full.title,
+                                    company: full.company,
+                                    jobType: jobType,
+                                    remoteStatus: workType,
+                                    location: locationText,
+                                    budget: extractBudget(full.content),
+                                    keywords: extractTopKeywords(full.content),
+                                    skills: extractSkills(full.content),
+                                    soft_skills: full.soft_skills || [],
+                                    high_frequency_keywords: full.high_frequency_keywords || [],
+                                    ats_insights: full.ats_insights || {},
+                                  };
+                                  setSelectedJobMetadata(metadata);
+                                  
+                                  // Store Easy Apply URL and set current JD ID
+                                  console.log('📋 Loaded JD from saved list:', { 
+                                    id: jd.id, 
+                                    company: full.company, 
+                                    title: full.title, 
+                                    easy_apply_url: full.easy_apply_url 
+                                  });
+                                  setCurrentJDInfo({
+                                    company: full.company || '',
+                                    title: full.title || '',
+                                    easy_apply_url: full.easy_apply_url || ''
+                                  });
+                                  if (onSelectJobDescriptionId) onSelectJobDescriptionId(jd.id);
+                                }
                               }
-                              if (onSelectJobDescriptionId) onSelectJobDescriptionId(jd.id)
-                            }
-                          } catch (_) {}
-                        }}
-                      >
-                        <div className="text-sm font-semibold text-gray-800 line-clamp-1">{jd.title}</div>
-                        {jd.company && <div className="text-xs text-gray-500">{jd.company}</div>}
-                      </button>
+                            } catch (_) {}
+                          }}
+                        >
+                          <div className="text-sm font-semibold text-gray-800 line-clamp-1">{jd.title}</div>
+                          {jd.company && <div className="text-xs text-gray-500">{jd.company}</div>}
+                        </button>
+                        {jd.easy_apply_url && (
+                          <a
+                            href={jd.easy_apply_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="opacity-0 group-hover:opacity-100 px-2 py-1 bg-[#0077b5] text-white text-xs font-semibold rounded hover:bg-[#006399] transition-all flex items-center gap-1"
+                            title="Easy Apply on LinkedIn"
+                          >
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                            </svg>
+                            Apply
+                          </a>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -728,9 +839,28 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     </div>
                   )}
                   {selectedJobMetadata?.company && (
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-lg">🏢</span>
-                      <span className="text-base font-semibold text-gray-700">{selectedJobMetadata.company}</span>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">🏢</span>
+                        <span className="text-base font-semibold text-gray-700">{selectedJobMetadata.company}</span>
+                      </div>
+                      {currentJDInfo?.easy_apply_url && (
+                        <a
+                          href={currentJDInfo.easy_apply_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 bg-[#0077b5] hover:bg-[#006399] text-white text-sm font-semibold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(currentJDInfo.easy_apply_url, '_blank');
+                          }}
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                          </svg>
+                          Easy Apply
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>
@@ -751,7 +881,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                     <div className="flex items-center gap-2 mb-1">
                       <span>🌐</span>
-                      <span className="text-xs font-semibold text-gray-600 uppercase">Location</span>
+                      <span className="text-xs font-semibold text-gray-600 uppercase">Work Type</span>
                     </div>
                     <div className="text-sm font-bold text-gray-900">{selectedJobMetadata.remoteStatus}</div>
                   </div>
@@ -796,6 +926,108 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Soft Skills */}
+              {selectedJobMetadata?.soft_skills && selectedJobMetadata.soft_skills.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <span>🤝</span> Soft Skills
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedJobMetadata.soft_skills.map((skill, idx) => (
+                      <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* High-Frequency Keywords (Most Important for ATS) */}
+              {selectedJobMetadata?.high_frequency_keywords && selectedJobMetadata.high_frequency_keywords.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <span>🔥</span> High-Frequency Keywords (ATS Priority)
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedJobMetadata.high_frequency_keywords.map((item, idx) => (
+                      <span 
+                        key={idx} 
+                        className={`px-3 py-1 rounded-full text-xs font-medium text-white ${
+                          item.importance === 'high' 
+                            ? 'bg-gradient-to-r from-red-500 to-red-600' 
+                            : 'bg-gradient-to-r from-orange-500 to-orange-600'
+                        }`}
+                        title={`Frequency: ${item.frequency} times`}
+                      >
+                        {item.keyword} ({item.frequency})
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    These keywords appear most frequently in the JD. Include them in your resume to increase ATS score.
+                  </p>
+                </div>
+              )}
+
+              {/* ATS Insights */}
+              {selectedJobMetadata?.ats_insights && (
+                <div className="space-y-3">
+                  {/* Action Verbs */}
+                  {selectedJobMetadata.ats_insights.action_verbs && selectedJobMetadata.ats_insights.action_verbs.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                        <span>⚡</span> Action Verbs (Use in Resume)
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedJobMetadata.ats_insights.action_verbs.map((verb, idx) => (
+                          <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-indigo-500 to-indigo-600 text-white">
+                            {verb}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Use these action verbs in your resume bullet points (e.g., "Led team" instead of "Was part of team").
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Metrics */}
+                  {selectedJobMetadata.ats_insights.metrics && selectedJobMetadata.ats_insights.metrics.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                        <span>📈</span> Metrics Keywords
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedJobMetadata.ats_insights.metrics.map((metric, idx) => (
+                          <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-teal-500 to-teal-600 text-white">
+                            {metric}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Include quantifiable metrics in your resume (e.g., "Improved performance by 30%").
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Industry Terms */}
+                  {selectedJobMetadata.ats_insights.industry_terms && selectedJobMetadata.ats_insights.industry_terms.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                        <span>🏭</span> Industry Terms
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedJobMetadata.ats_insights.industry_terms.map((term, idx) => (
+                          <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-cyan-500 to-cyan-600 text-white">
+                            {term}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

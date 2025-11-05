@@ -1062,7 +1062,7 @@ const EditorPageContent = () => {
     <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
       {mounted && !showWizard && (
         <header className="bg-white border-b sticky top-0 z-20 shadow-sm">
-          <div className="mx-auto max-w-[1600px] px-4 py-3">
+          <div className="w-full px-4 py-3">
             <div className="flex items-center justify-between mobile-header">
               <a href="/" className="text-xl font-bold text-primary">editresume.io</a>
               <div className="flex gap-3 items-center mobile-header-buttons">
@@ -1166,7 +1166,7 @@ const EditorPageContent = () => {
         </header>
       )}
 
-      <div className="mx-auto max-w-[1800px] px-4 py-4">
+      <div className="w-full px-4 py-4">
         {!mounted || showWizard ? (
           <NewResumeWizard
             onComplete={handleWizardComplete}
@@ -1222,10 +1222,10 @@ const EditorPageContent = () => {
                 </div>
               </div>
               
-              {/* Two Column Layout for Visual Editor */}
-              <div className="grid grid-cols-1 lg:grid-cols-7 gap-6 mobile-editor-grid">
-                {/* Left - Visual Editor (More space for editing) */}
-                <div className="lg:col-span-4 space-y-4 mobile-editor-full">
+              {/* Two Column Layout for Visual Editor - 60/40 split */}
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 mobile-editor-grid">
+                {/* Left - Visual Editor (60% of screen) */}
+                <div className="lg:col-span-6 space-y-4 mobile-editor-full">
                   <VisualResumeEditor
                     data={resumeData}
                     onChange={handleResumeDataChange}
@@ -1265,8 +1265,8 @@ const EditorPageContent = () => {
                   />
                 </div>
 
-                {/* Right - Live Preview */}
-                <div className="lg:col-span-3 mobile-preview-bottom">
+                {/* Right - Live Preview (40% of screen) */}
+                <div className="lg:col-span-4 mobile-preview-bottom">
                   <div className="sticky top-4">
                     <div className="bg-white rounded-xl shadow-lg p-4 border">
                       <div className="flex items-center justify-between mb-3">
