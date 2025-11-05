@@ -5306,6 +5306,10 @@ class JobDescriptionCreate(BaseModel):
     company: Optional[str] = None
     source: Optional[str] = None
     url: Optional[str] = None
+    easy_apply_url: Optional[str] = None
+    location: Optional[str] = None  # Company headquarters location
+    work_type: Optional[str] = None  # Remote, Hybrid, Onsite
+    job_type: Optional[str] = None  # Full Time, Contractor, Part-time, Internship
     content: str
     user_email: Optional[str] = None
 
@@ -5386,12 +5390,19 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
         jd.company = payload.company
         jd.source = payload.source
         jd.url = payload.url
+        jd.easy_apply_url = payload.easy_apply_url
+        jd.location = payload.location
+        jd.work_type = payload.work_type
+        jd.job_type = payload.job_type
         jd.content = payload.content
 
         extracted = keyword_extractor.extract_keywords(payload.content)
         pri = _classify_priority_keywords(extracted)
         jd.extracted_keywords = extracted
         jd.priority_keywords = pri.get('high_priority', [])
+        jd.soft_skills = extracted.get('soft_skills', [])
+        jd.high_frequency_keywords = extracted.get('high_frequency_keywords', [])
+        jd.ats_insights = extracted.get('ats_keywords', {})
 
         db.add(jd)
         db.commit()
@@ -5460,8 +5471,15 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                     'company': it.company or '',
                     'source': it.source or '',
                     'url': it.url or '',
+                    'easy_apply_url': it.easy_apply_url or '',
+                    'location': it.location or '',
+                    'work_type': it.work_type or '',
+                    'job_type': it.job_type or '',
                     'created_at': it.created_at.isoformat() if it.created_at else None,
                     'priority_keywords': priority_kw or [],
+                    'soft_skills': it.soft_skills or [],
+                    'high_frequency_keywords': it.high_frequency_keywords or [],
+                    'ats_insights': it.ats_insights or {},
                 }
                 
                 if latest_match:
@@ -5506,8 +5524,15 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                     'company': it.company or '',
                     'source': it.source or '',
                     'url': it.url or '',
+                    'easy_apply_url': it.easy_apply_url or '',
+                    'location': it.location or '',
+                    'work_type': it.work_type or '',
+                    'job_type': it.job_type or '',
                     'created_at': it.created_at.isoformat() if it.created_at else None,
                     'priority_keywords': [],
+                    'soft_skills': [],
+                    'high_frequency_keywords': [],
+                    'ats_insights': {},
                     'last_match': None,
                 })
         
@@ -5547,9 +5572,16 @@ def get_job_description(jd_id: int, db: Session = Depends(get_db)):
         'company': jd.company or '',
         'source': jd.source or '',
         'url': jd.url or '',
+        'easy_apply_url': jd.easy_apply_url or '',
+        'location': jd.location or '',
+        'work_type': jd.work_type or '',
+        'job_type': jd.job_type or '',
         'content': jd.content or '',
         'extracted_keywords': extracted_kw,
         'priority_keywords': priority_kw,
+        'soft_skills': jd.soft_skills or [],
+        'high_frequency_keywords': jd.high_frequency_keywords or [],
+        'ats_insights': jd.ats_insights or {},
         'created_at': jd.created_at.isoformat() if jd.created_at else None,
     }
 

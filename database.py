@@ -81,9 +81,16 @@ class JobDescription(Base):
     company = Column(String)
     source = Column(String)  # e.g., 'LinkedIn', 'Glassdoor', 'Manual'
     url = Column(String)
+    easy_apply_url = Column(String)  # LinkedIn Easy Apply button URL
+    location = Column(String)  # Company headquarters location (e.g., "New York, NY", "San Francisco, CA")
+    work_type = Column(String)  # Work arrangement: "Remote", "Hybrid", "Onsite"
+    job_type = Column(String)  # Employment type: "Full Time", "Contractor", "Part-time", "Internship"
     content = Column(Text, nullable=False)
     extracted_keywords = Column(JSON)  # list of keywords extracted from JD
     priority_keywords = Column(JSON)   # list of must-have/high-priority keywords
+    soft_skills = Column(JSON)  # list of soft skills found in JD
+    high_frequency_keywords = Column(JSON)  # high-frequency keywords with counts
+    ats_insights = Column(JSON)  # ATS-relevant insights (action verbs, metrics, etc.)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -266,6 +273,90 @@ def migrate_schema():
                     conn.execute(text("ALTER TABLE match_sessions ALTER COLUMN user_id SET NOT NULL"))
                     conn.commit()
                     print('Migrating: match_sessions.user_id column added and backfilled')
+                
+                # Check if easy_apply_url column exists in job_descriptions
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='job_descriptions' AND column_name='easy_apply_url'
+                """))
+                row = result.fetchone()
+                if not row:
+                    print('Migrating: adding easy_apply_url column to job_descriptions')
+                    conn.execute(text("ALTER TABLE job_descriptions ADD COLUMN easy_apply_url TEXT"))
+                    conn.commit()
+                    print('Migrating: easy_apply_url column added')
+                
+                # Check if location column exists in job_descriptions
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='job_descriptions' AND column_name='location'
+                """))
+                row = result.fetchone()
+                if not row:
+                    print('Migrating: adding location column to job_descriptions')
+                    conn.execute(text("ALTER TABLE job_descriptions ADD COLUMN location VARCHAR"))
+                    conn.commit()
+                    print('Migrating: location column added')
+                
+                # Check if work_type column exists
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='job_descriptions' AND column_name='work_type'
+                """))
+                row = result.fetchone()
+                if not row:
+                    print('Migrating: adding work_type column to job_descriptions')
+                    conn.execute(text("ALTER TABLE job_descriptions ADD COLUMN work_type VARCHAR"))
+                    conn.commit()
+                    print('Migrating: work_type column added')
+                
+                # Check if job_type column exists
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='job_descriptions' AND column_name='job_type'
+                """))
+                row = result.fetchone()
+                if not row:
+                    print('Migrating: adding job_type column to job_descriptions')
+                    conn.execute(text("ALTER TABLE job_descriptions ADD COLUMN job_type VARCHAR"))
+                    conn.commit()
+                    print('Migrating: job_type column added')
+                
+                # Check if soft_skills column exists
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='job_descriptions' AND column_name='soft_skills'
+                """))
+                row = result.fetchone()
+                if not row:
+                    print('Migrating: adding soft_skills column to job_descriptions')
+                    conn.execute(text("ALTER TABLE job_descriptions ADD COLUMN soft_skills JSON"))
+                    conn.commit()
+                    print('Migrating: soft_skills column added')
+                
+                # Check if high_frequency_keywords column exists
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='job_descriptions' AND column_name='high_frequency_keywords'
+                """))
+                row = result.fetchone()
+                if not row:
+                    print('Migrating: adding high_frequency_keywords column to job_descriptions')
+                    conn.execute(text("ALTER TABLE job_descriptions ADD COLUMN high_frequency_keywords JSON"))
+                    conn.commit()
+                    print('Migrating: high_frequency_keywords column added')
+                
+                # Check if ats_insights column exists
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='job_descriptions' AND column_name='ats_insights'
+                """))
+                row = result.fetchone()
+                if not row:
+                    print('Migrating: adding ats_insights column to job_descriptions')
+                    conn.execute(text("ALTER TABLE job_descriptions ADD COLUMN ats_insights JSON"))
+                    conn.commit()
+                    print('Migrating: ats_insights column added')
     except Exception as e:
         print(f"Schema migration check failed (non-fatal): {e}")
 
