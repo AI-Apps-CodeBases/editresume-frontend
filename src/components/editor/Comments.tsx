@@ -219,13 +219,5 @@ export default function Comments({
   )
 }
 
-export function CommentBadge({ count }: { count: number }) {
-  if (count === 0) return null
-  
-  return (
-    <div className="absolute -top-2 -right-2 bg-yellow-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg animate-pulse touch-target">
-      {count}
-    </div>
-  )
-}
+// Removed unused CommentBadge component
 
