@@ -8,18 +8,20 @@ import GlobalReplacements from '@/components/editor/GlobalReplacements'
 import TemplateSelector from '@/components/editor/TemplateSelector'
 import NewResumeWizard from '@/components/editor/NewResumeWizard'
 import AuthModal from '@/components/auth/AuthModal'
-import CollaborationPanel from '@/components/editor/CollaborationPanel'
 import VisualResumeEditor from '@/components/editor/VisualResumeEditor'
 import AIWizard from '@/components/editor/AIWizard'
 import CoverLetterGenerator from '@/components/editor/CoverLetterGenerator'
 import EnhancedATSScoreWidget from '@/components/editor/EnhancedATSScoreWidget'
 import JobDescriptionMatcher from '@/components/editor/JobDescriptionMatcher'
 import AIImprovementWidget from '@/components/editor/AIImprovementWidget'
+import GrammarStylePanel from '@/components/editor/GrammarStylePanel'
 import VersionControlPanel from '@/components/editor/VersionControlPanel'
 import VersionComparisonModal from '@/components/editor/VersionComparisonModal'
 import ExportAnalyticsDashboard from '@/components/editor/ExportAnalyticsDashboard'
 import JobMatchAnalyticsDashboard from '@/components/editor/JobMatchAnalyticsDashboard'
 import ShareResumeModal from '@/components/editor/ShareResumeModal'
+import JobsView from '@/components/editor/JobsView'
+import ResumesView from '@/components/editor/ResumesView'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 
@@ -41,9 +43,14 @@ const EditorPageContent = () => {
   const [showShareResume, setShowShareResume] = useState(false)
   const [showJobMatchAnalytics, setShowJobMatchAnalytics] = useState(false)
   const [currentResumeId, setCurrentResumeId] = useState<number | null>(null)
+  const [grammarEnabled, setGrammarEnabled] = useState(false)
+  const [commentsEnabled, setCommentsEnabled] = useState(false)
+  const [showGrammarPanel, setShowGrammarPanel] = useState(false)
+  const [showCommentsPanel, setShowCommentsPanel] = useState(false)
   const [comparisonVersions, setComparisonVersions] = useState<{ version1Id: number; version2Id: number } | null>(null)
   const [roomId, setRoomId] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
+  const [currentView, setCurrentView] = useState<'editor' | 'jobs' | 'resumes'>('editor')
   const [userName, setUserName] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('userName') || ''
@@ -128,8 +135,46 @@ const EditorPageContent = () => {
   }, [previewMode])
 
   // Deep link: ?jdId=123 to load JD and switch to match mode
-  const [deepLinkedJD, setDeepLinkedJD] = useState<string | null>(null)
-  const [activeJobDescriptionId, setActiveJobDescriptionId] = useState<number | null>(null)
+  const [deepLinkedJD, setDeepLinkedJD] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('deepLinkedJD');
+      return saved || null;
+    }
+    return null;
+  })
+  const [activeJobDescriptionId, setActiveJobDescriptionId] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('activeJobDescriptionId');
+      return saved ? parseInt(saved) : null;
+    }
+    return null;
+  })
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (activeJobDescriptionId !== null) {
+        localStorage.setItem('activeJobDescriptionId', activeJobDescriptionId.toString());
+      }
+      if (deepLinkedJD) {
+        localStorage.setItem('deepLinkedJD', deepLinkedJD);
+      }
+    }
+  }, [activeJobDescriptionId, deepLinkedJD]);
+  
+  // Load JD when switching back to match mode if we have a saved ID
+  useEffect(() => {
+    if (previewMode === 'match' && activeJobDescriptionId && !deepLinkedJD) {
+      fetch(`${config.apiBase}/api/job-descriptions/${activeJobDescriptionId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && data.content) {
+            setDeepLinkedJD(data.content)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [previewMode, activeJobDescriptionId, deepLinkedJD]);
+  
   useEffect(() => {
     const id = searchParams.get('jdId')
     if (id) {
@@ -541,6 +586,14 @@ const EditorPageContent = () => {
         sections: cleanedSections,
         replacements,
         template: selectedTemplate,
+        design: {
+          colors: {
+            primary: '#000000',
+            secondary: '#000000',
+            accent: '#000000',
+            text: '#000000'
+          }
+        },
         two_column_left: localStorage.getItem('twoColumnLeft') ? JSON.parse(localStorage.getItem('twoColumnLeft')!) : [],
         two_column_right: localStorage.getItem('twoColumnRight') ? JSON.parse(localStorage.getItem('twoColumnRight')!) : [],
         two_column_left_width: localStorage.getItem('twoColumnLeftWidth') ? Number(localStorage.getItem('twoColumnLeftWidth')!) : 50
@@ -1135,30 +1188,6 @@ const EditorPageContent = () => {
                 >
                   📝 Cover Letter
                 </button>
-                {isAuthenticated && (
-                  <button
-                    onClick={() => setShowVersionControl(true)}
-                    className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-purple-400 hover:bg-purple-50 transition-all font-semibold"
-                  >
-                    📚 Versions
-                  </button>
-                )}
-                {isAuthenticated && (
-                  <button
-                    onClick={() => setShowExportAnalytics(true)}
-                    className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-orange-400 hover:bg-orange-50 transition-all font-semibold"
-                  >
-                    📊 Analytics
-                  </button>
-                )}
-                {isAuthenticated && (
-                  <button
-                    onClick={() => setShowJobMatchAnalytics(true)}
-                    className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50 transition-all font-semibold"
-                  >
-                    🎯 Job Matches
-                  </button>
-                )}
                 {isAuthenticated && currentResumeId && (
                   <button
                     onClick={() => setShowShareResume(true)}
@@ -1284,56 +1313,14 @@ const EditorPageContent = () => {
             onComplete={handleWizardComplete}
             onCancel={() => setShowWizard(false)}
           />
+        ) : currentView === 'jobs' ? (
+          <JobsView onBack={() => setCurrentView('editor')} />
+        ) : currentView === 'resumes' ? (
+          <ResumesView onBack={() => setCurrentView('editor')} />
         ) : (
           <div className="space-y-4">
-            {/* Collaboration Panel */}
-            <CollaborationPanel
-              isConnected={collaboration.isConnected}
-              activeUsers={collaboration.activeUsers}
-              roomId={roomId}
-              onCreateRoom={handleCreateRoom}
-              onJoinRoom={handleJoinRoom}
-              onLeaveRoom={handleLeaveRoom}
-            />
-
-            {/* Top Bar - Template Info */}
-            <div className="bg-white rounded-xl shadow-sm border p-4">
-              <div className="flex items-center gap-6">
-                <div className="flex-1">
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                    🎨 Visual Editor
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium">Template:</span> {selectedTemplate}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Template selected during setup
-                    </div>
-                    <button
-                      onClick={() => {
-                        console.log('=== MANUAL PREVIEW REFRESH ===')
-                        setPreviewKey(prev => prev + 1)
-                        console.log('Preview key updated to:', previewKey + 1)
-                      }}
-                      className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold hover:bg-blue-200"
-                    >
-                      🔄 Refresh Preview
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Visual Editor */}
             <div className="space-y-4">
-              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
-                <div>
-                  <h2 className="text-lg font-bold text-emerald-900 mb-1">🎨 Visual Editor</h2>
-                  <p className="text-sm text-emerald-700">Click any text to edit • Drag sections/bullets to reorder • Select text for AI improvements</p>
-                </div>
-              </div>
-              
               {/* Two Column Layout for Visual Editor - 60/40 split */}
               <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 mobile-editor-grid">
                 {/* Left - Visual Editor (60% of screen) */}
@@ -1347,6 +1334,12 @@ const EditorPageContent = () => {
                     onAddComment={handleAddComment}
                     onResolveComment={handleResolveComment}
                     onDeleteComment={handleDeleteComment}
+                    onCreateRoom={handleCreateRoom}
+                    onJoinRoom={handleJoinRoom}
+                    onLeaveRoom={handleLeaveRoom}
+                    isConnected={collaboration.isConnected}
+                    activeUsers={collaboration.activeUsers}
+                    onViewChange={setCurrentView}
                     onAIImprove={async (text: string) => {
                       try {
                         console.log('AI Improve requested for:', text)
@@ -1406,6 +1399,43 @@ const EditorPageContent = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 mobile-preview-controls">
+                          {/* Grammar Check Switch */}
+                          <button
+                            onClick={() => {
+                              setGrammarEnabled(!grammarEnabled)
+                              setShowGrammarPanel(!grammarEnabled)
+                            }}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                              grammarEnabled
+                                ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
+                                : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
+                            }`}
+                            title="Toggle Grammar Check"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Grammar</span>
+                          </button>
+                          
+                          {/* Comments Switch */}
+                          <button
+                            onClick={() => {
+                              setCommentsEnabled(!commentsEnabled)
+                              setShowCommentsPanel(!commentsEnabled)
+                            }}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                              commentsEnabled
+                                ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
+                                : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
+                            }`}
+                            title="Toggle Comments"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                            <span>Comments</span>
+                          </button>
                           <button
                             onClick={() => {
                               if (previewMode !== 'live') setPreviewMode('live')
@@ -1478,7 +1508,23 @@ const EditorPageContent = () => {
                               }
                             }}
                             initialJobDescription={deepLinkedJD || undefined}
-                            onSelectJobDescriptionId={(id) => setActiveJobDescriptionId(id)}
+                            onSelectJobDescriptionId={(id) => {
+                              setActiveJobDescriptionId(id);
+                              // Also fetch and save the JD content
+                              if (id) {
+                                fetch(`${config.apiBase}/api/job-descriptions/${id}`)
+                                  .then(res => res.ok ? res.json() : null)
+                                  .then(data => {
+                                    if (data && data.content) {
+                                      setDeepLinkedJD(data.content);
+                                      if (typeof window !== 'undefined') {
+                                        localStorage.setItem('deepLinkedJD', data.content);
+                                      }
+                                    }
+                                  })
+                                  .catch(() => {})
+                              }
+                            }}
                             currentJobDescriptionId={activeJobDescriptionId}
                           />
                         </div>
@@ -2050,6 +2096,94 @@ const EditorPageContent = () => {
           isOpen={showJobMatchAnalytics}
           onClose={() => setShowJobMatchAnalytics(false)}
         />
+      )}
+
+      {/* Grammar Check Panel */}
+      {showGrammarPanel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
+          setShowGrammarPanel(false)
+          setGrammarEnabled(false)
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden z-[10001]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Grammar & Style Checker
+              </h2>
+              <button
+                onClick={() => {
+                  setShowGrammarPanel(false)
+                  setGrammarEnabled(false)
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <GrammarStylePanel
+                resumeData={resumeData}
+                onApplySuggestion={(sectionId: string, bulletId: string, newText: string) => {
+                  const sections = resumeData.sections.map(section =>
+                    section.id === sectionId
+                      ? {
+                          ...section,
+                          bullets: section.bullets.map(bullet =>
+                            bullet.id === bulletId
+                              ? { ...bullet, text: newText }
+                              : bullet
+                          )
+                        }
+                      : section
+                  )
+                  handleResumeDataChange({ ...resumeData, sections })
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comments Panel */}
+      {showCommentsPanel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
+          setShowCommentsPanel(false)
+          setCommentsEnabled(false)
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden z-[10001]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Comments & Feedback
+              </h2>
+              <button
+                onClick={() => {
+                  setShowCommentsPanel(false)
+                  setCommentsEnabled(false)
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <div className="text-center py-8">
+                <div className="text-6xl mb-4">💬</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Comments Feature</h3>
+                <p className="text-gray-600 mb-4">
+                  Comments are available for individual sections and bullets in the editor.
+                </p>
+                <p className="text-sm text-gray-500">
+                  Click on any section or bullet point in the visual editor to add comments and feedback.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       

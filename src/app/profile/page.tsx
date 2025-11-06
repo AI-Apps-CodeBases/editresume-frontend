@@ -32,6 +32,10 @@ function ProfilePageContent() {
     company?: string
     source?: string
     url?: string
+    max_salary?: number
+    status?: string
+    follow_up_date?: string
+    important_emoji?: string
     created_at?: string
     last_match?: {
       id: number
@@ -146,21 +150,23 @@ function ProfilePageContent() {
           const jds = Array.isArray(data) ? data : data.results || []
           
           // For each JD, fetch all match sessions to show all matched versions
-          const jdsWithMatches = await Promise.all(jds.map(async (jd: any) => {
-            try {
-              const matchesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}/matches`)
-              if (matchesRes.ok) {
-                const matchesData = await matchesRes.json()
-                jd.all_matches = Array.isArray(matchesData) ? matchesData : matchesData.matches || []
-              }
-            } catch (e) {
-              console.error('Failed to load matches for JD:', jd.id, e)
-              jd.all_matches = []
+        const jdsWithMatches = await Promise.all(jds.map(async (jd: any) => {
+          try {
+            const matchesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}/matches`)
+            if (matchesRes.ok) {
+              const matchesData = await matchesRes.json()
+              jd.all_matches = Array.isArray(matchesData) ? matchesData : matchesData.matches || []
+              jd.last_match = jd.all_matches && jd.all_matches.length > 0 ? jd.all_matches[0] : null
             }
-            return jd
-          }))
-          
-          setSavedJDs(jdsWithMatches)
+          } catch (e) {
+            console.error('Failed to load matches for JD:', jd.id, e)
+            jd.all_matches = []
+            jd.last_match = null
+          }
+          return jd
+        }))
+        
+        setSavedJDs(jdsWithMatches)
         }
       } catch (e) {
         console.error('Failed to load job descriptions', e)
@@ -744,47 +750,89 @@ function ProfilePageContent() {
                     <p className="text-gray-600">Use the browser extension to save LinkedIn jobs.</p>
                   </div>
                 ) : (
-                  <div className="overflow-hidden border rounded-xl">
-                    <table className="w-full">
+                  <div className="overflow-x-auto border rounded-xl">
+                    <table className="w-full min-w-[1200px]">
                       <thead className="bg-gray-50 text-left text-sm text-gray-600">
                         <tr>
+                          <th className="p-3">Important</th>
                           <th className="p-3">Title</th>
                           <th className="p-3">Company</th>
+                          <th className="p-3">Max Salary</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3">Date Saved</th>
+                          <th className="p-3">Follow Up</th>
                           <th className="p-3">Source</th>
-                          <th className="p-3">Saved</th>
                           <th className="p-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {savedJDs.map((jd) => (
                           <tr key={jd.id} className="hover:bg-gray-50">
-                            <td className="p-3 font-medium text-gray-900 max-w-[320px] truncate">{jd.title}</td>
-                            <td className="p-3 text-gray-700">{jd.company || '-'}</td>
-                            <td className="p-3 text-gray-700">{jd.source || 'extension'}</td>
-                            <td className="p-3 text-gray-500">{jd.created_at ? new Date(jd.created_at).toLocaleString() : '-'}</td>
                             <td className="p-3">
-                              <div className="flex justify-end gap-2">
+                              {jd.important_emoji && <span className="text-2xl">{jd.important_emoji}</span>}
+                            </td>
+                            <td className="p-3">
+                              <a
+                                href={`/editor?jdId=${jd.id}`}
+                                className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
+                              >
+                                {jd.title}
+                              </a>
+                            </td>
+                            <td className="p-3 text-gray-700">{jd.company || '-'}</td>
+                            <td className="p-3 text-gray-700">
+                              {jd.max_salary ? `$${jd.max_salary.toLocaleString()}/yr` : '-'}
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                jd.status === 'applied' ? 'bg-blue-100 text-blue-700' :
+                                jd.status === 'interview_set' ? 'bg-purple-100 text-purple-700' :
+                                jd.status === 'interviewing' ? 'bg-yellow-100 text-yellow-700' :
+                                jd.status === 'negotiating' ? 'bg-orange-100 text-orange-700' :
+                                jd.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                jd.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {jd.status === 'bookmarked' ? '📌 Bookmarked' :
+                                 jd.status === 'applied' ? '📝 Applied' :
+                                 jd.status === 'interview_set' ? '📅 Interview Set' :
+                                 jd.status === 'interviewing' ? '💼 Interviewing' :
+                                 jd.status === 'negotiating' ? '🤝 Negotiating' :
+                                 jd.status === 'accepted' ? '✅ Accepted' :
+                                 jd.status === 'rejected' ? '❌ Rejected' :
+                                 '📌 Bookmarked'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-gray-500 text-sm">
+                              {jd.created_at ? new Date(jd.created_at).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="p-3 text-gray-500 text-sm">
+                              {jd.follow_up_date ? new Date(jd.follow_up_date).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="p-3 text-gray-700 text-sm">{jd.source || 'extension'}</td>
+                            <td className="p-3">
+                              <div className="flex justify-end gap-2 flex-wrap">
                                 <a
                                   href={`/editor?jdId=${jd.id}`}
-                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 whitespace-nowrap"
                                 >
                                   Analyze
                                 </a>
                                 {jd.last_match && (
                                   <div className="flex flex-col gap-2">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs font-semibold">
+                                      <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs font-semibold whitespace-nowrap">
                                         ATS Score: {jd.last_match?.score}%
                                       </span>
                                       {jd.last_match?.resume_name && (
-                                        <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs">
+                                        <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs whitespace-nowrap">
                                           Resume: {jd.last_match?.resume_name}
                                         </span>
                                       )}
                                       {jd.last_match?.resume_version_id && (
                                         <a
                                           href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${jd.last_match?.resume_version_id}`}
-                                          className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs hover:bg-blue-100"
+                                          className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs hover:bg-blue-100 whitespace-nowrap"
                                           target="_blank"
                                         >
                                           View Latest Version
@@ -797,7 +845,7 @@ function ProfilePageContent() {
                                         <div className="flex flex-wrap gap-2">
                                           {jd.all_matches.map((match: any, idx: number) => (
                                             <div key={match.id} className="flex items-center gap-1">
-                                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                              <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
                                                 match.score >= 80 ? 'bg-green-100 text-green-700 border border-green-300' :
                                                 match.score >= 60 ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
                                                 'bg-orange-100 text-orange-700 border border-orange-300'
@@ -807,7 +855,7 @@ function ProfilePageContent() {
                                               {match.resume_version_id && (
                                                 <a
                                                   href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${match.resume_version_id}`}
-                                                  className="px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs hover:bg-blue-100"
+                                                  className="px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs hover:bg-blue-100 whitespace-nowrap"
                                                   target="_blank"
                                                   title={`Version from ${new Date(match.created_at).toLocaleDateString()}`}
                                                 >
@@ -864,7 +912,7 @@ function ProfilePageContent() {
                                       deleteBtn.textContent = originalText
                                     }
                                   }}
-                                  className="px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                   title="Delete this job description"
                                 >
                                   Delete

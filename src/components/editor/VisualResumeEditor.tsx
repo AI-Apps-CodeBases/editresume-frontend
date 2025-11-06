@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import config from '@/lib/config';
 import InlineGrammarChecker from './InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
@@ -7,6 +7,22 @@ import AIWorkExperience from './AIWorkExperience'
 import AISectionAssistant from './AISectionAssistant'
 import Comments from './Comments'
 import { useSettings } from '@/contexts/SettingsContext'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface Bullet {
   id: string
@@ -47,6 +63,12 @@ interface Props {
   onAddComment?: (text: string, targetType: string, targetId: string) => void
   onResolveComment?: (commentId: string) => void
   onDeleteComment?: (commentId: string) => void
+  onCreateRoom?: () => void
+  onJoinRoom?: (roomId: string) => void
+  onLeaveRoom?: () => void
+  isConnected?: boolean
+  activeUsers?: Array<{ user_id: string; name: string; joined_at: string }>
+  onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
 }
 
 export default function VisualResumeEditor({ 
@@ -58,7 +80,13 @@ export default function VisualResumeEditor({
   roomId,
   onAddComment,
   onResolveComment,
-  onDeleteComment
+  onDeleteComment,
+  onCreateRoom,
+  onJoinRoom,
+  onLeaveRoom,
+  isConnected = false,
+  activeUsers = [],
+  onViewChange
 }: Props) {
   const [jdKeywords, setJdKeywords] = useState<{
     matching: string[];
@@ -72,6 +100,286 @@ export default function VisualResumeEditor({
   const [generatedBulletOptions, setGeneratedBulletOptions] = useState<string[]>([]);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
   const [selectedBullets, setSelectedBullets] = useState<Set<number>>(new Set());
+  
+  // Collapsible sections state
+  const [isTitleSectionOpen, setIsTitleSectionOpen] = useState(true);
+  const [isContactSectionOpen, setIsContactSectionOpen] = useState(true);
+  const [isSummarySectionOpen, setIsSummarySectionOpen] = useState(true);
+  const [openSections, setOpenSections] = useState<Set<string>>(() => {
+    // Initialize all sections as open by default
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('openSections');
+      if (saved) return new Set(JSON.parse(saved));
+    }
+    return new Set();
+  });
+  
+  // Update localStorage when openSections changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('openSections', JSON.stringify(Array.from(openSections)));
+    }
+  }, [openSections]);
+  
+  // Initialize sections as open when they're added
+  useEffect(() => {
+    if (data.sections.length > 0) {
+      setOpenSections(prev => {
+        const updated = new Set(prev);
+        // Add all sections that aren't already in the set
+        data.sections.forEach(s => {
+          if (!updated.has(s.id)) {
+            updated.add(s.id);
+          }
+        });
+        // Remove sections that no longer exist
+        const existingIds = new Set(data.sections.map(s => s.id));
+        Array.from(updated).forEach(id => {
+          if (!existingIds.has(id)) {
+            updated.delete(id);
+          }
+        });
+        return updated;
+      });
+    }
+  }, [data.sections]);
+  
+  const toggleSection = (sectionId: string) => {
+    setOpenSections(prev => {
+      const updated = new Set(prev);
+      if (updated.has(sectionId)) {
+        updated.delete(sectionId);
+      } else {
+        updated.add(sectionId);
+      }
+      return updated;
+    });
+  };
+  
+  // Custom title fields (for multiple titles)
+  const [customTitleFields, setCustomTitleFields] = useState<Array<{id: string, label: string, field: string}>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('customTitleFields');
+      if (saved) return JSON.parse(saved);
+    }
+    return [];
+  });
+  
+  // Custom contact fields
+  const [customContactFields, setCustomContactFields] = useState<Array<{id: string, label: string, field: string}>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('customContactFields');
+      if (saved) return JSON.parse(saved);
+    }
+    return [];
+  });
+  
+  // Contact fields configuration with order
+  const [contactFieldOrder, setContactFieldOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('contactFieldOrder');
+      if (saved) return JSON.parse(saved);
+    }
+    return ['email', 'phone', 'location', 'linkedin', 'website', 'github'];
+  });
+  
+  // Save custom fields to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('customTitleFields', JSON.stringify(customTitleFields));
+      localStorage.setItem('customContactFields', JSON.stringify(customContactFields));
+    }
+  }, [customTitleFields, customContactFields]);
+  
+  
+  // Save order to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('contactFieldOrder', JSON.stringify(contactFieldOrder));
+    }
+  }, [contactFieldOrder]);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+  
+  // Contact field definitions
+  const contactFields = {
+    email: { label: '📧 email', icon: '📧', field: 'email' },
+    phone: { label: '📱 phone', icon: '📱', field: 'phone' },
+    location: { label: '📍 location', icon: '📍', field: 'location' },
+    linkedin: { label: '💼 LinkedIn', icon: '💼', field: 'linkedin' },
+    website: { label: '🌐 website', icon: '🌐', field: 'website' },
+    github: { label: '⚡ GitHub', icon: '⚡', field: 'github' },
+    portfolio: { label: '🎨 Portfolio', icon: '🎨', field: 'portfolio' },
+    twitter: { label: '🐦 Twitter', icon: '🐦', field: 'twitter' }
+  };
+  
+  // Add custom title field
+  const addCustomTitleField = () => {
+    const fieldId = `custom_title_${Date.now()}`;
+    const fieldName = `customTitle${customTitleFields.length + 1}`;
+    const newField = { id: fieldId, label: 'Custom Title', field: fieldName };
+    setCustomTitleFields([...customTitleFields, newField]);
+    onChange({ ...data, [fieldName]: '' });
+  };
+  
+  // Add custom contact field
+  const addCustomContactField = () => {
+    const fieldId = `custom_contact_${Date.now()}`;
+    const fieldName = `customContact${customContactFields.length + 1}`;
+    const newField = { id: fieldId, label: 'Custom Field', field: fieldName };
+    setCustomContactFields([...customContactFields, newField]);
+    onChange({ ...data, [fieldName]: '' });
+    setContactFieldOrder([...contactFieldOrder, fieldName]);
+  };
+  
+  // Remove custom field
+  const removeCustomTitleField = (fieldId: string) => {
+    const field = customTitleFields.find(f => f.id === fieldId);
+    if (field) {
+      setCustomTitleFields(customTitleFields.filter(f => f.id !== fieldId));
+      const newData = { ...data };
+      delete (newData as any)[field.field];
+      onChange(newData);
+    }
+  };
+  
+  const removeCustomContactField = (fieldId: string) => {
+    const field = customContactFields.find(f => f.id === fieldId);
+    if (field) {
+      setCustomContactFields(customContactFields.filter(f => f.id !== fieldId));
+      setContactFieldOrder(contactFieldOrder.filter(f => f !== field.field));
+      const newData = { ...data };
+      delete (newData as any)[field.field];
+      onChange(newData);
+    }
+  };
+  
+  // Select all / Deselect all for title fields
+  const toggleAllTitleFields = (enable: boolean) => {
+    const fieldsVisible = { ...(data as any).fieldsVisible };
+    fieldsVisible.name = enable;
+    fieldsVisible.title = enable;
+    customTitleFields.forEach(field => {
+      fieldsVisible[field.field] = enable;
+    });
+    onChange({ ...data, fieldsVisible });
+  };
+  
+  // Select all / Deselect all for contact fields
+  const toggleAllContactFields = (enable: boolean) => {
+    const fieldsVisible = { ...(data as any).fieldsVisible };
+    contactFieldOrder.forEach(fieldKey => {
+      fieldsVisible[fieldKey] = enable;
+    });
+    customContactFields.forEach(field => {
+      fieldsVisible[field.field] = enable;
+    });
+    onChange({ ...data, fieldsVisible });
+  };
+  
+  const handleContactFieldDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setContactFieldOrder((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+  
+  
+  // Sortable contact field item component
+  const SortableContactField = ({ fieldKey }: { fieldKey: string }) => {
+    const field = contactFields[fieldKey as keyof typeof contactFields];
+    const customField = customContactFields.find(f => f.field === fieldKey);
+    
+    // Use custom field if available, otherwise use predefined field
+    const fieldConfig = customField 
+      ? { label: customField.label, icon: '📎', field: customField.field }
+      : field;
+    
+    if (!fieldConfig) return null;
+    
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: fieldKey });
+    
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+    
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="flex items-center gap-2"
+      >
+        <input
+          type="checkbox"
+          checked={(data as any).fieldsVisible?.[fieldConfig.field] !== false}
+          onChange={(e) => {
+            const fieldsVisible = { ...(data as any).fieldsVisible, [fieldConfig.field]: e.target.checked };
+            onChange({ ...data, fieldsVisible });
+          }}
+          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+          title={`Toggle ${fieldConfig.field} visibility in preview`}
+        />
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-move hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
+          title="Drag to reorder"
+        >
+          <span className="text-gray-400">⠿</span>
+        </div>
+        <div
+          contentEditable
+          suppressContentEditableWarning
+          data-editable-type="field"
+          data-field={fieldConfig.field}
+          onBlur={(e) => {
+            const value = e.currentTarget.textContent || '';
+            if (fieldConfig.field === 'email') {
+              onChange({ ...data, email: value });
+            } else if (fieldConfig.field === 'phone') {
+              onChange({ ...data, phone: value });
+            } else if (fieldConfig.field === 'location') {
+              onChange({ ...data, location: value });
+            } else {
+              onChange({ ...data, [fieldConfig.field]: value } as any);
+            }
+          }}
+          className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+            (data as any).fieldsVisible?.[fieldConfig.field] === false ? 'text-gray-400 line-through' : ''
+          }`}
+        >
+          {(data as any)[fieldConfig.field] || fieldConfig.label}
+        </div>
+        {customField && (
+          <button
+            onClick={() => removeCustomContactField(customField.id)}
+            className="px-1 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+            title="Remove this field"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  };
   
   // Load JD keywords from localStorage
   useEffect(() => {
@@ -108,20 +416,21 @@ export default function VisualResumeEditor({
     };
   }, []);
   
-  // Check if bullet text contains JD matching keywords
-  const checkBulletMatches = (bulletText: string, sectionTitle?: string): { matches: boolean; matchedKeywords: string[] } => {
-    if (!jdKeywords || !bulletText) return { matches: false, matchedKeywords: [] };
+  // Check if bullet text contains JD matching keywords and count occurrences
+  const checkBulletMatches = (bulletText: string, sectionTitle?: string): { matches: boolean; matchedKeywords: string[], keywordCounts: Record<string, number> } => {
+    if (!jdKeywords || !bulletText) return { matches: false, matchedKeywords: [], keywordCounts: {} };
     
     // Exclude certifications from keyword matching
     if (sectionTitle) {
       const sectionLower = sectionTitle.toLowerCase();
       if (sectionLower.includes('certif') || sectionLower.includes('license') || sectionLower.includes('credential')) {
-        return { matches: false, matchedKeywords: [] };
+        return { matches: false, matchedKeywords: [], keywordCounts: {} };
       }
     }
     
     const lowerText = bulletText.toLowerCase();
     const matched: string[] = [];
+    const keywordCounts: Record<string, number> = {};
     
     // Filter out single letter keywords and very short keywords
     const validKeywords = [
@@ -135,13 +444,84 @@ export default function VisualResumeEditor({
       if (keywordLower.length <= 1) return;
       
       // Use word boundary matching to avoid partial matches like "r" in "project"
-      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-      if (regex.test(lowerText) && !matched.includes(keyword)) {
-        matched.push(keyword);
+      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      const matches = lowerText.match(regex);
+      if (matches && matches.length > 0) {
+        if (!matched.includes(keyword)) {
+          matched.push(keyword);
+        }
+        keywordCounts[keyword] = matches.length;
       }
     });
     
-    return { matches: matched.length > 0, matchedKeywords: matched };
+    return { matches: matched.length > 0, matchedKeywords: matched, keywordCounts };
+  };
+  
+  // Highlight keywords in text with counts
+  const highlightKeywordsInText = (text: string, matchedKeywords: string[], keywordCounts: Record<string, number>): React.ReactNode => {
+    if (!matchedKeywords.length || !text) return text;
+    
+    const parts: Array<React.ReactNode> = [];
+    let processedText = text;
+    let lastIndex = 0;
+    
+    // Sort keywords by length (longest first) to avoid partial matches
+    const sortedKeywords = [...matchedKeywords].sort((a, b) => b.length - a.length);
+    const matches: Array<{keyword: string, index: number, length: number, count: number}> = [];
+    
+    sortedKeywords.forEach(keyword => {
+      const keywordLower = keyword.toLowerCase();
+      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      let match;
+      
+      while ((match = regex.exec(text)) !== null) {
+        matches.push({
+          keyword,
+          index: match.index,
+          length: match[0].length,
+          count: keywordCounts[keyword] || 1
+        });
+      }
+    });
+    
+    // Sort matches by index
+    matches.sort((a, b) => a.index - b.index);
+    
+    // Remove overlapping matches (keep longest)
+    const nonOverlapping: typeof matches = [];
+    for (const match of matches) {
+      const overlaps = nonOverlapping.some(m => 
+        (match.index >= m.index && match.index < m.index + m.length) ||
+        (match.index + match.length > m.index && match.index + match.length <= m.index + m.length)
+      );
+      if (!overlaps) {
+        nonOverlapping.push(match);
+      }
+    }
+    
+    // Build result with highlighted keywords
+    nonOverlapping.forEach((match, idx) => {
+      // Add text before match
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      // Add highlighted keyword with count
+      const keywordText = text.substring(match.index, match.index + match.length);
+      parts.push(
+        <span key={`kw-${idx}-${match.index}`} className="bg-yellow-200 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
+          {keywordText}
+          {match.count > 1 && <sup className="text-xs text-gray-600 ml-0.5">{match.count}</sup>}
+        </span>
+      );
+      lastIndex = match.index + match.length;
+    });
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? <>{parts}</> : text;
   };
   
   // Add page break styles
@@ -876,9 +1256,14 @@ export default function VisualResumeEditor({
       <div className="hidden lg:block sticky top-0 h-screen overflow-y-auto">
         <LeftSidebar
           resumeData={data}
-          onApplySuggestion={handleGrammarSuggestion}
-          onAIImprove={onAIImprove}
-          onAddContent={onAddContent}
+          onResumeUpdate={onChange}
+          roomId={roomId}
+          onCreateRoom={onCreateRoom}
+          onJoinRoom={onJoinRoom}
+          onLeaveRoom={onLeaveRoom}
+          isConnected={isConnected}
+          activeUsers={activeUsers}
+          onViewChange={onViewChange}
         />
       </div>
 
@@ -917,8 +1302,8 @@ export default function VisualResumeEditor({
       {/* Resume Template */}
       <div className="bg-white shadow-xl rounded-lg overflow-hidden resume-container mx-4 lg:mx-auto" style={{ width: '100%', maxWidth: '850px', margin: '0 auto', minHeight: '1100px' }}>
         <div className="p-6 lg:p-12">
-          {/* Header Section */}
-          <div className="text-center mb-8 pb-6 border-b-2 border-gray-300">
+          {/* Name Section */}
+          <div className="text-center mb-4">
             <div className="flex items-center justify-center gap-3 mb-2">
               <input
                 type="checkbox"
@@ -943,333 +1328,402 @@ export default function VisualResumeEditor({
                 {data.name || 'Click to edit name'}
               </div>
             </div>
-            <div className="flex items-center justify-center gap-3 mb-3">
-              <input
-                type="checkbox"
-                checked={(data as any).fieldsVisible?.title !== false}
-                onChange={(e) => {
-                  const fieldsVisible = { ...(data as any).fieldsVisible, title: e.target.checked }
-                  onChange({ ...data, fieldsVisible })
-                }}
-                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                title="Toggle title visibility in preview"
-              />
-              <div
-                contentEditable
-                suppressContentEditableWarning
-                data-editable-type="field"
-                data-field="title"
-                onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
-                className={`text-xl mb-3 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                  (data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-600'
-                }`}
-              >
-                {data.title || 'Click to edit title'}
+          </div>
+
+          {/* Title Section - Collapsible */}
+          <div className="mb-4 border border-gray-200 rounded-lg">
+            <div 
+              className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => setIsTitleSectionOpen(!isTitleSectionOpen)}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-gray-700">📋 Title Section</span>
+                <span className="text-xs text-gray-500">({1 + customTitleFields.length} field{customTitleFields.length !== 0 ? 's' : ''})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleAllTitleFields(true);
+                  }}
+                  className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                  title="Enable all title fields"
+                >
+                  ✓ All
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleAllTitleFields(false);
+                  }}
+                  className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                  title="Disable all title fields"
+                >
+                  ✗ All
+                </button>
+                <svg 
+                  className={`w-5 h-5 text-gray-500 transition-transform ${isTitleSectionOpen ? 'rotate-180' : ''}`}
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
             </div>
-            <div className="flex justify-center gap-4 text-sm text-gray-600 flex-wrap items-center">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={(data as any).fieldsVisible?.email !== false}
-                  onChange={(e) => {
-                    const fieldsVisible = { ...(data as any).fieldsVisible, email: e.target.checked }
-                    onChange({ ...data, fieldsVisible })
-                  }}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                  title="Toggle email visibility in preview"
-                />
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-editable-type="field"
-                  data-field="email"
-                  onBlur={(e) => updateField('email', e.currentTarget.textContent || '')}
-                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                    (data as any).fieldsVisible?.email === false ? 'text-gray-400 line-through' : ''
-                  }`}
-                >
-                  {data.email || '📧 email'}
+            {isTitleSectionOpen && (
+              <div className="p-4 space-y-3">
+                {/* Default Title */}
+                <div className="flex items-center justify-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={(data as any).fieldsVisible?.title !== false}
+                    onChange={(e) => {
+                      const fieldsVisible = { ...(data as any).fieldsVisible, title: e.target.checked }
+                      onChange({ ...data, fieldsVisible })
+                    }}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                    title="Toggle title visibility in preview"
+                  />
+                  <div
+                    contentEditable
+                    suppressContentEditableWarning
+                    data-editable-type="field"
+                    data-field="title"
+                    onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
+                    className={`flex-1 text-xl outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                      (data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-600'
+                    }`}
+                  >
+                    {data.title || 'Click to edit title'}
+                  </div>
                 </div>
-              </div>
-              <span className="text-gray-400">•</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={(data as any).fieldsVisible?.phone !== false}
-                  onChange={(e) => {
-                    const fieldsVisible = { ...(data as any).fieldsVisible, phone: e.target.checked }
-                    onChange({ ...data, fieldsVisible })
-                  }}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                  title="Toggle phone visibility in preview"
-                />
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-editable-type="field"
-                  data-field="phone"
-                  onBlur={(e) => updateField('phone', e.currentTarget.textContent || '')}
-                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                    (data as any).fieldsVisible?.phone === false ? 'text-gray-400 line-through' : ''
-                  }`}
+                
+                {/* Custom Title Fields */}
+                {customTitleFields.map((customField) => (
+                  <div key={customField.id} className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={(data as any).fieldsVisible?.[customField.field] !== false}
+                      onChange={(e) => {
+                        const fieldsVisible = { ...(data as any).fieldsVisible, [customField.field]: e.target.checked }
+                        onChange({ ...data, fieldsVisible })
+                      }}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                    />
+                    <div
+                      contentEditable
+                      suppressContentEditableWarning
+                      data-editable-type="field"
+                      data-field={customField.field}
+                      onBlur={(e) => {
+                        const value = e.currentTarget.textContent || '';
+                        onChange({ ...data, [customField.field]: value });
+                      }}
+                      className={`flex-1 text-xl outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                        (data as any).fieldsVisible?.[customField.field] === false ? 'text-gray-400 line-through' : 'text-gray-600'
+                      }`}
+                    >
+                      {(data as any)[customField.field] || 'Click to edit custom title'}
+                    </div>
+                    <button
+                      onClick={() => removeCustomTitleField(customField.id)}
+                      className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                      title="Remove this field"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Add Title Field Button */}
+                <button
+                  onClick={addCustomTitleField}
+                  className="w-full py-2 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:bg-blue-50 font-semibold transition-all flex items-center justify-center gap-2"
                 >
-                  {data.phone || '📱 phone'}
-                </div>
+                  <span className="text-xl">+</span>
+                  Add Title Field
+                </button>
               </div>
-              <span className="text-gray-400">•</span>
+            )}
+          </div>
+
+          {/* Contact Information Section - Collapsible */}
+          <div className="mb-8 pb-6 border-b-2 border-gray-300">
+            <div 
+              className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors rounded-t-lg"
+              onClick={() => setIsContactSectionOpen(!isContactSectionOpen)}
+            >
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={(data as any).fieldsVisible?.location !== false}
-                  onChange={(e) => {
-                    const fieldsVisible = { ...(data as any).fieldsVisible, location: e.target.checked }
-                    onChange({ ...data, fieldsVisible })
-                  }}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                  title="Toggle location visibility in preview"
-                />
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-editable-type="field"
-                  data-field="location"
-                  onBlur={(e) => updateField('location', e.currentTarget.textContent || '')}
-                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                    (data as any).fieldsVisible?.location === false ? 'text-gray-400 line-through' : ''
-                  }`}
-                >
-                  {data.location || '📍 location'}
-                </div>
+                <span className="text-sm font-semibold text-gray-700">📞 Contact Information</span>
+                <span className="text-xs text-gray-500">({contactFieldOrder.length + customContactFields.length} field{contactFieldOrder.length + customContactFields.length !== 1 ? 's' : ''})</span>
               </div>
-              <span className="text-gray-400">•</span>
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={(data as any).fieldsVisible?.linkedin !== false}
-                  onChange={(e) => {
-                    const fieldsVisible = { ...(data as any).fieldsVisible, linkedin: e.target.checked }
-                    onChange({ ...data, fieldsVisible })
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleAllContactFields(true);
                   }}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                  title="Toggle LinkedIn visibility in preview"
-                />
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-editable-type="field"
-                  data-field="linkedin"
-                  onBlur={(e) => updateField('linkedin', e.currentTarget.textContent || '')}
-                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                    (data as any).fieldsVisible?.linkedin === false ? 'text-gray-400 line-through' : ''
-                  }`}
+                  className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                  title="Enable all contact fields"
                 >
-                  {(data as any).linkedin || '💼 LinkedIn'}
-                </div>
-              </div>
-              <span className="text-gray-400">•</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={(data as any).fieldsVisible?.website !== false}
-                  onChange={(e) => {
-                    const fieldsVisible = { ...(data as any).fieldsVisible, website: e.target.checked }
-                    onChange({ ...data, fieldsVisible })
+                  ✓ All
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleAllContactFields(false);
                   }}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                  title="Toggle website visibility in preview"
-                />
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-editable-type="field"
-                  data-field="website"
-                  onBlur={(e) => updateField('website', e.currentTarget.textContent || '')}
-                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                    (data as any).fieldsVisible?.website === false ? 'text-gray-400 line-through' : ''
-                  }`}
+                  className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                  title="Disable all contact fields"
                 >
-                  {(data as any).website || '🌐 website'}
-                </div>
-              </div>
-              <span className="text-gray-400">•</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={(data as any).fieldsVisible?.github !== false}
-                  onChange={(e) => {
-                    const fieldsVisible = { ...(data as any).fieldsVisible, github: e.target.checked }
-                    onChange({ ...data, fieldsVisible })
-                  }}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                  title="Toggle GitHub visibility in preview"
-                />
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-editable-type="field"
-                  data-field="github"
-                  onBlur={(e) => updateField('github', e.currentTarget.textContent || '')}
-                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                    (data as any).fieldsVisible?.github === false ? 'text-gray-400 line-through' : ''
-                  }`}
+                  ✗ All
+                </button>
+                <svg 
+                  className={`w-5 h-5 text-gray-500 transition-transform ${isContactSectionOpen ? 'rotate-180' : ''}`}
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
                 >
-                  {(data as any).github || '⚡ GitHub'}
-                </div>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
-              <button
-                onClick={() => {
-                  const newField = prompt('Enter field name (e.g., Portfolio, Twitter, etc.):');
-                  if (newField && newField.trim()) {
-                    const fieldKey = newField.toLowerCase().replace(/\s+/g, '_');
-                    const currentValue = (data as any)[fieldKey] || '';
-                    const newValue = prompt(`Enter value for ${newField}:`, currentValue);
-                    if (newValue !== null) {
-                      const updatedData = { ...data, [fieldKey]: newValue || '' };
-                      const fieldsVisible = { ...(data as any).fieldsVisible, [fieldKey]: true };
-                      onChange({ ...updatedData, fieldsVisible });
-                    }
-                  }
-                }}
-                className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors font-medium"
-                title="Add more contact fields"
-              >
-                + Add Field
-              </button>
             </div>
+            {isContactSectionOpen && (
+              <div className="p-4">
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleContactFieldDragEnd}
+                >
+                  <SortableContext
+                    items={contactFieldOrder}
+                  >
+                    <div className="flex justify-center gap-4 text-sm text-gray-600 flex-wrap items-center mb-4">
+                      {contactFieldOrder.map((fieldKey, index) => (
+                        <React.Fragment key={fieldKey}>
+                          {index > 0 && <span className="text-gray-400">•</span>}
+                          <SortableContactField fieldKey={fieldKey} />
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+                
+                {/* Add Contact Field Button */}
+                <button
+                  onClick={addCustomContactField}
+                  className="w-full mt-4 py-2 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:bg-blue-50 font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="text-xl">+</span>
+                  Add Contact Field
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Experience Layout Toggle */}
 
-          {/* Professional Summary Section */}
-          <div className="mb-6 bg-blue-50 rounded-lg p-4 border border-blue-200">
-            <div className="flex items-center justify-between mb-2">
+          {/* Professional Summary Section - Collapsible */}
+          <div className="mb-6 border border-gray-200 rounded-lg">
+            <div 
+              className="flex items-center justify-between p-3 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors rounded-t-lg"
+              onClick={() => setIsSummarySectionOpen(!isSummarySectionOpen)}
+            >
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   checked={(data as any).fieldsVisible?.summary !== false}
                   onChange={(e) => {
+                    e.stopPropagation();
                     const fieldsVisible = { ...(data as any).fieldsVisible, summary: e.target.checked }
                     onChange({ ...data, fieldsVisible })
                   }}
                   className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
                   title="Toggle summary visibility in preview"
+                  onClick={(e) => e.stopPropagation()}
                 />
                 <h3 className={`text-sm font-bold ${
                   (data as any).fieldsVisible?.summary === false ? 'text-gray-400 line-through' : 'text-blue-900'
-                }`}>Professional Summary</h3>
+                }`}>📝 Professional Summary</h3>
               </div>
-              <button
-                onClick={generateSummaryFromExperience}
-                disabled={isSummaryGenerating || !data.sections.length}
-                className="px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-1"
-                title="AI will analyze your work experience and create an ATS-optimized summary"
-              >
-                {isSummaryGenerating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    🤖 Generate from Experience
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    generateSummaryFromExperience();
+                  }}
+                  disabled={isSummaryGenerating || !data.sections.length}
+                  className="px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-1"
+                  title="AI will analyze your work experience and create an ATS-optimized summary"
+                >
+                  {isSummaryGenerating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      🤖 Generate
+                    </>
+                  )}
+                </button>
+                <svg 
+                  className={`w-5 h-5 text-gray-500 transition-transform ${isSummarySectionOpen ? 'rotate-180' : ''}`}
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </div>
-            <div 
-              contentEditable
-              suppressContentEditableWarning
-              data-editable-type="field"
-              data-field="summary"
-              onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
-              className="text-sm text-gray-700 leading-relaxed bg-white border border-blue-100 min-h-[80px] px-3 py-2 rounded outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text"
-            >
-              {data.summary || 'Click to edit or generate summary from your work experience above ↑'}
-            </div>
+            {isSummarySectionOpen && (
+              <div className="p-4 bg-blue-50">
+                <div 
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-editable-type="field"
+                  data-field="summary"
+                  onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
+                  className="text-sm text-gray-700 leading-relaxed bg-white border border-blue-100 min-h-[80px] px-3 py-2 rounded outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text"
+                >
+                  {data.summary || 'Click to edit or generate summary from your work experience above ↑'}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Page Layout Indicator - After Summary */}
           <hr className="page-layout-indicator" />
 
           {/* Sections */}
-          <div className="space-y-6">
-            {data.sections.map((section) => (
-              <div
-                key={section.id}
-                draggable
-                onDragStart={() => handleSectionDragStart(section.id)}
-                onDragOver={(e) => handleSectionDragOver(e, section.id)}
-                onDragEnd={handleSectionDragEnd}
-                className={`group relative rounded-lg transition-all ${
-                  draggedSection === section.id ? 'opacity-50' : ''
-                } hover:ring-2 hover:ring-blue-300 p-3`}
-              >
-                {/* Section Controls */}
-                <div className="absolute -left-8 top-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
-                  <button
-                    className="w-6 h-6 bg-blue-500 text-white rounded flex items-center justify-center text-xs hover:bg-blue-600"
-                    title="Drag to reorder"
+          <div className="space-y-4">
+            {data.sections.map((section) => {
+              const isSectionOpen = openSections.has(section.id);
+              const bulletCount = section.bullets?.length || 0;
+              
+              return (
+                <div
+                  key={section.id}
+                  className={`group relative border border-gray-200 rounded-lg transition-all ${
+                    draggedSection === section.id ? 'opacity-50' : ''
+                  } hover:ring-2 hover:ring-blue-300`}
+                >
+                  {/* Section Header - Collapsible */}
+                  <div 
+                    className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors rounded-t-lg"
+                    onClick={() => toggleSection(section.id)}
+                    draggable
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      handleSectionDragStart(section.id);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSectionDragOver(e, section.id);
+                    }}
+                    onDragEnd={(e) => {
+                      e.stopPropagation();
+                      handleSectionDragEnd();
+                    }}
                   >
-                    ⠿
-                  </button>
-                  <button
-                    onClick={() => insertSectionAfter(section.id)}
-                    className="w-6 h-6 bg-green-500 text-white rounded flex items-center justify-center text-xs hover:bg-green-600"
-                    title="Insert section below"
-                  >
-                    +
-                  </button>
-                  <button
-                    onClick={() => removeSection(section.id)}
-                    className="w-6 h-6 bg-red-500 text-white rounded flex items-center justify-center text-xs hover:bg-red-600"
-                    title="Delete section"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Section Title */}
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-3 flex-1">
-                    <input
-                      type="checkbox"
-                      checked={section.params?.visible !== false}
-                      onChange={(e) => {
-                        const sections = data.sections.map(s =>
-                          s.id === section.id
-                            ? { ...s, params: { ...s.params, visible: e.target.checked } }
-                            : s
-                        )
-                        onChange({ ...data, sections })
-                      }}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                      title="Toggle section visibility in preview"
-                    />
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      data-editable-type="section-title"
-                      data-section-id={section.id}
-                      onBlur={(e) => updateSection(section.id, { title: e.currentTarget.textContent || '' })}
-                      className={`text-xl font-bold uppercase tracking-wide outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text flex-1 ${
-                        section.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
-                      }`}
-                    >
-                      {section.title}
+                    <div className="flex items-center gap-3 flex-1">
+                      {/* Section Controls - Visible on hover */}
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        <button
+                          className="w-6 h-6 bg-blue-500 text-white rounded flex items-center justify-center text-xs hover:bg-blue-600"
+                          title="Drag to reorder"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Drag is handled by parent
+                          }}
+                        >
+                          ⠿
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            insertSectionAfter(section.id);
+                          }}
+                          className="w-6 h-6 bg-green-500 text-white rounded flex items-center justify-center text-xs hover:bg-green-600"
+                          title="Insert section below"
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeSection(section.id);
+                          }}
+                          className="w-6 h-6 bg-red-500 text-white rounded flex items-center justify-center text-xs hover:bg-red-600"
+                          title="Delete section"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      
+                      <input
+                        type="checkbox"
+                        checked={section.params?.visible !== false}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          const sections = data.sections.map(s =>
+                            s.id === section.id
+                              ? { ...s, params: { ...s.params, visible: e.target.checked } }
+                              : s
+                          )
+                          onChange({ ...data, sections })
+                        }}
+                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                        title="Toggle section visibility in preview"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div
+                        contentEditable
+                        suppressContentEditableWarning
+                        data-editable-type="section-title"
+                        data-section-id={section.id}
+                        onBlur={(e) => updateSection(section.id, { title: e.currentTarget.textContent || '' })}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`text-lg font-bold uppercase tracking-wide outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text flex-1 ${
+                          section.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
+                        }`}
+                      >
+                        {section.title}
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        ({bulletCount} item{bulletCount !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {roomId && onAddComment && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowComments(showComments === section.id ? null : section.id);
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 transition-colors"
+                        >
+                          💬
+                        </button>
+                      )}
+                      <svg 
+                        className={`w-5 h-5 text-gray-500 transition-transform ${isSectionOpen ? 'rotate-180' : ''}`}
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                     </div>
                   </div>
-                  {roomId && onAddComment && (
-                    <button
-                      onClick={() => setShowComments(showComments === section.id ? null : section.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors touch-target"
-                    >
-                      💬 Comments
-                    </button>
-                  )}
-                </div>
 
-                <div className="border-b-2 border-gray-300 mb-3"></div>
+                  {/* Section Content - Collapsible */}
+                  {isSectionOpen && (
+                    <div className="p-4">
+                      <div className="border-b-2 border-gray-300 mb-3"></div>
 
                 {/* Comments Section */}
                 {showComments === section.id && roomId && onAddComment && onResolveComment && onDeleteComment && (
@@ -1373,7 +1827,7 @@ export default function VisualResumeEditor({
                             )
                             onChange({ ...data, sections })
                           }}
-                          className="px-3 py-1.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                          className="px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
                         >
                           <span>+</span> Add Skill
                         </button>
@@ -1467,7 +1921,7 @@ export default function VisualResumeEditor({
                                   className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
                                   title="Toggle this work experience entry visibility in preview"
                                 />
-                                <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
+                                <div className="w-3 h-3 bg-black rounded-full flex-shrink-0"></div>
                                 <div className="flex-1">
                                   <div 
                                     contentEditable
@@ -1584,6 +2038,14 @@ export default function VisualResumeEditor({
                                   const hasMatch = bulletMatch.matches;
                                   const hasNoMatch = jdKeywords && !hasMatch && companyBullet.text.trim().length > 0;
                                   
+                                  // Check if disabled bullet has missing keywords
+                                  const isDisabled = companyBullet.params?.visible === false;
+                                  const disabledHasMissing = isDisabled && jdKeywords && jdKeywords.missing.length > 0 && 
+                                    jdKeywords.missing.some(kw => {
+                                      const regex = new RegExp(`\\b${kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+                                      return regex.test(companyBullet.text.toLowerCase());
+                                    });
+                                  
                                   return (
                                     <div 
                                       key={companyBullet.id} 
@@ -1592,6 +2054,8 @@ export default function VisualResumeEditor({
                                           ? 'bg-green-50 border border-green-200' 
                                           : hasNoMatch
                                           ? 'bg-orange-50 border border-orange-200'
+                                          : disabledHasMissing
+                                          ? 'bg-purple-50 border border-purple-300'
                                           : ''
                                       }`}
                                     >
@@ -1620,35 +2084,59 @@ export default function VisualResumeEditor({
                                         hasMatch ? 'bg-green-500' : hasNoMatch ? 'bg-orange-400' : 'bg-black'
                                       }`}></div>
                                       <div className="flex-1">
-                                        {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
-                                          <div className="mb-1 flex flex-wrap gap-1">
-                                            {bulletMatch.matchedKeywords.slice(0, 3).map((kw, i) => (
-                                              <span key={i} className="px-2 py-0.5 bg-green-200 text-green-800 text-xs rounded-full font-semibold">
-                                                ✓ {kw}
-                                              </span>
-                                            ))}
+                                        {disabledHasMissing && (
+                                          <div className="mb-1">
+                                            <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs rounded-full font-semibold">
+                                              💡 Enable to increase ATS score
+                                            </span>
                                           </div>
                                         )}
-                                        {hasNoMatch && (
+                                        {hasNoMatch && !disabledHasMissing && (
                                           <div className="mb-1">
                                             <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs rounded-full font-semibold">
                                               ⚠ No JD keywords
                                             </span>
                                           </div>
                                         )}
+                                    <div className="relative flex-1">
+                                      {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
+                                        <div 
+                                          className={`text-sm px-2 py-1 rounded pointer-events-none ${
+                                            companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                          }`}
+                                        >
+                                          {highlightKeywordsInText(companyBullet.text.replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                        </div>
+                                      )}
                                     <div
                                       contentEditable
                                       suppressContentEditableWarning
                                       data-editable-type="bullet"
                                       data-section-id={section.id}
                                       data-bullet-id={companyBullet.id}
-                                      onBlur={(e) => updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '')}
-                                      className={`flex-1 text-sm outline-none hover:bg-white focus:bg-white px-2 py-1 rounded transition-colors cursor-text ${
+                                        onBlur={(e) => {
+                                          updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '');
+                                          // Trigger ATS recalculation
+                                          if (typeof window !== 'undefined') {
+                                            window.dispatchEvent(new CustomEvent('resumeDataUpdated', { 
+                                              detail: { resumeData: { ...data, sections: data.sections.map(s =>
+                                                s.id === section.id ? { ...s, bullets: s.bullets.map(b =>
+                                                  b.id === companyBullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
+                                                )} : s
+                                              )}}
+                                            }));
+                                          }
+                                        }}
+                                        className={`text-sm outline-none hover:bg-white focus:bg-white px-2 py-1 rounded transition-colors cursor-text ${
+                                          hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0' : ''
+                                        } ${
                                             companyBullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch ? 'text-gray-800 font-medium' : 'text-gray-700'
-                                      }`}
+                                        }`}
+                                        style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : {}}
                                     >
                                       {companyBullet.text.replace(/^•\s*/, '')}
-                                        </div>
+                                      </div>
+                                    </div>
                                     </div>
                                     
                                     {/* Action Buttons on the Right */}
@@ -1666,15 +2154,15 @@ export default function VisualResumeEditor({
                                           } else if (onAIImprove) {
                                             // Fallback to old behavior if no JD keywords
                                             (async () => {
-                                              try {
-                                                setIsAILoading(true)
-                                                const improvedText = await onAIImprove(companyBullet.text)
-                                                updateBullet(section.id, companyBullet.id, improvedText)
-                                              } catch (error) {
-                                                console.error('AI improvement failed:', error)
-                                              } finally {
-                                                setIsAILoading(false)
-                                              }
+                                            try {
+                                              setIsAILoading(true)
+                                              const improvedText = await onAIImprove(companyBullet.text)
+                                              updateBullet(section.id, companyBullet.id, improvedText)
+                                            } catch (error) {
+                                              console.error('AI improvement failed:', error)
+                                            } finally {
+                                              setIsAILoading(false)
+                                            }
                                             })();
                                           }
                                         }}
@@ -1815,10 +2303,18 @@ export default function VisualResumeEditor({
                                                        section.title.toLowerCase().includes('credential');
                         
                         const bulletMatch = isCertificationSection 
-                          ? { matches: false, matchedKeywords: [] }
+                          ? { matches: false, matchedKeywords: [], keywordCounts: {} }
                           : checkBulletMatches(bullet.text, section.title);
                         const hasMatch = bulletMatch.matches;
                         const hasNoMatch = !isCertificationSection && jdKeywords && !hasMatch && bullet.text.trim().length > 0;
+                        
+                        // Check if disabled bullet has missing keywords
+                        const isDisabled = bullet.params?.visible === false;
+                        const disabledHasMissing = isDisabled && jdKeywords && jdKeywords.missing.length > 0 && 
+                          jdKeywords.missing.some(kw => {
+                            const regex = new RegExp(`\\b${kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+                            return regex.test(bullet.text.toLowerCase());
+                          });
                         
                         return (
                           <div 
@@ -1828,6 +2324,8 @@ export default function VisualResumeEditor({
                                 ? 'bg-green-50 border-2 border-green-300' 
                                 : hasNoMatch
                                 ? 'bg-orange-50 border-2 border-orange-200'
+                                : disabledHasMissing
+                                ? 'bg-purple-50 border-2 border-purple-300'
                                 : 'bg-white border border-gray-200'
                             }`}
                           >
@@ -1855,37 +2353,61 @@ export default function VisualResumeEditor({
                                 title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
                               />
                               <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                                hasMatch ? 'bg-green-500' : hasNoMatch ? 'bg-orange-400' : 'bg-blue-500'
+                                hasMatch ? 'bg-green-500' : hasNoMatch ? 'bg-orange-400' : 'bg-black'
                               }`}></div>
                               <div className="flex-1">
-                                {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
-                                  <div className="mb-1 flex flex-wrap gap-1">
-                                    {bulletMatch.matchedKeywords.slice(0, 3).map((kw, i) => (
-                                      <span key={i} className="px-2 py-0.5 bg-green-200 text-green-800 text-xs rounded-full font-semibold">
-                                        ✓ {kw}
-                                      </span>
-                                    ))}
+                                {disabledHasMissing && (
+                                  <div className="mb-1">
+                                    <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs rounded-full font-semibold">
+                                      💡 Enable to increase ATS score
+                                    </span>
                                   </div>
                                 )}
-                                {hasNoMatch && (
+                                {hasNoMatch && !disabledHasMissing && (
                                   <div className="mb-1">
                                     <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs rounded-full font-semibold">
                                       ⚠ No JD keywords
                                     </span>
                                   </div>
                                 )}
+                                <div className="relative">
+                                  {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
+                                    <div 
+                                      className={`text-sm px-2 py-1 rounded pointer-events-none ${
+                                        bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                      }`}
+                                    >
+                                      {highlightKeywordsInText(bullet.text.replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                    </div>
+                                  )}
                                 <div 
                                   contentEditable
                                   suppressContentEditableWarning
                                   data-editable-type="bullet"
                                   data-section-id={section.id}
                                   data-bullet-id={bullet.id}
-                                  onBlur={(e) => updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')}
+                                    onBlur={(e) => {
+                                      updateBullet(section.id, bullet.id, e.currentTarget.textContent || '');
+                                      // Trigger ATS recalculation
+                                      if (typeof window !== 'undefined') {
+                                        window.dispatchEvent(new CustomEvent('resumeDataUpdated', { 
+                                          detail: { resumeData: { ...data, sections: data.sections.map(s =>
+                                            s.id === section.id ? { ...s, bullets: s.bullets.map(b =>
+                                              b.id === bullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
+                                            )} : s
+                                          )}}
+                                        }));
+                                      }
+                                    }}
                                   className={`text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                    bullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch ? 'text-gray-800 font-medium' : 'text-gray-700'
+                                      hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0' : ''
+                                    } ${
+                                      bullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch ? 'text-gray-800 font-medium' : 'text-gray-700'
                                   }`}
+                                    style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : {}}
                                 >
                                   {bullet.text.replace(/^•\s*/, '')}
+                                  </div>
                                 </div>
                               </div>
                               
@@ -1904,15 +2426,15 @@ export default function VisualResumeEditor({
                                     } else if (onAIImprove) {
                                       // Fallback to old behavior if no JD keywords
                                       (async () => {
-                                        try {
-                                          setIsAILoading(true)
-                                          const improvedText = await onAIImprove(bullet.text)
-                                          updateBullet(section.id, bullet.id, improvedText)
-                                        } catch (error) {
-                                          console.error('AI improvement failed:', error)
-                                        } finally {
-                                          setIsAILoading(false)
-                                        }
+                                      try {
+                                        setIsAILoading(true)
+                                        const improvedText = await onAIImprove(bullet.text)
+                                        updateBullet(section.id, bullet.id, improvedText)
+                                      } catch (error) {
+                                        console.error('AI improvement failed:', error)
+                                      } finally {
+                                        setIsAILoading(false)
+                                      }
                                       })();
                                     }
                                   }}
@@ -1938,8 +2460,11 @@ export default function VisualResumeEditor({
                       })
                     )}
                   </div>
-              </div>
-            ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {/* AI Improve Modal with Missing Keywords */}
@@ -1978,7 +2503,7 @@ export default function VisualResumeEditor({
                       </div>
                       
                       <div className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900 mb-3">Select missing keywords to include (choose 2-3):</p>
+                        <p className="text-sm font-semibold text-gray-900 mb-3">Select missing keywords to include (choose 2-8):</p>
                         <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
                           {jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30).map((keyword, idx) => {
                             const isSelected = selectedMissingKeywords.has(keyword);
@@ -1989,10 +2514,10 @@ export default function VisualResumeEditor({
                                   const newSelected = new Set(selectedMissingKeywords);
                                   if (isSelected) {
                                     newSelected.delete(keyword);
-                                  } else if (newSelected.size < 3) {
+                                  } else if (newSelected.size < 8) {
                                     newSelected.add(keyword);
                                   } else {
-                                    alert('Please select maximum 3 keywords');
+                                    alert('Please select maximum 8 keywords');
                                   }
                                   setSelectedMissingKeywords(newSelected);
                                 }}
@@ -2009,7 +2534,7 @@ export default function VisualResumeEditor({
                         </div>
                         {selectedMissingKeywords.size > 0 && (
                           <p className="text-xs text-gray-600 mt-2">
-                            {selectedMissingKeywords.size} keyword{selectedMissingKeywords.size > 1 ? 's' : ''} selected
+                            {selectedMissingKeywords.size} keyword{selectedMissingKeywords.size > 1 ? 's' : ''} selected {selectedMissingKeywords.size < 2 ? '(minimum 2 required)' : selectedMissingKeywords.size >= 8 ? '(maximum reached)' : ''}
                           </p>
                         )}
                       </div>
@@ -2017,7 +2542,11 @@ export default function VisualResumeEditor({
                       <button
                         onClick={async () => {
                           if (selectedMissingKeywords.size < 2) {
-                            alert('Please select at least 2 keywords');
+                            alert('Please select at least 2 keywords (minimum 2, maximum 8)');
+                            return;
+                          }
+                          if (selectedMissingKeywords.size > 8) {
+                            alert('Please select maximum 8 keywords');
                             return;
                           }
                           
@@ -2060,7 +2589,7 @@ export default function VisualResumeEditor({
                             setIsGeneratingBullets(false);
                           }
                         }}
-                        disabled={selectedMissingKeywords.size === 0 || isGeneratingBullets}
+                        disabled={selectedMissingKeywords.size < 2 || selectedMissingKeywords.size > 8 || isGeneratingBullets}
                         className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
                       >
                         {isGeneratingBullets ? (
@@ -2240,12 +2769,20 @@ export default function VisualResumeEditor({
                                 );
                                 
                                 // Update the resume data
-                                onChange({ ...data, sections: updatedSections });
+                                const updatedResumeData = { ...data, sections: updatedSections };
+                                onChange(updatedResumeData);
+                                
+                                // Trigger ATS score recalculation by dispatching a custom event
+                                if (typeof window !== 'undefined') {
+                                  window.dispatchEvent(new CustomEvent('resumeDataUpdated', { 
+                                    detail: { resumeData: updatedResumeData }
+                                  }));
+                                }
                                 
                                 // Remove loading notification
                                 loadingNotification.remove();
                                 
-                                // Show success notification
+                                // Show success notification with ATS score update message
                                 const successNotification = document.createElement('div');
                                 successNotification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
                                 successNotification.innerHTML = `
@@ -2254,6 +2791,7 @@ export default function VisualResumeEditor({
                                     <div>
                                       <div class="font-bold text-lg">Bullet Points Added!</div>
                                       <div class="text-sm mt-1">${selectedIndices.length} bullet point${selectedIndices.length > 1 ? 's' : ''} added to your work experience</div>
+                                      <div class="text-xs mt-1 text-green-100">📊 ATS score is updating...</div>
                                     </div>
                                     <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
                                   </div>
@@ -2325,70 +2863,6 @@ export default function VisualResumeEditor({
           </button>
           </div>
         </div>
-      </div>
-
-      {/* Undo/Redo Buttons */}
-      <div className="mt-4 flex items-center justify-center gap-3">
-        <button
-          onClick={() => {
-            if (historyIndex > 0) {
-              setIsUndoRedoing(true)
-              setHistoryIndex(historyIndex - 1)
-              onChange(history[historyIndex - 1])
-              setTimeout(() => setIsUndoRedoing(false), 100)
-            }
-          }}
-          disabled={historyIndex === 0}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
-          title="Undo (Cmd/Ctrl + Z)"
-        >
-          ↶ Undo
-        </button>
-        <span className="text-xs text-gray-500">
-          {historyIndex + 1} / {history.length}
-        </span>
-        <button
-          onClick={() => {
-            if (historyIndex < history.length - 1) {
-              setIsUndoRedoing(true)
-              setHistoryIndex(historyIndex + 1)
-              onChange(history[historyIndex + 1])
-              setTimeout(() => setIsUndoRedoing(false), 100)
-            }
-          }}
-          disabled={historyIndex === history.length - 1}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
-          title="Redo (Cmd/Ctrl + Shift + Z)"
-        >
-          Redo ↷
-        </button>
-      </div>
-
-      {/* Test AI Button */}
-      <div className="mt-4 flex justify-center">
-        <button
-          onClick={() => {
-            console.log('🧪 TEST: Direct AI button clicked!')
-            if (data.sections.length > 0) {
-              const firstSection = data.sections[0]
-              console.log('🧪 TEST: Using first section:', firstSection.id)
-              generateBulletFromKeywords(firstSection.id, 'test, automation, deployment')
-            } else {
-              console.log('🧪 TEST: No sections found!')
-            }
-          }}
-          className="px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 shadow-sm"
-          title="Test AI bullet generation directly"
-        >
-          🧪 TEST AI (Direct)
-        </button>
-      </div>
-
-      {/* Helper Text */}
-      <div className="mt-4 text-center text-sm text-gray-500 space-y-1">
-        <div>💡 Cmd+Z to undo • Drag company to move as group • Hover for buttons • 🤖 AI for keywords</div>
-        <div className="text-xs text-gray-400">Company format: **Company / Role / Dates** then • Task 1, • Task 2, etc.</div>
-      </div>
       </div>
 
       {/* AI Work Experience */}
@@ -2465,6 +2939,7 @@ export default function VisualResumeEditor({
           context={aiSectionAssistantContext}
         />
       )}
+      </div>
     </div>
   )
 }

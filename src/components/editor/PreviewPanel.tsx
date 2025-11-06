@@ -52,7 +52,11 @@ interface Props {
   template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'modern-one' | 'classic-one' | 'minimal-one' | 'executive-one'
 }
 
-export default function PreviewPanel({ data, replacements, template = 'clean' as const }: Props) {
+export default function PreviewPanel({ 
+  data, 
+  replacements, 
+  template = 'clean' as const
+}: Props) {
   // Add page break styles
   useEffect(() => {
     const style = document.createElement('style')
@@ -139,10 +143,10 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
   const bodyFont = fonts.body || (template === 'clean' ? 'serif' : 'sans-serif')
   const headingSize = fonts.size?.heading || 18
   const bodySize = fonts.size?.body || 12
-  const primaryColor = colors.primary || '#2563eb'
-  const secondaryColor = colors.secondary || '#6b7280'
-  const accentColor = colors.accent || '#8b5cf6'
-  const textColor = colors.text || '#111827'
+  const primaryColor = colors.primary || '#000000'
+  const secondaryColor = colors.secondary || '#000000'
+  const accentColor = colors.accent || '#000000'
+  const textColor = colors.text || '#000000'
   const sectionSpacing = spacing.section || 16
   const bulletSpacing = spacing.bullet || 8
 
@@ -203,12 +207,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
             return (
               <span
                 key={bullet.id}
-                className="inline-block px-3 py-1 rounded-full text-xs font-medium"
-                style={{
-                  backgroundColor: '#dbeafe',
-                  color: '#1e40af',
-                  border: '1px solid #93c5fd'
-                }}
+                className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300"
               >
                 {applyReplacements(skillName)}
               </span>
@@ -359,8 +358,9 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
         <div className={`space-y-6 ${fontFamily}`} style={{ gap: `${sectionSpacing}px` }}>
         {data.name && (data as any).fieldsVisible?.name !== false && (
           <div className={`${headerAlign === 'center' ? 'text-center' : 'text-left'} ${headerBorder} pb-4`}>
+            {/* Name */}
             <h1 
-              className="text-3xl font-bold"
+              className="text-3xl font-bold mb-2"
               style={{ 
                 fontFamily: headingFont,
                 fontSize: `${headingSize * 1.67}px`,
@@ -369,20 +369,43 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
             >
               {applyReplacements(data.name)}
             </h1>
-            {data.title && (data as any).fieldsVisible?.title !== false && (
-              <p 
-                className="text-lg mt-1"
-                style={{ 
-                  fontFamily: bodyFont,
-                  fontSize: `${bodySize * 1.5}px`,
-                  color: secondaryColor
-                }}
-              >
-                {applyReplacements(data.title)}
-              </p>
-            )}
+            
+            {/* Title Section - Bold, smaller than name */}
+            <div className="mb-3">
+              {data.title && (data as any).fieldsVisible?.title !== false && (
+                <h2 
+                  className="font-bold"
+                  style={{ 
+                    fontFamily: headingFont,
+                    fontSize: `${headingSize * 1.2}px`,
+                    color: primaryColor
+                  }}
+                >
+                  {applyReplacements(data.title)}
+                </h2>
+              )}
+              {/* Custom title fields */}
+              {Object.keys(data as any)
+                .filter(key => key.startsWith('customTitle') && typeof (data as any)[key] === 'string' && (data as any)[key])
+                .filter(key => (data as any).fieldsVisible?.[key] !== false)
+                .map(key => (
+                  <h2 
+                    key={key}
+                    className="font-bold"
+                    style={{ 
+                      fontFamily: headingFont,
+                      fontSize: `${headingSize * 1.2}px`,
+                      color: primaryColor
+                    }}
+                  >
+                    {applyReplacements((data as any)[key])}
+                  </h2>
+                ))}
+            </div>
+            
+            {/* Contact Information - Separate line */}
             <div 
-              className={`flex items-center ${headerAlign === 'center' ? 'justify-center' : 'justify-start'} gap-3 mt-2 text-sm flex-wrap`}
+              className={`flex items-center ${headerAlign === 'center' ? 'justify-center' : 'justify-start'} gap-3 text-sm flex-wrap`}
               style={{ 
                 fontFamily: bodyFont,
                 fontSize: `${bodySize}px`,
@@ -397,9 +420,10 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               {(data as any).github && (data as any).fieldsVisible?.github !== false && <span>• {applyReplacements((data as any).github)}</span>}
               {(data as any).portfolio && (data as any).fieldsVisible?.portfolio !== false && <span>• {applyReplacements((data as any).portfolio)}</span>}
               {(data as any).twitter && (data as any).fieldsVisible?.twitter !== false && <span>• {applyReplacements((data as any).twitter)}</span>}
-              {/* Display any other custom contact fields */}
+              {/* Display custom contact fields (but not custom title fields) */}
               {Object.keys(data as any).filter(key => 
                 !['name', 'title', 'email', 'phone', 'location', 'summary', 'sections', 'fieldsVisible', 'linkedin', 'website', 'github', 'portfolio', 'twitter', 'design'].includes(key) &&
+                !key.startsWith('customTitle') &&
                 typeof (data as any)[key] === 'string' &&
                 (data as any)[key] &&
                 (data as any).fieldsVisible?.[key] !== false
