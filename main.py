@@ -926,8 +926,9 @@ Job Title: {job_title or 'Not specified'}
 Selected Keywords: {keywords_str}
 
 Requirements:
-- Generate {len(keywords_list)} professional bullet points (one per keyword or group related keywords)
-- Each bullet should naturally incorporate the keywords
+- Generate 3-5 professional bullet points that incorporate ALL {len(keywords_list)} selected keywords together
+- Each bullet should naturally incorporate 2-3 of the keywords in a cohesive way
+- Use ALL keywords across the bullets - distribute them naturally across the generated bullets
 - Use action-oriented language (Led, Implemented, Developed, Optimized, etc.)
 - Include specific technologies/tools mentioned in keywords
 - Make them achievement-focused with metrics when possible
@@ -935,9 +936,10 @@ Requirements:
 - Professional, ATS-optimized tone
 - Ensure keywords are naturally integrated, not forced
 - Make bullets diverse and cover different aspects of the role
+- Keywords should be used naturally in context, not just listed
 
 Return ONLY a JSON array of bullet point strings, no explanations or labels.
-Example format: ["Implemented scalable microservices architecture using Kubernetes", "Optimized CI/CD pipelines reducing deployment time by 40%"]"""
+Example format: ["Implemented scalable microservices architecture using Kubernetes and Docker", "Optimized CI/CD pipelines with Jenkins reducing deployment time by 40%", "Developed REST APIs using Python and Flask handling 10K+ requests daily"]"""
 
         headers = {
             "Authorization": f"Bearer {openai_client['api_key']}",
@@ -5321,6 +5323,8 @@ class MatchCreate(BaseModel):
     resume_title: Optional[str] = None
     resume_snapshot: Optional[Dict[str, Any]] = None
     resume_version_id: Optional[int] = None
+    ats_score: Optional[int] = None  # ATS score from match analysis
+    jd_metadata: Optional[Dict[str, Any]] = None  # JD metadata (easy_apply_url, work_type, job_type, company)
 
 def _classify_priority_keywords(extracted: Dict[str, Any]) -> Dict[str, List[str]]:
     keyword_freq: Dict[str, int] = extracted.get('keyword_frequency', {}) if isinstance(extracted, dict) else {}
@@ -5667,6 +5671,20 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
         jd = db.query(JobDescription).filter(JobDescription.id == payload.jobDescriptionId).first()
         if not jd:
             raise HTTPException(status_code=404, detail='Job description not found')
+        
+        # Update JD with metadata if provided
+        if payload.jd_metadata:
+            metadata = payload.jd_metadata
+            if metadata.get('easy_apply_url') and not jd.easy_apply_url:
+                jd.easy_apply_url = metadata.get('easy_apply_url')
+            if metadata.get('work_type') and not jd.work_type:
+                jd.work_type = metadata.get('work_type')
+            if metadata.get('job_type') and not jd.job_type:
+                jd.job_type = metadata.get('job_type')
+            if metadata.get('company') and not jd.company:
+                jd.company = metadata.get('company')
+            db.commit()
+            db.refresh(jd)
 
         # Get resume text from version or resume data
         resume_text = ''
@@ -5680,6 +5698,10 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
             resume_text = _resume_to_text(rv.resume_data) if rv else '\n'.join([resume.name or '', resume.title or '', resume.summary or ''])
 
         breakdown = _compute_match_breakdown(jd.content, resume_text, jd.extracted_keywords or {})
+
+        # Use provided ATS score if available, otherwise use computed score
+        final_score = payload.ats_score if payload.ats_score is not None else int(breakdown.get('score', 0))
+        logger.info(f"create_match: Using ATS score: {final_score} (provided: {payload.ats_score}, computed: {breakdown.get('score', 0)})")
 
         # Ensure JSON fields are Python lists/dicts, not JSON strings
         matched_kw = breakdown.get('matched_keywords', [])
@@ -5719,7 +5741,7 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
             user_id=resume.user_id,
             resume_id=resume.id,
             job_description_id=jd.id,
-            score=int(breakdown.get('score', 0)),
+            score=final_score,  # Use ATS score
             keyword_coverage=float(breakdown.get('keyword_coverage', 0.0)) if breakdown.get('keyword_coverage') is not None else 0.0,
             matched_keywords=matched_kw,
             missing_keywords=missing_kw,
