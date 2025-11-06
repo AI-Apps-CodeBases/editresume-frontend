@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSock
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union, Tuple
 import os
 import re
 import json
@@ -13,6 +13,7 @@ from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, migrate_schema, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, SharedResumeComment, DATABASE_URL, JobDescription, MatchSession
+from sqlalchemy import text
 from version_control import VersionControlService
 
 logging.basicConfig(level=logging.INFO)
@@ -926,8 +927,10 @@ Selected Keywords: {keywords_str}
 
 Requirements:
 - Generate 3-5 professional bullet points that incorporate ALL {len(keywords_list)} selected keywords together
-- Each bullet should naturally incorporate 2-3 of the keywords in a cohesive way
+- Each bullet should naturally incorporate 2-4 of the keywords in a cohesive way (adjust based on total keywords)
 - Use ALL keywords across the bullets - distribute them naturally across the generated bullets
+- If you have 2-3 keywords, each bullet should use most/all keywords
+- If you have 4-8 keywords, distribute them evenly across bullets (2-4 per bullet)
 - Use action-oriented language (Led, Implemented, Developed, Optimized, etc.)
 - Include specific technologies/tools mentioned in keywords
 - Make them achievement-focused with metrics when possible
@@ -2521,19 +2524,20 @@ async def export_pdf(payload: ExportPayload, user_email: str = None, db: Session
     <meta charset="utf-8">
     <style>
         @page {{ size: A4; margin: 2cm; }}
-        body {{ font-family: {font_family}; font-size: 11pt; line-height: 1.4; color: #333; }}
+        body {{ font-family: {font_family}; font-size: 11pt; line-height: 1.4; color: #000000; }}
         .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: 15px; }}
-        .header h1 {{ margin: 0; font-size: 24pt; font-weight: bold; }}
-        .header .title {{ font-size: 14pt; margin: 5px 0; color: #555; }}
-        .header .contact {{ font-size: 10pt; color: #666; margin-top: 5px; }}
-        .summary {{ margin-bottom: 15px; font-size: 10pt; line-height: 1.5; }}
+        .header h1 {{ margin: 0; font-size: 24pt; font-weight: bold; color: #000000; }}
+        .header .title {{ font-size: 14pt; margin: 5px 0; color: #000000; }}
+        .header .contact {{ font-size: 10pt; color: #000000; margin-top: 5px; }}
+        .summary {{ margin-bottom: 15px; font-size: 10pt; line-height: 1.5; color: #000000; }}
         .section {{ margin-bottom: 15px; }}
-        .section h2 {{ font-size: 12pt; font-weight: bold; {section_uppercase}
+        .section h2 {{ font-size: 12pt; font-weight: bold; color: #000000; {section_uppercase}
                        border-bottom: 1px solid #333; padding-bottom: 3px; margin-bottom: 8px; }}
-        .section ul {{ margin: 0; padding-left: 20px; list-style-type: disc; }}
-        .section li {{ margin-bottom: 6px; font-size: 10pt; }}
+        .section ul {{ margin: 0; padding-left: 0; list-style: none; }}
+        .section li {{ margin-bottom: 6px; font-size: 10pt; color: #000000; position: relative; padding-left: 14px; }}
+        .section li::before {{ content: "•"; font-weight: bold; color: #000000; position: absolute; left: 0; top: 0; }}
         .job-entry {{ margin-bottom: 20px; }}
-        .company-name {{ font-weight: bold; font-size: 1.1em; color: #333; margin-bottom: 5px; margin-left: 0; }}
+        .company-name {{ font-weight: bold; font-size: 1.1em; color: #000000; margin-bottom: 5px; margin-left: 0; }}
         .job-separator {{ height: 10px; }}
         .two-column {{ width: 100%; }}
         .column {{ float: left; }}
@@ -4245,8 +4249,8 @@ async def list_user_resumes(user_email: str = Query(..., description="User email
             
             recent_matches_data = []
             for ms in match_sessions:
-                # Get job description details
-                jd = db.query(JobDescription).filter(JobDescription.id == ms.job_description_id).first()
+                # Get job description details (use safe query)
+                jd, _ = safe_get_job_description(ms.job_description_id, db)
                 
                 # Get resume version for this match (if available via relationship)
                 # Try to find the version that was used for this match
@@ -5324,6 +5328,9 @@ class MatchCreate(BaseModel):
     resume_version_id: Optional[int] = None
     ats_score: Optional[int] = None  # ATS score from match analysis
     jd_metadata: Optional[Dict[str, Any]] = None  # JD metadata (easy_apply_url, work_type, job_type, company)
+    matched_keywords: Optional[List[str]] = None  # Pre-computed matched keywords
+    missing_keywords: Optional[List[str]] = None  # Pre-computed missing keywords
+    keyword_coverage: Optional[float] = None  # Pre-computed keyword coverage percentage
 
 def _classify_priority_keywords(extracted: Dict[str, Any]) -> Dict[str, List[str]]:
     keyword_freq: Dict[str, int] = extracted.get('keyword_frequency', {}) if isinstance(extracted, dict) else {}
@@ -5382,12 +5389,123 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
             user = db.query(User).filter(User.email == payload.user_email).first()
         jd = None
         if payload.id:
-            jd = db.query(JobDescription).filter(JobDescription.id == payload.id).first()
+            jd, _ = safe_get_job_description(payload.id, db)
             if not jd:
                 raise HTTPException(status_code=404, detail='Job description not found')
         else:
             jd = JobDescription()
 
+        # Check if new columns exist in database (check if all 5 exist)
+        new_columns_exist = False
+        try:
+            result = db.execute(text("""
+                SELECT COUNT(*) 
+                FROM information_schema.columns 
+                WHERE table_name = 'job_descriptions' 
+                AND column_name IN ('max_salary', 'status', 'follow_up_date', 'important_emoji', 'notes')
+            """))
+            count = result.fetchone()[0]
+            new_columns_exist = (count == 5)  # All 5 columns must exist
+        except Exception as check_error:
+            # If we can't check, assume they don't exist and use fallback
+            logger.warning(f"Could not check for new columns: {check_error}, using fallback method")
+            new_columns_exist = False
+        
+        extracted = keyword_extractor.extract_keywords(payload.content)
+        pri = _classify_priority_keywords(extracted)
+        
+        # If new columns don't exist, use raw SQL to avoid SQLAlchemy trying to insert/update them
+        if not new_columns_exist:
+            # Handle UPDATE case
+            if jd and jd.id:
+                logger.info("New columns don't exist, using raw SQL update method")
+                try:
+                    update_sql = text("""
+                        UPDATE job_descriptions 
+                        SET user_id = :user_id, title = :title, company = :company, source = :source, 
+                            url = :url, easy_apply_url = :easy_apply_url, location = :location, 
+                            work_type = :work_type, job_type = :job_type, content = :content,
+                            extracted_keywords = :extracted_keywords, priority_keywords = :priority_keywords,
+                            soft_skills = :soft_skills, high_frequency_keywords = :high_frequency_keywords,
+                            ats_insights = :ats_insights
+                        WHERE id = :jd_id
+                    """)
+                    
+                    db.execute(update_sql, {
+                        'user_id': user.id if user else None,
+                        'title': payload.title,
+                        'company': payload.company,
+                        'source': payload.source,
+                        'url': payload.url,
+                        'easy_apply_url': payload.easy_apply_url,
+                        'location': payload.location,
+                        'work_type': payload.work_type,
+                        'job_type': payload.job_type,
+                        'content': payload.content,
+                        'extracted_keywords': json.dumps(extracted) if isinstance(extracted, dict) else extracted,
+                        'priority_keywords': json.dumps(pri.get('high_priority', [])) if isinstance(pri.get('high_priority', []), list) else pri.get('high_priority', []),
+                        'soft_skills': json.dumps(extracted.get('soft_skills', [])) if isinstance(extracted.get('soft_skills', []), list) else extracted.get('soft_skills', []),
+                        'high_frequency_keywords': json.dumps(extracted.get('high_frequency_keywords', [])) if isinstance(extracted.get('high_frequency_keywords', []), list) else extracted.get('high_frequency_keywords', []),
+                        'ats_insights': json.dumps(extracted.get('ats_keywords', {})) if isinstance(extracted.get('ats_keywords', {}), dict) else extracted.get('ats_keywords', {}),
+                        'jd_id': jd.id
+                    })
+                    db.commit()
+                    logger.info(f"Successfully updated job description {jd.id} using fallback method (columns don't exist yet)")
+                    return {'id': jd.id, 'message': 'saved', 'extracted': extracted, 'priority_keywords': pri.get('high_priority', [])}
+                except Exception as update_error:
+                    db.rollback()
+                    logger.error(f"Fallback update failed: {update_error}")
+                    raise HTTPException(
+                        status_code=500, 
+                        detail=f"Failed to update job description. Database migration may be required. Error: {str(update_error)}"
+                    )
+            # Handle INSERT case (jd is new, no id yet)
+            logger.info("New columns don't exist, using raw SQL insert method")
+            try:
+                # Use raw SQL insert without new columns
+                insert_sql = text("""
+                    INSERT INTO job_descriptions 
+                    (user_id, title, company, source, url, easy_apply_url, location, work_type, job_type, content, 
+                     extracted_keywords, priority_keywords, soft_skills, high_frequency_keywords, ats_insights, created_at)
+                    VALUES 
+                    (:user_id, :title, :company, :source, :url, :easy_apply_url, :location, :work_type, :job_type, :content,
+                     :extracted_keywords, :priority_keywords, :soft_skills, :high_frequency_keywords, :ats_insights, :created_at)
+                    RETURNING id
+                """)
+                
+                # Convert Python dicts/lists to JSON strings for raw SQL insert
+                # PostgreSQL JSON columns need JSON strings when using raw SQL
+                result = db.execute(insert_sql, {
+                    'user_id': user.id if user else None,
+                    'title': payload.title,
+                    'company': payload.company,
+                    'source': payload.source,
+                    'url': payload.url,
+                    'easy_apply_url': payload.easy_apply_url,
+                    'location': payload.location,
+                    'work_type': payload.work_type,
+                    'job_type': payload.job_type,
+                    'content': payload.content,
+                    'extracted_keywords': json.dumps(extracted) if isinstance(extracted, dict) else extracted,
+                    'priority_keywords': json.dumps(pri.get('high_priority', [])) if isinstance(pri.get('high_priority', []), list) else pri.get('high_priority', []),
+                    'soft_skills': json.dumps(extracted.get('soft_skills', [])) if isinstance(extracted.get('soft_skills', []), list) else extracted.get('soft_skills', []),
+                    'high_frequency_keywords': json.dumps(extracted.get('high_frequency_keywords', [])) if isinstance(extracted.get('high_frequency_keywords', []), list) else extracted.get('high_frequency_keywords', []),
+                    'ats_insights': json.dumps(extracted.get('ats_keywords', {})) if isinstance(extracted.get('ats_keywords', {}), dict) else extracted.get('ats_keywords', {}),
+                    'created_at': datetime.utcnow()
+                })
+                jd_id = result.fetchone()[0]
+                db.commit()
+                logger.info(f"Successfully saved job description {jd_id} using fallback method (columns don't exist yet)")
+                return {'id': jd_id, 'message': 'saved', 'extracted': extracted, 'priority_keywords': pri.get('high_priority', [])}
+            except Exception as fallback_error:
+                db.rollback()
+                logger.error(f"Fallback insert failed: {fallback_error}")
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Failed to save job description. Database migration may be required. Error: {str(fallback_error)}"
+                )
+        
+        # New columns exist - use normal SQLAlchemy insert/update
         jd.user_id = user.id if user else None
         jd.title = payload.title
         jd.company = payload.company
@@ -5398,14 +5516,16 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
         jd.work_type = payload.work_type
         jd.job_type = payload.job_type
         jd.content = payload.content
-
-        extracted = keyword_extractor.extract_keywords(payload.content)
-        pri = _classify_priority_keywords(extracted)
         jd.extracted_keywords = extracted
         jd.priority_keywords = pri.get('high_priority', [])
         jd.soft_skills = extracted.get('soft_skills', [])
         jd.high_frequency_keywords = extracted.get('high_frequency_keywords', [])
         jd.ats_insights = extracted.get('ats_keywords', {})
+        jd.max_salary = getattr(payload, 'max_salary', None) if hasattr(payload, 'max_salary') else None
+        jd.status = getattr(payload, 'status', 'bookmarked') if hasattr(payload, 'status') else 'bookmarked'
+        jd.follow_up_date = getattr(payload, 'follow_up_date', None) if hasattr(payload, 'follow_up_date') else None
+        jd.important_emoji = getattr(payload, 'important_emoji', None) if hasattr(payload, 'important_emoji') else None
+        jd.notes = getattr(payload, 'notes', None) if hasattr(payload, 'notes') else None
 
         db.add(jd)
         db.commit()
@@ -5421,19 +5541,75 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
 @app.get('/job-descriptions')
 def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depends(get_db)):
     try:
-        q = db.query(JobDescription)
-        if user_email:
-            user = db.query(User).filter(User.email == user_email).first()
-            if user:
-                q = q.filter(JobDescription.user_id == user.id)
-            else:
-                # User not found, but still return jobs that might not have user_id set
-                # This handles cases where jobs were saved without user_email
-                q = q.filter((JobDescription.user_id == None) | (JobDescription.user_id == 0))
+        # Check if new columns exist
+        try:
+            result = db.execute(text("""
+                SELECT COUNT(*) 
+                FROM information_schema.columns 
+                WHERE table_name = 'job_descriptions' 
+                AND column_name IN ('max_salary', 'status', 'follow_up_date', 'important_emoji', 'notes')
+            """))
+            count = result.fetchone()[0]
+            new_columns_exist = (count == 5)
+        except:
+            new_columns_exist = False
+        
+        if new_columns_exist:
+            # Columns exist - use normal SQLAlchemy query
+            q = db.query(JobDescription)
+            if user_email:
+                user = db.query(User).filter(User.email == user_email).first()
+                if user:
+                    q = q.filter(JobDescription.user_id == user.id)
+                else:
+                    q = q.filter((JobDescription.user_id == None) | (JobDescription.user_id == 0))
+            items = q.order_by(JobDescription.created_at.desc()).limit(100).all()
         else:
-            # No user_email provided, return all jobs (for admin or when user not logged in)
-            pass
-        items = q.order_by(JobDescription.created_at.desc()).limit(100).all()
+            # Columns don't exist - use raw SQL query
+            sql = """
+                SELECT id, user_id, title, company, source, url, easy_apply_url, location, 
+                       work_type, job_type, content, extracted_keywords, priority_keywords, 
+                       soft_skills, high_frequency_keywords, ats_insights, created_at
+                FROM job_descriptions
+            """
+            params = {}
+            if user_email:
+                user = db.query(User).filter(User.email == user_email).first()
+                if user:
+                    sql += " WHERE user_id = :user_id"
+                    params['user_id'] = user.id
+                else:
+                    sql += " WHERE user_id IS NULL OR user_id = 0"
+            sql += " ORDER BY created_at DESC LIMIT 100"
+            
+            result = db.execute(text(sql), params)
+            rows = result.fetchall()
+            items = []
+            for row in rows:
+                jd = JobDescription()
+                jd.id = row[0]
+                jd.user_id = row[1]
+                jd.title = row[2] or ''
+                jd.company = row[3]
+                jd.source = row[4]
+                jd.url = row[5]
+                jd.easy_apply_url = row[6]
+                jd.location = row[7]
+                jd.work_type = row[8]
+                jd.job_type = row[9]
+                jd.content = row[10] or ''
+                jd.extracted_keywords = row[11]
+                jd.priority_keywords = row[12]
+                jd.soft_skills = row[13]
+                jd.high_frequency_keywords = row[14]
+                jd.ats_insights = row[15]
+                jd.created_at = row[16]
+                jd.max_salary = None
+                jd.status = 'bookmarked'
+                jd.follow_up_date = None
+                jd.important_emoji = None
+                jd.notes = None
+                items.append(jd)
         result = []
         for it in items:
             try:
@@ -5483,6 +5659,11 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                     'soft_skills': it.soft_skills or [],
                     'high_frequency_keywords': it.high_frequency_keywords or [],
                     'ats_insights': it.ats_insights or {},
+                    'max_salary': getattr(it, 'max_salary', None),
+                    'status': getattr(it, 'status', 'bookmarked'),
+                    'follow_up_date': getattr(it, 'follow_up_date', None),
+                    'important_emoji': getattr(it, 'important_emoji', None),
+                    'notes': getattr(it, 'notes', None),
                 }
                 
                 if latest_match:
@@ -5536,6 +5717,11 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                     'soft_skills': [],
                     'high_frequency_keywords': [],
                     'ats_insights': {},
+                    'max_salary': getattr(it, 'max_salary', None),
+                    'status': getattr(it, 'status', 'bookmarked'),
+                    'follow_up_date': getattr(it, 'follow_up_date', None),
+                    'important_emoji': getattr(it, 'important_emoji', None),
+                    'notes': getattr(it, 'notes', None),
                     'last_match': None,
                 })
         
@@ -5544,9 +5730,75 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
         logger.exception('Failed to list job descriptions')
         raise HTTPException(status_code=500, detail=str(e))
 
+def safe_get_job_description(jd_id: int, db: Session):
+    """Safely get job description, handling missing columns gracefully.
+    Returns a tuple of (job_description, new_columns_exist_flag).
+    """
+    # Check if new columns exist
+    try:
+        result = db.execute(text("""
+            SELECT COUNT(*) 
+            FROM information_schema.columns 
+            WHERE table_name = 'job_descriptions' 
+            AND column_name IN ('max_salary', 'status', 'follow_up_date', 'important_emoji', 'notes')
+        """))
+        count = result.fetchone()[0]
+        new_columns_exist = (count == 5)
+    except:
+        new_columns_exist = False
+    
+    if new_columns_exist:
+        # Columns exist - use normal SQLAlchemy query
+        jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
+        return jd, True
+    else:
+        # Columns don't exist - use raw SQL query
+        try:
+            result = db.execute(text("""
+                SELECT id, user_id, title, company, source, url, easy_apply_url, location, 
+                       work_type, job_type, content, extracted_keywords, priority_keywords, 
+                       soft_skills, high_frequency_keywords, ats_insights, created_at
+                FROM job_descriptions 
+                WHERE id = :jd_id
+                LIMIT 1
+            """), {'jd_id': jd_id})
+            row = result.fetchone()
+            if not row:
+                return None, False
+            
+            # Create a JobDescription-like object
+            jd = JobDescription()
+            jd.id = row[0]
+            jd.user_id = row[1]
+            jd.title = row[2] or ''
+            jd.company = row[3]
+            jd.source = row[4]
+            jd.url = row[5]
+            jd.easy_apply_url = row[6]
+            jd.location = row[7]
+            jd.work_type = row[8]
+            jd.job_type = row[9]
+            jd.content = row[10] or ''
+            jd.extracted_keywords = row[11]
+            jd.priority_keywords = row[12]
+            jd.soft_skills = row[13]
+            jd.high_frequency_keywords = row[14]
+            jd.ats_insights = row[15]
+            jd.created_at = row[16]
+            # New columns don't exist, so set to None/defaults
+            jd.max_salary = None
+            jd.status = 'bookmarked'
+            jd.follow_up_date = None
+            jd.important_emoji = None
+            jd.notes = None
+            return jd, False
+        except Exception as e:
+            logger.error(f"Error in safe_get_job_description: {e}")
+            return None, False
+
 @app.get('/job-descriptions/{jd_id}')
 def get_job_description(jd_id: int, db: Session = Depends(get_db)):
-    jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
+    jd, _ = safe_get_job_description(jd_id, db)
     if not jd:
         raise HTTPException(status_code=404, detail='Job description not found')
     
@@ -5569,6 +5821,37 @@ def get_job_description(jd_id: int, db: Session = Depends(get_db)):
     elif priority_kw is None:
         priority_kw = []
     
+    # Get matches for this job
+    matches = db.query(MatchSession).filter(
+        MatchSession.job_description_id == jd.id
+    ).order_by(MatchSession.created_at.desc()).all()
+    
+    matches_data = []
+    for match in matches:
+        resume_name = None
+        resume_version_id = None
+        
+        if match.resume_id:
+            resume = db.query(Resume).filter(Resume.id == match.resume_id).first()
+            if resume:
+                resume_name = resume.name
+                latest_version = db.query(ResumeVersion).filter(
+                    ResumeVersion.resume_id == resume.id
+                ).order_by(ResumeVersion.version_number.desc()).first()
+                if latest_version:
+                    resume_version_id = latest_version.id
+        
+        matches_data.append({
+            'id': match.id,
+            'score': match.score,
+            'resume_id': match.resume_id,
+            'resume_name': resume_name,
+            'resume_version_id': resume_version_id,
+            'created_at': match.created_at.isoformat() if match.created_at else None,
+        })
+    
+    last_match = matches_data[0] if matches_data else None
+    
     return {
         'id': jd.id,
         'title': jd.title or '',
@@ -5585,7 +5868,14 @@ def get_job_description(jd_id: int, db: Session = Depends(get_db)):
         'soft_skills': jd.soft_skills or [],
         'high_frequency_keywords': jd.high_frequency_keywords or [],
         'ats_insights': jd.ats_insights or {},
+        'max_salary': getattr(jd, 'max_salary', None),
+        'status': getattr(jd, 'status', 'bookmarked'),
+        'follow_up_date': (lambda d: d.isoformat() if d else None)(getattr(jd, 'follow_up_date', None)),
+        'important_emoji': getattr(jd, 'important_emoji', None),
+        'notes': getattr(jd, 'notes', None),
         'created_at': jd.created_at.isoformat() if jd.created_at else None,
+        'last_match': last_match,
+        'all_matches': matches_data,
     }
 
 @app.post('/matches')
@@ -5666,24 +5956,58 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
         if not resume:
             raise HTTPException(status_code=404, detail='Resume not found and could not be created. Provide resumeId or user_email with resume_name.')
         
-        # Get job description
-        jd = db.query(JobDescription).filter(JobDescription.id == payload.jobDescriptionId).first()
+        # Get job description (use safe query to handle missing columns)
+        jd, jd_has_new_columns = safe_get_job_description(payload.jobDescriptionId, db)
         if not jd:
             raise HTTPException(status_code=404, detail='Job description not found')
         
         # Update JD with metadata if provided
         if payload.jd_metadata:
             metadata = payload.jd_metadata
-            if metadata.get('easy_apply_url') and not jd.easy_apply_url:
-                jd.easy_apply_url = metadata.get('easy_apply_url')
-            if metadata.get('work_type') and not jd.work_type:
-                jd.work_type = metadata.get('work_type')
-            if metadata.get('job_type') and not jd.job_type:
-                jd.job_type = metadata.get('job_type')
-            if metadata.get('company') and not jd.company:
-                jd.company = metadata.get('company')
-            db.commit()
-            db.refresh(jd)
+            if jd_has_new_columns:
+                updated = False
+                if metadata.get('easy_apply_url') and not jd.easy_apply_url:
+                    jd.easy_apply_url = metadata.get('easy_apply_url')
+                    updated = True
+                if metadata.get('work_type') and not jd.work_type:
+                    jd.work_type = metadata.get('work_type')
+                    updated = True
+                if metadata.get('job_type') and not jd.job_type:
+                    jd.job_type = metadata.get('job_type')
+                    updated = True
+                if metadata.get('company') and not jd.company:
+                    jd.company = metadata.get('company')
+                    updated = True
+                if updated:
+                    db.commit()
+                    db.refresh(jd)
+            else:
+                # Fallback to raw SQL update when new columns are absent
+                update_sql = text("""
+                    UPDATE job_descriptions
+                    SET easy_apply_url = COALESCE(:easy_apply_url, easy_apply_url),
+                        work_type = COALESCE(:work_type, work_type),
+                        job_type = COALESCE(:job_type, job_type),
+                        company = COALESCE(:company, company)
+                    WHERE id = :jd_id
+                """)
+                db.execute(update_sql, {
+                    'easy_apply_url': metadata.get('easy_apply_url'),
+                    'work_type': metadata.get('work_type'),
+                    'job_type': metadata.get('job_type'),
+                    'company': metadata.get('company'),
+                    'jd_id': payload.jobDescriptionId
+                })
+                db.commit()
+                # Update local object for downstream use
+                if metadata.get('easy_apply_url'):
+                    jd.easy_apply_url = metadata.get('easy_apply_url')
+                if metadata.get('work_type'):
+                    jd.work_type = metadata.get('work_type')
+                if metadata.get('job_type'):
+                    jd.job_type = metadata.get('job_type')
+                if metadata.get('company'):
+                    jd.company = metadata.get('company')
 
         # Get resume text from version or resume data
         resume_text = ''
@@ -5696,15 +6020,42 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
             rv = db.query(ResumeVersion).filter(ResumeVersion.resume_id == resume.id).order_by(ResumeVersion.version_number.desc()).first()
             resume_text = _resume_to_text(rv.resume_data) if rv else '\n'.join([resume.name or '', resume.title or '', resume.summary or ''])
 
-        breakdown = _compute_match_breakdown(jd.content, resume_text, jd.extracted_keywords or {})
+        # Use provided keyword data if available, otherwise compute it
+        keyword_coverage = None
+        if payload.matched_keywords is not None and payload.missing_keywords is not None:
+            # Use provided keyword data
+            matched_kw = payload.matched_keywords if isinstance(payload.matched_keywords, list) else []
+            missing_kw = payload.missing_keywords if isinstance(payload.missing_keywords, list) else []
+            keyword_coverage = payload.keyword_coverage
+            logger.info(f"create_match: Using provided keyword data - matched: {len(matched_kw)}, missing: {len(missing_kw)}, coverage: {keyword_coverage}")
+            # Still compute breakdown for score if ATS score not provided
+            if payload.ats_score is None:
+                breakdown = _compute_match_breakdown(jd.content, resume_text, jd.extracted_keywords or {})
+                # Use computed keyword_coverage if not provided
+                if keyword_coverage is None:
+                    keyword_coverage = breakdown.get('keyword_coverage', 0)
+            else:
+                breakdown = {
+                    'matched_keywords': matched_kw,
+                    'missing_keywords': missing_kw,
+                    'keyword_coverage': keyword_coverage or 0
+                }
+        else:
+            # Compute breakdown from scratch
+            breakdown = _compute_match_breakdown(jd.content, resume_text, jd.extracted_keywords or {})
+            matched_kw = breakdown.get('matched_keywords', [])
+            missing_kw = breakdown.get('missing_keywords', [])
+            keyword_coverage = breakdown.get('keyword_coverage', 0)
 
         # Use provided ATS score if available, otherwise use computed score
         final_score = payload.ats_score if payload.ats_score is not None else int(breakdown.get('score', 0))
         logger.info(f"create_match: Using ATS score: {final_score} (provided: {payload.ats_score}, computed: {breakdown.get('score', 0)})")
 
         # Ensure JSON fields are Python lists/dicts, not JSON strings
-        matched_kw = breakdown.get('matched_keywords', [])
-        missing_kw = breakdown.get('missing_keywords', [])
+        if not isinstance(matched_kw, list):
+            matched_kw = breakdown.get('matched_keywords', [])
+        if not isinstance(missing_kw, list):
+            missing_kw = breakdown.get('missing_keywords', [])
         
         logger.info(f"create_match: Raw breakdown data types - matched_keywords: {type(matched_kw)}, missing_keywords: {type(missing_kw)}")
         
@@ -5730,7 +6081,11 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
         if not isinstance(missing_kw, list):
             missing_kw = list(missing_kw) if missing_kw else []
         
-        logger.info(f"create_match: Final data types - matched_keywords: {type(matched_kw)} (len={len(matched_kw)}), missing_keywords: {type(missing_kw)} (len={len(missing_kw)})")
+        # Use provided keyword_coverage or compute from breakdown
+        if keyword_coverage is None:
+            keyword_coverage = breakdown.get('keyword_coverage', 0)
+        
+        logger.info(f"create_match: Final data types - matched_keywords: {type(matched_kw)} (len={len(matched_kw)}), missing_keywords: {type(missing_kw)} (len={len(missing_kw)}), keyword_coverage: {keyword_coverage}")
 
         # Get user_id from resume
         if not resume.user_id:
@@ -5741,7 +6096,7 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
             resume_id=resume.id,
             job_description_id=jd.id,
             score=final_score,  # Use ATS score
-            keyword_coverage=float(breakdown.get('keyword_coverage', 0.0)) if breakdown.get('keyword_coverage') is not None else 0.0,
+            keyword_coverage=float(keyword_coverage) if keyword_coverage is not None else (float(breakdown.get('keyword_coverage', 0.0)) if breakdown.get('keyword_coverage') is not None else 0.0),
             matched_keywords=matched_kw,
             missing_keywords=missing_kw,
             excess_keywords=[],  # Empty list for now
@@ -5823,10 +6178,61 @@ def list_job_descriptions_api(user_email: Optional[str] = None, db: Session = De
     try:
         # If no user_email provided, return jobs with no user_id (for extension without login)
         if not user_email:
-            # Return jobs that were saved without user_id (from extension)
-            items = db.query(JobDescription).filter(
-                JobDescription.user_id.is_(None)
-            ).order_by(JobDescription.created_at.desc()).limit(100).all()
+            # Check if new columns exist
+            try:
+                result = db.execute(text("""
+                    SELECT COUNT(*) 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'job_descriptions' 
+                    AND column_name IN ('max_salary', 'status', 'follow_up_date', 'important_emoji', 'notes')
+                """))
+                count = result.fetchone()[0]
+                new_columns_exist = (count == 5)
+            except:
+                new_columns_exist = False
+            
+            if new_columns_exist:
+                items = db.query(JobDescription).filter(
+                    JobDescription.user_id.is_(None)
+                ).order_by(JobDescription.created_at.desc()).limit(100).all()
+            else:
+                # Use raw SQL
+                result = db.execute(text("""
+                    SELECT id, user_id, title, company, source, url, easy_apply_url, location, 
+                           work_type, job_type, content, extracted_keywords, priority_keywords, 
+                           soft_skills, high_frequency_keywords, ats_insights, created_at
+                    FROM job_descriptions
+                    WHERE user_id IS NULL
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                """))
+                rows = result.fetchall()
+                items = []
+                for row in rows:
+                    jd = JobDescription()
+                    jd.id = row[0]
+                    jd.user_id = row[1]
+                    jd.title = row[2] or ''
+                    jd.company = row[3]
+                    jd.source = row[4]
+                    jd.url = row[5]
+                    jd.easy_apply_url = row[6]
+                    jd.location = row[7]
+                    jd.work_type = row[8]
+                    jd.job_type = row[9]
+                    jd.content = row[10] or ''
+                    jd.extracted_keywords = row[11]
+                    jd.priority_keywords = row[12]
+                    jd.soft_skills = row[13]
+                    jd.high_frequency_keywords = row[14]
+                    jd.ats_insights = row[15]
+                    jd.created_at = row[16]
+                    jd.max_salary = None
+                    jd.status = 'bookmarked'
+                    jd.follow_up_date = None
+                    jd.important_emoji = None
+                    jd.notes = None
+                    items.append(jd)
             
             result = []
             for it in items:
@@ -5849,6 +6255,11 @@ def list_job_descriptions_api(user_email: Optional[str] = None, db: Session = De
                         'url': it.url or '',
                         'created_at': it.created_at.isoformat() if it.created_at else None,
                         'priority_keywords': priority_kw or [],
+                        'max_salary': getattr(it, 'max_salary', None),
+                        'status': getattr(it, 'status', 'bookmarked'),
+                        'follow_up_date': getattr(it, 'follow_up_date', None),
+                        'important_emoji': getattr(it, 'important_emoji', None),
+                        'notes': getattr(it, 'notes', None),
                         'last_match': None,
                     })
                 except Exception as e:
@@ -5868,8 +6279,8 @@ def delete_job_description_api(jd_id: int, user_email: Optional[str] = Query(Non
     try:
         logger.info(f"delete_job_description_api: Attempting to delete JD {jd_id}")
         
-        # Find the job description
-        jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
+        # Find the job description (use safe query)
+        jd, jd_has_new_columns = safe_get_job_description(jd_id, db)
         if not jd:
             logger.warning(f"delete_job_description_api: JD {jd_id} not found")
             raise HTTPException(status_code=404, detail='Job description not found')
@@ -5882,12 +6293,16 @@ def delete_job_description_api(jd_id: int, user_email: Optional[str] = Query(Non
                 raise HTTPException(status_code=403, detail='Not authorized to delete this job description')
         
         # Delete associated match sessions first (if cascade doesn't handle it)
-        match_sessions = db.query(MatchSession).filter(MatchSession.job_description_id == jd_id).all()
-        for ms in match_sessions:
-            db.delete(ms)
+        db.query(MatchSession).filter(MatchSession.job_description_id == jd_id).delete()
         
-        # Delete the job description
-        db.delete(jd)
+        # Delete the job description using raw SQL to avoid session issues when columns missing
+        if jd_has_new_columns:
+            # Use normal SQLAlchemy delete
+            db.query(JobDescription).filter(JobDescription.id == jd_id).delete()
+        else:
+            # Use raw SQL delete
+            db.execute(text("DELETE FROM job_descriptions WHERE id = :jd_id"), {'jd_id': jd_id})
+        
         db.commit()
         
         logger.info(f"delete_job_description_api: Successfully deleted JD {jd_id}")
@@ -5904,8 +6319,62 @@ def delete_job_description_api(jd_id: int, user_email: Optional[str] = Query(Non
         raise HTTPException(status_code=500, detail=f"Failed to delete job description: {str(e)}")
 
 @app.get('/api/job-descriptions/{jd_id}')
-def get_job_description_api(jd_id: int, db: Session = Depends(get_db)):
+def get_job_description_api(jd_id: int, user_email: Optional[str] = None, db: Session = Depends(get_db)):
     return get_job_description(jd_id, db)
+
+class JobDescriptionUpdate(BaseModel):
+    max_salary: Optional[int] = None
+    status: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    important_emoji: Optional[str] = None
+    notes: Optional[str] = None
+
+@app.patch('/api/job-descriptions/{jd_id}')
+def update_job_description_api(
+    jd_id: int,
+    payload: JobDescriptionUpdate,
+    user_email: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Update specific fields of a job description"""
+    try:
+        jd, jd_has_new_columns = safe_get_job_description(jd_id, db)
+        if not jd:
+            raise HTTPException(status_code=404, detail='Job description not found')
+        if not jd_has_new_columns:
+            raise HTTPException(status_code=400, detail='Job description advanced fields are unavailable. Please run the database migration to add job metadata columns.')
+        
+        # Update allowed fields
+        if payload.max_salary is not None:
+            jd.max_salary = payload.max_salary
+        if payload.status is not None:
+            jd.status = payload.status
+        if payload.follow_up_date is not None:
+            if payload.follow_up_date:
+                try:
+                    # Handle ISO format dates
+                    if 'T' in payload.follow_up_date:
+                        jd.follow_up_date = datetime.fromisoformat(payload.follow_up_date.replace('Z', '+00:00'))
+                    else:
+                        # Handle date-only format (YYYY-MM-DD)
+                        jd.follow_up_date = datetime.strptime(payload.follow_up_date, '%Y-%m-%d')
+                except Exception as e:
+                    logger.warning(f"Failed to parse follow_up_date: {e}")
+            else:
+                jd.follow_up_date = None
+        if payload.important_emoji is not None:
+            jd.important_emoji = payload.important_emoji
+        if payload.notes is not None:
+            jd.notes = payload.notes
+        
+        db.commit()
+        db.refresh(jd)
+        
+        return get_job_description(jd_id, db)
+    except Exception as e:
+        logger.error(f"Error updating job description {jd_id}: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update job description: {str(e)}")
 
 @app.post('/api/matches')
 def create_match_api(payload: MatchCreate, db: Session = Depends(get_db)):

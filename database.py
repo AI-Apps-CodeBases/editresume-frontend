@@ -91,6 +91,11 @@ class JobDescription(Base):
     soft_skills = Column(JSON)  # list of soft skills found in JD
     high_frequency_keywords = Column(JSON)  # high-frequency keywords with counts
     ats_insights = Column(JSON)  # ATS-relevant insights (action verbs, metrics, etc.)
+    max_salary = Column(Integer)  # Maximum salary for the position
+    status = Column(String, default='bookmarked')  # Status: bookmarked, applied, interview_set, interviewing, negotiating, accepted, rejected
+    follow_up_date = Column(DateTime)  # Date to follow up on this job
+    important_emoji = Column(String)  # Emoji to mark importance (e.g., ⭐, 🔥, 💎)
+    notes = Column(Text)  # User notes about this job
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
