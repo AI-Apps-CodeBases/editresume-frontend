@@ -25,7 +25,7 @@ function ProfilePageContent() {
   const searchParams = useSearchParams()
   const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
-  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'jobs' | 'billing' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'resumes' | 'jobs' | 'billing' | 'settings'>('overview')
   const [savedJDs, setSavedJDs] = useState<Array<{
     id: number
     title: string
@@ -87,7 +87,7 @@ function ProfilePageContent() {
     
     // Check for tab parameter in URL
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['overview', 'history', 'jobs', 'billing', 'settings'].includes(tabParam)) {
+    if (tabParam && ['overview', 'history', 'resumes', 'jobs', 'billing', 'settings'].includes(tabParam)) {
       setActiveTab(tabParam as typeof activeTab)
     }
     
@@ -171,9 +171,9 @@ function ProfilePageContent() {
     }
   }, [isAuthenticated, user, activeTab])
 
-  // Refresh resumes when tab changes to jobs
+  // Refresh resumes when tab changes to jobs or resumes
   useEffect(() => {
-    if (activeTab === 'jobs' && isAuthenticated && user?.email) {
+    if ((activeTab === 'jobs' || activeTab === 'resumes') && isAuthenticated && user?.email) {
       fetchSavedResumes()
     }
   }, [activeTab, isAuthenticated, user, fetchSavedResumes])
@@ -266,7 +266,7 @@ function ProfilePageContent() {
         <div className="bg-white rounded-2xl shadow-lg mb-6">
           <div className="border-b">
             <div className="flex gap-1 p-2">
-              {(['overview', 'history', 'jobs', 'billing', 'settings'] as const).map((tab) => (
+              {(['overview', 'history', 'resumes', 'jobs', 'billing', 'settings'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -370,6 +370,73 @@ function ProfilePageContent() {
                         <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-semibold">
                           Open
                         </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'resumes' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900">Master Resumes</h2>
+                  <button
+                    onClick={fetchSavedResumes}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {savedResumes.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
+                    <div className="text-6xl mb-4">📄</div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No saved resumes yet</h3>
+                    <p className="text-gray-600 mb-6">Save your resume from the editor to create a master resume that you can match with job descriptions.</p>
+                    <a
+                      href="/editor"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                    >
+                      Create Resume
+                    </a>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {savedResumes.map((resume) => (
+                      <div
+                        key={resume.id}
+                        className="p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all shadow-sm"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">{resume.name}</h3>
+                            {resume.title && (
+                              <p className="text-sm text-gray-600 mb-2">{resume.title}</p>
+                            )}
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              {resume.version_count && (
+                                <span>v{resume.latest_version_number || resume.version_count} •</span>
+                              )}
+                              {resume.created_at && (
+                                <span>Created: {new Date(resume.created_at).toLocaleDateString()}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-4">
+                          <a
+                            href={`/editor?resumeId=${resume.id}`}
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-all font-semibold text-center"
+                          >
+                            Edit
+                          </a>
+                          {resume.match_count && resume.match_count > 0 && (
+                            <span className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-xs font-semibold">
+                              {resume.match_count} match{resume.match_count > 1 ? 'es' : ''}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -608,7 +675,7 @@ function ProfilePageContent() {
                                           'bg-orange-100 text-orange-700 border border-orange-300'
                                         }`}
                                       >
-                                        {match.score}%
+                                        ATS: {match.score}%
                                       </span>
                                       {match.resume_version_number && (
                                         <a
@@ -707,7 +774,7 @@ function ProfilePageContent() {
                                   <div className="flex flex-col gap-2">
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs font-semibold">
-                                        Latest Match: {jd.last_match?.score}%
+                                        ATS Score: {jd.last_match?.score}%
                                       </span>
                                       {jd.last_match?.resume_name && (
                                         <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs">
@@ -730,12 +797,12 @@ function ProfilePageContent() {
                                         <div className="flex flex-wrap gap-2">
                                           {jd.all_matches.map((match: any, idx: number) => (
                                             <div key={match.id} className="flex items-center gap-1">
-                                              <span className={`px-2 py-1 rounded text-xs ${
+                                              <span className={`px-2 py-1 rounded text-xs font-medium ${
                                                 match.score >= 80 ? 'bg-green-100 text-green-700 border border-green-300' :
                                                 match.score >= 60 ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
                                                 'bg-orange-100 text-orange-700 border border-orange-300'
                                               }`}>
-                                                {match.score}%
+                                                ATS: {match.score}%
                                               </span>
                                               {match.resume_version_id && (
                                                 <a

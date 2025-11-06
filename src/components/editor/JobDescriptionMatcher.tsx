@@ -171,6 +171,7 @@ interface JobMetadata {
     metrics?: string[];
     industry_terms?: string[];
   };
+  easy_apply_url?: string;
 }
 
 export default function JobDescriptionMatcher({ resumeData, onMatchResult, onResumeUpdate, onClose, standalone = true, initialJobDescription, onSelectJobDescriptionId, currentJobDescriptionId }: JobDescriptionMatcherProps) {
@@ -183,6 +184,76 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [matchResult, setMatchResult] = useState<JobMatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Auto-update ATS score when resume data changes (only if JD is selected)
+  useEffect(() => {
+    if (jobDescription && currentJobDescriptionId && resumeData) {
+      const debounceTimer = setTimeout(async () => {
+        setIsAnalyzing(true);
+        try {
+          const cleanedResumeData = {
+            name: resumeData.name || '',
+            title: resumeData.title || '',
+            email: resumeData.email || '',
+            phone: resumeData.phone || '',
+            location: resumeData.location || '',
+            summary: resumeData.summary || '',
+            sections: resumeData.sections.map((section: any) => ({
+              id: section.id,
+              title: section.title,
+              bullets: section.bullets.map((bullet: any) => ({
+                id: bullet.id,
+                text: bullet.text,
+                params: {}
+              }))
+            }))
+          };
+          
+          const matchRes = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              job_description: jobDescription,
+              resume_data: cleanedResumeData
+            }),
+          });
+          
+          if (matchRes.ok) {
+            const matchData = await matchRes.json();
+            setMatchResult(matchData);
+            setCurrentATSScore(matchData.match_analysis?.similarity_score || null);
+            
+            // Update localStorage
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('currentMatchResult', JSON.stringify(matchData));
+                const jdKeywords = {
+                  matching: matchData.match_analysis?.matching_keywords || [],
+                  missing: matchData.match_analysis?.missing_keywords || [],
+                  high_frequency: selectedJobMetadata?.high_frequency_keywords || [],
+                  priority: (matchData as any).priority_keywords || []
+                };
+                localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
+                localStorage.setItem('currentJDText', jobDescription);
+              } catch (e) {
+                console.error('Failed to store match result:', e);
+              }
+            }
+            
+            if (onMatchResult) {
+              onMatchResult(matchData);
+            }
+          }
+        } catch (error) {
+          console.error('Auto-update ATS score failed:', error);
+        } finally {
+          setIsAnalyzing(false);
+        }
+      }, 1000); // Debounce for 1 second
+      
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [resumeData, jobDescription, currentJobDescriptionId]);
   const [savedJDs, setSavedJDs] = useState<Array<{id:number,title:string,company?:string,created_at?:string}>>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const [showImprovementsModal, setShowImprovementsModal] = useState(false);
@@ -203,6 +274,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [resumeSaveName, setResumeSaveName] = useState('');
   const [updatedResumeData, setUpdatedResumeData] = useState<any>(null);
   const [currentJDInfo, setCurrentJDInfo] = useState<{company?: string, title?: string, easy_apply_url?: string} | null>(null);
+  const [currentATSScore, setCurrentATSScore] = useState<number | null>(null);
+  const [updatedATSScore, setUpdatedATSScore] = useState<number | null>(null);
+  const [isCalculatingATS, setIsCalculatingATS] = useState(false);
 
   const handleSaveResumeWithName = async () => {
     if (!resumeSaveName || !resumeSaveName.trim()) {
@@ -298,10 +372,45 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         throw new Error(result.message || 'Save failed on server');
       }
 
-      // Create match session if we have a currentJobDescriptionId
+      // Create match session if we have a currentJobDescriptionId (optional - allows saving master resumes without JDs)
       if (currentJobDescriptionId) {
         try {
-          await fetch(`${apiBase}/api/matches`, {
+          // Get ATS score - prefer updated score if available, otherwise use current
+          const atsScore = updatedATSScore !== null ? updatedATSScore : (matchResult?.match_analysis?.similarity_score || currentATSScore);
+          
+          // Ensure JD is saved with all metadata
+          const jdMetadata: any = {
+            easy_apply_url: currentJDInfo?.easy_apply_url || selectedJobMetadata?.easy_apply_url || null,
+            work_type: selectedJobMetadata?.remoteStatus || null,
+            job_type: selectedJobMetadata?.jobType || null,
+            company: currentJDInfo?.company || selectedJobMetadata?.company || null
+          };
+          
+          // Update JD with metadata if needed
+          try {
+            await fetch(`${apiBase}/api/job-descriptions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: currentJobDescriptionId,
+                user_email: user.email,
+                title: selectedJobMetadata?.title || currentJDInfo?.title || '',
+                company: jdMetadata.company || '',
+                content: jobDescription || '',
+                easy_apply_url: jdMetadata.easy_apply_url || null,
+                work_type: jdMetadata.work_type || null,
+                job_type: jdMetadata.job_type || null,
+                source: 'app',
+                url: null
+              })
+            });
+            console.log('JD updated with metadata:', jdMetadata);
+          } catch (jdUpdateError) {
+            console.warn('Failed to update JD metadata (continuing anyway):', jdUpdateError);
+          }
+          
+          // Create match session linking resume and JD
+          const matchResponse = await fetch(`${apiBase}/api/matches`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -311,14 +420,31 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               resume_name: saveName,
               resume_title: updatedResumeData.title || '',
               resume_snapshot: updatedResumeData,
-              resume_version_id: result.version_id
+              resume_version_id: result.version_id,
+              ats_score: atsScore ? Math.round(atsScore) : null,
+              jd_metadata: jdMetadata  // Pass JD metadata
             })
           });
-          console.log('Match session created successfully');
+          
+          if (!matchResponse.ok) {
+            throw new Error(`Failed to create match: ${matchResponse.status}`);
+          }
+          
+          const matchSessionResult = await matchResponse.json();
+          console.log('Match session created successfully:', {
+            matchId: matchSessionResult.id || matchSessionResult.match_id,
+            resumeId: result.resume_id,
+            jobDescriptionId: currentJobDescriptionId,
+            atsScore: atsScore,
+            jdMetadata: jdMetadata
+          });
         } catch (matchError) {
           console.error('Failed to create match session:', matchError);
-          // Don't fail the save if match session creation fails
+          alert(`Resume saved, but failed to link with job description: ${matchError instanceof Error ? matchError.message : 'Unknown error'}`);
         }
+      } else {
+        // Save as master resume (without JD match)
+        console.log('Saving master resume without JD match');
       }
 
       // Clean up states
@@ -334,17 +460,30 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       setBulletGeneratorCompany('');
       setBulletGeneratorJobTitle('');
 
-      // Show appropriate success message
+      // Show success notification (no navigation)
       const newVersionNumber = existingVersionCount + 1;
-      const matchScoreText = matchResult ? ` (Match Score: ${matchResult.match_analysis.similarity_score}%)` : '';
-      const successMessage = isExistingResume
-        ? `✅ Resume "${saveName}" updated successfully!${matchScoreText}\n\nVersion ${newVersionNumber} created. Previous versions are preserved.\n\nWould you like to view it in your profile?`
-        : `✅ Resume "${saveName}" saved successfully!${matchScoreText}\n\nWould you like to view it in your profile?`;
-
-      const shouldNavigate = confirm(successMessage);
-      if (shouldNavigate) {
-        window.location.href = '/profile?tab=jobs';
-      }
+      const atsScore = updatedATSScore !== null ? updatedATSScore : (matchResult?.match_analysis?.similarity_score || currentATSScore);
+      const matchScoreText = currentJobDescriptionId && atsScore ? ` (ATS Score: ${Math.round(atsScore)}%)` : '';
+      const resumeType = currentJobDescriptionId ? 'job match' : 'master resume';
+      const jobInfo = currentJDInfo?.company || selectedJobMetadata?.company ? ` - ${currentJDInfo?.company || selectedJobMetadata?.company}` : '';
+      
+      // Show toast notification
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
+      notification.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="text-2xl">✅</div>
+          <div>
+            <div class="font-bold text-lg">Saved to Jobs!</div>
+            <div class="text-sm mt-1">${saveName}${jobInfo}${matchScoreText}</div>
+            ${currentJobDescriptionId ? `<div class="text-xs mt-1 text-green-100">Resume matched with JD • ATS: ${Math.round(atsScore || 0)}%</div>` : ''}
+            ${isExistingResume ? `<div class="text-xs mt-1 text-green-100">Version ${newVersionNumber} created</div>` : ''}
+          </div>
+          <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
+        </div>
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 5000);
     } catch (error) {
       console.error('Failed to save resume:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -446,7 +585,26 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
       const result = await response.json();
       setMatchResult(result);
+      setCurrentATSScore(result.match_analysis?.similarity_score || null);
       setSelectedKeywords(new Set());
+      
+      // Store match result and keywords in localStorage for VisualResumeEditor
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('currentMatchResult', JSON.stringify(result));
+          const jdKeywords = {
+            matching: result.match_analysis?.matching_keywords || [],
+            missing: result.match_analysis?.missing_keywords || [],
+            high_frequency: selectedJobMetadata?.high_frequency_keywords || [],
+            priority: (result as any).priority_keywords || []
+          };
+          localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
+          localStorage.setItem('currentJDText', jobDescription);
+        } catch (e) {
+          console.error('Failed to store match result:', e);
+        }
+      }
+      
       if (onMatchResult) {
         onMatchResult(result);
       }
@@ -724,16 +882,48 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   {savedJDs.map((jd: any) => (
                     <li key={jd.id} className="group">
                       <div className="flex items-center gap-2 p-3 hover:bg-gray-50">
+                      <button
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete "${jd.title}"?`)) {
+                              try {
+                                const deleteRes = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}?user_email=${encodeURIComponent(user?.email || '')}`, {
+                                  method: 'DELETE'
+                                });
+                                if (deleteRes.ok) {
+                                  setSavedJDs(savedJDs.filter((item: any) => item.id !== jd.id));
+                                  if (currentJobDescriptionId === jd.id) {
+                                    setJobDescription('');
+                                    setSelectedJobMetadata(null);
+                                    setMatchResult(null);
+                                    setCurrentJDInfo(null);
+                                    if (onSelectJobDescriptionId) {
+                                      onSelectJobDescriptionId(null);
+                                    }
+                                  }
+                                } else {
+                                  alert('Failed to delete job description');
+                                }
+                              } catch (error) {
+                                console.error('Error deleting job description:', error);
+                                alert('Failed to delete job description');
+                              }
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                          title="Delete job description"
+                        >
+                          ×
+                        </button>
                         <button
                           className="flex-1 text-left text-sm"
-                          onClick={async () => {
-                            try {
-                              const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}`);
-                              if (res.ok) {
-                                const full = await res.json();
-                                if (full && full.content) {
-                                  setJobDescription(full.content);
-                                  
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}`);
+                            if (res.ok) {
+                              const full = await res.json();
+                              if (full && full.content) {
+                                setJobDescription(full.content);
+                                
                                   const workType = full.work_type || extractWorkType(full.content || '', full.location || '');
                                   const jobType = full.job_type || extractJobType(full.content || '');
                                   
@@ -743,20 +933,20 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                                     locationText = full.location || '';
                                   }
                                   
-                                  const metadata: JobMetadata = {
-                                    title: full.title,
-                                    company: full.company,
+                                const metadata: JobMetadata = {
+                                  title: full.title,
+                                  company: full.company,
                                     jobType: jobType,
                                     remoteStatus: workType,
                                     location: locationText,
-                                    budget: extractBudget(full.content),
-                                    keywords: extractTopKeywords(full.content),
-                                    skills: extractSkills(full.content),
+                                  budget: extractBudget(full.content),
+                                  keywords: extractTopKeywords(full.content),
+                                  skills: extractSkills(full.content),
                                     soft_skills: full.soft_skills || [],
                                     high_frequency_keywords: full.high_frequency_keywords || [],
                                     ats_insights: full.ats_insights || {},
-                                  };
-                                  setSelectedJobMetadata(metadata);
+                                };
+                                setSelectedJobMetadata(metadata);
                                   
                                   // Store Easy Apply URL and set current JD ID
                                   console.log('📋 Loaded JD from saved list:', { 
@@ -771,14 +961,79 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                                     easy_apply_url: full.easy_apply_url || ''
                                   });
                                   if (onSelectJobDescriptionId) onSelectJobDescriptionId(jd.id);
+                                  
+                                  // Auto-analyze match when JD is selected
+                                  if (full.content && resumeData) {
+                                    setIsAnalyzing(true);
+                                    try {
+                                      const cleanedResumeData = {
+                                        name: resumeData.name || '',
+                                        title: resumeData.title || '',
+                                        email: resumeData.email || '',
+                                        phone: resumeData.phone || '',
+                                        location: resumeData.location || '',
+                                        summary: resumeData.summary || '',
+                                        sections: resumeData.sections.map((section: any) => ({
+                                          id: section.id,
+                                          title: section.title,
+                                          bullets: section.bullets.map((bullet: any) => ({
+                                            id: bullet.id,
+                                            text: bullet.text,
+                                            params: {}
+                                          }))
+                                        }))
+                                      };
+                                      
+                                      const matchRes = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          job_description: full.content,
+                                          resume_data: cleanedResumeData
+                                        }),
+                                      });
+                                      
+                                      if (matchRes.ok) {
+                                        const matchData = await matchRes.json();
+                                        setMatchResult(matchData);
+                                        setCurrentATSScore(matchData.match_analysis?.similarity_score || null);
+                                        
+                                        // Store match result and keywords in localStorage
+                                        if (typeof window !== 'undefined') {
+                                          try {
+                                            localStorage.setItem('currentMatchResult', JSON.stringify(matchData));
+                                            const jdKeywords = {
+                                              matching: matchData.match_analysis?.matching_keywords || [],
+                                              missing: matchData.match_analysis?.missing_keywords || [],
+                                              high_frequency: metadata.high_frequency_keywords || [],
+                                              priority: (matchData as any).priority_keywords || []
+                                            };
+                                        localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
+                                        localStorage.setItem('currentJDId', String(jd.id));
+                                        localStorage.setItem('currentJDText', full.content || '');
+                                      } catch (e) {
+                                        console.error('Failed to store match result:', e);
+                                      }
+                                    }
+                                        
+                                        if (onMatchResult) {
+                                          onMatchResult(matchData);
+                                        }
+                                      }
+                                    } catch (error) {
+                                      console.error('Auto-analysis failed:', error);
+                                    } finally {
+                                      setIsAnalyzing(false);
+                                    }
+                                  }
                                 }
-                              }
-                            } catch (_) {}
-                          }}
-                        >
-                          <div className="text-sm font-semibold text-gray-800 line-clamp-1">{jd.title}</div>
-                          {jd.company && <div className="text-xs text-gray-500">{jd.company}</div>}
-                        </button>
+                            }
+                          } catch (_) {}
+                        }}
+                      >
+                        <div className="text-sm font-semibold text-gray-800 line-clamp-1">{jd.title}</div>
+                        {jd.company && <div className="text-xs text-gray-500">{jd.company}</div>}
+                      </button>
                         {jd.easy_apply_url && (
                           <a
                             href={jd.easy_apply_url}
@@ -804,6 +1059,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
           {/* Analyze Button */}
           <div>
+            {(!currentJobDescriptionId || !matchResult) && (
+              <>
             <button
               onClick={analyzeMatch}
               disabled={isAnalyzing || !jobDescription.trim()}
@@ -815,6 +1072,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               <p className="text-sm text-gray-500 mt-2 text-center">
                 Select a saved job description to analyze
               </p>
+                )}
+              </>
             )}
           </div>
 
@@ -841,8 +1100,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   {selectedJobMetadata?.company && (
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">🏢</span>
-                        <span className="text-base font-semibold text-gray-700">{selectedJobMetadata.company}</span>
+                      <span className="text-lg">🏢</span>
+                      <span className="text-base font-semibold text-gray-700">{selectedJobMetadata.company}</span>
                       </div>
                       {currentJDInfo?.easy_apply_url && (
                         <a
@@ -1034,49 +1293,76 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               {/* Match Results (if available) */}
               {matchResult ? (
             <div className="space-y-6">
-              {/* Overall Score + Gauge */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="text-lg font-semibold text-gray-900 mb-3">Match Analysis</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="text-center">
+              {/* Matching ATS Score */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border-2 border-blue-200">
+            <h4 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span>🎯</span> Matching ATS Score
+            </h4>
+            <div className="flex items-center justify-center">
                 <div className="relative inline-block">
-                  <svg viewBox="0 0 36 36" className="w-20 h-20">
+                <svg viewBox="0 0 36 36" className="w-32 h-32">
                     <path className="text-gray-200" stroke="currentColor" strokeWidth="4" fill="none" d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32" />
                     <path className={`${getScoreColor(matchResult.match_analysis.similarity_score).replace('text-','stroke-')}`} strokeLinecap="round" strokeWidth="4" fill="none"
                       strokeDasharray={`${Math.max(0, Math.min(100, matchResult.match_analysis.similarity_score))}, 100`} d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32" />
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={`text-xl font-bold ${getScoreColor(matchResult.match_analysis.similarity_score)}`}>{matchResult.match_analysis.similarity_score}%</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={`text-4xl font-bold ${getScoreColor(matchResult.match_analysis.similarity_score)}`}>
+                    {matchResult.match_analysis.similarity_score}%
+                  </span>
+                  <span className="text-sm text-gray-600 mt-1">ATS Score</span>
                   </div>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">Overall Match</p>
-                <p className="text-xs text-gray-500">{matchResult.analysis_summary.overall_match}</p>
               </div>
-              <div className="text-center">
-                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${getScoreBgColor(matchResult.match_analysis.technical_score)}`}>
-                  <span className={`text-2xl font-bold ${getScoreColor(matchResult.match_analysis.technical_score)}`}>
-                    {matchResult.match_analysis.technical_score}%
-                  </span>
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-700 font-medium">
+                {matchResult.match_analysis.similarity_score >= 80 ? 'Excellent Match' :
+                 matchResult.match_analysis.similarity_score >= 60 ? 'Good Match' :
+                 matchResult.match_analysis.similarity_score >= 40 ? 'Fair Match' : 'Needs Improvement'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">{matchResult.analysis_summary.overall_match}</p>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">Technical Match</p>
-                <p className="text-xs text-gray-500">{matchResult.analysis_summary.technical_match}</p>
               </div>
-            </div>
-          </div>
 
           {/* Matching Keywords (priority chips shown if available) */}
+          {/* High-Intensity Keywords from JD */}
+          {selectedJobMetadata?.high_frequency_keywords && selectedJobMetadata.high_frequency_keywords.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <span>🔥</span> High-Intensity JD Keywords (Most Important)
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {selectedJobMetadata.high_frequency_keywords.slice(0, 15).map((item, index) => (
+                  <span
+                    key={index}
+                    className={`px-3 py-1 text-sm rounded-full font-semibold ${
+                      item.importance === 'high' 
+                        ? 'bg-red-100 text-red-800 border-2 border-red-300' 
+                        : 'bg-orange-100 text-orange-800 border border-orange-300'
+                    }`}
+                    title={`Frequency: ${item.frequency} times`}
+                  >
+                    {item.keyword} ({item.frequency})
+                  </span>
+                ))}
+            </div>
+              <p className="text-xs text-gray-600 mt-2">
+                These keywords appear most frequently in the JD. Include them in your resume to maximize ATS score.
+              </p>
+          </div>
+          )}
+
           {matchResult.match_analysis.matching_keywords.length > 0 && (
             <div>
               <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                Matching Keywords ({matchResult.match_analysis.match_count})
+                ✅ Matching Keywords in Your Resume ({matchResult.match_analysis.matching_keywords.length} / {matchResult.match_analysis.matching_keywords.length + matchResult.match_analysis.missing_keywords.length})
               </h4>
               <div className="flex flex-wrap gap-2">
                 {matchResult.match_analysis.matching_keywords.map((keyword, index) => (
                   <span
                     key={index}
-                    className={`px-3 py-1 text-sm rounded-full ${ (matchResult as any).priority_keywords?.includes?.(keyword) ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-green-100 text-green-800'}`}
+                    className={`px-3 py-1 text-sm rounded-full ${ (matchResult as any).priority_keywords?.includes?.(keyword) ? 'bg-purple-100 text-purple-800 border border-purple-200 font-semibold' : 'bg-green-100 text-green-800'}`}
                   >
-                    {keyword}
+                    ✓ {keyword}
                   </span>
                 ))}
               </div>
@@ -1088,7 +1374,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-lg font-semibold text-gray-900">
-                  Missing Keywords ({matchResult.match_analysis.missing_count})
+                  Missing Keywords ({matchResult.match_analysis.missing_keywords.length})
                 </h4>
                 {selectedKeywords.size > 0 && (
                   <button
@@ -1194,16 +1480,154 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
                 {matchResult.match_analysis.technical_missing.length > 0 && (
                   <div>
-                    <h5 className="font-semibold text-gray-900 mb-2 text-sm">Missing Technical Skills</h5>
-                    <div className="flex flex-wrap gap-1">
-                      {matchResult.match_analysis.technical_missing.map((skill, index) => (
-                        <span
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="font-semibold text-gray-900 text-sm">Missing Technical Skills</h5>
+                      <button
+                        onClick={() => {
+                          // Extract all current skills from resume
+                          const currentSkills = new Set<string>()
+                          resumeData.sections?.forEach((section: any) => {
+                            const sectionType = section.title?.toLowerCase()
+                            if (sectionType?.includes('skill') || sectionType?.includes('technical')) {
+                              section.bullets?.forEach((bullet: any) => {
+                                const skillText = bullet.text?.replace(/^•\s*/, '').trim()
+                                if (skillText) {
+                                  currentSkills.add(skillText.toLowerCase())
+                                }
+                              })
+                            }
+                          })
+                          
+                          // Find skills section or create it
+                          let skillsSection = resumeData.sections?.find((s: any) => {
+                            const title = s.title?.toLowerCase()
+                            return title?.includes('skill') || title?.includes('technical')
+                          })
+                          
+                          if (!skillsSection) {
+                            // Create new skills section
+                            skillsSection = {
+                              id: `skill-${Date.now()}`,
+                              title: 'Skills',
+                              bullets: []
+                            }
+                          }
+                          
+                          // Add missing skills that aren't already in resume
+                          const skillsToAdd = matchResult.match_analysis.technical_missing.filter(
+                            (skill: string) => !currentSkills.has(skill.toLowerCase())
+                          )
+                          
+                          const newSkills = skillsToAdd.map((skill: string) => ({
+                            id: `skill-${Date.now()}-${Math.random()}`,
+                            text: skill,
+                            params: { visible: true }
+                          }))
+                          
+                          const updatedSections = resumeData.sections?.map((s: any) =>
+                            s.id === skillsSection.id
+                              ? { ...s, bullets: [...s.bullets, ...newSkills] }
+                              : s
+                          ) || []
+                          
+                          if (!resumeData.sections?.find((s: any) => s.id === skillsSection.id)) {
+                            updatedSections.push(skillsSection)
+                          }
+                          
+                          const updatedResume = {
+                            ...resumeData,
+                            sections: updatedSections
+                          }
+                          
+                          if (onResumeUpdate) {
+                            onResumeUpdate(updatedResume)
+                          }
+                          
+                          alert(`✅ Added ${skillsToAdd.length} missing skill${skillsToAdd.length > 1 ? 's' : ''} to your resume!`)
+                        }}
+                        className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+                      >
+                        <span>+</span> Add All Missing Skills
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {matchResult.match_analysis.technical_missing.map((skill, index) => {
+                        // Check if skill already exists in resume
+                        const skillExists = resumeData.sections?.some((section: any) => {
+                          const sectionType = section.title?.toLowerCase()
+                          if (sectionType?.includes('skill') || sectionType?.includes('technical')) {
+                            return section.bullets?.some((bullet: any) => 
+                              bullet.text?.replace(/^•\s*/, '').trim().toLowerCase() === skill.toLowerCase()
+                            )
+                          }
+                          return false
+                        })
+                        
+                        return (
+                          <label
                           key={index}
-                          className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded"
-                        >
-                          {skill}
-                        </span>
-                      ))}
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer border-2 transition-all ${
+                              skillExists
+                                ? 'bg-green-100 text-green-700 border-green-300'
+                                : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={false}
+                              onChange={(e) => {
+                                if (e.target.checked && !skillExists) {
+                                  // Find or create skills section
+                                  let skillsSection = resumeData.sections?.find((s: any) => {
+                                    const title = s.title?.toLowerCase()
+                                    return title?.includes('skill') || title?.includes('technical')
+                                  })
+                                  
+                                  if (!skillsSection) {
+                                    skillsSection = {
+                                      id: `skill-${Date.now()}`,
+                                      title: 'Skills',
+                                      bullets: []
+                                    }
+                                  }
+                                  
+                                  const newSkill = {
+                                    id: `skill-${Date.now()}-${Math.random()}`,
+                                    text: skill,
+                                    params: { visible: true }
+                                  }
+                                  
+                                  const updatedSections = resumeData.sections?.map((s: any) =>
+                                    s.id === skillsSection.id
+                                      ? { ...s, bullets: [...s.bullets, newSkill] }
+                                      : s
+                                  ) || []
+                                  
+                                  if (!resumeData.sections?.find((s: any) => s.id === skillsSection.id)) {
+                                    updatedSections.push({ ...skillsSection, bullets: [newSkill] })
+                                  }
+                                  
+                                  const updatedResume = {
+                                    ...resumeData,
+                                    sections: updatedSections
+                                  }
+                                  
+                                  if (onResumeUpdate) {
+                                    onResumeUpdate(updatedResume)
+                                  }
+                                  
+                                  // Uncheck the checkbox after adding
+                                  e.target.checked = false
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                              disabled={skillExists}
+                            />
+                            <span>{skill}</span>
+                            {skillExists && <span className="text-xs">✓</span>}
+                          </label>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -1289,7 +1713,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span>Save to Profile/Jobs</span>
+                <span>Save to Jobs</span>
               </button>
             )}
           </div>
@@ -1733,6 +2157,37 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             </div>
             
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+              {/* ATS Score Display */}
+              {currentATSScore !== null && (
+                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-600 uppercase mb-1">Current ATS Score</div>
+                      <div className={`text-3xl font-bold ${getScoreColor(currentATSScore)}`}>
+                        {currentATSScore}%
+                      </div>
+                    </div>
+                    {updatedATSScore !== null && updatedATSScore !== currentATSScore && (
+                      <div className="text-right">
+                        <div className="text-xs font-semibold text-gray-600 uppercase mb-1">Updated ATS Score</div>
+                        <div className={`text-3xl font-bold ${getScoreColor(updatedATSScore)}`}>
+                          {updatedATSScore}%
+                        </div>
+                        <div className={`text-sm font-semibold ${updatedATSScore > currentATSScore ? 'text-green-600' : 'text-red-600'}`}>
+                          {updatedATSScore > currentATSScore ? '↑' : '↓'} {Math.abs(updatedATSScore - currentATSScore)}%
+                        </div>
+                      </div>
+                    )}
+                    {isCalculatingATS && (
+                      <div className="text-right">
+                        <div className="text-xs font-semibold text-gray-600 uppercase mb-1">Calculating...</div>
+                        <div className="animate-pulse text-xl font-bold text-gray-400">--</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-gray-900">
@@ -1834,7 +2289,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             <div className="text-gray-500 text-xs mt-1">{entry.dateRange}</div>
                           </div>
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               const unassignedSelected = Array.from(selectedBulletIndices).filter(idx => !bulletAssignments.has(idx));
                               if (unassignedSelected.length === 0) {
                                 alert('Please select at least one unassigned bullet point');
@@ -1847,6 +2302,100 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                               });
                               setBulletAssignments(newAssignments);
                               setSelectedBulletIndices(new Set());
+                              
+                              // Calculate updated ATS score after assignment
+                              if (jobDescription && currentJobDescriptionId) {
+                                setIsCalculatingATS(true);
+                                try {
+                                  // Create temporary updated resume with assignments
+                                  let tempSections = [...resumeData.sections];
+                                  const tempEntriesByKey = new Map<string, {entry: typeof workExpEntries[0], bulletIndices: number[]}>();
+                                  
+                                  newAssignments.forEach((assignedKey, bulletIdx) => {
+                                    if (!tempEntriesByKey.has(assignedKey)) {
+                                      const tempEntry = workExpEntries.find(e => `${e.sectionId}-${e.bulletId}` === assignedKey);
+                                      if (tempEntry) {
+                                        tempEntriesByKey.set(assignedKey, { entry: tempEntry, bulletIndices: [] });
+                                      }
+                                    }
+                                    tempEntriesByKey.get(assignedKey)?.bulletIndices.push(bulletIdx);
+                                  });
+                                  
+                                  tempEntriesByKey.forEach(({ entry, bulletIndices }) => {
+                                    const tempSection = tempSections.find((s: any) => s.id === entry.sectionId);
+                                    if (!tempSection) return;
+                                    
+                                    const headerBulletIndex = tempSection.bullets.findIndex((b: any) => b.id === entry.bulletId);
+                                    if (headerBulletIndex === -1) return;
+                                    
+                                    let insertIndex = headerBulletIndex + 1;
+                                    for (let i = headerBulletIndex + 1; i < tempSection.bullets.length; i++) {
+                                      const bullet = tempSection.bullets[i];
+                                      if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
+                                        insertIndex = i;
+                                        break;
+                                      }
+                                      insertIndex = i + 1;
+                                    }
+                                    
+                                    const tempNewBullets = bulletIndices.map((bulletIdx: number) => ({
+                                      id: `temp-bullet-${bulletIdx}`,
+                                      text: generatedBullets[bulletIdx].startsWith('•') 
+                                        ? generatedBullets[bulletIdx] 
+                                        : `• ${generatedBullets[bulletIdx]}`,
+                                      params: {}
+                                    }));
+                                    
+                                    tempSection.bullets = [
+                                      ...tempSection.bullets.slice(0, insertIndex),
+                                      ...tempNewBullets,
+                                      ...tempSection.bullets.slice(insertIndex)
+                                    ];
+                                  });
+                                  
+                                  const tempUpdatedResume = {
+                                    ...resumeData,
+                                    sections: tempSections
+                                  };
+                                  
+                                  // Calculate ATS score for updated resume
+                                  const cleanedResumeData = {
+                                    name: tempUpdatedResume.name || '',
+                                    title: tempUpdatedResume.title || '',
+                                    email: tempUpdatedResume.email || '',
+                                    phone: tempUpdatedResume.phone || '',
+                                    location: tempUpdatedResume.location || '',
+                                    summary: tempUpdatedResume.summary || '',
+                                    sections: tempUpdatedResume.sections.map((section: any) => ({
+                                      id: section.id,
+                                      title: section.title,
+                                      bullets: section.bullets.map((bullet: any) => ({
+                                        id: bullet.id,
+                                        text: bullet.text,
+                                        params: {}
+                                      }))
+                                    }))
+                                  };
+                                  
+                                  const matchResponse = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      job_description: jobDescription,
+                                      resume_data: cleanedResumeData
+                                    }),
+                                  });
+                                  
+                                  if (matchResponse.ok) {
+                                    const matchData = await matchResponse.json();
+                                    setUpdatedATSScore(matchData.match_analysis?.similarity_score || null);
+                                  }
+                                } catch (error) {
+                                  console.error('Failed to calculate updated ATS score:', error);
+                                } finally {
+                                  setIsCalculatingATS(false);
+                                }
+                              }
                             }}
                             disabled={selectedBulletIndices.size === 0 || Array.from(selectedBulletIndices).every(idx => bulletAssignments.has(idx))}
                             className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1914,7 +2463,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (bulletAssignments.size === 0) {
                       alert('Please assign at least one bullet point to a work experience or project entry');
                       return;
@@ -1986,6 +2535,50 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       sections: updatedSections
                     };
 
+                    // Recalculate ATS score with updated resume
+                    if (jobDescription && currentJobDescriptionId) {
+                      setIsCalculatingATS(true);
+                      try {
+                        const cleanedResumeData = {
+                          name: updatedResume.name || '',
+                          title: updatedResume.title || '',
+                          email: updatedResume.email || '',
+                          phone: updatedResume.phone || '',
+                          location: updatedResume.location || '',
+                          summary: updatedResume.summary || '',
+                          sections: updatedResume.sections.map((section: any) => ({
+                            id: section.id,
+                            title: section.title,
+                            bullets: section.bullets.map((bullet: any) => ({
+                              id: bullet.id,
+                              text: bullet.text,
+                              params: {}
+                            }))
+                          }))
+                        };
+                        
+                        const matchResponse = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            job_description: jobDescription,
+                            resume_data: cleanedResumeData
+                          }),
+                        });
+                        
+                        if (matchResponse.ok) {
+                          const matchData = await matchResponse.json();
+                          setUpdatedATSScore(matchData.match_analysis?.similarity_score || null);
+                          // Update match result with new score
+                          setMatchResult(matchData);
+                        }
+                      } catch (error) {
+                        console.error('Failed to recalculate ATS score:', error);
+                      } finally {
+                        setIsCalculatingATS(false);
+                      }
+                    }
+
                     if (onResumeUpdate) {
                       onResumeUpdate(updatedResume);
                     }
@@ -2017,7 +2610,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   disabled={bulletAssignments.size === 0}
                   className="px-6 py-2 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
                 >
-                  Save & Close ({bulletAssignments.size})
+                  Save to Jobs ({bulletAssignments.size})
                 </button>
               </div>
             </div>

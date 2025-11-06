@@ -520,6 +520,17 @@ const EditorPageContent = () => {
         url.searchParams.set('user_email', user.email)
       }
       
+      // Clean sections data - remove boolean visible flags from params for API compatibility
+      const cleanedSections = resumeData.sections.map((section: any) => ({
+        id: section.id,
+        title: section.title,
+        bullets: section.bullets.map((bullet: any) => ({
+          id: bullet.id,
+          text: bullet.text,
+          params: {} // Remove visible flag from params for API compatibility
+        }))
+      }))
+      
       const exportData = {
         name: resumeData.name,
         title: resumeData.title,
@@ -527,7 +538,7 @@ const EditorPageContent = () => {
         phone: resumeData.phone,
         location: resumeData.location,
         summary: resumeData.summary,
-        sections: resumeData.sections,
+        sections: cleanedSections,
         replacements,
         template: selectedTemplate,
         two_column_left: localStorage.getItem('twoColumnLeft') ? JSON.parse(localStorage.getItem('twoColumnLeft')!) : [],
@@ -554,6 +565,17 @@ const EditorPageContent = () => {
           
           try {
             // Save resume and get version
+            // Clean sections data - remove boolean visible flags from params for API compatibility
+            const cleanedSectionsForSave = resumeData.sections.map((section: any) => ({
+              id: section.id,
+              title: section.title,
+              bullets: section.bullets.map((bullet: any) => ({
+                id: bullet.id,
+                text: bullet.text,
+                params: {} // Remove visible flag from params for API compatibility
+              }))
+            }))
+            
             const saveResumeRes = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -565,7 +587,7 @@ const EditorPageContent = () => {
                 location: resumeData.location,
                 summary: resumeData.summary,
                 template: selectedTemplate,
-                sections: resumeData.sections
+                sections: cleanedSectionsForSave
               })
             });
             
@@ -590,8 +612,20 @@ const EditorPageContent = () => {
             console.error('Failed to save resume version:', e);
           }
           
-          // Then create match session with version ID (even if save failed, try with available data)
+            // Then create match session with version ID (even if save failed, try with available data)
           try {
+            // Get ATS score from localStorage if available
+            let atsScore = null;
+            try {
+              const storedMatchResult = localStorage.getItem('currentMatchResult');
+              if (storedMatchResult) {
+                const matchResult = JSON.parse(storedMatchResult);
+                atsScore = matchResult?.match_analysis?.similarity_score || null;
+              }
+            } catch (e) {
+              console.error('Failed to get ATS score from localStorage:', e);
+            }
+            
             const matchPayload: any = {
               jobDescriptionId: activeJobDescriptionId,
               user_email: user.email,
@@ -607,6 +641,11 @@ const EditorPageContent = () => {
             // Include version ID and snapshot if available
             if (resumeVersionId) {
               matchPayload.resume_version_id = resumeVersionId;
+            }
+            
+            // Include ATS score if available
+            if (atsScore !== null) {
+              matchPayload.ats_score = Math.round(atsScore);
             }
             
             if (exportData) {
@@ -1126,6 +1165,79 @@ const EditorPageContent = () => {
                     className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all font-semibold"
                   >
                     🔗 Share
+                  </button>
+                )}
+                {isAuthenticated && user && (
+                  <button
+                    onClick={async () => {
+                      if (!resumeData.name && !resumeData.sections?.length) {
+                        alert('Please add some content to your resume before saving');
+                        return;
+                      }
+                      const resumeName = prompt('Enter a name for this resume:', resumeData.name || 'My Resume');
+                      if (!resumeName) return;
+                      
+                      try {
+                        const cleanedSections = resumeData.sections.map((section: any) => ({
+                          id: section.id,
+                          title: section.title,
+                          bullets: section.bullets.map((bullet: any) => ({
+                            id: bullet.id,
+                            text: bullet.text,
+                            params: {}
+                          }))
+                        }));
+                        
+                        const response = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            name: resumeName,
+                            title: resumeData.title || '',
+                            email: resumeData.email || '',
+                            phone: resumeData.phone || '',
+                            location: resumeData.location || '',
+                            summary: resumeData.summary || '',
+                            sections: cleanedSections,
+                            template: selectedTemplate
+                          })
+                        });
+                        
+                        if (response.ok) {
+                          const result = await response.json();
+                          if (result.success) {
+                            setCurrentResumeId(result.resume_id);
+                            
+                            // Show toast notification instead of navigating
+                            const notification = document.createElement('div');
+                            notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
+                            notification.innerHTML = `
+                              <div class="flex items-center gap-3">
+                                <div class="text-2xl">✅</div>
+                                <div>
+                                  <div class="font-bold text-lg">Resume Saved!</div>
+                                  <div class="text-sm mt-1">${resumeName}</div>
+                                  <div class="text-xs mt-1 text-green-100">Saved to Master Resumes</div>
+                                </div>
+                                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
+                              </div>
+                            `;
+                            document.body.appendChild(notification);
+                            setTimeout(() => notification.remove(), 5000);
+                          } else {
+                            throw new Error(result.message || 'Save failed');
+                          }
+                        } else {
+                          throw new Error(`HTTP ${response.status}`);
+                        }
+                      } catch (error) {
+                        console.error('Failed to save resume:', error);
+                        alert(`Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                      }
+                    }}
+                    className="text-sm px-4 py-2 rounded-lg bg-gradient-to-r from-green-600 to-blue-600 text-white hover:shadow-lg transform hover:scale-105 transition-all font-semibold"
+                  >
+                    💾 Save Resume
                   </button>
                 )}
                 <button

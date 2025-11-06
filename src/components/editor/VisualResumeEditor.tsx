@@ -30,6 +30,11 @@ interface ResumeData {
   summary: string
   sections: Section[]
   fieldsVisible?: Record<string, boolean>
+  linkedin?: string
+  website?: string
+  github?: string
+  portfolio?: string
+  twitter?: string
 }
 
 interface Props {
@@ -55,6 +60,90 @@ export default function VisualResumeEditor({
   onResolveComment,
   onDeleteComment
 }: Props) {
+  const [jdKeywords, setJdKeywords] = useState<{
+    matching: string[];
+    missing: string[];
+    high_frequency: Array<{keyword: string, frequency: number, importance: string}>;
+    priority: string[];
+  } | null>(null);
+  const [showAIImproveModal, setShowAIImproveModal] = useState(false);
+  const [aiImproveContext, setAiImproveContext] = useState<{sectionId: string, bulletId: string, currentText: string} | null>(null);
+  const [selectedMissingKeywords, setSelectedMissingKeywords] = useState<Set<string>>(new Set());
+  const [generatedBulletOptions, setGeneratedBulletOptions] = useState<string[]>([]);
+  const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
+  const [selectedBullets, setSelectedBullets] = useState<Set<number>>(new Set());
+  
+  // Load JD keywords from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('currentJDKeywords');
+        if (stored) {
+          setJdKeywords(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error('Failed to load JD keywords:', e);
+      }
+    }
+    
+    // Listen for storage changes (when match is done)
+    const handleStorageChange = () => {
+      try {
+        const stored = localStorage.getItem('currentJDKeywords');
+        if (stored) {
+          setJdKeywords(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error('Failed to load JD keywords:', e);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    // Also poll for changes (same-tab updates)
+    const interval = setInterval(handleStorageChange, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+  
+  // Check if bullet text contains JD matching keywords
+  const checkBulletMatches = (bulletText: string, sectionTitle?: string): { matches: boolean; matchedKeywords: string[] } => {
+    if (!jdKeywords || !bulletText) return { matches: false, matchedKeywords: [] };
+    
+    // Exclude certifications from keyword matching
+    if (sectionTitle) {
+      const sectionLower = sectionTitle.toLowerCase();
+      if (sectionLower.includes('certif') || sectionLower.includes('license') || sectionLower.includes('credential')) {
+        return { matches: false, matchedKeywords: [] };
+      }
+    }
+    
+    const lowerText = bulletText.toLowerCase();
+    const matched: string[] = [];
+    
+    // Filter out single letter keywords and very short keywords
+    const validKeywords = [
+      ...jdKeywords.matching.filter(kw => kw && kw.length > 1 && kw.trim().length > 1),
+      ...jdKeywords.priority.filter(kw => kw && kw.length > 1 && kw.trim().length > 1)
+    ];
+    
+    validKeywords.forEach(keyword => {
+      const keywordLower = keyword.toLowerCase().trim();
+      // Skip single letters and very short keywords
+      if (keywordLower.length <= 1) return;
+      
+      // Use word boundary matching to avoid partial matches like "r" in "project"
+      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lowerText) && !matched.includes(keyword)) {
+        matched.push(keyword);
+      }
+    });
+    
+    return { matches: matched.length > 0, matchedKeywords: matched };
+  };
+  
   // Add page break styles
   useEffect(() => {
     const style = document.createElement('style')
@@ -953,6 +1042,100 @@ export default function VisualResumeEditor({
                   {data.location || '📍 location'}
                 </div>
               </div>
+              <span className="text-gray-400">•</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={(data as any).fieldsVisible?.linkedin !== false}
+                  onChange={(e) => {
+                    const fieldsVisible = { ...(data as any).fieldsVisible, linkedin: e.target.checked }
+                    onChange({ ...data, fieldsVisible })
+                  }}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  title="Toggle LinkedIn visibility in preview"
+                />
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-editable-type="field"
+                  data-field="linkedin"
+                  onBlur={(e) => updateField('linkedin', e.currentTarget.textContent || '')}
+                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                    (data as any).fieldsVisible?.linkedin === false ? 'text-gray-400 line-through' : ''
+                  }`}
+                >
+                  {(data as any).linkedin || '💼 LinkedIn'}
+                </div>
+              </div>
+              <span className="text-gray-400">•</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={(data as any).fieldsVisible?.website !== false}
+                  onChange={(e) => {
+                    const fieldsVisible = { ...(data as any).fieldsVisible, website: e.target.checked }
+                    onChange({ ...data, fieldsVisible })
+                  }}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  title="Toggle website visibility in preview"
+                />
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-editable-type="field"
+                  data-field="website"
+                  onBlur={(e) => updateField('website', e.currentTarget.textContent || '')}
+                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                    (data as any).fieldsVisible?.website === false ? 'text-gray-400 line-through' : ''
+                  }`}
+                >
+                  {(data as any).website || '🌐 website'}
+                </div>
+              </div>
+              <span className="text-gray-400">•</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={(data as any).fieldsVisible?.github !== false}
+                  onChange={(e) => {
+                    const fieldsVisible = { ...(data as any).fieldsVisible, github: e.target.checked }
+                    onChange({ ...data, fieldsVisible })
+                  }}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  title="Toggle GitHub visibility in preview"
+                />
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-editable-type="field"
+                  data-field="github"
+                  onBlur={(e) => updateField('github', e.currentTarget.textContent || '')}
+                  className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                    (data as any).fieldsVisible?.github === false ? 'text-gray-400 line-through' : ''
+                  }`}
+                >
+                  {(data as any).github || '⚡ GitHub'}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const newField = prompt('Enter field name (e.g., Portfolio, Twitter, etc.):');
+                  if (newField && newField.trim()) {
+                    const fieldKey = newField.toLowerCase().replace(/\s+/g, '_');
+                    const currentValue = (data as any)[fieldKey] || '';
+                    const newValue = prompt(`Enter value for ${newField}:`, currentValue);
+                    if (newValue !== null) {
+                      const updatedData = { ...data, [fieldKey]: newValue || '' };
+                      const fieldsVisible = { ...(data as any).fieldsVisible, [fieldKey]: true };
+                      onChange({ ...updatedData, fieldsVisible });
+                    }
+                  }
+                }}
+                className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors font-medium"
+                title="Add more contact fields"
+              >
+                + Add Field
+              </button>
             </div>
           </div>
 
@@ -1105,7 +1288,8 @@ export default function VisualResumeEditor({
                 {/* Modern Experience Layout - All Sections */}
                   <div className="space-y-6">
                     {/* Add New Item Button - At Top */}
-                    <div className="flex justify-center mb-6">
+                    {getSectionType(section.title) !== 'skill' && (
+                      <div className="flex flex-col items-center mb-6 gap-3">
                       <button
                         onClick={() => {
                           if (section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work')) {
@@ -1148,7 +1332,84 @@ export default function VisualResumeEditor({
                       >
                         <span>+</span> Add {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? 'Company' : 'Bullet Point'}
                       </button>
+                        {jdKeywords && jdKeywords.missing.length > 0 && !section.title.toLowerCase().includes('experience') && !section.title.toLowerCase().includes('work') && (
+                          <div className="w-full max-w-2xl p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-xs font-semibold text-blue-800 mb-2">💡 Create bullet from missing JD keywords:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {jdKeywords.missing.slice(0, 8).map((kw, i) => (
+                                <button
+                                  key={i}
+                                  onClick={async () => {
+                                    await generateBulletFromKeywords(section.id, kw);
+                                  }}
+                                  className="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded hover:bg-blue-200 transition-colors flex items-center gap-1"
+                                >
+                                  <span>✨</span> {kw}
+                                </button>
+                              ))}
                     </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Skills Section - Add Skill Button */}
+                    {getSectionType(section.title) === 'skill' && (
+                      <div className="mb-4">
+                        <button
+                          onClick={() => {
+                            const newSkill = {
+                              id: `skill-${Date.now()}`,
+                              text: 'New Skill',
+                              params: { visible: true }
+                            }
+                            const sections = data.sections.map(s =>
+                              s.id === section.id
+                                ? {
+                                    ...s,
+                                    bullets: [...s.bullets, newSkill]
+                                  }
+                                : s
+                            )
+                            onChange({ ...data, sections })
+                          }}
+                          className="px-3 py-1.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                        >
+                          <span>+</span> Add Skill
+                        </button>
+                        {jdKeywords && jdKeywords.missing.length > 0 && (
+                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p className="text-xs font-semibold text-yellow-800 mb-1">💡 Missing Keywords from JD:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {jdKeywords.missing.slice(0, 5).map((kw, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => {
+                                    const newSkill = {
+                                      id: `skill-${Date.now()}-${i}`,
+                                      text: kw,
+                                      params: { visible: true }
+                                    }
+                                    const sections = data.sections.map(s =>
+                                      s.id === section.id
+                                        ? {
+                                            ...s,
+                                            bullets: [...s.bullets, newSkill]
+                                          }
+                                        : s
+                                    )
+                                    onChange({ ...data, sections })
+                                  }}
+                                  className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded hover:bg-yellow-200 transition-colors"
+                                >
+                                  + {kw}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Work Experience - Company-based layout */}
                     {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? (
@@ -1318,8 +1579,22 @@ export default function VisualResumeEditor({
                             {/* Bullet Points Container */}
                             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                               <div className="space-y-3">
-                                {companyBullets.map((companyBullet, bulletIdx) => (
-                                  <div key={companyBullet.id} className="group flex items-start gap-3">
+                                {companyBullets.map((companyBullet, bulletIdx) => {
+                                  const bulletMatch = checkBulletMatches(companyBullet.text, section.title);
+                                  const hasMatch = bulletMatch.matches;
+                                  const hasNoMatch = jdKeywords && !hasMatch && companyBullet.text.trim().length > 0;
+                                  
+                                  return (
+                                    <div 
+                                      key={companyBullet.id} 
+                                      className={`group flex items-start gap-3 p-2 rounded ${
+                                        hasMatch 
+                                          ? 'bg-green-50 border border-green-200' 
+                                          : hasNoMatch
+                                          ? 'bg-orange-50 border border-orange-200'
+                                          : ''
+                                      }`}
+                                    >
                                     <input
                                       type="checkbox"
                                       checked={companyBullet.params?.visible !== false}
@@ -1339,9 +1614,28 @@ export default function VisualResumeEditor({
                                         onChange({ ...data, sections })
                                       }}
                                       className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
-                                      title="Toggle bullet visibility in preview"
-                                    />
-                                    <div className="w-2 h-2 bg-black rounded-full mt-2 flex-shrink-0"></div>
+                                        title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
+                                      />
+                                      <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                                        hasMatch ? 'bg-green-500' : hasNoMatch ? 'bg-orange-400' : 'bg-black'
+                                      }`}></div>
+                                      <div className="flex-1">
+                                        {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
+                                          <div className="mb-1 flex flex-wrap gap-1">
+                                            {bulletMatch.matchedKeywords.slice(0, 3).map((kw, i) => (
+                                              <span key={i} className="px-2 py-0.5 bg-green-200 text-green-800 text-xs rounded-full font-semibold">
+                                                ✓ {kw}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                        {hasNoMatch && (
+                                          <div className="mb-1">
+                                            <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs rounded-full font-semibold">
+                                              ⚠ No JD keywords
+                                            </span>
+                                          </div>
+                                        )}
                                     <div
                                       contentEditable
                                       suppressContentEditableWarning
@@ -1350,32 +1644,43 @@ export default function VisualResumeEditor({
                                       data-bullet-id={companyBullet.id}
                                       onBlur={(e) => updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '')}
                                       className={`flex-1 text-sm outline-none hover:bg-white focus:bg-white px-2 py-1 rounded transition-colors cursor-text ${
-                                        companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                            companyBullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch ? 'text-gray-800 font-medium' : 'text-gray-700'
                                       }`}
                                     >
                                       {companyBullet.text.replace(/^•\s*/, '')}
+                                        </div>
                                     </div>
                                     
                                     {/* Action Buttons on the Right */}
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                       {/* AI Improve Button */}
                                       <button
-                                        onClick={async () => {
-                                          if (onAIImprove) {
-                                            try {
-                                              setIsAILoading(true)
-                                              const improvedText = await onAIImprove(companyBullet.text)
-                                              updateBullet(section.id, companyBullet.id, improvedText)
-                                            } catch (error) {
-                                              console.error('AI improvement failed:', error)
-                                            } finally {
-                                              setIsAILoading(false)
-                                            }
+                                        onClick={() => {
+                                          if (jdKeywords && jdKeywords.missing.length > 0) {
+                                            setAiImproveContext({
+                                              sectionId: section.id,
+                                              bulletId: companyBullet.id,
+                                              currentText: companyBullet.text
+                                            });
+                                            setShowAIImproveModal(true);
+                                          } else if (onAIImprove) {
+                                            // Fallback to old behavior if no JD keywords
+                                            (async () => {
+                                              try {
+                                                setIsAILoading(true)
+                                                const improvedText = await onAIImprove(companyBullet.text)
+                                                updateBullet(section.id, companyBullet.id, improvedText)
+                                              } catch (error) {
+                                                console.error('AI improvement failed:', error)
+                                              } finally {
+                                                setIsAILoading(false)
+                                              }
+                                            })();
                                           }
                                         }}
                                         disabled={isAILoading}
                                         className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
-                                        title="✨ AI Improve - Enhance this bullet point"
+                                        title="✨ AI Improve - Enhance with missing JD keywords"
                                       >
                                         <span>{isAILoading ? '⏳' : '✨'}</span>
                                       </button>
@@ -1390,7 +1695,8 @@ export default function VisualResumeEditor({
                                       </button>
                                     </div>
                                   </div>
-                                ))}
+                                  );
+                                })}
                                 
                                 {/* Add Bullet Button */}
                                 <div className="flex justify-center pt-2">
@@ -1427,16 +1733,103 @@ export default function VisualResumeEditor({
                           </div>
                         )
                       })
+                    ) : getSectionType(section.title) === 'skill' ? (
+                      /* Skills Section - Checkbox Chips Layout */
+                      <div className="flex flex-wrap gap-2">
+                        {section.bullets
+                          .filter(bullet => !bullet.text?.startsWith('**'))
+                          .map((bullet) => {
+                            const skillName = bullet.text.replace(/^•\s*/, '').trim()
+                            if (!skillName) return null
+                            
+                            return (
+                              <label
+                                key={bullet.id}
+                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all border-2 ${
+                                  bullet.params?.visible !== false
+                                    ? 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
+                                    : 'bg-gray-100 text-gray-400 border-gray-200 line-through'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={bullet.params?.visible !== false}
+                                  onChange={(e) => {
+                                    const sections = data.sections.map(s =>
+                                      s.id === section.id
+                                        ? {
+                                            ...s,
+                                            bullets: s.bullets.map(b =>
+                                              b.id === bullet.id
+                                                ? { ...b, params: { ...b.params, visible: e.target.checked } }
+                                                : b
+                                            )
+                                          }
+                                        : s
+                                    )
+                                    onChange({ ...data, sections })
+                                  }}
+                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <span
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  data-editable-type="bullet"
+                                  data-section-id={section.id}
+                                  data-bullet-id={bullet.id}
+                                  onBlur={(e) => {
+                                    const newText = e.currentTarget.textContent?.trim() || ''
+                                    if (newText) {
+                                      updateBullet(section.id, bullet.id, newText)
+                                    }
+                                  }}
+                                  className="outline-none cursor-text"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {skillName}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    removeBullet(section.id, bullet.id)
+                                  }}
+                                  className="ml-1 text-gray-400 hover:text-red-600 transition-colors"
+                                  title="Remove skill"
+                                >
+                                  ×
+                                </button>
+                              </label>
+                            )
+                          })}
+                      </div>
                     ) : (
-                      /* Simple Bullet Points for non-work experience sections */
+                      /* Simple Bullet Points for other non-work experience sections */
                       section.bullets.map((bullet, idx) => {
                         // Show bullets that start with • or don't start with ** (simple bullet points)
                         if (bullet.text?.startsWith('**')) return null
                         
+                        // Exclude certifications from keyword matching
+                        const isCertificationSection = section.title.toLowerCase().includes('certif') || 
+                                                       section.title.toLowerCase().includes('license') ||
+                                                       section.title.toLowerCase().includes('credential');
+                        
+                        const bulletMatch = isCertificationSection 
+                          ? { matches: false, matchedKeywords: [] }
+                          : checkBulletMatches(bullet.text, section.title);
+                        const hasMatch = bulletMatch.matches;
+                        const hasNoMatch = !isCertificationSection && jdKeywords && !hasMatch && bullet.text.trim().length > 0;
+                        
                         return (
                           <div 
                             key={bullet.id}
-                            className="group bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                            className={`group rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow ${
+                              hasMatch 
+                                ? 'bg-green-50 border-2 border-green-300' 
+                                : hasNoMatch
+                                ? 'bg-orange-50 border-2 border-orange-200'
+                                : 'bg-white border border-gray-200'
+                            }`}
                           >
                             {/* Simple Bullet Point */}
                             <div className="flex items-start gap-3">
@@ -1459,10 +1852,28 @@ export default function VisualResumeEditor({
                                   onChange({ ...data, sections })
                                 }}
                                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
-                                title="Toggle bullet visibility in preview"
+                                title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
                               />
-                              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                              <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                                hasMatch ? 'bg-green-500' : hasNoMatch ? 'bg-orange-400' : 'bg-blue-500'
+                              }`}></div>
                               <div className="flex-1">
+                                {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
+                                  <div className="mb-1 flex flex-wrap gap-1">
+                                    {bulletMatch.matchedKeywords.slice(0, 3).map((kw, i) => (
+                                      <span key={i} className="px-2 py-0.5 bg-green-200 text-green-800 text-xs rounded-full font-semibold">
+                                        ✓ {kw}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {hasNoMatch && (
+                                  <div className="mb-1">
+                                    <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs rounded-full font-semibold">
+                                      ⚠ No JD keywords
+                                    </span>
+                                  </div>
+                                )}
                                 <div 
                                   contentEditable
                                   suppressContentEditableWarning
@@ -1471,7 +1882,7 @@ export default function VisualResumeEditor({
                                   data-bullet-id={bullet.id}
                                   onBlur={(e) => updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')}
                                   className={`text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                    bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                    bullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch ? 'text-gray-800 font-medium' : 'text-gray-700'
                                   }`}
                                 >
                                   {bullet.text.replace(/^•\s*/, '')}
@@ -1482,22 +1893,32 @@ export default function VisualResumeEditor({
                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {/* AI Improve Button */}
                                 <button
-                                  onClick={async () => {
-                                    if (onAIImprove) {
-                                      try {
-                                        setIsAILoading(true)
-                                        const improvedText = await onAIImprove(bullet.text)
-                                        updateBullet(section.id, bullet.id, improvedText)
-                                      } catch (error) {
-                                        console.error('AI improvement failed:', error)
-                                      } finally {
-                                        setIsAILoading(false)
-                                      }
+                                  onClick={() => {
+                                    if (jdKeywords && jdKeywords.missing.length > 0) {
+                                      setAiImproveContext({
+                                        sectionId: section.id,
+                                        bulletId: bullet.id,
+                                        currentText: bullet.text
+                                      });
+                                      setShowAIImproveModal(true);
+                                    } else if (onAIImprove) {
+                                      // Fallback to old behavior if no JD keywords
+                                      (async () => {
+                                        try {
+                                          setIsAILoading(true)
+                                          const improvedText = await onAIImprove(bullet.text)
+                                          updateBullet(section.id, bullet.id, improvedText)
+                                        } catch (error) {
+                                          console.error('AI improvement failed:', error)
+                                        } finally {
+                                          setIsAILoading(false)
+                                        }
+                                      })();
                                     }
                                   }}
                                   disabled={isAILoading}
                                   className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
-                                  title="✨ AI Improve - Enhance this bullet point"
+                                  title="✨ AI Improve - Enhance with missing JD keywords"
                                 >
                                   <span>{isAILoading ? '⏳' : '✨'}</span>
                                 </button>
@@ -1521,6 +1942,377 @@ export default function VisualResumeEditor({
             ))}
           </div>
 
+          {/* AI Improve Modal with Missing Keywords */}
+          {showAIImproveModal && aiImproveContext && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
+              setShowAIImproveModal(false);
+              setAiImproveContext(null);
+              setSelectedMissingKeywords(new Set());
+              setGeneratedBulletOptions([]);
+            }}>
+              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
+                  <h2 className="text-2xl font-bold text-white">✨ AI Improve with Missing Keywords</h2>
+                  <button
+                    onClick={() => {
+                      setShowAIImproveModal(false);
+                      setAiImproveContext(null);
+                      setSelectedMissingKeywords(new Set());
+                      setGeneratedBulletOptions([]);
+                      setSelectedBullets(new Set());
+                    }}
+                    className="text-white hover:text-gray-200 text-2xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                  {generatedBulletOptions.length === 0 ? (
+                    <>
+                      <div className="mb-4">
+                        <p className="text-sm text-gray-700 mb-3">Current bullet:</p>
+                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <p className="text-gray-800">{aiImproveContext.currentText}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mb-4">
+                        <p className="text-sm font-semibold text-gray-900 mb-3">Select missing keywords to include (choose 2-3):</p>
+                        <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          {jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30).map((keyword, idx) => {
+                            const isSelected = selectedMissingKeywords.has(keyword);
+                            return (
+                              <button
+                                key={idx}
+                                onClick={() => {
+                                  const newSelected = new Set(selectedMissingKeywords);
+                                  if (isSelected) {
+                                    newSelected.delete(keyword);
+                                  } else if (newSelected.size < 3) {
+                                    newSelected.add(keyword);
+                                  } else {
+                                    alert('Please select maximum 3 keywords');
+                                  }
+                                  setSelectedMissingKeywords(newSelected);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white border-2 border-blue-700'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                                }`}
+                              >
+                                {isSelected && '✓ '}{keyword}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {selectedMissingKeywords.size > 0 && (
+                          <p className="text-xs text-gray-600 mt-2">
+                            {selectedMissingKeywords.size} keyword{selectedMissingKeywords.size > 1 ? 's' : ''} selected
+                          </p>
+                        )}
+                      </div>
+                      
+                      <button
+                        onClick={async () => {
+                          if (selectedMissingKeywords.size < 2) {
+                            alert('Please select at least 2 keywords');
+                            return;
+                          }
+                          
+                          setIsGeneratingBullets(true);
+                          try {
+                            const keywordsArray = Array.from(selectedMissingKeywords);
+                            const response = await fetch(`${config.apiBase}/api/ai/generate_bullets_from_keywords`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                keywords: keywordsArray,
+                                job_description: typeof window !== 'undefined' ? localStorage.getItem('currentJDText') || '' : '',
+                                company_title: '',
+                                job_title: '',
+                                section_title: data.sections.find(s => s.id === aiImproveContext.sectionId)?.title || 'Work Experience',
+                                context: {
+                                  resume_data: {
+                                    name: data.name,
+                                    title: data.title,
+                                    summary: data.summary
+                                  }
+                                }
+                              }),
+                            });
+                            
+                            if (response.ok) {
+                              const result = await response.json();
+                              if (result.bullets && result.bullets.length > 0) {
+                                setGeneratedBulletOptions(result.bullets.slice(0, 3));
+                              } else {
+                                alert('Failed to generate bullet points');
+                              }
+                            } else {
+                              throw new Error('Failed to generate bullets');
+                            }
+                          } catch (error) {
+                            console.error('Failed to generate bullets:', error);
+                            alert('Failed to generate bullet points. Please try again.');
+                          } finally {
+                            setIsGeneratingBullets(false);
+                          }
+                        }}
+                        disabled={selectedMissingKeywords.size === 0 || isGeneratingBullets}
+                        className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
+                      >
+                        {isGeneratingBullets ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Generating...
+                          </span>
+                        ) : (
+                          `Generate 3 Bullet Options (${selectedMissingKeywords.size} keyword${selectedMissingKeywords.size > 1 ? 's' : ''} selected)`
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-4">
+                        <p className="text-sm font-semibold text-gray-900 mb-3">Select bullet points to add to your work experience (you can select multiple):</p>
+                        <div className="space-y-3">
+                          {generatedBulletOptions.map((option: string, idx: number) => {
+                            // Highlight selected keywords in the bullet text
+                            let highlightedText = option.startsWith('•') ? option : `• ${option}`;
+                            const selectedKeywordsArray = Array.from(selectedMissingKeywords);
+                            selectedKeywordsArray.forEach(keyword => {
+                              if (keyword.length > 1) {
+                                const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+                                highlightedText = highlightedText.replace(regex, (match) => {
+                                  return `<mark class="bg-yellow-300 font-semibold px-1 rounded">${match}</mark>`;
+                                });
+                              }
+                            });
+                            
+                            const isSelected = selectedBullets.has(idx);
+                            
+                            return (
+                              <div
+                                key={idx}
+                                className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                                  isSelected 
+                                    ? 'bg-gradient-to-r from-green-50 to-green-100 border-green-400' 
+                                    : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 hover:border-blue-400'
+                                }`}
+                                onClick={() => {
+                                  const newSelected = new Set(selectedBullets);
+                                  if (isSelected) {
+                                    newSelected.delete(idx);
+                                  } else {
+                                    newSelected.add(idx);
+                                  }
+                                  setSelectedBullets(newSelected);
+                                }}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      const newSelected = new Set(selectedBullets);
+                                      if (e.target.checked) {
+                                        newSelected.add(idx);
+                                      } else {
+                                        newSelected.delete(idx);
+                                      }
+                                      setSelectedBullets(newSelected);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-1"
+                                  />
+                                  <div className="flex-1">
+                                    <p className="text-gray-800" dangerouslySetInnerHTML={{ __html: highlightedText }} />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            onClick={async () => {
+                              const selectedIndices = Array.from(selectedBullets);
+                              if (selectedIndices.length === 0) {
+                                alert('Please select at least one bullet point to add');
+                                return;
+                              }
+                              
+                              // Show loading notification
+                              const loadingNotification = document.createElement('div');
+                              loadingNotification.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
+                              loadingNotification.innerHTML = `
+                                <div class="flex items-center gap-3">
+                                  <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <div>
+                                    <div class="font-bold text-lg">Adding Bullet Points...</div>
+                                    <div class="text-sm mt-1">Please wait</div>
+                                  </div>
+                                </div>
+                              `;
+                              document.body.appendChild(loadingNotification);
+                              
+                              try {
+                                // Find the work experience section
+                                const section = data.sections.find(s => s.id === aiImproveContext.sectionId);
+                                
+                                if (!section) {
+                                  throw new Error('Could not find section');
+                                }
+                                
+                                // Add selected bullets to the section
+                                const newBullets = selectedIndices.map((idx: number, i: number) => {
+                                  const option = generatedBulletOptions[idx];
+                                  return {
+                                    id: `bullet-${Date.now()}-${i}`,
+                                    text: option.startsWith('•') ? option : `• ${option}`,
+                                    params: {}
+                                  };
+                                });
+                                
+                                // Find the position to insert
+                                // If it's a work experience bullet, try to find the company header
+                                const currentBulletIndex = section.bullets.findIndex(b => b.id === aiImproveContext.bulletId);
+                                
+                                let updatedBullets: any[];
+                                
+                                if (currentBulletIndex >= 0) {
+                                  // Check if the current bullet is a company header (starts with **)
+                                  const currentBullet = section.bullets[currentBulletIndex];
+                                  if (currentBullet.text?.startsWith('**')) {
+                                    // Insert after the company header
+                                    updatedBullets = [
+                                      ...section.bullets.slice(0, currentBulletIndex + 1),
+                                      ...newBullets,
+                                      ...section.bullets.slice(currentBulletIndex + 1)
+                                    ];
+                                  } else {
+                                    // Find the nearest company header before this bullet
+                                    let companyHeaderIndex = -1;
+                                    for (let i = currentBulletIndex; i >= 0; i--) {
+                                      if (section.bullets[i].text?.startsWith('**')) {
+                                        companyHeaderIndex = i;
+                                        break;
+                                      }
+                                    }
+                                    
+                                    if (companyHeaderIndex >= 0) {
+                                      // Find the last bullet point under this company header
+                                      let lastBulletIndex = companyHeaderIndex;
+                                      for (let i = companyHeaderIndex + 1; i < section.bullets.length; i++) {
+                                        if (section.bullets[i].text?.startsWith('**')) {
+                                          break; // Next company header found
+                                        }
+                                        if (section.bullets[i].text?.trim() && !section.bullets[i].text?.startsWith('**')) {
+                                          lastBulletIndex = i;
+                                        }
+                                      }
+                                      // Insert after the last bullet of this company
+                                      updatedBullets = [
+                                        ...section.bullets.slice(0, lastBulletIndex + 1),
+                                        ...newBullets,
+                                        ...section.bullets.slice(lastBulletIndex + 1)
+                                      ];
+                                    } else {
+                                      // No company header found, append to the end
+                                      updatedBullets = [...section.bullets, ...newBullets];
+                                    }
+                                  }
+                                } else {
+                                  // Bullet not found, append to the end
+                                  updatedBullets = [...section.bullets, ...newBullets];
+                                }
+                                
+                                const updatedSections = data.sections.map(s =>
+                                  s.id === section.id ? { ...s, bullets: updatedBullets } : s
+                                );
+                                
+                                // Update the resume data
+                                onChange({ ...data, sections: updatedSections });
+                                
+                                // Remove loading notification
+                                loadingNotification.remove();
+                                
+                                // Show success notification
+                                const successNotification = document.createElement('div');
+                                successNotification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
+                                successNotification.innerHTML = `
+                                  <div class="flex items-center gap-3">
+                                    <div class="text-2xl">✅</div>
+                                    <div>
+                                      <div class="font-bold text-lg">Bullet Points Added!</div>
+                                      <div class="text-sm mt-1">${selectedIndices.length} bullet point${selectedIndices.length > 1 ? 's' : ''} added to your work experience</div>
+                                    </div>
+                                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
+                                  </div>
+                                `;
+                                document.body.appendChild(successNotification);
+                                setTimeout(() => successNotification.remove(), 5000);
+                                
+                              } catch (error) {
+                                console.error('Failed to add bullet points:', error);
+                                loadingNotification.remove();
+                                
+                                // Show error notification
+                                const errorNotification = document.createElement('div');
+                                errorNotification.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
+                                errorNotification.innerHTML = `
+                                  <div class="flex items-center gap-3">
+                                    <div class="text-2xl">❌</div>
+                                    <div>
+                                      <div class="font-bold text-lg">Failed to Add</div>
+                                      <div class="text-sm mt-1">${error instanceof Error ? error.message : 'Unknown error occurred'}</div>
+                                    </div>
+                                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
+                                  </div>
+                                `;
+                                document.body.appendChild(errorNotification);
+                                setTimeout(() => errorNotification.remove(), 5000);
+                                return;
+                              }
+                              
+                              // Close modal and reset state
+                              setShowAIImproveModal(false);
+                              setAiImproveContext(null);
+                              setSelectedMissingKeywords(new Set());
+                              setGeneratedBulletOptions([]);
+                              setSelectedBullets(new Set());
+                            }}
+                            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={selectedBullets.size === 0}
+                          >
+                            Add Selected ({selectedBullets.size})
+                          </button>
+                          <button
+                            onClick={() => {
+                              setGeneratedBulletOptions([]);
+                              setSelectedMissingKeywords(new Set());
+                              setSelectedBullets(new Set());
+                            }}
+                            className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors"
+                          >
+                            Back
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Add Section Buttons */}
           <div className="mt-6 space-y-3">

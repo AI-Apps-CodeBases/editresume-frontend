@@ -150,6 +150,12 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
     const isWorkExperience = sectionTitle.toLowerCase().includes('experience') || 
                              sectionTitle.toLowerCase().includes('work') || 
                              sectionTitle.toLowerCase().includes('employment')
+    const isSkillSection = sectionTitle.toLowerCase().includes('skill') || 
+                            sectionTitle.toLowerCase().includes('technical') || 
+                            sectionTitle.toLowerCase().includes('technology') || 
+                            sectionTitle.toLowerCase().includes('competencies') || 
+                            sectionTitle.toLowerCase().includes('expertise') || 
+                            sectionTitle.toLowerCase().includes('proficiencies')
     
     // Filter out empty bullets and hidden bullets (visible: false)
     // For work experience, also hide bullets if their parent company header is hidden
@@ -178,12 +184,38 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
     } else {
       // For non-work experience sections, just filter by visibility
       validBullets = bullets.filter(b => 
-        b.text && b.text.trim() && b.params?.visible !== false
+        b.text && b.text.trim() && b.params?.visible !== false && !b.text?.startsWith('**')
       )
     }
     
     if (validBullets.length === 0) {
       return <div className="text-gray-500 text-sm">No content available</div>
+    }
+    
+    // Skills section - render as chips
+    if (isSkillSection) {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {validBullets.map((bullet) => {
+            const skillName = bullet.text.replace(/^•\s*/, '').trim()
+            if (!skillName) return null
+            
+            return (
+              <span
+                key={bullet.id}
+                className="inline-block px-3 py-1 rounded-full text-xs font-medium"
+                style={{
+                  backgroundColor: '#dbeafe',
+                  color: '#1e40af',
+                  border: '1px solid #93c5fd'
+                }}
+              >
+                {applyReplacements(skillName)}
+              </span>
+            )
+          })}
+        </div>
+      )
     }
     
     return (
@@ -350,7 +382,7 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               </p>
             )}
             <div 
-              className={`flex items-center ${headerAlign === 'center' ? 'justify-center' : 'justify-start'} gap-3 mt-2 text-sm`}
+              className={`flex items-center ${headerAlign === 'center' ? 'justify-center' : 'justify-start'} gap-3 mt-2 text-sm flex-wrap`}
               style={{ 
                 fontFamily: bodyFont,
                 fontSize: `${bodySize}px`,
@@ -360,6 +392,20 @@ export default function PreviewPanel({ data, replacements, template = 'clean' as
               {data.email && (data as any).fieldsVisible?.email !== false && <span>{applyReplacements(data.email)}</span>}
               {data.phone && (data as any).fieldsVisible?.phone !== false && <span>• {applyReplacements(data.phone)}</span>}
               {data.location && (data as any).fieldsVisible?.location !== false && <span>• {applyReplacements(data.location)}</span>}
+              {(data as any).linkedin && (data as any).fieldsVisible?.linkedin !== false && <span>• {applyReplacements((data as any).linkedin)}</span>}
+              {(data as any).website && (data as any).fieldsVisible?.website !== false && <span>• {applyReplacements((data as any).website)}</span>}
+              {(data as any).github && (data as any).fieldsVisible?.github !== false && <span>• {applyReplacements((data as any).github)}</span>}
+              {(data as any).portfolio && (data as any).fieldsVisible?.portfolio !== false && <span>• {applyReplacements((data as any).portfolio)}</span>}
+              {(data as any).twitter && (data as any).fieldsVisible?.twitter !== false && <span>• {applyReplacements((data as any).twitter)}</span>}
+              {/* Display any other custom contact fields */}
+              {Object.keys(data as any).filter(key => 
+                !['name', 'title', 'email', 'phone', 'location', 'summary', 'sections', 'fieldsVisible', 'linkedin', 'website', 'github', 'portfolio', 'twitter', 'design'].includes(key) &&
+                typeof (data as any)[key] === 'string' &&
+                (data as any)[key] &&
+                (data as any).fieldsVisible?.[key] !== false
+              ).map(key => (
+                <span key={key}>• {applyReplacements((data as any)[key])}</span>
+              ))}
             </div>
           </div>
         )}
