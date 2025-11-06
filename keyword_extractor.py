@@ -144,7 +144,7 @@ class KeywordExtractor:
         general_keywords = self._extract_general_keywords(cleaned_text)
         
         # Get high-frequency keywords (most important for ATS)
-        high_frequency_keywords = self._extract_high_frequency_keywords(text, cleaned_text)
+        high_frequency_keywords = self._extract_high_frequency_keywords(cleaned_text)
         
         # Combine and get frequency
         all_keywords = technical_keywords + general_keywords + soft_skills
@@ -257,7 +257,7 @@ class KeywordExtractor:
         
         return result
     
-    def _extract_high_frequency_keywords(self, original_text: str, cleaned_text: str) -> List[Dict[str, any]]:
+    def _extract_high_frequency_keywords(self, cleaned_text: str) -> List[Dict[str, any]]:
         """Extract high-frequency keywords that are most important for ATS"""
         try:
             # Extract both single words and bigrams

@@ -9,7 +9,6 @@ import json
 import logging
 import secrets
 from datetime import datetime
-from openai import OpenAI
 from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
 from sqlalchemy.orm import Session
@@ -2650,7 +2649,7 @@ async def upload_resume(file: UploadFile = File(...)):
                 from docx import Document
                 from docx.oxml.text.paragraph import CT_P
                 from docx.oxml.table import CT_Tbl
-                from docx.table import _Cell, Table
+                from docx.table import Table
                 from docx.text.paragraph import Paragraph
                 
                 docx_file = BytesIO(contents)
@@ -3018,7 +3017,7 @@ def detect_parameterization(text: str) -> Dict[str, str]:
 async def export_docx(payload: ExportPayload, user_email: str = None, db: Session = Depends(get_db)):
     try:
         from docx import Document
-        from docx.shared import Pt, Inches, RGBColor
+        from docx.shared import Pt, Inches
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from io import BytesIO
         

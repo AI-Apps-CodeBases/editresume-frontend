@@ -25,7 +25,6 @@ def test_matchsession_model():
     """Test MatchSession model attributes"""
     try:
         from database import MatchSession
-        import inspect
         
         # Get all attributes of MatchSession
         attrs = [attr for attr in dir(MatchSession) if not attr.startswith('_')]
@@ -55,7 +54,6 @@ def test_jobmatch_model():
     """Test JobMatch model attributes"""
     try:
         from database import JobMatch
-        import inspect
         
         attrs = [attr for attr in dir(JobMatch) if not attr.startswith('_')]
         
