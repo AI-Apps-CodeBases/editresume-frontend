@@ -9,6 +9,7 @@ import json
 import logging
 import secrets
 from datetime import datetime
+from time import perf_counter
 from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
 from sqlalchemy.orm import Session
@@ -90,6 +91,21 @@ create_tables()
 migrate_schema()
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
+
+@app.middleware("http")
+async def timing_middleware(request: Request, call_next):
+    start_time = perf_counter()
+    response = await call_next(request)
+    duration = perf_counter() - start_time
+    response.headers["X-Process-Time"] = f"{duration:.3f}s"
+    if duration > 1.0 or request.url.path in {"/api/resume/upload", "/api/ai/match_job_description"}:
+        logger.info(
+            "Request %s %s completed in %.3fs",
+            request.method,
+            request.url.path,
+            duration,
+        )
+    return response
 
 # CORS Configuration
 # Base allowed origins
