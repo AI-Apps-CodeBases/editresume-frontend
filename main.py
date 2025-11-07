@@ -12,8 +12,8 @@ from datetime import datetime
 from keyword_extractor import KeywordExtractor
 from grammar_checker import GrammarStyleChecker
 from sqlalchemy.orm import Session
-from database import get_db, create_tables, migrate_schema, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, SharedResumeComment, DATABASE_URL, JobDescription, MatchSession
-from sqlalchemy import text
+from database import get_db, create_tables, migrate_schema, User, Resume, ResumeVersion, ExportAnalytics, JobMatch, SharedResume, ResumeView, SharedResumeComment, DATABASE_URL, JobDescription, MatchSession, JobResumeVersion, JobCoverLetter
+from sqlalchemy import text, or_
 from version_control import VersionControlService
 
 logging.basicConfig(level=logging.INFO)
@@ -5317,6 +5317,11 @@ class JobDescriptionCreate(BaseModel):
     job_type: Optional[str] = None  # Full Time, Contractor, Part-time, Internship
     content: str
     user_email: Optional[str] = None
+    extracted_keywords: Optional[Any] = None
+    priority_keywords: Optional[List[str]] = None
+    soft_skills: Optional[List[str]] = None
+    high_frequency_keywords: Optional[Any] = None
+    ats_insights: Optional[Any] = None
 
 class MatchCreate(BaseModel):
     resumeId: Optional[int] = None
@@ -5381,6 +5386,22 @@ def _compute_match_breakdown(jd_text: str, resume_text: str, extracted_jd: Dict[
         'similarity': similarity
     }
 
+def _normalize_json_field(value: Any):
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        try:
+            return json.loads(value)
+        except Exception:
+            return value
+    return value
+
+
 @app.post('/job-descriptions')
 def create_or_update_job_description(payload: JobDescriptionCreate, db: Session = Depends(get_db)):
     try:
@@ -5411,8 +5432,43 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
             logger.warning(f"Could not check for new columns: {check_error}, using fallback method")
             new_columns_exist = False
         
-        extracted = keyword_extractor.extract_keywords(payload.content)
-        pri = _classify_priority_keywords(extracted)
+        precomputed_extracted = _normalize_json_field(getattr(payload, 'extracted_keywords', None))
+        if precomputed_extracted:
+            extracted = precomputed_extracted
+        else:
+            extracted = keyword_extractor.extract_keywords(payload.content)
+
+        extracted_dict = extracted if isinstance(extracted, dict) else {}
+
+        precomputed_priority = _normalize_json_field(getattr(payload, 'priority_keywords', None))
+        if precomputed_priority:
+            if isinstance(precomputed_priority, dict):
+                priority_list = [str(v) for v in precomputed_priority.values() if v]
+            elif isinstance(precomputed_priority, list):
+                priority_list = [str(v) for v in precomputed_priority if v]
+            else:
+                priority_list = []
+        else:
+            priority_list = _classify_priority_keywords(extracted_dict).get('high_priority', []) if extracted_dict else []
+
+        soft_skills_list = list(getattr(payload, 'soft_skills', []) or [])
+        if not soft_skills_list and isinstance(extracted_dict, dict):
+            soft_skills_list = extracted_dict.get('soft_skills', []) or []
+
+        high_frequency_raw = _normalize_json_field(getattr(payload, 'high_frequency_keywords', None))
+        if high_frequency_raw is None and isinstance(extracted_dict, dict):
+            high_frequency_raw = extracted_dict.get('high_frequency_keywords')
+        if isinstance(high_frequency_raw, list):
+            high_frequency_list = high_frequency_raw
+        elif isinstance(high_frequency_raw, dict):
+            high_frequency_list = list(high_frequency_raw.values())
+        else:
+            high_frequency_list = []
+
+        ats_insights_raw = _normalize_json_field(getattr(payload, 'ats_insights', None))
+        if ats_insights_raw is None and isinstance(extracted_dict, dict):
+            ats_insights_raw = extracted_dict.get('ats_keywords', {})
+        ats_insights_dict = ats_insights_raw if isinstance(ats_insights_raw, dict) else {}
         
         # If new columns don't exist, use raw SQL to avoid SQLAlchemy trying to insert/update them
         if not new_columns_exist:
@@ -5442,16 +5498,16 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
                         'work_type': payload.work_type,
                         'job_type': payload.job_type,
                         'content': payload.content,
-                        'extracted_keywords': json.dumps(extracted) if isinstance(extracted, dict) else extracted,
-                        'priority_keywords': json.dumps(pri.get('high_priority', [])) if isinstance(pri.get('high_priority', []), list) else pri.get('high_priority', []),
-                        'soft_skills': json.dumps(extracted.get('soft_skills', [])) if isinstance(extracted.get('soft_skills', []), list) else extracted.get('soft_skills', []),
-                        'high_frequency_keywords': json.dumps(extracted.get('high_frequency_keywords', [])) if isinstance(extracted.get('high_frequency_keywords', []), list) else extracted.get('high_frequency_keywords', []),
-                        'ats_insights': json.dumps(extracted.get('ats_keywords', {})) if isinstance(extracted.get('ats_keywords', {}), dict) else extracted.get('ats_keywords', {}),
+                        'extracted_keywords': json.dumps(extracted_dict) if extracted_dict else json.dumps({}),
+                        'priority_keywords': json.dumps(priority_list) if priority_list else json.dumps([]),
+                        'soft_skills': json.dumps(soft_skills_list) if soft_skills_list else json.dumps([]),
+                        'high_frequency_keywords': json.dumps(high_frequency_list) if high_frequency_list else json.dumps([]),
+                        'ats_insights': json.dumps(ats_insights_dict) if ats_insights_dict else json.dumps({}),
                         'jd_id': jd.id
                     })
                     db.commit()
                     logger.info(f"Successfully updated job description {jd.id} using fallback method (columns don't exist yet)")
-                    return {'id': jd.id, 'message': 'saved', 'extracted': extracted, 'priority_keywords': pri.get('high_priority', [])}
+                    return {'id': jd.id, 'message': 'saved', 'extracted': extracted_dict, 'priority_keywords': priority_list}
                 except Exception as update_error:
                     db.rollback()
                     logger.error(f"Fallback update failed: {update_error}")
@@ -5486,17 +5542,17 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
                     'work_type': payload.work_type,
                     'job_type': payload.job_type,
                     'content': payload.content,
-                    'extracted_keywords': json.dumps(extracted) if isinstance(extracted, dict) else extracted,
-                    'priority_keywords': json.dumps(pri.get('high_priority', [])) if isinstance(pri.get('high_priority', []), list) else pri.get('high_priority', []),
-                    'soft_skills': json.dumps(extracted.get('soft_skills', [])) if isinstance(extracted.get('soft_skills', []), list) else extracted.get('soft_skills', []),
-                    'high_frequency_keywords': json.dumps(extracted.get('high_frequency_keywords', [])) if isinstance(extracted.get('high_frequency_keywords', []), list) else extracted.get('high_frequency_keywords', []),
-                    'ats_insights': json.dumps(extracted.get('ats_keywords', {})) if isinstance(extracted.get('ats_keywords', {}), dict) else extracted.get('ats_keywords', {}),
+                    'extracted_keywords': json.dumps(extracted_dict) if extracted_dict else json.dumps({}),
+                    'priority_keywords': json.dumps(priority_list) if priority_list else json.dumps([]),
+                    'soft_skills': json.dumps(soft_skills_list) if soft_skills_list else json.dumps([]),
+                    'high_frequency_keywords': json.dumps(high_frequency_list) if high_frequency_list else json.dumps([]),
+                    'ats_insights': json.dumps(ats_insights_dict) if ats_insights_dict else json.dumps({}),
                     'created_at': datetime.utcnow()
                 })
                 jd_id = result.fetchone()[0]
                 db.commit()
                 logger.info(f"Successfully saved job description {jd_id} using fallback method (columns don't exist yet)")
-                return {'id': jd_id, 'message': 'saved', 'extracted': extracted, 'priority_keywords': pri.get('high_priority', [])}
+                return {'id': jd_id, 'message': 'saved', 'extracted': extracted_dict, 'priority_keywords': priority_list}
             except Exception as fallback_error:
                 db.rollback()
                 logger.error(f"Fallback insert failed: {fallback_error}")
@@ -5516,11 +5572,11 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
         jd.work_type = payload.work_type
         jd.job_type = payload.job_type
         jd.content = payload.content
-        jd.extracted_keywords = extracted
-        jd.priority_keywords = pri.get('high_priority', [])
-        jd.soft_skills = extracted.get('soft_skills', [])
-        jd.high_frequency_keywords = extracted.get('high_frequency_keywords', [])
-        jd.ats_insights = extracted.get('ats_keywords', {})
+        jd.extracted_keywords = extracted_dict or {}
+        jd.priority_keywords = priority_list or []
+        jd.soft_skills = soft_skills_list or []
+        jd.high_frequency_keywords = high_frequency_list or []
+        jd.ats_insights = ats_insights_dict or {}
         jd.max_salary = getattr(payload, 'max_salary', None) if hasattr(payload, 'max_salary') else None
         jd.status = getattr(payload, 'status', 'bookmarked') if hasattr(payload, 'status') else 'bookmarked'
         jd.follow_up_date = getattr(payload, 'follow_up_date', None) if hasattr(payload, 'follow_up_date') else None
@@ -5530,7 +5586,7 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
         db.add(jd)
         db.commit()
         db.refresh(jd)
-        return {'id': jd.id, 'message': 'saved', 'extracted': extracted, 'priority_keywords': jd.priority_keywords}
+        return {'id': jd.id, 'message': 'saved', 'extracted': extracted_dict, 'priority_keywords': jd.priority_keywords}
     except HTTPException:
         raise
     except Exception as e:
@@ -5560,9 +5616,14 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
             if user_email:
                 user = db.query(User).filter(User.email == user_email).first()
                 if user:
-                    q = q.filter(JobDescription.user_id == user.id)
+                    q = q.filter(
+                        or_(
+                            JobDescription.user_id == user.id,
+                            JobDescription.user_id.is_(None)
+                        )
+                    )
                 else:
-                    q = q.filter((JobDescription.user_id == None) | (JobDescription.user_id == 0))
+                    q = q.filter(JobDescription.user_id.is_(None))
             items = q.order_by(JobDescription.created_at.desc()).limit(100).all()
         else:
             # Columns don't exist - use raw SQL query
@@ -5576,10 +5637,10 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
             if user_email:
                 user = db.query(User).filter(User.email == user_email).first()
                 if user:
-                    sql += " WHERE user_id = :user_id"
+                    sql += " WHERE (user_id = :user_id OR user_id IS NULL)"
                     params['user_id'] = user.id
                 else:
-                    sql += " WHERE user_id IS NULL OR user_id = 0"
+                    sql += " WHERE user_id IS NULL"
             sql += " ORDER BY created_at DESC LIMIT 100"
             
             result = db.execute(text(sql), params)
@@ -5610,40 +5671,55 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                 jd.important_emoji = None
                 jd.notes = None
                 items.append(jd)
+        job_ids = [it.id for it in items if getattr(it, 'id', None)]
+        resume_links_map: Dict[int, List[JobResumeVersion]] = {}
+        if job_ids:
+            try:
+                resume_links = db.query(JobResumeVersion).filter(
+                    JobResumeVersion.job_description_id.in_(job_ids)
+                ).order_by(
+                    JobResumeVersion.updated_at.desc().nullslast(),
+                    JobResumeVersion.ats_score.desc().nullslast()
+                ).all()
+                for link in resume_links:
+                    resume_links_map.setdefault(link.job_description_id, []).append(link)
+            except Exception as e:
+                logger.warning(f'Failed to load resume links for jobs: {e}', exc_info=True)
+
         result = []
         for it in items:
             try:
-                # Get latest match session for this JD
-                latest_match = None
-                try:
-                    latest_match = db.query(MatchSession).filter(
-                        MatchSession.job_description_id == it.id
-                    ).order_by(MatchSession.created_at.desc()).first()
-                except Exception as e:
-                    logger.warning(f'Failed to get match session for JD {it.id}: {e}')
-                    latest_match = None
-                
-                # Get resume info if available
-                resume_name = None
-                if latest_match and latest_match.resume_id:
-                    try:
-                        resume = db.query(Resume).filter(Resume.id == latest_match.resume_id).first()
-                        if resume:
-                            resume_name = resume.name
-                    except Exception as e:
-                        logger.warning(f'Failed to get resume for match {latest_match.id}: {e}')
-                
-                # Handle priority_keywords - ensure it's serializable
                 priority_kw = it.priority_keywords
                 if priority_kw is not None:
                     if isinstance(priority_kw, str):
                         try:
                             priority_kw = json.loads(priority_kw)
-                        except:
+                        except Exception:
                             priority_kw = []
                     elif not isinstance(priority_kw, list):
                         priority_kw = []
-                
+
+                resume_links = resume_links_map.get(it.id, [])
+                resume_versions_payload: List[Dict[str, Any]] = []
+                best_link_payload: Optional[Dict[str, Any]] = None
+                for link in resume_links:
+                    link_payload = {
+                        'id': link.id,
+                        'score': link.ats_score or 0,
+                        'resume_id': link.resume_id,
+                        'resume_name': link.resume_name,
+                        'resume_version_id': link.resume_version_id,
+                        'resume_version_label': link.resume_version_label,
+                        'keyword_coverage': link.keyword_coverage,
+                        'matched_keywords': link.matched_keywords or [],
+                        'missing_keywords': link.missing_keywords or [],
+                        'created_at': link.created_at.isoformat() if link.created_at else None,
+                        'updated_at': link.updated_at.isoformat() if link.updated_at else None,
+                    }
+                    resume_versions_payload.append(link_payload)
+                    if not best_link_payload or (link_payload['score'] or 0) > (best_link_payload['score'] or 0):
+                        best_link_payload = link_payload
+
                 item_data = {
                     'id': it.id,
                     'title': it.title or '',
@@ -5664,44 +5740,15 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                     'follow_up_date': getattr(it, 'follow_up_date', None),
                     'important_emoji': getattr(it, 'important_emoji', None),
                     'notes': getattr(it, 'notes', None),
+                    'best_resume_version': best_link_payload,
+                    'resume_versions': resume_versions_payload,
+                    'last_match': best_link_payload,
+                    'all_matches': resume_versions_payload,
                 }
-                
-                if latest_match:
-                    try:
-                        # Get resume version ID if available
-                        resume_version_id = None
-                        if latest_match.resume_id:
-                            try:
-                                latest_version = db.query(ResumeVersion).filter(
-                                    ResumeVersion.resume_id == latest_match.resume_id
-                                ).order_by(ResumeVersion.version_number.desc()).first()
-                                if latest_version:
-                                    resume_version_id = latest_version.id
-                            except Exception as e:
-                                logger.warning(f'Failed to get resume version for resume {latest_match.resume_id}: {e}')
-                        
-                        item_data['last_match'] = {
-                            'id': latest_match.id,
-                            'score': latest_match.score or 0,
-                            'resume_id': latest_match.resume_id,
-                            'resume_name': resume_name,
-                            'resume_version_id': resume_version_id,
-                            'keyword_coverage': latest_match.keyword_coverage,
-                            'matched_keywords': latest_match.matched_keywords or [],
-                            'missing_keywords': latest_match.missing_keywords or [],
-                            'excess_keywords': latest_match.excess_keywords or [],
-                            'created_at': latest_match.created_at.isoformat() if latest_match.created_at else None,
-                        }
-                    except Exception as e:
-                        logger.warning(f'Failed to build last_match for JD {it.id}: {e}')
-                        item_data['last_match'] = None
-                else:
-                    item_data['last_match'] = None
-                
+
                 result.append(item_data)
             except Exception as e:
-                logger.error(f'Error processing JD {it.id}: {e}')
-                # Still include the JD with minimal data
+                logger.error(f'Error processing JD {it.id}: {e}', exc_info=True)
                 result.append({
                     'id': it.id,
                     'title': it.title or '',
@@ -5722,9 +5769,12 @@ def list_job_descriptions(user_email: Optional[str] = None, db: Session = Depend
                     'follow_up_date': getattr(it, 'follow_up_date', None),
                     'important_emoji': getattr(it, 'important_emoji', None),
                     'notes': getattr(it, 'notes', None),
+                    'best_resume_version': None,
+                    'resume_versions': [],
                     'last_match': None,
+                    'all_matches': [],
                 })
-        
+
         return result
     except Exception as e:
         logger.exception('Failed to list job descriptions')
@@ -5852,6 +5902,38 @@ def get_job_description(jd_id: int, db: Session = Depends(get_db)):
     
     last_match = matches_data[0] if matches_data else None
     
+    resume_versions_data = []
+    best_resume_version = None
+    for link in jd.resume_versions or []:
+        data = {
+            'id': link.id,
+            'resume_id': link.resume_id,
+            'resume_version_id': link.resume_version_id,
+            'resume_name': link.resume_name,
+            'resume_version_label': link.resume_version_label,
+            'ats_score': link.ats_score,
+            'keyword_coverage': link.keyword_coverage,
+            'matched_keywords': link.matched_keywords or [],
+            'missing_keywords': link.missing_keywords or [],
+            'created_at': link.created_at.isoformat() if link.created_at else None,
+            'updated_at': link.updated_at.isoformat() if link.updated_at else None,
+        }
+        resume_versions_data.append(data)
+        if not best_resume_version or (data['ats_score'] or 0) > (best_resume_version['ats_score'] or 0):
+            best_resume_version = data
+
+    cover_letters_data = [
+        {
+            'id': letter.id,
+            'title': letter.title,
+            'content': letter.content,
+            'version_number': letter.version_number,
+            'created_at': letter.created_at.isoformat() if letter.created_at else None,
+            'updated_at': letter.updated_at.isoformat() if letter.updated_at else None,
+        }
+        for letter in jd.cover_letters or []
+    ]
+
     return {
         'id': jd.id,
         'title': jd.title or '',
@@ -5876,6 +5958,9 @@ def get_job_description(jd_id: int, db: Session = Depends(get_db)):
         'created_at': jd.created_at.isoformat() if jd.created_at else None,
         'last_match': last_match,
         'all_matches': matches_data,
+        'resume_versions': resume_versions_data,
+        'best_resume_version': best_resume_version,
+        'cover_letters': cover_letters_data,
     }
 
 @app.post('/matches')
@@ -5946,6 +6031,9 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
                                     is_auto_save=False
                                 )
                                 logger.info(f"create_match: Created version {version.id} for resume {resume.id}")
+                                resolved_resume_version_id = version.id
+                                resolved_resume_version_obj = version
+                                resolved_resume_version_label = f"v{version.version_number}"
                             except Exception as e:
                                 logger.warning(f"create_match: Failed to create version: {e}")
                 else:
@@ -5955,6 +6043,10 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
         
         if not resume:
             raise HTTPException(status_code=404, detail='Resume not found and could not be created. Provide resumeId or user_email with resume_name.')
+        
+        resolved_resume_version_id = payload.resume_version_id
+        resolved_resume_version_obj: Optional[ResumeVersion] = None
+        resolved_resume_version_label = None
         
         # Get job description (use safe query to handle missing columns)
         jd, jd_has_new_columns = safe_get_job_description(payload.jobDescriptionId, db)
@@ -6015,10 +6107,19 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
             rv = db.query(ResumeVersion).filter(ResumeVersion.id == payload.resume_version_id).first()
             if rv:
                 resume_text = _resume_to_text(rv.resume_data)
+                resolved_resume_version_id = rv.id
+                resolved_resume_version_obj = rv
+                resolved_resume_version_label = f"v{rv.version_number}"
         
         if not resume_text:
             rv = db.query(ResumeVersion).filter(ResumeVersion.resume_id == resume.id).order_by(ResumeVersion.version_number.desc()).first()
-            resume_text = _resume_to_text(rv.resume_data) if rv else '\n'.join([resume.name or '', resume.title or '', resume.summary or ''])
+            if rv:
+                resume_text = _resume_to_text(rv.resume_data)
+                resolved_resume_version_id = rv.id
+                resolved_resume_version_obj = rv
+                resolved_resume_version_label = f"v{rv.version_number}"
+            else:
+                resume_text = '\n'.join([resume.name or '', resume.title or '', resume.summary or ''])
 
         # Use provided keyword data if available, otherwise compute it
         keyword_coverage = None
@@ -6091,6 +6192,44 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
         if not resume.user_id:
             raise HTTPException(status_code=400, detail="Resume must belong to a user to create match session")
 
+        # Upsert job resume version summary
+        job_resume_version = None
+        try:
+            resume_version_label = resolved_resume_version_label
+            if not resume_version_label and resolved_resume_version_obj:
+                resume_version_label = f"v{resolved_resume_version_obj.version_number}"
+            if not resume_version_label and resolved_resume_version_id:
+                fetched_version = db.query(ResumeVersion).filter(ResumeVersion.id == resolved_resume_version_id).first()
+                if fetched_version:
+                    resolved_resume_version_obj = fetched_version
+                    resume_version_label = f"v{fetched_version.version_number}"
+            if not resume_version_label:
+                resume_version_label = "Current"
+
+            version_query = db.query(JobResumeVersion).filter(JobResumeVersion.job_description_id == jd.id)
+            if resolved_resume_version_id:
+                job_resume_version = version_query.filter(JobResumeVersion.resume_version_id == resolved_resume_version_id).first()
+            else:
+                job_resume_version = version_query.filter(JobResumeVersion.resume_version_id.is_(None), JobResumeVersion.resume_id == resume.id).first()
+
+            if not job_resume_version:
+                job_resume_version = JobResumeVersion(
+                    job_description_id=jd.id,
+                    resume_id=resume.id,
+                    resume_version_id=resolved_resume_version_id
+                )
+                db.add(job_resume_version)
+
+            job_resume_version.resume_name = resume.name
+            job_resume_version.resume_version_label = resume_version_label
+            job_resume_version.ats_score = final_score
+            job_resume_version.keyword_coverage = float(keyword_coverage) if keyword_coverage is not None else None
+            job_resume_version.matched_keywords = matched_kw
+            job_resume_version.missing_keywords = missing_kw
+        except Exception as link_error:
+            logger.error(f"create_match: Failed to upsert job resume version: {link_error}", exc_info=True)
+            job_resume_version = None
+
         ms = MatchSession(
             user_id=resume.user_id,
             resume_id=resume.id,
@@ -6104,9 +6243,20 @@ def create_match(payload: MatchCreate, db: Session = Depends(get_db)):
         db.add(ms)
         db.commit()
         db.refresh(ms)
+        if job_resume_version:
+            db.refresh(job_resume_version)
 
         logger.info(f"create_match: Successfully created match session {ms.id} with score {ms.score}")
-        return { 'id': ms.id, **breakdown }
+        response_payload = {
+            'id': ms.id,
+            'job_resume_version_id': job_resume_version.id if job_resume_version else None,
+            'resume_id': resume.id,
+            'resume_version_id': resolved_resume_version_id,
+            'ats_score': final_score,
+            'keyword_coverage': float(keyword_coverage) if keyword_coverage is not None else None
+        }
+        response_payload.update(breakdown)
+        return response_payload
     except HTTPException:
         raise
     except Exception as e:
@@ -6176,102 +6326,10 @@ def create_or_update_job_description_api(
 @app.get('/api/job-descriptions')
 def list_job_descriptions_api(user_email: Optional[str] = None, db: Session = Depends(get_db)):
     try:
-        # If no user_email provided, return jobs with no user_id (for extension without login)
-        if not user_email:
-            # Check if new columns exist
-            try:
-                result = db.execute(text("""
-                    SELECT COUNT(*) 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'job_descriptions' 
-                    AND column_name IN ('max_salary', 'status', 'follow_up_date', 'important_emoji', 'notes')
-                """))
-                count = result.fetchone()[0]
-                new_columns_exist = (count == 5)
-            except:
-                new_columns_exist = False
-            
-            if new_columns_exist:
-                items = db.query(JobDescription).filter(
-                    JobDescription.user_id.is_(None)
-                ).order_by(JobDescription.created_at.desc()).limit(100).all()
-            else:
-                # Use raw SQL
-                result = db.execute(text("""
-                    SELECT id, user_id, title, company, source, url, easy_apply_url, location, 
-                           work_type, job_type, content, extracted_keywords, priority_keywords, 
-                           soft_skills, high_frequency_keywords, ats_insights, created_at
-                    FROM job_descriptions
-                    WHERE user_id IS NULL
-                    ORDER BY created_at DESC
-                    LIMIT 100
-                """))
-                rows = result.fetchall()
-                items = []
-                for row in rows:
-                    jd = JobDescription()
-                    jd.id = row[0]
-                    jd.user_id = row[1]
-                    jd.title = row[2] or ''
-                    jd.company = row[3]
-                    jd.source = row[4]
-                    jd.url = row[5]
-                    jd.easy_apply_url = row[6]
-                    jd.location = row[7]
-                    jd.work_type = row[8]
-                    jd.job_type = row[9]
-                    jd.content = row[10] or ''
-                    jd.extracted_keywords = row[11]
-                    jd.priority_keywords = row[12]
-                    jd.soft_skills = row[13]
-                    jd.high_frequency_keywords = row[14]
-                    jd.ats_insights = row[15]
-                    jd.created_at = row[16]
-                    jd.max_salary = None
-                    jd.status = 'bookmarked'
-                    jd.follow_up_date = None
-                    jd.important_emoji = None
-                    jd.notes = None
-                    items.append(jd)
-            
-            result = []
-            for it in items:
-                try:
-                    priority_kw = it.priority_keywords
-                    if priority_kw is not None:
-                        if isinstance(priority_kw, str):
-                            try:
-                                priority_kw = json.loads(priority_kw)
-                            except:
-                                priority_kw = []
-                        elif not isinstance(priority_kw, list):
-                            priority_kw = []
-                    
-                    result.append({
-                        'id': it.id,
-                        'title': it.title or '',
-                        'company': it.company or '',
-                        'source': it.source or '',
-                        'url': it.url or '',
-                        'created_at': it.created_at.isoformat() if it.created_at else None,
-                        'priority_keywords': priority_kw or [],
-                        'max_salary': getattr(it, 'max_salary', None),
-                        'status': getattr(it, 'status', 'bookmarked'),
-                        'follow_up_date': getattr(it, 'follow_up_date', None),
-                        'important_emoji': getattr(it, 'important_emoji', None),
-                        'notes': getattr(it, 'notes', None),
-                        'last_match': None,
-                    })
-                except Exception as e:
-                    logger.warning(f'Error processing JD {it.id}: {e}')
-                    continue
-            
-            return result
-        
-        return list_job_descriptions(user_email, db)
+        return list_job_descriptions(user_email=user_email, db=db)
     except Exception as e:
-        logger.exception(f'Failed to list job descriptions via API (user_email: {user_email})')
-        return []
+        logger.exception(f'Failed to list job descriptions via API (user_email: {user_email})', exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete('/api/job-descriptions/{jd_id}')
 def delete_job_description_api(jd_id: int, user_email: Optional[str] = Query(None), db: Session = Depends(get_db)):
@@ -6294,6 +6352,8 @@ def delete_job_description_api(jd_id: int, user_email: Optional[str] = Query(Non
         
         # Delete associated match sessions first (if cascade doesn't handle it)
         db.query(MatchSession).filter(MatchSession.job_description_id == jd_id).delete()
+        db.query(JobResumeVersion).filter(JobResumeVersion.job_description_id == jd_id).delete()
+        db.query(JobCoverLetter).filter(JobCoverLetter.job_description_id == jd_id).delete()
         
         # Delete the job description using raw SQL to avoid session issues when columns missing
         if jd_has_new_columns:
@@ -6328,6 +6388,14 @@ class JobDescriptionUpdate(BaseModel):
     follow_up_date: Optional[str] = None
     important_emoji: Optional[str] = None
     notes: Optional[str] = None
+
+class JobCoverLetterCreate(BaseModel):
+    title: str
+    content: str
+
+class JobCoverLetterUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
 
 @app.patch('/api/job-descriptions/{jd_id}')
 def update_job_description_api(
@@ -6375,6 +6443,77 @@ def update_job_description_api(
         logger.error(f"Error updating job description {jd_id}: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update job description: {str(e)}")
+
+def _cover_letter_to_dict(letter: JobCoverLetter) -> Dict[str, Any]:
+    return {
+        'id': letter.id,
+        'job_description_id': letter.job_description_id,
+        'title': letter.title,
+        'content': letter.content,
+        'version_number': letter.version_number,
+        'created_at': letter.created_at.isoformat() if letter.created_at else None,
+        'updated_at': letter.updated_at.isoformat() if letter.updated_at else None,
+    }
+
+@app.get('/api/job-descriptions/{jd_id}/cover-letters')
+def list_cover_letters(jd_id: int, db: Session = Depends(get_db)):
+    jd, _ = safe_get_job_description(jd_id, db)
+    if not jd:
+        raise HTTPException(status_code=404, detail='Job description not found')
+    letters = db.query(JobCoverLetter).filter(JobCoverLetter.job_description_id == jd_id).order_by(JobCoverLetter.created_at.desc()).all()
+    return [_cover_letter_to_dict(letter) for letter in letters]
+
+@app.post('/api/job-descriptions/{jd_id}/cover-letters')
+def create_cover_letter(jd_id: int, payload: JobCoverLetterCreate, db: Session = Depends(get_db)):
+    jd, _ = safe_get_job_description(jd_id, db)
+    if not jd:
+        raise HTTPException(status_code=404, detail='Job description not found')
+    latest_letter = db.query(JobCoverLetter).filter(JobCoverLetter.job_description_id == jd_id).order_by(JobCoverLetter.version_number.desc()).first()
+    next_version = (latest_letter.version_number + 1) if latest_letter else 1
+    letter = JobCoverLetter(
+        job_description_id=jd_id,
+        title=payload.title.strip() if payload.title else 'Cover Letter',
+        content=payload.content.strip(),
+        version_number=next_version,
+    )
+    db.add(letter)
+    db.commit()
+    db.refresh(letter)
+    return _cover_letter_to_dict(letter)
+
+@app.patch('/api/job-descriptions/{jd_id}/cover-letters/{letter_id}')
+def update_cover_letter(jd_id: int, letter_id: int, payload: JobCoverLetterUpdate, db: Session = Depends(get_db)):
+    jd, _ = safe_get_job_description(jd_id, db)
+    if not jd:
+        raise HTTPException(status_code=404, detail='Job description not found')
+    letter = db.query(JobCoverLetter).filter(
+        JobCoverLetter.id == letter_id,
+        JobCoverLetter.job_description_id == jd_id
+    ).first()
+    if not letter:
+        raise HTTPException(status_code=404, detail='Cover letter not found')
+    if payload.title is not None:
+        letter.title = payload.title.strip() if payload.title else letter.title
+    if payload.content is not None:
+        letter.content = payload.content.strip()
+    db.commit()
+    db.refresh(letter)
+    return _cover_letter_to_dict(letter)
+
+@app.delete('/api/job-descriptions/{jd_id}/cover-letters/{letter_id}')
+def delete_cover_letter(jd_id: int, letter_id: int, db: Session = Depends(get_db)):
+    jd, _ = safe_get_job_description(jd_id, db)
+    if not jd:
+        raise HTTPException(status_code=404, detail='Job description not found')
+    letter = db.query(JobCoverLetter).filter(
+        JobCoverLetter.id == letter_id,
+        JobCoverLetter.job_description_id == jd_id
+    ).first()
+    if not letter:
+        raise HTTPException(status_code=404, detail='Cover letter not found')
+    db.delete(letter)
+    db.commit()
+    return {'success': True, 'id': letter_id}
 
 @app.post('/api/matches')
 def create_match_api(payload: MatchCreate, db: Session = Depends(get_db)):

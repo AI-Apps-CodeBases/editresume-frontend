@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Float, text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, joinedload
 from datetime import datetime
 import os
 
@@ -100,7 +100,44 @@ class JobDescription(Base):
 
     # Relationships
     match_sessions = relationship("MatchSession", back_populates="job_description", cascade="all, delete-orphan")
+    resume_versions = relationship("JobResumeVersion", back_populates="job_description", cascade="all, delete-orphan", order_by="JobResumeVersion.updated_at.desc()")
+    cover_letters = relationship("JobCoverLetter", back_populates="job_description", cascade="all, delete-orphan", order_by="JobCoverLetter.created_at.desc()")
     user = relationship("User")
+
+class JobResumeVersion(Base):
+    __tablename__ = "job_resume_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_description_id = Column(Integer, ForeignKey("job_descriptions.id"), nullable=False, index=True)
+    resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=True)
+    resume_version_id = Column(Integer, ForeignKey("resume_versions.id"), nullable=True)
+    resume_name = Column(String)
+    resume_version_label = Column(String)
+    ats_score = Column(Integer)
+    keyword_coverage = Column(Float)
+    matched_keywords = Column(JSON)
+    missing_keywords = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    job_description = relationship("JobDescription", back_populates="resume_versions")
+    resume = relationship("Resume")
+    resume_version = relationship("ResumeVersion")
+
+class JobCoverLetter(Base):
+    __tablename__ = "job_cover_letters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_description_id = Column(Integer, ForeignKey("job_descriptions.id"), nullable=False, index=True)
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    version_number = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    job_description = relationship("JobDescription", back_populates="cover_letters")
 
 class ResumeVersion(Base):
     __tablename__ = "resume_versions"
@@ -243,6 +280,13 @@ def migrate_schema():
     try:
         backend = engine.url.get_backend_name()
         if backend == 'postgresql':
+            # Ensure auxiliary tables exist
+            try:
+                JobResumeVersion.__table__.create(bind=engine, checkfirst=True)
+                JobCoverLetter.__table__.create(bind=engine, checkfirst=True)
+            except Exception as table_error:
+                print(f"Warning: could not ensure job resume/cover letter tables exist: {table_error}")
+
             with engine.connect() as conn:
                 # Check and fix job_descriptions.user_id nullability
                 result = conn.execute(text("""
