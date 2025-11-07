@@ -11,7 +11,8 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List, Optional
 
-from pydantic import BaseSettings, Field, validator
+from pydantic import Field, validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -31,9 +32,11 @@ class Settings(BaseSettings):
 
     additional_cors_origins: List[str] = Field(default_factory=list, env="ADDITIONAL_CORS_ORIGINS")
 
-    class Config:
-        case_sensitive = False
-        env_file = ".env",
+    model_config = SettingsConfigDict(
+        case_sensitive=False,
+        env_file=".env",
+        extra="ignore",
+    )
 
     @validator("additional_cors_origins", pre=True)
     def split_cors_origins(cls, value: str | List[str]):  # noqa: D401, N805
