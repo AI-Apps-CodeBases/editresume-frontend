@@ -53,6 +53,9 @@ interface ResumeData {
   twitter?: string
 }
 
+const normalizeId = (id: string | number | null | undefined) =>
+  id === null || id === undefined ? '' : id.toString()
+
 interface Props {
   data: ResumeData
   onChange: (data: ResumeData) => void
@@ -643,20 +646,23 @@ export default function VisualResumeEditor({
     onChange({ ...data, [field]: value })
   }
 
-  const updateSection = (sectionId: string, updates: Partial<Section>) => {
+  const updateSection = (sectionId: string | number, updates: Partial<Section>) => {
+    const targetSectionId = normalizeId(sectionId)
     const sections = data.sections.map(s =>
-      s.id === sectionId ? { ...s, ...updates } : s
+      normalizeId(s.id) === targetSectionId ? { ...s, ...updates } : s
     )
     onChange({ ...data, sections })
   }
 
-  const updateBullet = (sectionId: string, bulletId: string, text: string) => {
+  const updateBullet = (sectionId: string | number, bulletId: string | number, text: string) => {
+    const targetSectionId = normalizeId(sectionId)
+    const targetBulletId = normalizeId(bulletId)
     const sections = data.sections.map(s =>
-      s.id === sectionId
+      normalizeId(s.id) === targetSectionId
         ? {
             ...s,
             bullets: s.bullets.map(b =>
-              b.id === bulletId ? { ...b, text } : b
+              normalizeId(b.id) === targetBulletId ? { ...b, text } : b
             )
           }
         : s
@@ -664,9 +670,10 @@ export default function VisualResumeEditor({
     onChange({ ...data, sections })
   }
 
-  const addBullet = (sectionId: string) => {
+  const addBullet = (sectionId: string | number) => {
+    const targetSectionId = normalizeId(sectionId)
     const sections = data.sections.map(s =>
-      s.id === sectionId
+      normalizeId(s.id) === targetSectionId
         ? {
             ...s,
             bullets: [...s.bullets, { id: Date.now().toString(), text: '', params: {} }]
@@ -676,11 +683,13 @@ export default function VisualResumeEditor({
     onChange({ ...data, sections })
   }
 
-  const insertBulletAfter = (sectionId: string, afterBulletId: string) => {
+  const insertBulletAfter = (sectionId: string | number, afterBulletId: string | number) => {
+    const targetSectionId = normalizeId(sectionId)
+    const targetAfterBulletId = normalizeId(afterBulletId)
     const sections = data.sections.map(s => {
-      if (s.id === sectionId) {
+      if (normalizeId(s.id) === targetSectionId) {
         const bullets = [...s.bullets]
-        const index = bullets.findIndex(b => b.id === afterBulletId)
+        const index = bullets.findIndex(b => normalizeId(b.id) === targetAfterBulletId)
         if (index !== -1) {
           bullets.splice(index + 1, 0, { id: Date.now().toString(), text: '', params: {} })
         }
@@ -691,12 +700,14 @@ export default function VisualResumeEditor({
     onChange({ ...data, sections })
   }
 
-  const removeBullet = (sectionId: string, bulletId: string) => {
+  const removeBullet = (sectionId: string | number, bulletId: string | number) => {
+    const targetSectionId = normalizeId(sectionId)
+    const targetBulletId = normalizeId(bulletId)
     const sections = data.sections.map(s =>
-      s.id === sectionId
+      normalizeId(s.id) === targetSectionId
         ? {
             ...s,
-            bullets: s.bullets.filter(b => b.id !== bulletId)
+            bullets: s.bullets.filter(b => normalizeId(b.id) !== targetBulletId)
           }
         : s
     )

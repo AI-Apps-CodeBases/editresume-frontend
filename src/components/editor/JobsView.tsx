@@ -4,6 +4,20 @@ import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import JobDetailView from './JobDetailView'
 
+interface JobResumeSummary {
+  id: number
+  score: number
+  resume_id?: number
+  resume_name?: string | null
+  resume_version_id?: number | null
+  resume_version_label?: string | null
+  keyword_coverage?: number | null
+  matched_keywords?: string[]
+  missing_keywords?: string[]
+  updated_at?: string | null
+  created_at?: string | null
+}
+
 interface JobDescription {
   id: number
   title: string
@@ -15,22 +29,8 @@ interface JobDescription {
   follow_up_date?: string
   important_emoji?: string
   created_at?: string
-  last_match?: {
-    id: number
-    score: number
-    resume_id: number
-    resume_name?: string | null
-    resume_version_id?: number | null
-    created_at?: string
-  } | null
-  all_matches?: Array<{
-    id: number
-    score: number
-    resume_id: number
-    resume_name?: string | null
-    resume_version_id?: number | null
-    created_at?: string
-  }>
+  best_resume_version?: JobResumeSummary | null
+  resume_versions?: JobResumeSummary[]
 }
 
 interface Props {
@@ -56,22 +56,7 @@ export default function JobsView({ onBack }: Props) {
       if (res.ok) {
         const data = await res.json()
         const jds = Array.isArray(data) ? data : data.results || []
-        
-        const jdsWithMatches = await Promise.all(jds.map(async (jd: any) => {
-          try {
-            const matchesRes = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}/matches`)
-            if (matchesRes.ok) {
-              const matchesData = await matchesRes.json()
-              jd.all_matches = Array.isArray(matchesData) ? matchesData : matchesData.matches || []
-            }
-          } catch (e) {
-            console.error('Failed to load matches for JD:', jd.id, e)
-            jd.all_matches = []
-          }
-          return jd
-        }))
-        
-        setSavedJDs(jdsWithMatches)
+        setSavedJDs(jds)
       }
     } catch (e) {
       console.error('Failed to load job descriptions', e)
@@ -197,6 +182,7 @@ export default function JobsView({ onBack }: Props) {
                     <th className="p-3">Company</th>
                     <th className="p-3">Max Salary</th>
                     <th className="p-3">Status</th>
+                    <th className="p-3">Best Match</th>
                     <th className="p-3">Date Saved</th>
                     <th className="p-3">Follow Up</th>
                     <th className="p-3">Source</th>
@@ -204,154 +190,147 @@ export default function JobsView({ onBack }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {savedJDs.map((jd) => (
-                    <tr key={jd.id} className="hover:bg-gray-50">
-                      <td className="p-3">
-                        {jd.important_emoji && <span className="text-2xl">{jd.important_emoji}</span>}
-                      </td>
-                      <td className="p-3">
-                        <button
-                          onClick={() => setSelectedJobId(jd.id)}
-                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
-                        >
-                          {jd.title}
-                        </button>
-                      </td>
-                      <td className="p-3">
-                        <button
-                          onClick={() => setSelectedJobId(jd.id)}
-                          className="text-gray-700 hover:text-blue-600 hover:underline text-left"
-                        >
-                          {jd.company || '-'}
-                        </button>
-                      </td>
-                      <td className="p-3 text-gray-700">
-                        {jd.max_salary ? `$${jd.max_salary.toLocaleString()}/yr` : '-'}
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(jd.status)}`}>
-                          {getStatusLabel(jd.status)}
-                        </span>
-                      </td>
-                      <td className="p-3 text-gray-500 text-sm">
-                        {jd.created_at ? new Date(jd.created_at).toLocaleDateString() : '-'}
-                      </td>
-                      <td className="p-3 text-gray-500 text-sm">
-                        {jd.follow_up_date ? new Date(jd.follow_up_date).toLocaleDateString() : '-'}
-                      </td>
-                      <td className="p-3 text-gray-700 text-sm">{jd.source || 'extension'}</td>
-                      <td className="p-3">
-                        <div className="flex justify-end gap-2 flex-wrap">
+                  {savedJDs.map((jd) => {
+                    const bestMatch = jd.best_resume_version
+                    const resumeCount = jd.resume_versions?.length || 0
+                    return (
+                      <tr key={jd.id} className="hover:bg-gray-50">
+                        <td className="p-3">
+                          {jd.important_emoji && <span className="text-2xl">{jd.important_emoji}</span>}
+                        </td>
+                        <td className="p-3">
                           <button
-                            onClick={() => {
-                              window.location.href = `/editor?jdId=${jd.id}`
-                            }}
-                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 whitespace-nowrap"
+                            onClick={() => setSelectedJobId(jd.id)}
+                            className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
                           >
-                            Analyze
+                            {jd.title}
                           </button>
-                          {jd.last_match && (
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs font-semibold whitespace-nowrap">
-                                  ATS Score: {jd.last_match?.score}%
-                                </span>
-                                {jd.last_match?.resume_name && (
-                                  <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs whitespace-nowrap">
-                                    Resume: {jd.last_match?.resume_name}
-                                  </span>
-                                )}
-                                {jd.last_match?.resume_version_id && (
-                                  <a
-                                    href={`${config.apiBase}/api/resume/version/${jd.last_match?.resume_version_id}`}
-                                    className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs hover:bg-blue-100 whitespace-nowrap"
-                                    target="_blank"
-                                  >
-                                    View Latest Version
-                                  </a>
+                        </td>
+                        <td className="p-3">
+                          <button
+                            onClick={() => setSelectedJobId(jd.id)}
+                            className="text-gray-700 hover:text-blue-600 hover:underline text-left"
+                          >
+                            {jd.company || '-'}
+                          </button>
+                        </td>
+                        <td className="p-3 text-gray-700">
+                          {jd.max_salary ? `$${jd.max_salary.toLocaleString()}/yr` : '-'}
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(jd.status)}`}>
+                            {getStatusLabel(jd.status)}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm">
+                          {bestMatch ? (
+                            <div className="space-y-2">
+                              <div className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-xs font-semibold ${
+                                (bestMatch.score || 0) >= 80 ? 'bg-green-100 text-green-700' :
+                                (bestMatch.score || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-orange-100 text-orange-700'
+                              }`}>
+                                <span>ATS: {bestMatch.score}%</span>
+                                {bestMatch.keyword_coverage !== undefined && bestMatch.keyword_coverage !== null && (
+                                  <span className="text-[10px] opacity-75">• Keywords {Math.round(bestMatch.keyword_coverage)}%</span>
                                 )}
                               </div>
-                              {jd.all_matches && jd.all_matches.length > 1 && (
-                                <div className="mt-2 pt-2 border-t border-gray-200">
-                                  <div className="text-xs text-gray-600 mb-1 font-medium">All Matched Versions ({jd.all_matches.length}):</div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {jd.all_matches.map((match: any, idx: number) => (
-                                      <div key={match.id} className="flex items-center gap-1">
-                                        <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                                          match.score >= 80 ? 'bg-green-100 text-green-700 border border-green-300' :
-                                          match.score >= 60 ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
-                                          'bg-orange-100 text-orange-700 border border-orange-300'
-                                        }`}>
-                                          ATS: {match.score}%
-                                        </span>
-                                        {match.resume_version_id && (
-                                          <a
-                                            href={`${config.apiBase}/api/resume/version/${match.resume_version_id}`}
-                                            className="px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs hover:bg-blue-100 whitespace-nowrap"
-                                            target="_blank"
-                                            title={`Version from ${new Date(match.created_at).toLocaleDateString()}`}
-                                          >
-                                            v{idx + 1}
-                                          </a>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                              <div className="text-xs text-gray-600">
+                                {bestMatch.resume_name ? bestMatch.resume_name : 'Resume'}
+                                {bestMatch.resume_version_label && (
+                                  <span className="ml-1 text-gray-400">({bestMatch.resume_version_label})</span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-gray-400">
+                                Updated {bestMatch.updated_at ? new Date(bestMatch.updated_at).toLocaleDateString() : 'recently'}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">No match yet</span>
+                          )}
+                          {resumeCount > 1 && (
+                            <div className="text-[11px] text-gray-400 mt-1">
+                              {resumeCount} versions saved
                             </div>
                           )}
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              if (!confirm(`Are you sure you want to delete "${jd.title}"? This action cannot be undone.`)) return
-                              
-                              const deleteBtn = e.currentTarget
-                              const originalText = deleteBtn.textContent
-                              deleteBtn.disabled = true
-                              deleteBtn.textContent = 'Deleting...'
-                              
-                              try {
-                                const url = `${config.apiBase}/api/job-descriptions/${jd.id}${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`
+                        </td>
+                        <td className="p-3 text-gray-500 text-sm">
+                          {jd.created_at ? new Date(jd.created_at).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="p-3 text-gray-500 text-sm">
+                          {jd.follow_up_date ? new Date(jd.follow_up_date).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="p-3 text-gray-700 text-sm">{jd.source || 'extension'}</td>
+                        <td className="p-3">
+                          <div className="flex justify-end gap-2 flex-wrap">
+                            <button
+                              onClick={() => setSelectedJobId(jd.id)}
+                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 whitespace-nowrap"
+                            >
+                              View Details
+                            </button>
+                            {bestMatch?.resume_id && (
+                              <button
+                                onClick={() => {
+                                  window.location.href = `/editor?resumeId=${bestMatch.resume_id}&jdId=${jd.id}`
+                                }}
+                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 whitespace-nowrap"
+                              >
+                                Open Editor
+                              </button>
+                            )}
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (!confirm(`Are you sure you want to delete "${jd.title}"? This action cannot be undone.`)) return
                                 
-                                const res = await fetch(url, { 
-                                  method: 'DELETE',
-                                  headers: {
-                                    'Content-Type': 'application/json'
+                                const deleteBtn = e.currentTarget
+                                const originalText = deleteBtn.textContent
+                                deleteBtn.disabled = true
+                                deleteBtn.textContent = 'Deleting...'
+                                
+                                try {
+                                  const url = `${config.apiBase}/api/job-descriptions/${jd.id}${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`
+                                  
+                                  const res = await fetch(url, { 
+                                    method: 'DELETE',
+                                    headers: {
+                                      'Content-Type': 'application/json'
+                                    }
+                                  })
+                                  
+                                  if (res.ok) {
+                                    setSavedJDs((prev) => prev.filter((x) => x.id !== jd.id))
+                                    const successMsg = document.createElement('div')
+                                    successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+                                    successMsg.textContent = '✅ Job description deleted successfully'
+                                    document.body.appendChild(successMsg)
+                                    setTimeout(() => {
+                                      document.body.removeChild(successMsg)
+                                    }, 3000)
+                                  } else {
+                                    const errorData = await res.json().catch(() => ({ detail: 'Failed to delete job description' }))
+                                    alert(`Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`)
+                                    deleteBtn.disabled = false
+                                    deleteBtn.textContent = originalText
                                   }
-                                })
-                                
-                                if (res.ok) {
-                                  setSavedJDs((prev) => prev.filter((x) => x.id !== jd.id))
-                                  const successMsg = document.createElement('div')
-                                  successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
-                                  successMsg.textContent = '✅ Job description deleted successfully'
-                                  document.body.appendChild(successMsg)
-                                  setTimeout(() => {
-                                    document.body.removeChild(successMsg)
-                                  }, 3000)
-                                } else {
-                                  const errorData = await res.json().catch(() => ({ detail: 'Failed to delete job description' }))
-                                  alert(`Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`)
+                                } catch (e) {
+                                  console.error('Failed to delete job description:', e)
+                                  alert(`Failed to delete job description: ${e instanceof Error ? e.message : 'Network error'}`)
                                   deleteBtn.disabled = false
                                   deleteBtn.textContent = originalText
                                 }
-                              } catch (e) {
-                                console.error('Failed to delete job description:', e)
-                                alert(`Failed to delete job description: ${e instanceof Error ? e.message : 'Network error'}`)
-                                deleteBtn.disabled = false
-                                deleteBtn.textContent = originalText
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                            title="Delete this job description"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                              }}
+                              className="px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                              title="Delete this job description"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -159,46 +159,16 @@ export default function LeftSidebar({
         {activeSection && (
           <div className="p-3 border-t border-gray-200 bg-gray-50">
             {activeSection === 'jobs' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-gray-900">Saved Jobs</h3>
-                  <button
-                    onClick={loadSectionData}
-                    className="text-xs text-blue-600 hover:text-blue-700"
-                    disabled={loading}
-                  >
-                    {loading ? 'Loading...' : 'Refresh'}
-                  </button>
-                </div>
-                {!isAuthenticated ? (
-                  <div className="text-center py-4 text-xs text-gray-500">
-                    Sign in to view saved jobs
-                  </div>
-                ) : savedJDs.length === 0 ? (
-                  <div className="text-center py-4 text-xs text-gray-500">
-                    No saved jobs yet
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {savedJDs.map((jd) => (
-                      <a
-                        key={jd.id}
-                        href={`/editor?jdId=${jd.id}`}
-                        className="block p-2 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all"
-                      >
-                        <div className="font-semibold text-xs text-gray-900 truncate">{jd.title}</div>
-                        {jd.company && (
-                          <div className="text-xs text-gray-600 truncate">{jd.company}</div>
-                        )}
-                        {jd.created_at && (
-                          <div className="text-[10px] text-gray-400 mt-1">
-                            {new Date(jd.created_at).toLocaleDateString()}
-                          </div>
-                        )}
-                      </a>
-                    ))}
-                  </div>
-                )}
+              <div className="space-y-4 text-sm text-gray-600">
+                <p>
+                  Open the Jobs workspace to review saved job descriptions, update ATS matches, and manage cover letters.
+                </p>
+                <button
+                  onClick={() => onViewChange?.('jobs')}
+                  className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                >
+                  Go to Jobs
+                </button>
               </div>
             )}
 

@@ -155,6 +155,57 @@ const extractSkills = (text: string): string[] => {
   return [...new Set(foundSkills)].slice(0, 15);
 };
 
+const SOFT_SKILL_KEYWORDS = [
+  'communication', 'verbal', 'written', 'presentation', 'leadership', 'mentoring', 'coaching',
+  'teamwork', 'collaboration', 'stakeholder', 'problem solving', 'analytical', 'critical thinking',
+  'troubleshooting', 'adaptability', 'flexible', 'time management', 'prioritization', 'project management',
+  'initiative', 'self-motivated', 'customer focus', 'client-facing', 'detail-oriented', 'attention to detail'
+];
+
+const ACTION_VERBS = [
+  'achieved', 'built', 'created', 'delivered', 'designed', 'developed', 'engineered', 'implemented', 'improved',
+  'launched', 'led', 'managed', 'optimized', 'orchestrated', 'produced', 'reduced', 'resolved', 'scaled', 'streamlined'
+];
+
+const METRIC_TERMS = ['percent', '%', 'increase', 'decrease', 'reduction', 'performance', 'efficiency', 'revenue', 'cost', 'uptime'];
+const INDUSTRY_TERMS = ['compliance', 'security', 'governance', 'sla', 'risk management', 'best practices', 'disaster recovery'];
+
+const extractSoftSkillsFromText = (text: string): string[] => {
+  if (!text) return [];
+  const lower = text.toLowerCase();
+  const found = new Set<string>();
+  SOFT_SKILL_KEYWORDS.forEach(skill => {
+    if (lower.includes(skill)) {
+      found.add(skill.charAt(0).toUpperCase() + skill.slice(1));
+    }
+  });
+  return Array.from(found);
+};
+
+const extractAtsInsightsFromText = (text: string) => {
+  if (!text) {
+    return { action_verbs: [], metrics: [], industry_terms: [] };
+  }
+  const lower = text.toLowerCase();
+  const actionVerbs = ACTION_VERBS.filter(verb => lower.includes(verb));
+  const metrics = METRIC_TERMS.filter(term => lower.includes(term));
+  const industryTerms = INDUSTRY_TERMS.filter(term => lower.includes(term));
+  return {
+    action_verbs: Array.from(new Set(actionVerbs.map(v => v.charAt(0).toUpperCase() + v.slice(1)))),
+    metrics: Array.from(new Set(metrics.map(v => v.charAt(0).toUpperCase() + v.slice(1)))),
+    industry_terms: Array.from(new Set(industryTerms.map(v => v.charAt(0).toUpperCase() + v.slice(1))))
+  };
+};
+
+const buildKeywordFrequencyMap = (items: string[]): Record<string, number> => {
+  return items.reduce((acc, word) => {
+    if (!word) return acc;
+    const key = word.toLowerCase();
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+};
+
 interface JobMetadata {
   title?: string;
   company?: string;
@@ -190,6 +241,77 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [isCalculatingATS, setIsCalculatingATS] = useState(false);
   const [previousATSScore, setPreviousATSScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
+
+  const buildPrecomputedKeywordPayload = () => {
+    if (!jobDescription?.trim()) return null;
+
+    const baseKeywords = selectedJobMetadata?.keywords && selectedJobMetadata.keywords.length > 0
+      ? selectedJobMetadata.keywords
+      : extractTopKeywords(jobDescription);
+
+    const baseSkills = selectedJobMetadata?.skills && selectedJobMetadata.skills.length > 0
+      ? selectedJobMetadata.skills
+      : extractSkills(jobDescription);
+
+    const softSkills = selectedJobMetadata?.soft_skills && selectedJobMetadata.soft_skills.length > 0
+      ? selectedJobMetadata.soft_skills
+      : extractSoftSkillsFromText(jobDescription);
+
+    const atsInsights = selectedJobMetadata?.ats_insights
+      ? selectedJobMetadata.ats_insights
+      : extractAtsInsightsFromText(jobDescription);
+
+    const freqMap = buildKeywordFrequencyMap([
+      ...baseSkills,
+      ...baseKeywords
+    ]);
+
+    const highFreqSource = selectedJobMetadata?.high_frequency_keywords && selectedJobMetadata.high_frequency_keywords.length > 0
+      ? selectedJobMetadata.high_frequency_keywords
+      : baseKeywords.map((keyword, idx) => ({
+          keyword,
+          frequency: freqMap[keyword.toLowerCase()] || 1,
+          importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low'
+        }));
+
+    const highFrequencyKeywords = highFreqSource.map((item: any, idx: number) => {
+      const keyword = (typeof item === 'string' ? item : item?.keyword) || '';
+      const frequency = typeof item === 'object' && item && typeof item.frequency === 'number'
+        ? item.frequency
+        : freqMap[keyword.toLowerCase()] || 1;
+      const importance = typeof item === 'object' && item && item.importance
+        ? item.importance
+        : idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low';
+      return {
+        keyword,
+        frequency,
+        importance
+      };
+    }).filter(item => item.keyword);
+
+    const extractedKeywordsPayload = {
+      technical_keywords: baseSkills.map(skill => skill.toLowerCase()),
+      general_keywords: baseKeywords.map(keyword => keyword.toLowerCase()),
+      soft_skills: softSkills,
+      high_frequency_keywords: highFrequencyKeywords,
+      ats_keywords: atsInsights,
+      keyword_frequency: freqMap,
+      total_keywords: Object.values(freqMap).reduce((sum, count) => sum + count, 0)
+    };
+
+    const priorityKeywords = Array.from(new Set(highFrequencyKeywords.map(item => item.keyword.toLowerCase())));
+    if (priorityKeywords.length === 0) {
+      priorityKeywords.push(...baseKeywords.slice(0, 10).map(k => k.toLowerCase()));
+    }
+
+    return {
+      extractedKeywordsPayload,
+      priorityKeywords: priorityKeywords.map(k => k.charAt(0).toUpperCase() + k.slice(1)),
+      softSkills,
+      highFrequencyKeywords,
+      atsInsights
+    };
+  };
 
   // Function to recalculate ATS score
   const recalculateATSScore = useCallback(async (resumeDataToUse: any, showLoading = true) => {
@@ -317,11 +439,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       return () => clearTimeout(debounceTimer);
     }
   }, [JSON.stringify(resumeData.sections), resumeData.summary, resumeData.name, resumeData.title, resumeData.email, resumeData.phone, resumeData.location, jobDescription, currentJobDescriptionId, recalculateATSScore]);
-  const [savedJDs, setSavedJDs] = useState<Array<{id:number,title:string,company?:string,created_at?:string}>>([]);
-  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
-  const [showImprovementsModal, setShowImprovementsModal] = useState(false);
-  const [pendingImprovements, setPendingImprovements] = useState<ImprovementSuggestion[]>([]);
-  const [isApplying, setIsApplying] = useState(false);
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
   const [showBulletGenerator, setShowBulletGenerator] = useState(false);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
@@ -359,6 +476,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         company: currentJDInfo?.company || selectedJobMetadata?.company || null
       };
 
+      const precomputed = buildPrecomputedKeywordPayload();
+
       // Show loading state
       const saveButton = document.querySelector('[data-save-job-btn]') as HTMLButtonElement;
       const originalButtonText = saveButton?.textContent;
@@ -380,7 +499,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           work_type: jdMetadata.work_type || null,
           job_type: jdMetadata.job_type || null,
           source: 'app',
-          url: null
+          url: null,
+          extracted_keywords: precomputed?.extractedKeywordsPayload,
+          priority_keywords: precomputed?.priorityKeywords,
+          soft_skills: precomputed?.softSkills,
+          high_frequency_keywords: precomputed?.highFrequencyKeywords,
+          ats_insights: precomputed?.atsInsights
         })
       });
 
@@ -399,8 +523,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       const result = await response.json();
       console.log('Job description saved successfully:', result);
 
-      const savedJdId = result.id || currentJobDescriptionId;
-      
       // Update currentJobDescriptionId if it was a new save
       if (result.id && !currentJobDescriptionId && onSelectJobDescriptionId) {
         onSelectJobDescriptionId(result.id);
@@ -433,111 +555,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       document.body.appendChild(notification);
       setTimeout(() => notification.remove(), 5000);
 
-      // Create match session asynchronously (non-blocking)
-      if (savedJdId && resumeData && (currentATSScore !== null || matchResult?.match_analysis?.similarity_score)) {
-        // Fire and forget - don't wait for this
-        (async () => {
-          try {
-            const atsScore = currentATSScore !== null ? currentATSScore : (matchResult?.match_analysis?.similarity_score || null);
-            
-            // Get match result data for keywords and analysis
-            const matchAnalysis = (matchResult as any)?.match_analysis || {};
-            const matchedKeywords = (matchAnalysis as any).matched_keywords || [];
-            const missingKeywords = (matchAnalysis as any).missing_keywords || [];
-            const keywordCoverage = (matchAnalysis as any).keyword_coverage || null;
-            
-            // Get or create a resume for matching
-            let resumeId = null;
-            let resumeVersionId = null;
-            
-            try {
-              const resumesRes = await fetch(`${apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`);
-              if (resumesRes.ok) {
-                const resumesData = await resumesRes.json();
-                const existingResume = (resumesData.resumes || []).find((r: any) => 
-                  r.name === (resumeData.name ? `${resumeData.name} Resume` : 'My Resume')
-                );
-                if (existingResume) {
-                  resumeId = existingResume.id;
-                  // Get latest version
-                  if (existingResume.version_count > 0) {
-                    const versionRes = await fetch(`${apiBase}/api/resume/${existingResume.id}/versions`);
-                    if (versionRes.ok) {
-                      const versions = await versionRes.json();
-                      if (versions.length > 0) {
-                        resumeVersionId = versions[0].id;
-                      }
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              console.warn('Could not check for existing resume:', e);
-            }
-
-            // Create match session with all data
-            const matchPayload: any = {
-              jobDescriptionId: savedJdId,
-              user_email: user.email,
-              resume_snapshot: resumeData,
-              ats_score: atsScore ? Math.round(atsScore) : null,
-              jd_metadata: jdMetadata
-            };
-            
-            // Add keyword data from match result if available
-            if (matchedKeywords.length > 0) {
-              matchPayload.matched_keywords = matchedKeywords;
-            }
-            if (missingKeywords.length > 0) {
-              matchPayload.missing_keywords = missingKeywords;
-            }
-            if (keywordCoverage !== null) {
-              matchPayload.keyword_coverage = keywordCoverage;
-            }
-            
-            if (resumeId) {
-              matchPayload.resumeId = resumeId;
-            }
-            if (resumeVersionId) {
-              matchPayload.resume_version_id = resumeVersionId;
-            }
-            if (resumeData.name) {
-              matchPayload.resume_name = `${resumeData.name} Resume`;
-            }
-            if (resumeData.title) {
-              matchPayload.resume_title = resumeData.title;
-            }
-
-            const matchResponse = await fetch(`${apiBase}/api/matches`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(matchPayload)
-            });
-
-            if (matchResponse.ok) {
-              console.log('Match session created successfully with all data');
-            } else {
-              console.warn('Failed to create match session:', await matchResponse.text());
-            }
-          } catch (matchError) {
-            console.warn('Failed to create match session (non-critical):', matchError);
-          }
-        })();
-      }
-
-      // Refresh saved JDs list asynchronously (non-blocking)
-      setTimeout(async () => {
-        try {
-          const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`);
-          if (res.ok) {
-            const items = await res.json();
-            const list = Array.isArray(items) ? items : Array.isArray(items?.results) ? items.results : [];
-            setSavedJDs(list);
-          }
-        } catch (e) {
-          console.warn('Failed to refresh saved JDs:', e);
-        }
-      }, 500);
     } catch (error) {
       console.error('Failed to save job description:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -765,24 +782,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     }
   };
 
-  useEffect(() => {
-    const load = async () => {
-      setIsLoadingSaved(true);
-      try {
-        const res = await fetch(`${config.apiBase}/api/job-descriptions`);
-        if (res.ok) {
-          const items = await res.json();
-          const list = Array.isArray(items) ? items : Array.isArray(items?.results) ? items.results : [];
-          setSavedJDs(list);
-        } else {
-          setSavedJDs([]);
-        }
-      } catch (_) { setSavedJDs([]); }
-      setIsLoadingSaved(false);
-    };
-    load();
-  }, []);
-
   // Fetch JD info when currentJobDescriptionId changes
   useEffect(() => {
     const fetchJDInfo = async () => {
@@ -886,122 +885,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       setError(err instanceof Error ? err.message : 'Failed to analyze job match');
     } finally {
       setIsAnalyzing(false);
-    }
-  };
-
-  const parseSuggestionText = (text: string): string => {
-    if (!text) return '';
-    // Remove JSON code blocks and markers
-    let cleaned = text
-      .replace(/```json\s*/g, '')
-      .replace(/```\s*/g, '')
-      .replace(/^\[/g, '')
-      .replace(/\]$/g, '')
-      .replace(/^\{/g, '')
-      .replace(/\}$/g, '')
-      .replace(/["']category["']:\s*["']([^"']+)["']/g, '')
-      .replace(/["']suggestion["']:\s*["']([^"']+)["']/g, '$1')
-      .replace(/\\n/g, ' ')
-      .trim();
-    
-    // If it's still JSON-like, try to extract the suggestion field
-    try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed[0].suggestion || parsed[0].description || text;
-      }
-      if (typeof parsed === 'object' && parsed.suggestion) {
-        return parsed.suggestion;
-      }
-    } catch {
-      // Not JSON, use cleaned text
-    }
-    
-    // Extract text between quotes if it looks like JSON
-    const quoteMatch = cleaned.match(/["']([^"']+)["']/);
-    if (quoteMatch) {
-      return quoteMatch[1];
-    }
-    
-    return cleaned || text;
-  };
-
-  const applyImprovementsToResume = async (improvements: ImprovementSuggestion[]) => {
-    setIsApplying(true);
-    try {
-      const response = await fetch(`${config.apiBase}/api/ai/improve_ats_score`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resume_data: {
-            name: resumeData.name || '',
-            title: resumeData.title || '',
-            email: resumeData.email || '',
-            phone: resumeData.phone || '',
-            location: resumeData.location || '',
-            summary: resumeData.summary || '',
-            sections: (resumeData.sections || []).map((section: any) => ({
-              id: section.id,
-              title: section.title,
-              bullets: (section.bullets || []).map((bullet: any) => ({
-                id: bullet.id,
-                text: bullet.text,
-                params: {}
-              }))
-            }))
-          },
-          job_description: jobDescription,
-          target_role: '',
-          industry: ''
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log('Improvement result:', result);
-      
-      if (result.success && result.improved_resume) {
-        // Ensure improved_resume has the correct structure
-        const improvedResume = result.improved_resume;
-        
-        // Verify structure matches frontend expectations
-        if (!improvedResume.sections || !Array.isArray(improvedResume.sections)) {
-          console.error('Invalid improved_resume structure:', improvedResume);
-          throw new Error('Received invalid resume structure from backend');
-        }
-        
-        // Update resume data with improved resume structure
-        if (onResumeUpdate) {
-          onResumeUpdate(improvedResume);
-        }
-        
-        // Update match result to reflect applied improvements
-        if (onMatchResult && matchResult) {
-          onMatchResult({
-            ...matchResult,
-            applied_improvements: result.applied_improvements || improvements,
-            score_improvement: result.score_improvement || 0
-          });
-        }
-        
-        setShowImprovementsModal(false);
-        setPendingImprovements([]);
-        
-        const scoreMsg = result.score_improvement ? ` ATS score improved by +${result.score_improvement} points!` : '';
-        alert(`✨ Improvements applied successfully! Your resume has been updated.${scoreMsg}`);
-      } else {
-        throw new Error(result.error || 'Failed to apply improvements');
-      }
-    } catch (error) {
-      console.error('Error applying improvements:', error);
-      alert('Failed to apply improvements: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    } finally {
-      setIsApplying(false);
     }
   };
 
@@ -1120,217 +1003,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column: Saved Jobs & Job Description Input */}
+        {/* Left Column: Job Description Input */}
         <div className="space-y-4">
-          {/* Saved Jobs (Top) */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">Saved Jobs</label>
-              <button
-                onClick={async () => {
-                  setIsLoadingSaved(true);
-                  try {
-                    const res = await fetch(`${config.apiBase}/api/job-descriptions`);
-                    if (res.ok) {
-                      const items = await res.json();
-                      const list = Array.isArray(items) ? items : Array.isArray(items?.results) ? items.results : [];
-                      setSavedJDs(list);
-                    } else {
-                      setSavedJDs([]);
-                    }
-                  } catch (_) { setSavedJDs([]); }
-                  setIsLoadingSaved(false);
-                }}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                Refresh
-              </button>
-            </div>
-            {isLoadingSaved ? (
-              <div className="p-3 text-sm text-gray-500 border rounded-md">Loading…</div>
-            ) : savedJDs.length === 0 ? (
-              <div className="p-3 text-sm text-gray-500 border rounded-md">No saved job descriptions yet.</div>
-            ) : (
-              <div className="border rounded-md max-h-48 overflow-y-auto">
-                <ul className="divide-y">
-                  {savedJDs.map((jd: any) => (
-                    <li key={jd.id} className="group">
-                      <div className="flex items-center gap-2 p-3 hover:bg-gray-50">
-                      <button
-                          onClick={async () => {
-                            if (confirm(`Are you sure you want to delete "${jd.title}"?`)) {
-                              try {
-                                const deleteRes = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}?user_email=${encodeURIComponent(user?.email || '')}`, {
-                                  method: 'DELETE'
-                                });
-                                if (deleteRes.ok) {
-                                  setSavedJDs(savedJDs.filter((item: any) => item.id !== jd.id));
-                                  if (currentJobDescriptionId === jd.id) {
-                                    setJobDescription('');
-                                    setSelectedJobMetadata(null);
-                                    setMatchResult(null);
-                                    setCurrentJDInfo(null);
-                                    if (onSelectJobDescriptionId) {
-                                      onSelectJobDescriptionId(null);
-                                    }
-                                  }
-                                } else {
-                                  alert('Failed to delete job description');
-                                }
-                              } catch (error) {
-                                console.error('Error deleting job description:', error);
-                                alert('Failed to delete job description');
-                              }
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                          title="Delete job description"
-                        >
-                          ×
-                        </button>
-                        <button
-                          className="flex-1 text-left text-sm"
-                        onClick={async () => {
-                          try {
-                            const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}`);
-                            if (res.ok) {
-                              const full = await res.json();
-                              if (full && full.content) {
-                                setJobDescription(full.content);
-                                
-                                  const workType = full.work_type || extractWorkType(full.content || '', full.location || '');
-                                  const jobType = full.job_type || extractJobType(full.content || '');
-                                  
-                                  // Only show location if work_type is NOT Remote
-                                  let locationText = '';
-                                  if (workType && workType.toLowerCase() !== 'remote') {
-                                    locationText = full.location || '';
-                                  }
-                                  
-                                const metadata: JobMetadata = {
-                                  title: full.title,
-                                  company: full.company,
-                                    jobType: jobType,
-                                    remoteStatus: workType,
-                                    location: locationText,
-                                  budget: extractBudget(full.content),
-                                  keywords: extractTopKeywords(full.content),
-                                  skills: extractSkills(full.content),
-                                    soft_skills: full.soft_skills || [],
-                                    high_frequency_keywords: full.high_frequency_keywords || [],
-                                    ats_insights: full.ats_insights || {},
-                                };
-                                setSelectedJobMetadata(metadata);
-                                  
-                                  // Store Easy Apply URL and set current JD ID
-                                  console.log('📋 Loaded JD from saved list:', { 
-                                    id: jd.id, 
-                                    company: full.company, 
-                                    title: full.title, 
-                                    easy_apply_url: full.easy_apply_url 
-                                  });
-                                  setCurrentJDInfo({
-                                    company: full.company || '',
-                                    title: full.title || '',
-                                    easy_apply_url: full.easy_apply_url || ''
-                                  });
-                                  if (onSelectJobDescriptionId) onSelectJobDescriptionId(jd.id);
-                                  
-                                  // Auto-analyze match when JD is selected
-                                  if (full.content && resumeData) {
-                                    setIsAnalyzing(true);
-                                    try {
-                                      const cleanedResumeData = {
-                                        name: resumeData.name || '',
-                                        title: resumeData.title || '',
-                                        email: resumeData.email || '',
-                                        phone: resumeData.phone || '',
-                                        location: resumeData.location || '',
-                                        summary: resumeData.summary || '',
-                                        sections: resumeData.sections.map((section: any) => ({
-                                          id: section.id,
-                                          title: section.title,
-                                          bullets: section.bullets.map((bullet: any) => ({
-                                            id: bullet.id,
-                                            text: bullet.text,
-                                            params: {}
-                                          }))
-                                        }))
-                                      };
-                                      
-                                      const matchRes = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          job_description: full.content,
-                                          resume_data: cleanedResumeData
-                                        }),
-                                      });
-                                      
-                                      if (matchRes.ok) {
-                                        const matchData = await matchRes.json();
-                                        setMatchResult(matchData);
-                                        setCurrentATSScore(matchData.match_analysis?.similarity_score || null);
-                                        
-                                        // Store match result and keywords in localStorage
-                                        if (typeof window !== 'undefined') {
-                                          try {
-                                            localStorage.setItem('currentMatchResult', JSON.stringify(matchData));
-                                            const jdKeywords = {
-                                              matching: matchData.match_analysis?.matching_keywords || [],
-                                              missing: matchData.match_analysis?.missing_keywords || [],
-                                              high_frequency: metadata.high_frequency_keywords || [],
-                                              priority: (matchData as any).priority_keywords || []
-                                            };
-                                        localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
-                                        localStorage.setItem('currentJDId', String(jd.id));
-                                        localStorage.setItem('currentJDText', full.content || '');
-                                      } catch (e) {
-                                        console.error('Failed to store match result:', e);
-                                      }
-                                    }
-                                        
-                                        if (onMatchResult) {
-                                          onMatchResult(matchData);
-                                        }
-                                      }
-                                    } catch (error) {
-                                      console.error('Auto-analysis failed:', error);
-                                    } finally {
-                                      setIsAnalyzing(false);
-                                    }
-                                  }
-                                }
-                            }
-                          } catch (_) {}
-                        }}
-                      >
-                        <div className="text-sm font-semibold text-gray-800 line-clamp-1">{jd.title}</div>
-                        {jd.company && <div className="text-xs text-gray-500">{jd.company}</div>}
-                      </button>
-                        {jd.easy_apply_url && (
-                          <a
-                            href={jd.easy_apply_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="opacity-0 group-hover:opacity-100 px-2 py-1 bg-[#0077b5] text-white text-xs font-semibold rounded hover:bg-[#006399] transition-all flex items-center gap-1"
-                            title="Easy Apply on LinkedIn"
-                          >
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                            </svg>
-                            Apply
-                          </a>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
           {/* Analyze Button */}
           <div>
             {(!currentJobDescriptionId || !matchResult) && (
@@ -1344,9 +1018,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             </button>
             {!jobDescription.trim() && (
               <p className="text-sm text-gray-500 mt-2 text-center">
-                Select a saved job description to analyze
+                Paste or scan a job description above to analyze the match
               </p>
-                )}
+            )}
               </>
             )}
           </div>
@@ -1730,37 +1404,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             </div>
           )}
 
-          {/* Improvement Suggestions */}
-          {matchResult.improvement_suggestions.length > 0 && (
-            <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                💡 Improvement Suggestions
-              </h4>
-              <div className="space-y-3">
-                {matchResult.improvement_suggestions.map((suggestion, index) => {
-                  const cleanedSuggestion = parseSuggestionText(suggestion.suggestion);
-                  return (
-                    <div key={index} className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
-                              {suggestion.category || 'General'}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-800 leading-relaxed">{cleanedSuggestion}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
               {/* Technical Skills Analysis */}
               <div className="grid grid-cols-1 gap-4">
                 {matchResult.match_analysis.technical_matches.length > 0 && (
@@ -1934,45 +1577,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 )}
               </div>
 
-              {/* Improve Resume & Save Buttons */}
-              <div className="pt-4 border-t border-gray-200 space-y-3">
-            <button
-              onClick={async () => {
-                if (!jobDescription.trim()) {
-                  alert('Please enter a job description first');
-                  return;
-                }
-                setIsApplying(true);
-                try {
-                  await applyImprovementsToResume(matchResult.improvement_suggestions || []);
-                } catch (error) {
-                  console.error('Failed to improve resume:', error);
-                  alert('Failed to improve resume. Please try again.');
-                } finally {
-                  setIsApplying(false);
-                }
-              }}
-              disabled={isApplying || !jobDescription.trim()}
-              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center space-x-2"
-            >
-              {isApplying ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>Generating Improvements...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  <span>Improve My Resume for This Job</span>
-                </>
-              )}
-            </button>
-            
+          {/* Save Button */}
+          <div className="pt-4 border-t border-gray-200 space-y-3">
             {matchResult && currentJobDescriptionId && (
               <button
                 onClick={() => {
@@ -2995,72 +2601,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         </div>
       )}
 
-      {/* Improvement Suggestions Modal */}
-      {showImprovementsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowImprovementsModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-purple-600 to-blue-600">
-              <h2 className="text-2xl font-bold text-white">✨ AI Improvement Suggestions</h2>
-              <button
-                onClick={() => setShowImprovementsModal(false)}
-                className="text-white hover:text-gray-200 text-2xl font-bold"
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-              <p className="text-gray-600 mb-4">Review the AI-powered improvements below. Click "Apply All Improvements" to update your resume.</p>
-              
-              <div className="space-y-4">
-                {pendingImprovements.map((imp, index) => (
-                  <div key={index} className="bg-gradient-to-r from-purple-50 to-blue-50 border-l-4 border-purple-500 rounded-lg p-4 shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
-                            {imp.category}
-                          </span>
-                        </div>
-                        <p className="text-gray-800 leading-relaxed">{imp.suggestion}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={() => setShowImprovementsModal(false)}
-                className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => applyImprovementsToResume(pendingImprovements)}
-                disabled={isApplying}
-                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
-              >
-                {isApplying ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Applying...
-                  </span>
-                ) : (
-                  'Apply All Improvements'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
