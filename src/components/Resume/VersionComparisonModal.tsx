@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { versionControlService, VersionComparison } from '@/lib/services/versionControl'
-import PreviewPanel from '@/components/editor/PreviewPanel'
+import PreviewPanel from '@/components/Resume/PreviewPanel'
 
 interface VersionComparisonModalProps {
   isOpen: boolean

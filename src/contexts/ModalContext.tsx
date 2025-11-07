@@ -1,7 +1,7 @@
 'use client'
 import React, { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react'
-import AlertModal from '@/components/ui/AlertModal'
-import ConfirmModal from '@/components/ui/ConfirmModal'
+import AlertModal from '@/components/Shared/AlertModal'
+import ConfirmModal from '@/components/Shared/ConfirmModal'
 import { setModalContext } from '@/lib/modals'
 
 interface AlertOptions {

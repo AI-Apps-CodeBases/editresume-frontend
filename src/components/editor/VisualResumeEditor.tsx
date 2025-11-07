@@ -1,10 +1,10 @@
 'use client'
 import React, { useState, useRef, useEffect } from 'react'
 import config from '@/lib/config';
-import InlineGrammarChecker from './InlineGrammarChecker'
+import InlineGrammarChecker from '@/components/AI/InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
-import AIWorkExperience from './AIWorkExperience'
-import AISectionAssistant from './AISectionAssistant'
+import AIWorkExperience from '@/components/AI/AIWorkExperience'
+import AISectionAssistant from '@/components/AI/AISectionAssistant'
 import Comments from './Comments'
 import { useSettings } from '@/contexts/SettingsContext'
 import {

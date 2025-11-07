@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import PreviewPanel from '@/components/editor/PreviewPanel'
-import SharedResumeComments from '@/components/editor/SharedResumeComments'
+import PreviewPanel from '@/components/Resume/PreviewPanel'
+import SharedResumeComments from '@/components/Resume/SharedResumeComments'
 import { sharedResumeService, SharedResumeData } from '@/lib/services/sharedResume'
 
 export default function SharedResumePage() {

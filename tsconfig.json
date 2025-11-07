@@ -25,6 +25,30 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@/components/Editor/*": [
+        "./src/components/Editor/*"
+      ],
+      "@/components/editor/*": [
+        "./src/components/Editor/*"
+      ],
+      "@/components/AI/*": [
+        "./src/components/AI/*"
+      ],
+      "@/components/ai/*": [
+        "./src/components/AI/*"
+      ],
+      "@/components/Shared/*": [
+        "./src/components/Shared/*"
+      ],
+      "@/components/shared/*": [
+        "./src/components/Shared/*"
+      ],
+      "@/components/Resume/*": [
+        "./src/components/Resume/*"
+      ],
+      "@/components/resume/*": [
+        "./src/components/Resume/*"
       ]
     }
   },
