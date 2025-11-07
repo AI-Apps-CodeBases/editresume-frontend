@@ -53,6 +53,118 @@ interface ResumeData {
   twitter?: string
 }
 
+interface ContactFieldDefinition {
+  label: string
+  icon: string
+  field: string
+}
+
+const CONTACT_FIELDS: Record<string, ContactFieldDefinition> = {
+  email: { label: '📧 email', icon: '📧', field: 'email' },
+  phone: { label: '📱 phone', icon: '📱', field: 'phone' },
+  location: { label: '📍 location', icon: '📍', field: 'location' },
+  linkedin: { label: '💼 LinkedIn', icon: '💼', field: 'linkedin' },
+  website: { label: '🌐 website', icon: '🌐', field: 'website' },
+  github: { label: '🐙 GitHub', icon: '🐙', field: 'github' },
+  portfolio: { label: '🧩 portfolio', icon: '🧩', field: 'portfolio' },
+  twitter: { label: '🐦 twitter', icon: '🐦', field: 'twitter' },
+}
+
+interface SortableContactFieldProps {
+  fieldKey: string
+  data: ResumeData
+  onChange: (data: ResumeData) => void
+  customContactFields: Array<{ id: string; label: string; field: string }>
+  removeCustomContactField: (fieldId: string) => void
+}
+
+const SortableContactFieldItem = ({
+  fieldKey,
+  data,
+  onChange,
+  customContactFields,
+  removeCustomContactField,
+}: SortableContactFieldProps) => {
+  const baseField = CONTACT_FIELDS[fieldKey] ?? {
+    label: fieldKey,
+    icon: '📎',
+    field: fieldKey,
+  }
+
+  const customField = customContactFields.find((field) => field.field === fieldKey)
+  const fieldConfig = customField
+    ? { label: customField.label, icon: '📎', field: customField.field }
+    : baseField
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: fieldKey })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const fieldsVisible = { ...(data as any).fieldsVisible }
+
+  const handleVisibilityChange = (checked: boolean) => {
+    const updatedFields = { ...fieldsVisible, [fieldConfig.field]: checked }
+    onChange({ ...data, fieldsVisible: updatedFields })
+  }
+
+  const handleContentBlur = (value: string) => {
+    if (fieldConfig.field === 'email') {
+      onChange({ ...data, email: value })
+    } else if (fieldConfig.field === 'phone') {
+      onChange({ ...data, phone: value })
+    } else if (fieldConfig.field === 'location') {
+      onChange({ ...data, location: value })
+    } else {
+      onChange({ ...data, [fieldConfig.field]: value } as any)
+    }
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={(data as any).fieldsVisible?.[fieldConfig.field] !== false}
+        onChange={(e) => handleVisibilityChange(e.target.checked)}
+        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+        title={`Toggle ${fieldConfig.field} visibility in preview`}
+      />
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-move hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
+        title="Drag to reorder"
+      >
+        <span className="text-gray-400">⠿</span>
+      </div>
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        data-editable-type="field"
+        data-field={fieldConfig.field}
+        onBlur={(e) => handleContentBlur(e.currentTarget.textContent || '')}
+        className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+          (data as any).fieldsVisible?.[fieldConfig.field] === false ? 'text-gray-400 line-through' : ''
+        }`}
+      >
+        {(data as any)[fieldConfig.field] || fieldConfig.label}
+      </div>
+      {customField && (
+        <button
+          onClick={() => removeCustomContactField(customField.id)}
+          className="px-1 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+          title="Remove this field"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+}
+
 const normalizeId = (id: string | number | null | undefined) =>
   id === null || id === undefined ? '' : id.toString()
 
@@ -294,94 +406,6 @@ export default function VisualResumeEditor({
         return arrayMove(items, oldIndex, newIndex);
       });
     }
-  };
-  
-  
-  // Sortable contact field item component
-  const SortableContactField = ({ fieldKey }: { fieldKey: string }) => {
-    const field = contactFields[fieldKey as keyof typeof contactFields];
-    const customField = customContactFields.find(f => f.field === fieldKey);
-    
-    // Use custom field if available, otherwise use predefined field
-    const fieldConfig = customField 
-      ? { label: customField.label, icon: '📎', field: customField.field }
-      : field;
-    
-    if (!fieldConfig) return null;
-    
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id: fieldKey });
-    
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-    };
-    
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="flex items-center gap-2"
-      >
-        <input
-          type="checkbox"
-          checked={(data as any).fieldsVisible?.[fieldConfig.field] !== false}
-          onChange={(e) => {
-            const fieldsVisible = { ...(data as any).fieldsVisible, [fieldConfig.field]: e.target.checked };
-            onChange({ ...data, fieldsVisible });
-          }}
-          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-          title={`Toggle ${fieldConfig.field} visibility in preview`}
-        />
-        <div
-          {...attributes}
-          {...listeners}
-          className="cursor-move hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
-          title="Drag to reorder"
-        >
-          <span className="text-gray-400">⠿</span>
-        </div>
-        <div
-          contentEditable
-          suppressContentEditableWarning
-          data-editable-type="field"
-          data-field={fieldConfig.field}
-          onBlur={(e) => {
-            const value = e.currentTarget.textContent || '';
-            if (fieldConfig.field === 'email') {
-              onChange({ ...data, email: value });
-            } else if (fieldConfig.field === 'phone') {
-              onChange({ ...data, phone: value });
-            } else if (fieldConfig.field === 'location') {
-              onChange({ ...data, location: value });
-            } else {
-              onChange({ ...data, [fieldConfig.field]: value } as any);
-            }
-          }}
-          className={`outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-            (data as any).fieldsVisible?.[fieldConfig.field] === false ? 'text-gray-400 line-through' : ''
-          }`}
-        >
-          {(data as any)[fieldConfig.field] || fieldConfig.label}
-        </div>
-        {customField && (
-          <button
-            onClick={() => removeCustomContactField(customField.id)}
-            className="px-1 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
-            title="Remove this field"
-          >
-            ✕
-          </button>
-        )}
-      </div>
-    );
   };
   
   // Load JD keywords from localStorage
@@ -1514,7 +1538,13 @@ export default function VisualResumeEditor({
                       {contactFieldOrder.map((fieldKey, index) => (
                         <React.Fragment key={fieldKey}>
                           {index > 0 && <span className="text-gray-400">•</span>}
-                          <SortableContactField fieldKey={fieldKey} />
+                          <SortableContactFieldItem
+                            fieldKey={fieldKey}
+                            data={data}
+                            onChange={onChange}
+                            customContactFields={customContactFields}
+                            removeCustomContactField={removeCustomContactField}
+                          />
                         </React.Fragment>
                       ))}
                     </div>
@@ -2495,7 +2525,6 @@ export default function VisualResumeEditor({
                       setAiImproveContext(null);
                       setSelectedMissingKeywords(new Set());
                       setGeneratedBulletOptions([]);
-                      setSelectedBullets(new Set());
                     }}
                     className="text-white hover:text-gray-200 text-2xl font-bold"
                   >
