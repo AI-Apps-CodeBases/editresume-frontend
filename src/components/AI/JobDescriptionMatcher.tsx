@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import config from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -206,6 +206,14 @@ const buildKeywordFrequencyMap = (items: string[]): Record<string, number> => {
   }, {} as Record<string, number>);
 };
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const prettifyKeyword = (keyword: string) => {
+  const trimmed = keyword.trim();
+  if (!trimmed) return '';
+  if (trimmed.length <= 3) return trimmed.toUpperCase();
+  return trimmed.replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 interface JobMetadata {
   title?: string;
   company?: string;
@@ -242,7 +250,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [previousATSScore, setPreviousATSScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
 
-  const buildPrecomputedKeywordPayload = () => {
+  const buildPrecomputedKeywordPayload = useCallback(() => {
     if (!jobDescription?.trim()) return null;
 
     const baseKeywords = selectedJobMetadata?.keywords && selectedJobMetadata.keywords.length > 0
@@ -311,7 +319,78 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       highFrequencyKeywords,
       atsInsights
     };
-  };
+  }, [jobDescription, selectedJobMetadata]);
+
+  const estimatedATS = useMemo(() => {
+    if (!resumeData) return null;
+    const keywordBundle = buildPrecomputedKeywordPayload();
+    if (!keywordBundle) return null;
+
+    const keywordSet = new Set<string>();
+    const addKeyword = (value: string) => {
+      if (value && value.trim()) {
+        keywordSet.add(value.trim().toLowerCase());
+      }
+    };
+
+    keywordBundle.extractedKeywordsPayload.general_keywords.forEach(addKeyword);
+    keywordBundle.extractedKeywordsPayload.technical_keywords.forEach(addKeyword);
+    keywordBundle.highFrequencyKeywords.forEach((item) => addKeyword(item.keyword));
+    if (keywordBundle.atsInsights) {
+      keywordBundle.atsInsights.action_verbs?.forEach(addKeyword);
+      keywordBundle.atsInsights.metrics?.forEach(addKeyword);
+      keywordBundle.atsInsights.industry_terms?.forEach(addKeyword);
+    }
+
+    const totalKeywords = keywordSet.size;
+    if (totalKeywords === 0) {
+      return null;
+    }
+
+    const resumeFragments: string[] = [];
+    const appendText = (value?: string) => {
+      if (value && value.trim()) {
+        resumeFragments.push(value.toLowerCase());
+      }
+    };
+
+    appendText(resumeData.title);
+    appendText(resumeData.summary);
+    if (resumeData.sections && Array.isArray(resumeData.sections)) {
+      resumeData.sections.forEach((section: any) => {
+        appendText(section.title);
+        if (section.bullets && Array.isArray(section.bullets)) {
+          section.bullets.forEach((bullet: any) => appendText(bullet?.text));
+        }
+      });
+    }
+
+    const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+    if (!resumeText) {
+      return null;
+    }
+
+    const matchedKeywords: string[] = [];
+    const missingKeywords: string[] = [];
+
+    keywordSet.forEach((keyword) => {
+      const pattern = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i');
+      if (pattern.test(resumeText)) {
+        matchedKeywords.push(keyword);
+      } else {
+        missingKeywords.push(keyword);
+      }
+    });
+
+    const score = Math.round((matchedKeywords.length / totalKeywords) * 100);
+
+    return {
+      score,
+      matchedKeywords,
+      missingKeywords,
+      totalKeywords,
+    };
+  }, [resumeData, buildPrecomputedKeywordPayload]);
 
   // Function to recalculate ATS score
   const recalculateATSScore = useCallback(async (resumeDataToUse: any, showLoading = true) => {
@@ -412,12 +491,95 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     return null;
   }, [jobDescription, currentJobDescriptionId, selectedJobMetadata, onMatchResult]);
 
+  const computeResumeSignature = useCallback((resume: any) => {
+    if (!resume) return '';
+
+    return JSON.stringify({
+      name: resume.name || '',
+      title: resume.title || '',
+      summary: resume.summary || '',
+      sections: (resume.sections || []).map((section: any) => ({
+        id: section.id,
+        title: section.title,
+        bullets: (section.bullets || []).map((bullet: any) => (bullet.text || '').trim())
+      }))
+    });
+  }, []);
+
+  const resumeChangeTimerRef = useRef<number | null>(null);
+  const lastCommittedResumeHashRef = useRef<string | null>(computeResumeSignature(resumeData));
+  const pendingResumeHashRef = useRef<string | null>(null);
+  const [isATSUpdatePending, setIsATSUpdatePending] = useState(false);
+
+  // Auto-update ATS score when resume data changes (only if JD is selected)
+  useEffect(() => {
+    if (!jobDescription || !currentJobDescriptionId || !resumeData) {
+      pendingResumeHashRef.current = null;
+      setIsATSUpdatePending(false);
+      return;
+    }
+
+    const signature = computeResumeSignature(resumeData);
+
+    if (signature === lastCommittedResumeHashRef.current) {
+      setIsATSUpdatePending(false);
+      return;
+    }
+
+    if (pendingResumeHashRef.current === signature) {
+      return;
+    }
+
+    if (resumeChangeTimerRef.current) {
+      clearTimeout(resumeChangeTimerRef.current);
+      resumeChangeTimerRef.current = null;
+    }
+
+    setIsATSUpdatePending(true);
+    pendingResumeHashRef.current = signature;
+
+    let isActive = true;
+    const timeoutId = window.setTimeout(async () => {
+      if (!isActive) {
+        return;
+      }
+
+      pendingResumeHashRef.current = null;
+      const result = await recalculateATSScore(resumeData, true);
+      if (!isActive) {
+        return;
+      }
+
+      if (result !== null) {
+        lastCommittedResumeHashRef.current = signature;
+      }
+
+      setIsATSUpdatePending(false);
+    }, 2500);
+
+    resumeChangeTimerRef.current = timeoutId;
+
+    return () => {
+      isActive = false;
+      if (resumeChangeTimerRef.current === timeoutId) {
+        clearTimeout(timeoutId);
+        resumeChangeTimerRef.current = null;
+        setIsATSUpdatePending(false);
+      }
+    };
+  }, [resumeData, jobDescription, currentJobDescriptionId, computeResumeSignature, recalculateATSScore]);
+
   // Listen for resume data updates from AI improve
   useEffect(() => {
     const handleResumeDataUpdate = (event: CustomEvent) => {
       if (event.detail?.resumeData && jobDescription && currentJobDescriptionId) {
-        // Immediately recalculate ATS score when bullets are added
-        recalculateATSScore(event.detail.resumeData, true);
+        setIsATSUpdatePending(true);
+        recalculateATSScore(event.detail.resumeData, true).then((result) => {
+          if (result !== null) {
+            lastCommittedResumeHashRef.current = computeResumeSignature(event.detail.resumeData);
+          }
+          setIsATSUpdatePending(false);
+        });
       }
     };
 
@@ -427,18 +589,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         window.removeEventListener('resumeDataUpdated', handleResumeDataUpdate as EventListener);
       };
     }
-  }, [jobDescription, currentJobDescriptionId, recalculateATSScore]);
+  }, [jobDescription, currentJobDescriptionId, recalculateATSScore, computeResumeSignature]);
 
-  // Auto-update ATS score when resume data changes (only if JD is selected)
   useEffect(() => {
-    if (jobDescription && currentJobDescriptionId && resumeData) {
-      const debounceTimer = setTimeout(() => {
-        recalculateATSScore(resumeData, true);
-      }, 800); // Debounce for 800ms
-      
-      return () => clearTimeout(debounceTimer);
-    }
-  }, [JSON.stringify(resumeData.sections), resumeData.summary, resumeData.name, resumeData.title, resumeData.email, resumeData.phone, resumeData.location, jobDescription, currentJobDescriptionId, recalculateATSScore]);
+    lastCommittedResumeHashRef.current = null;
+  }, [jobDescription, currentJobDescriptionId]);
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
   const [showBulletGenerator, setShowBulletGenerator] = useState(false);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
@@ -1256,7 +1411,34 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   Updating...
                 </span>
               )}
+              {!isAnalyzing && isATSUpdatePending && (
+                <span className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                  <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"></circle>
+                    <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M12 7v4.2l2.1 2.1" />
+                  </svg>
+                  Pending changes…
+                </span>
+              )}
             </div>
+            {estimatedATS && (
+              <div className="mb-2 text-xs text-gray-500 text-right">
+                Estimated ATS: <span className="font-semibold text-gray-700">{estimatedATS.score}%</span>
+                {' '}• matches {estimatedATS.matchedKeywords.length}/{estimatedATS.totalKeywords}
+                {estimatedATS.missingKeywords.length > 0 && (
+                  <>
+                    {' '}• missing:{' '}
+                    {estimatedATS.missingKeywords.slice(0, 3).map((keyword, idx) => (
+                      <span key={keyword}>
+                        {idx > 0 ? ', ' : ''}
+                        {prettifyKeyword(keyword)}
+                      </span>
+                    ))}
+                    {estimatedATS.missingKeywords.length > 3 ? '…' : ''}
+                  </>
+                )}
+              </div>
+            )}
             <div className="flex items-center justify-center">
                 <div className="relative inline-block">
                 <svg viewBox="0 0 36 36" className="w-32 h-32">
@@ -1624,7 +1806,43 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             )}
           </div>
                 </div>
-              ) : null}
+              ) : (
+                estimatedATS ? (
+                  <div className="bg-gradient-to-br from-slate-50 to-indigo-50 rounded-lg p-6 border-2 border-dashed border-indigo-200 text-left">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <span>⚡</span> Estimated ATS Score
+                      </h4>
+                      {isATSUpdatePending && (
+                        <span className="text-xs font-semibold text-gray-500 uppercase">Pending sync</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <div className="text-4xl font-bold text-indigo-600">{estimatedATS.score}%</div>
+                        <div className="text-xs text-gray-500">
+                          Matching {estimatedATS.matchedKeywords.length} of {estimatedATS.totalKeywords} key terms locally.
+                        </div>
+                      </div>
+                      {estimatedATS.missingKeywords.length > 0 && (
+                        <div className="text-xs text-gray-600 bg-white/70 px-3 py-2 rounded-lg border border-indigo-100">
+                          <span className="font-semibold text-gray-700">Top gaps:</span>{' '}
+                          {estimatedATS.missingKeywords.slice(0, 5).map((keyword, idx) => (
+                            <span key={keyword}>
+                              {idx > 0 ? ', ' : ''}
+                              {prettifyKeyword(keyword)}
+                            </span>
+                          ))}
+                          {estimatedATS.missingKeywords.length > 5 ? '…' : ''}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3">
+                      This estimate updates instantly as you edit. Click “Analyze Match” to run the full AI comparison.
+                    </p>
+                  </div>
+                ) : null
+              )}
             </div>
           ) : (
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 rounded-lg p-8 text-center border-2 border-dashed border-gray-300">
