@@ -1,0 +1,85 @@
+"""Centralised application configuration.
+
+This module exposes a Pydantic-based settings object that consolidates
+environment variable parsing and provides sensible defaults. Importing
+``settings`` anywhere in the codebase ensures consistent configuration
+usage across the app without scattering ``os.getenv`` calls.
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import List, Optional
+
+from pydantic import BaseSettings, Field, validator
+
+
+class Settings(BaseSettings):
+    """Application-wide configuration loaded from environment variables."""
+
+    app_name: str = Field(default="editresume.io API", env="APP_NAME")
+    environment: str = Field(default="development", env="ENVIRONMENT")
+    version: str = Field(default="0.1.0", env="APP_VERSION")
+
+    premium_mode: bool = Field(default=False, env="PREMIUM_MODE")
+
+    openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", env="OPENAI_MODEL")
+    openai_max_tokens: int = Field(default=2000, env="OPENAI_MAX_TOKENS")
+
+    database_url: Optional[str] = Field(default=None, env="DATABASE_URL")
+
+    additional_cors_origins: List[str] = Field(default_factory=list, env="ADDITIONAL_CORS_ORIGINS")
+
+    class Config:
+        case_sensitive = False
+        env_file = ".env",
+
+    @validator("additional_cors_origins", pre=True)
+    def split_cors_origins(cls, value: str | List[str]):  # noqa: D401, N805
+        """Split comma-separated origins into a list."""
+        if not value:
+            return []
+        if isinstance(value, list):
+            return value
+        return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+    @property
+    def base_allowed_origins(self) -> List[str]:
+        """Default CORS origins for the application."""
+        return [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "https://staging.editresume.io",
+            "https://editresume.io",
+            "https://www.editresume.io",
+            "https://editresume-staging.onrender.com",
+            "https://editresume-staging-d4ang4wye-hasans-projects-d7f2163d.vercel.app",
+            "https://editresume-staging-git-fixuploadissue-hasans-projects-d7f2163d.vercel.app",
+        ]
+
+    @property
+    def allowed_origins(self) -> List[str]:
+        """Union of default and environment-provided CORS origins."""
+        merged = [str(origin) for origin in self.base_allowed_origins]
+        merged.extend(self.additional_cors_origins)
+        # Remove duplicates while preserving order
+        seen: set[str] = set()
+        unique: List[str] = []
+        for origin in merged:
+            if origin not in seen:
+                unique.append(origin)
+                seen.add(origin)
+        return unique
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return a cached Settings instance."""
+
+    return Settings()
+
+
+settings = get_settings()
+
+
