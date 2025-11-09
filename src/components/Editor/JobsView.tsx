@@ -24,11 +24,30 @@ interface JobDescription {
   company?: string
   source?: string
   url?: string
+  location?: string
+  work_type?: string
+  job_type?: string
+  content?: string
   max_salary?: number
   status?: string
   follow_up_date?: string
   important_emoji?: string
   created_at?: string
+  extracted_keywords?: any
+  priority_keywords?: any
+  high_frequency_keywords?: any
+  ats_insights?: {
+    score_snapshot?: {
+      overall_score?: number
+      keyword_coverage?: number
+      estimated_keyword_score?: number
+      matched_keywords_count?: number
+      total_keywords?: number
+      missing_keywords_sample?: string[]
+      analysis_summary?: string
+    } | null
+    [key: string]: unknown
+  } | null
   best_resume_version?: JobResumeSummary | null
   resume_versions?: JobResumeSummary[]
 }
