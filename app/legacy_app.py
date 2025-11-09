@@ -1039,6 +1039,41 @@ async def generate_summary_from_experience(payload: dict):
         job_description = payload.get('job_description', '') or ''
         existing_summary = payload.get('existing_summary', '') or ''
 
+        work_experience_sections = []
+        skills_entries = []
+        fallback_bullets = []
+
+        for section in sections or []:
+            section_title = str(section.get('title') or '').strip()
+            bullets = section.get('bullets') or []
+            bullet_texts = []
+
+            for bullet in bullets:
+                text = str(bullet.get('text') or '').strip()
+                if not text:
+                    continue
+                cleaned = text.lstrip('-•*').strip()
+                if cleaned:
+                    bullet_texts.append(cleaned)
+
+            if not bullet_texts:
+                continue
+
+            fallback_bullets.extend(bullet_texts)
+
+            title_lower = section_title.lower()
+            if any(keyword in title_lower for keyword in ['experience', 'employment', 'career', 'history']):
+                work_experience_sections.append(
+                    f"{section_title or 'Experience'}:\n- " + "\n- ".join(bullet_texts[:8])
+                )
+            if any(keyword in title_lower for keyword in ['skill', 'competenc', 'strength', 'expertise', 'technology', 'technolog', 'tool']):
+                skills_entries.extend(bullet_texts)
+
+        if work_experience_sections:
+            work_experience_text = "\n\n".join(work_experience_sections[:4])
+        else:
+            work_experience_text = "- " + "\n- ".join(fallback_bullets[:12]) if fallback_bullets else ''
+
         def normalize_keywords(values):
             normalized = []
             if not values:
@@ -1093,6 +1128,9 @@ async def generate_summary_from_experience(payload: dict):
         job_description_excerpt = job_description.strip()
         if len(job_description_excerpt) > 2000:
             job_description_excerpt = job_description_excerpt[:2000] + "..."
+
+        skills_source = skills_entries or combined_keywords
+        skills_text = "- " + "\n- ".join(skills_source[:20]) if skills_source else ''
 
         context = f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
 
