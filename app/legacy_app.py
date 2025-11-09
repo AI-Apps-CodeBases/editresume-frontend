@@ -1036,28 +1036,64 @@ async def generate_summary_from_experience(payload: dict):
         name = payload.get('name', 'Professional')
         title = payload.get('title', '')
         sections = payload.get('sections', [])
-        
-        # Extract work experience
-        work_experience_text = ""
-        skills_text = ""
-        
-        for section in sections:
-            section_title = section.get('title', '').lower()
-            bullets = section.get('bullets', [])
-            
-            if 'experience' in section_title or 'work' in section_title or 'employment' in section_title:
-                work_experience_text += f"\n{section.get('title')}:\n"
-                for bullet in bullets:
-                    bullet_text = bullet.get('text', '') if isinstance(bullet, dict) else str(bullet)
-                    if bullet_text.strip():
-                        work_experience_text += f"  {bullet_text}\n"
-            
-            if 'skill' in section_title:
-                for bullet in bullets:
-                    bullet_text = bullet.get('text', '') if isinstance(bullet, dict) else str(bullet)
-                    if bullet_text.strip():
-                        skills_text += f"{bullet_text}, "
-        
+        job_description = payload.get('job_description', '') or ''
+        existing_summary = payload.get('existing_summary', '') or ''
+
+        def normalize_keywords(values):
+            normalized = []
+            if not values:
+                return normalized
+            for value in values:
+                keyword = ''
+                if isinstance(value, str):
+                    keyword = value.strip()
+                elif isinstance(value, dict):
+                    keyword = str(value.get('keyword', '')).strip()
+                else:
+                    keyword = str(value).strip()
+                if keyword:
+                    normalized.append(keyword)
+            return normalized
+
+        priority_keywords = normalize_keywords(payload.get('priority_keywords', []))
+        missing_keywords = normalize_keywords(payload.get('missing_keywords', []))
+        high_frequency_keywords = normalize_keywords(payload.get('high_frequency_keywords', []))
+        matching_keywords = normalize_keywords(payload.get('matching_keywords', []))
+        target_keywords = normalize_keywords(payload.get('target_keywords', []))
+
+        combined_keywords = []
+        seen_keywords = set()
+
+        def append_keywords(sequence):
+            for keyword in sequence:
+                lower = keyword.lower()
+                if lower in seen_keywords:
+                    continue
+                seen_keywords.add(lower)
+                combined_keywords.append(keyword)
+
+        append_keywords(target_keywords)
+        append_keywords(priority_keywords)
+        append_keywords(missing_keywords)
+        append_keywords(high_frequency_keywords)
+        append_keywords(matching_keywords)
+
+        keyword_sections = []
+        if priority_keywords:
+            keyword_sections.append("Priority Keywords (must appear naturally):\n- " + "\n- ".join(priority_keywords))
+        if missing_keywords:
+            keyword_sections.append("Missing JD Keywords to add:\n- " + "\n- ".join(missing_keywords))
+        if high_frequency_keywords:
+            keyword_sections.append("High-Frequency JD Keywords:\n- " + "\n- ".join(high_frequency_keywords[:12]))
+        if matching_keywords:
+            keyword_sections.append("Resume Keywords to keep strength on:\n- " + "\n- ".join(matching_keywords[:12]))
+
+        keyword_guidance = "\n\n".join(keyword_sections) if keyword_sections else "No additional keyword guidance provided."
+
+        job_description_excerpt = job_description.strip()
+        if len(job_description_excerpt) > 2000:
+            job_description_excerpt = job_description_excerpt[:2000] + "..."
+
         context = f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
 
 Professional Title: {title if title else 'Not specified'}
@@ -1067,6 +1103,15 @@ Work Experience:
 
 Skills:
 {skills_text if skills_text else 'To be extracted from experience'}
+
+ Target Job Description Keywords (blend these naturally into the narrative):
+{keyword_guidance}
+
+ Job Description Snapshot (for context):
+{job_description_excerpt if job_description_excerpt else 'Not provided'}
+
+ Existing Summary (for reference only – produce a new, improved summary):
+{existing_summary if existing_summary else 'No existing summary provided'}
 
 Requirements for the Professional Summary:
 1. Length: 6-7 sentences (approximately 100-120 words)
@@ -1082,6 +1127,8 @@ Requirements for the Professional Summary:
 7. Third-person perspective (avoid "I")
 8. Focus on impact and results
 9. Include industry-specific keywords for ATS systems
+10. Prioritize incorporating the provided priority and missing JD keywords verbatim when it fits naturally
+11. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
 
 Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""
 
@@ -1092,10 +1139,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
         
         data = {
             "model": openai_client['model'],
-            "messages": [
-                {"role": "system", "content": "You are an expert resume writer specializing in ATS-optimized professional summaries. You analyze work experience to create compelling, keyword-rich summaries that pass ATS systems and impress recruiters."},
-                {"role": "user", "content": context}
-            ],
+            "messages": [{"role": "user", "content": context}],
             "max_tokens": 500,
             "temperature": 0.7
         }
@@ -1120,11 +1164,19 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
         
         logger.info(f"Generated summary: {len(summary)} characters")
         
+        keywords_incorporated = []
+        summary_lower = summary.lower()
+        for keyword in combined_keywords:
+            if keyword.lower() in summary_lower:
+                keywords_incorporated.append(keyword)
+
         return {
             "success": True,
             "summary": summary,
             "tokens_used": result.get('usage', {}).get('total_tokens', 0),
-            "word_count": len(summary.split())
+            "word_count": len(summary.split()),
+            "keywords_incorporated": keywords_incorporated,
+            "requested_keywords": combined_keywords
         }
     except Exception as e:
         logger.error(f"OpenAI generate summary from experience error: {str(e)}")
