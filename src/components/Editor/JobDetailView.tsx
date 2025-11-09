@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
+import UploadResume from './UploadResume'
 
 interface JobResumeSummary {
   id: number
@@ -85,6 +86,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const [editingLetterId, setEditingLetterId] = useState<number | null>(null)
   const [editingLetterTitle, setEditingLetterTitle] = useState('')
   const [editingLetterContent, setEditingLetterContent] = useState('')
+  const [showUploadResumeModal, setShowUploadResumeModal] = useState(false)
 
   useEffect(() => {
     if (jobId && isAuthenticated && user?.email) {
@@ -261,6 +263,38 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
+  const handleUploadResumeForMatch = useCallback((data: any) => {
+    if (!job) {
+      return
+    }
+
+    const normalizedResume = {
+      name: data?.name || '',
+      title: data?.title || '',
+      email: data?.email || '',
+      phone: data?.phone || '',
+      location: data?.location || '',
+      summary: data?.summary || '',
+      sections: Array.isArray(data?.sections) ? data.sections : []
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('resumeData', JSON.stringify(normalizedResume))
+        window.localStorage.setItem('selectedTemplate', 'tech')
+        window.localStorage.setItem('activeJobDescriptionId', String(job.id))
+        if (job.content) {
+          window.localStorage.setItem('deepLinkedJD', job.content)
+        }
+      } catch (err) {
+        console.error('Failed to cache uploaded resume for matching:', err)
+      }
+
+      setShowUploadResumeModal(false)
+      window.location.href = `/editor?jdId=${job.id}`
+    }
+  }, [job])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
@@ -291,6 +325,68 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
   const bestMatch: JobResumeSummary | null = job.best_resume_version
     || (job.resume_versions && job.resume_versions.length > 0 ? job.resume_versions[0] : null)
+
+  const scoreSnapshot =
+    job.ats_insights && typeof job.ats_insights === 'object'
+      ? (job.ats_insights as any).score_snapshot ?? null
+      : null
+
+  const overallScore =
+    (bestMatch?.score ?? null) !== null
+      ? bestMatch?.score ?? null
+      : (typeof scoreSnapshot?.overall_score === 'number' ? scoreSnapshot.overall_score : null)
+
+  const keywordCoverageSnapshot =
+    typeof scoreSnapshot?.keyword_coverage === 'number' ? scoreSnapshot.keyword_coverage : null
+
+  const estimatedKeywordScore =
+    typeof scoreSnapshot?.estimated_keyword_score === 'number'
+      ? scoreSnapshot.estimated_keyword_score
+      : null
+
+  const matchedKeywordsCount =
+    typeof scoreSnapshot?.matched_keywords_count === 'number'
+      ? scoreSnapshot.matched_keywords_count
+      : Array.isArray(bestMatch?.matched_keywords)
+        ? bestMatch.matched_keywords.length
+        : null
+
+  const totalKeywordsCount =
+    typeof scoreSnapshot?.total_keywords === 'number'
+      ? scoreSnapshot.total_keywords
+      : matchedKeywordsCount !== null
+        ? matchedKeywordsCount +
+          (Array.isArray(bestMatch?.missing_keywords) ? bestMatch.missing_keywords.length : 0)
+        : null
+
+  const missingKeywordsSample: string[] =
+    Array.isArray(scoreSnapshot?.missing_keywords_sample)
+      ? scoreSnapshot.missing_keywords_sample
+      : Array.isArray(bestMatch?.missing_keywords)
+        ? bestMatch.missing_keywords.slice(0, 5)
+        : []
+
+  const matchSummary =
+    (typeof scoreSnapshot?.analysis_summary === 'string' && scoreSnapshot.analysis_summary.trim().length > 0
+      ? scoreSnapshot.analysis_summary
+      : null) ||
+    null
+
+  const getScoreColor = (score?: number | null) => {
+    if (score === null || score === undefined) return 'text-gray-500'
+    if (score >= 80) return 'text-green-600'
+    if (score >= 60) return 'text-yellow-600'
+    if (score >= 40) return 'text-orange-600'
+    return 'text-red-600'
+  }
+
+  const getScoreRing = (score?: number | null) => {
+    const safeScore = Number.isFinite(score) && score !== null ? Math.max(0, Math.min(100, score!)) : 0
+    return {
+      strokeClass: getScoreColor(score).replace('text-', 'stroke-'),
+      safeScore
+    }
+  }
 
   const buildHighFrequencyList = (data: any): Array<{ keyword: string; count: number }> => {
     if (!data) return []
@@ -480,33 +576,132 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Match Information</h3>
-                  {bestMatch ? (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-sm font-semibold text-gray-600">Best ATS Score</label>
-                        <div className={`text-3xl font-bold ${
-                          bestMatch.score >= 80 ? 'text-green-600' :
-                          bestMatch.score >= 60 ? 'text-yellow-600' :
-                          'text-orange-600'
-                        }`}>
-                          {bestMatch.score}%
+                  {overallScore !== null ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <div className="relative inline-flex h-24 w-24 items-center justify-center">
+                          <svg viewBox="0 0 36 36" className="h-24 w-24">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                              fill="none"
+                              d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                            />
+                            {(() => {
+                              const ring = getScoreRing(overallScore)
+                              return (
+                                <path
+                                  className={ring.strokeClass}
+                                  strokeLinecap="round"
+                                  strokeWidth="4"
+                                  fill="none"
+                                  strokeDasharray={`${ring.safeScore}, 100`}
+                                  d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                                />
+                              )
+                            })()}
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className={`text-3xl font-bold ${getScoreColor(overallScore)}`}>
+                              {overallScore}%
+                            </span>
+                            <span className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                              ATS Score
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Best ATS Snapshot
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-gray-700">
+                            {overallScore >= 80
+                              ? 'Excellent alignment'
+                              : overallScore >= 60
+                                ? 'Strong alignment'
+                                : overallScore >= 40
+                                  ? 'Fair alignment'
+                                  : 'Needs attention'}
+                          </p>
+                          {matchSummary && (
+                            <p className="mt-1 text-xs text-gray-500">{matchSummary}</p>
+                          )}
                         </div>
                       </div>
-                      {bestMatch.resume_name && (
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Keyword Coverage
+                          </div>
+                          <div className="mt-2 text-xl font-semibold text-gray-900">
+                            {keywordCoverageSnapshot !== null
+                              ? `${Math.round(keywordCoverageSnapshot)}%`
+                              : bestMatch?.keyword_coverage !== undefined && bestMatch?.keyword_coverage !== null
+                                ? `${Math.round(bestMatch.keyword_coverage)}%`
+                                : '—'}
+                          </div>
+                          {(matchedKeywordsCount !== null || totalKeywordsCount !== null) && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              {matchedKeywordsCount ?? '—'}/{totalKeywordsCount ?? '—'} JD keywords covered.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                            Estimated Keyword Fit
+                          </div>
+                          <div className="mt-2 text-xl font-semibold text-blue-700">
+                            {estimatedKeywordScore !== null ? `${estimatedKeywordScore}%` : '—'}
+                          </div>
+                          <p className="mt-1 text-xs text-blue-700/70">
+                            Quick keyword scan saved from the match panel.
+                          </p>
+                        </div>
+                      </div>
+
+                      {missingKeywordsSample.length > 0 && (
                         <div>
-                          <label className="text-sm font-semibold text-gray-600">Matched Resume</label>
-                          <p className="text-gray-900">{bestMatch.resume_name}</p>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Next Keywords To Add
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {missingKeywordsSample.slice(0, 5).map((keyword) => (
+                              <span
+                                key={keyword}
+                                className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-700 shadow"
+                              >
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
-                      {bestMatch.resume_version_id && (
-                        <div>
-                          <a
-                            href={`${config.apiBase}/api/resume/version/${bestMatch.resume_version_id}`}
-                            target="_blank"
-                            className="text-blue-600 hover:underline"
-                          >
-                            View Resume Version
-                          </a>
+
+                      {bestMatch?.resume_name && (
+                        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Matched Resume
+                          </div>
+                          <div className="mt-1 text-sm font-medium text-gray-900">
+                            {bestMatch.resume_name}
+                            {bestMatch.resume_version_label && (
+                              <span className="ml-2 text-xs font-normal text-gray-500">
+                                ({bestMatch.resume_version_label})
+                              </span>
+                            )}
+                          </div>
+                          {bestMatch.resume_version_id && (
+                            <a
+                              href={`${config.apiBase}/api/resume/version/${bestMatch.resume_version_id}`}
+                              target="_blank"
+                              className="mt-2 inline-flex text-sm font-medium text-blue-600 hover:underline"
+                            >
+                              View matched resume version
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -593,16 +788,14 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                     Open in Editor
                   </button>
                   <button
-                    onClick={() => {
-                      window.location.href = `/editor?jdId=${job.id}`
-                    }}
-                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300"
+                    onClick={() => setShowUploadResumeModal(true)}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700"
                   >
-                    Create New Resume Match
+                    Upload Resume to Match
                   </button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Tip: After refining the resume in the editor, click “Save Match” in the match panel to store the new ATS score here.
+                  Tip: After uploading and refining the resume in the editor, click “Save Match” to store the new ATS score here.
                 </p>
               </div>
 
@@ -964,6 +1157,34 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
           )}
         </div>
       </div>
+      {showUploadResumeModal && job && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10010] flex items-center justify-center p-4"
+          onClick={() => setShowUploadResumeModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Upload Resume to Match</h2>
+                <p className="text-sm text-gray-500">We will parse your resume and open the editor with this job loaded.</p>
+              </div>
+              <button
+                onClick={() => setShowUploadResumeModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                aria-label="Close upload resume modal"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-6">
+              <UploadResume variant="modal" onUploadSuccess={handleUploadResumeForMatch} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

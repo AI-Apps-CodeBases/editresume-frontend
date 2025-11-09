@@ -233,6 +233,207 @@ interface JobMetadata {
   easy_apply_url?: string;
 }
 
+const roundScoreValue = (value?: number | null) =>
+  typeof value === 'number' && !Number.isNaN(value) ? Math.round(value) : null;
+
+const mergeMetadata = (base: JobMetadata | null, updates: JobMetadata | null): JobMetadata | null => {
+  if (!updates) return base;
+  const merged: JobMetadata = { ...(base || {}) };
+  (Object.keys(updates) as (keyof JobMetadata)[]).forEach((key) => {
+    const updateValue = updates[key];
+    if (Array.isArray(updateValue)) {
+      if (updateValue.length > 0) {
+        (merged as any)[key] = updateValue;
+      }
+    } else if (updateValue && typeof updateValue === 'object') {
+      (merged as any)[key] = {
+        ...(merged as any)[key],
+        ...updateValue,
+      };
+    } else if (updateValue !== undefined && updateValue !== null && updateValue !== '') {
+      (merged as any)[key] = updateValue;
+    }
+  });
+  return merged;
+};
+
+const normalizeTextForATS = (value?: string | null) => {
+  if (!value) return '';
+  return value
+    .replace(/\r\n?/g, ' ')
+    .replace(/\*\*/g, '')
+    .replace(/^•\s*/gm, '')
+    .replace(/•/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const extractLineValue = (patterns: RegExp[], text: string): string | null => {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  return null;
+};
+
+const GENERIC_HEADINGS = new Set([
+  'about the job',
+  'job description',
+  'job summary',
+  'role overview',
+  'about this role',
+  'responsibilities',
+  'what you will do',
+  'about us',
+  'position overview',
+  'about company',
+]);
+
+const extractKeyPhrases = (text: string): string[] => {
+  if (!text) return [];
+  const cleaned = text.replace(/\r\n?/g, '\n');
+  const phrases: Record<string, number> = {};
+  const lines = cleaned.split('\n');
+  const recordPhrase = (phrase: string) => {
+    const normalized = phrase.trim().toLowerCase();
+    if (!normalized) return;
+    if (normalized.length < 4) return;
+    if (GENERIC_HEADINGS.has(normalized)) return;
+    phrases[normalized] = (phrases[normalized] || 0) + 1;
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const tokens = trimmed.split(/[^a-zA-Z0-9+/&]+/).filter(Boolean);
+    for (let i = 0; i < tokens.length; i += 1) {
+      const unigram = tokens[i];
+      if (unigram && unigram.length > 3) {
+        recordPhrase(unigram);
+      }
+      if (i + 1 < tokens.length) {
+        const bigram = `${tokens[i]} ${tokens[i + 1]}`;
+        recordPhrase(bigram);
+      }
+      if (i + 2 < tokens.length) {
+        const trigram = `${tokens[i]} ${tokens[i + 1]} ${tokens[i + 2]}`;
+        recordPhrase(trigram);
+      }
+    }
+  });
+
+  return Object.entries(phrases)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 40)
+    .map(([phrase]) => phrase.split(' ').map((token) => token.charAt(0).toUpperCase() + token.slice(1)).join(' '));
+};
+
+const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
+  if (!text?.trim()) return null;
+  const normalized = text.replace(/\r\n?/g, '\n');
+  const lines = normalized.split('\n').map((line) => line.trim()).filter(Boolean);
+
+  const metadata: JobMetadata = {};
+
+  let titleFromLabel = extractLineValue([
+    /(?:position|job title|title)\s*[:\-]\s*([^\n]+)/i,
+    /role\s*[:\-]\s*([^\n]+)/i,
+  ], normalized);
+
+  if (titleFromLabel && GENERIC_HEADINGS.has(titleFromLabel.toLowerCase())) {
+    titleFromLabel = null;
+  }
+
+  const companyFromLabel = extractLineValue([
+    /(?:company|employer|organization)\s*[:\-]\s*([^\n]+)/i,
+    /(?:at|@)\s*([A-Z][\w\s&.,'-]{2,70})/i,
+  ], normalized);
+
+  if (lines.length > 0 && !titleFromLabel) {
+    const firstLine = lines[0];
+    const titleCompanyMatch = firstLine.match(/^([^@\-•]{3,120}?)(?:\s+(?:at|@)\s+(.+))?$/i);
+    if (titleCompanyMatch) {
+      const [, possibleTitle, possibleCompany] = titleCompanyMatch;
+      if (possibleTitle?.trim()) {
+        const normalizedTitle = possibleTitle.trim();
+        if (!GENERIC_HEADINGS.has(normalizedTitle.toLowerCase())) {
+          metadata.title = normalizedTitle;
+        }
+      }
+      if (!companyFromLabel && possibleCompany?.trim()) {
+        metadata.company = possibleCompany.trim();
+      }
+    } else {
+      if (!GENERIC_HEADINGS.has(firstLine.toLowerCase())) {
+        metadata.title = firstLine;
+      }
+    }
+  }
+
+  if (titleFromLabel) {
+    metadata.title = titleFromLabel;
+  }
+  if (companyFromLabel) {
+    metadata.company = companyFromLabel;
+  }
+
+  const locationFromLabel = extractLineValue([
+    /(?:location|based in|located)\s*[:\-]\s*([^\n]+)/i,
+    /(?:location)\s*\|\s*([^\n]+)/i,
+  ], normalized);
+  if (locationFromLabel) {
+    metadata.location = locationFromLabel;
+  }
+
+  metadata.jobType = extractJobType(normalized);
+  metadata.remoteStatus = extractWorkType(normalized, metadata.location ?? '');
+  metadata.budget = extractBudget(normalized);
+  metadata.skills = extractSkills(normalized);
+  metadata.keywords = extractTopKeywords(normalized);
+  metadata.soft_skills = extractSoftSkillsFromText(normalized);
+  metadata.high_frequency_keywords = extractTopKeywords(normalized).map((keyword, idx) => ({
+    keyword,
+    frequency: idx < 5 ? 3 : idx < 10 ? 2 : 1,
+    importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low'
+  }));
+  metadata.ats_insights = extractAtsInsightsFromText(normalized);
+
+  if (!metadata.title) {
+    for (let i = 0; i < Math.min(lines.length, 12); i += 1) {
+      const candidate = lines[i];
+      if (!candidate) continue;
+      if (GENERIC_HEADINGS.has(candidate.toLowerCase())) continue;
+      if (candidate.startsWith('•') || candidate.startsWith('-')) continue;
+      if (candidate.length < 4) continue;
+      if (/^(responsibilities|requirements|qualifications|about|role|skills)\b/i.test(candidate.toLowerCase())) continue;
+      metadata.title = candidate;
+      break;
+    }
+  }
+
+  return metadata;
+};
+
+const normalizeMatchResult = (result: JobMatchResult | null): JobMatchResult | null => {
+  if (!result) return result;
+  const normalizedSimilarity = roundScoreValue(result.match_analysis?.similarity_score) ?? 0;
+  const normalizedTechnical = roundScoreValue(result.match_analysis?.technical_score) ?? result.match_analysis?.technical_score ?? 0;
+
+  return {
+    ...result,
+    match_analysis: {
+      ...result.match_analysis,
+      similarity_score: normalizedSimilarity,
+      technical_score: normalizedTechnical,
+      match_count: Math.round(result.match_analysis?.match_count ?? 0),
+      missing_count: Math.round(result.match_analysis?.missing_count ?? 0),
+      total_job_keywords: Math.round(result.match_analysis?.total_job_keywords ?? 0),
+    },
+  };
+};
+
 export default function JobDescriptionMatcher({ resumeData, onMatchResult, onResumeUpdate, onClose, standalone = true, initialJobDescription, onSelectJobDescriptionId, currentJobDescriptionId }: JobDescriptionMatcherProps) {
   const { user, isAuthenticated } = useAuth();
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
@@ -240,6 +441,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   useEffect(() => {
     if (initialJobDescription) setJobDescription(initialJobDescription);
   }, [initialJobDescription]);
+  useEffect(() => {
+    if (!jobDescription?.trim()) return;
+    const extracted = deriveJobMetadataFromText(jobDescription);
+    setSelectedJobMetadata((prev) => mergeMetadata(prev, extracted));
+  }, [jobDescription]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [matchResult, setMatchResult] = useState<JobMatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -253,9 +459,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const buildPrecomputedKeywordPayload = useCallback(() => {
     if (!jobDescription?.trim()) return null;
 
-    const baseKeywords = selectedJobMetadata?.keywords && selectedJobMetadata.keywords.length > 0
-      ? selectedJobMetadata.keywords
-      : extractTopKeywords(jobDescription);
+    const missingKeywords = matchResult?.match_analysis?.missing_keywords || [];
+    const matchingKeywords = matchResult?.match_analysis?.matching_keywords || [];
 
     const baseSkills = selectedJobMetadata?.skills && selectedJobMetadata.skills.length > 0
       ? selectedJobMetadata.skills
@@ -269,37 +474,62 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       ? selectedJobMetadata.ats_insights
       : extractAtsInsightsFromText(jobDescription);
 
-    const freqMap = buildKeywordFrequencyMap([
-      ...baseSkills,
-      ...baseKeywords
-    ]);
+    const keyPhrases = extractKeyPhrases(jobDescription);
+    const keywordImportance = new Map<string, 'high' | 'medium' | 'low'>();
+    const keywordFrequency = new Map<string, number>();
+    const keywordOriginal = new Map<string, string>();
 
-    const highFreqSource = selectedJobMetadata?.high_frequency_keywords && selectedJobMetadata.high_frequency_keywords.length > 0
-      ? selectedJobMetadata.high_frequency_keywords
-      : baseKeywords.map((keyword, idx) => ({
-          keyword,
-          frequency: freqMap[keyword.toLowerCase()] || 1,
-          importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low'
-        }));
+    const registerKeyword = (value: string, importance: 'high' | 'medium' | 'low' = 'medium') => {
+      const normalized = value.trim();
+      if (!normalized) return;
+      const normalizedLower = normalized.toLowerCase();
+      if (GENERIC_HEADINGS.has(normalizedLower)) return;
+      const currentImportance = keywordImportance.get(normalizedLower);
+      if (!currentImportance || (importance === 'high') || (importance === 'medium' && currentImportance === 'low')) {
+        keywordImportance.set(normalizedLower, importance);
+      }
+      keywordOriginal.set(normalizedLower, normalized);
+      keywordFrequency.set(normalizedLower, (keywordFrequency.get(normalizedLower) || 0) + 1);
+    };
 
-    const highFrequencyKeywords = highFreqSource.map((item: any, idx: number) => {
-      const keyword = (typeof item === 'string' ? item : item?.keyword) || '';
-      const frequency = typeof item === 'object' && item && typeof item.frequency === 'number'
-        ? item.frequency
-        : freqMap[keyword.toLowerCase()] || 1;
-      const importance = typeof item === 'object' && item && item.importance
-        ? item.importance
-        : idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low';
-      return {
-        keyword,
-        frequency,
-        importance
-      };
-    }).filter(item => item.keyword);
+    (selectedJobMetadata?.keywords || extractTopKeywords(jobDescription)).forEach((keyword) => registerKeyword(keyword, 'medium'));
+    keyPhrases.forEach((phrase) => registerKeyword(phrase, 'medium'));
+    matchingKeywords.forEach((keyword) => registerKeyword(keyword, 'medium'));
+    missingKeywords.forEach((keyword) => registerKeyword(keyword, 'high'));
+    (selectedJobMetadata?.high_frequency_keywords || []).forEach((item: any) => {
+      const keyword = typeof item === 'string' ? item : item?.keyword;
+      if (!keyword) return;
+      const importance = typeof item === 'object' && item?.importance ? item.importance : 'high';
+      registerKeyword(keyword, importance === 'medium' || importance === 'low' ? importance : 'high');
+    });
+    atsInsights.action_verbs?.forEach((verb) => registerKeyword(verb, 'medium'));
+    atsInsights.metrics?.forEach((metric) => registerKeyword(metric, 'medium'));
+    atsInsights.industry_terms?.forEach((term) => registerKeyword(term, 'medium'));
+
+    const generalKeywords = Array.from(keywordImportance.keys());
+    const freqMap = generalKeywords.reduce((acc, key) => {
+      acc[key] = keywordFrequency.get(key) || 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const highFrequencyKeywords = Array.from(keywordImportance.entries())
+      .map(([key, importance]) => ({
+        keyword: keywordOriginal.get(key) || key,
+        frequency: keywordFrequency.get(key) || 1,
+        importance,
+      }))
+      .sort((a, b) => {
+        const importanceOrder = { high: 2, medium: 1, low: 0 } as const;
+        if (importanceOrder[b.importance] !== importanceOrder[a.importance]) {
+          return importanceOrder[b.importance] - importanceOrder[a.importance];
+        }
+        return (b.frequency || 0) - (a.frequency || 0);
+      })
+      .slice(0, 60);
 
     const extractedKeywordsPayload = {
-      technical_keywords: baseSkills.map(skill => skill.toLowerCase()),
-      general_keywords: baseKeywords.map(keyword => keyword.toLowerCase()),
+      technical_keywords: baseSkills.map((skill) => skill.toLowerCase()),
+      general_keywords: generalKeywords,
       soft_skills: softSkills,
       high_frequency_keywords: highFrequencyKeywords,
       ats_keywords: atsInsights,
@@ -307,19 +537,26 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       total_keywords: Object.values(freqMap).reduce((sum, count) => sum + count, 0)
     };
 
-    const priorityKeywords = Array.from(new Set(highFrequencyKeywords.map(item => item.keyword.toLowerCase())));
-    if (priorityKeywords.length === 0) {
-      priorityKeywords.push(...baseKeywords.slice(0, 10).map(k => k.toLowerCase()));
+    const prioritySet = new Set<string>();
+    highFrequencyKeywords.forEach((item) => {
+      if (item.importance === 'high') {
+        prioritySet.add(item.keyword.toLowerCase());
+      }
+    });
+    missingKeywords.forEach((keyword) => prioritySet.add(keyword.toLowerCase()));
+
+    if (prioritySet.size === 0) {
+      generalKeywords.slice(0, 10).forEach((keyword) => prioritySet.add(keyword.toLowerCase()));
     }
 
     return {
       extractedKeywordsPayload,
-      priorityKeywords: priorityKeywords.map(k => k.charAt(0).toUpperCase() + k.slice(1)),
+      priorityKeywords: Array.from(prioritySet).map((keyword) => keyword.charAt(0).toUpperCase() + keyword.slice(1)),
       softSkills,
       highFrequencyKeywords,
       atsInsights
     };
-  }, [jobDescription, selectedJobMetadata]);
+  }, [jobDescription, selectedJobMetadata, matchResult]);
 
   const estimatedATS = useMemo(() => {
     if (!resumeData) return null;
@@ -349,8 +586,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
     const resumeFragments: string[] = [];
     const appendText = (value?: string) => {
-      if (value && value.trim()) {
-        resumeFragments.push(value.toLowerCase());
+      const normalized = normalizeTextForATS(value);
+      if (normalized) {
+        resumeFragments.push(normalized.toLowerCase());
       }
     };
 
@@ -360,7 +598,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       resumeData.sections.forEach((section: any) => {
         appendText(section.title);
         if (section.bullets && Array.isArray(section.bullets)) {
-          section.bullets.forEach((bullet: any) => appendText(bullet?.text));
+          section.bullets
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .forEach((bullet: any) => appendText(bullet?.text));
         }
       });
     }
@@ -392,9 +632,87 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     };
   }, [resumeData, buildPrecomputedKeywordPayload]);
 
+  const atsKeywordMetrics = useMemo(() => {
+    if (!matchResult?.match_analysis) {
+      return { keywordCoverage: null, matchedCount: null, totalCount: null, missingCount: null };
+    }
+    const analysis = matchResult.match_analysis;
+    const matched =
+      typeof analysis.match_count === 'number'
+        ? analysis.match_count
+        : analysis.matching_keywords?.length ?? 0;
+    const missing =
+      typeof analysis.missing_count === 'number'
+        ? analysis.missing_count
+        : analysis.missing_keywords?.length ?? 0;
+    const total = analysis.total_job_keywords || matched + missing;
+    const coverage = total ? Math.round((matched / total) * 100) : null;
+
+    return {
+      keywordCoverage: coverage,
+      matchedCount: matched,
+      totalCount: total || null,
+      missingCount: missing,
+    };
+  }, [matchResult]);
+
+  const overallATSScoreRaw = matchResult?.match_analysis?.similarity_score ?? currentATSScore ?? null;
+  const overallATSScore = roundScoreValue(overallATSScoreRaw);
+
+  const scoreSnapshotBase = useMemo(() => {
+    if (!matchResult && overallATSScore === null && !estimatedATS) {
+      return null;
+    }
+
+    const matchedCount =
+      atsKeywordMetrics.matchedCount ?? estimatedATS?.matchedKeywords.length ?? null;
+    const totalCount =
+      atsKeywordMetrics.totalCount ?? (estimatedATS?.totalKeywords ?? null);
+    const coverage =
+      atsKeywordMetrics.keywordCoverage ??
+      (totalCount && matchedCount !== null ? Math.round((matchedCount / totalCount) * 100) : null);
+    const missingCount =
+      atsKeywordMetrics.missingCount ??
+      (totalCount !== null && matchedCount !== null ? Math.max(totalCount - matchedCount, 0) : null);
+    const missingSample =
+      (estimatedATS?.missingKeywords?.length
+        ? estimatedATS.missingKeywords.slice(0, 5)
+        : matchResult?.match_analysis?.missing_keywords?.slice(0, 5)) || [];
+    const matchingSample =
+      (matchResult?.match_analysis?.matching_keywords?.length
+        ? matchResult.match_analysis.matching_keywords.slice(0, 5)
+        : estimatedATS?.matchedKeywords?.slice(0, 5)) || [];
+
+    if (overallATSScore === null && estimatedATS?.score == null && coverage == null) {
+      return null;
+    }
+
+    return {
+      overall_score: overallATSScore,
+      estimated_keyword_score: estimatedATS?.score ?? null,
+      keyword_coverage: coverage,
+      total_keywords: totalCount,
+      matched_keywords_count: matchedCount,
+      missing_keywords_count: missingCount,
+      missing_keywords_sample: missingSample,
+      matching_keywords_sample: matchingSample,
+      analysis_summary: matchResult?.analysis_summary?.overall_match || null,
+      match_tier:
+        overallATSScore !== null
+          ? overallATSScore >= 80
+            ? 'excellent'
+            : overallATSScore >= 60
+              ? 'strong'
+              : overallATSScore >= 40
+                ? 'fair'
+                : 'needs_improvement'
+          : null,
+    };
+  }, [atsKeywordMetrics, estimatedATS, matchResult, overallATSScore]);
+
   // Function to recalculate ATS score
   const recalculateATSScore = useCallback(async (resumeDataToUse: any, showLoading = true) => {
-    if (!jobDescription || !currentJobDescriptionId || !resumeDataToUse) {
+    if (!jobDescription || !resumeDataToUse) {
       return null;
     }
 
@@ -405,17 +723,19 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     try {
       const cleanedResumeData = {
         name: resumeDataToUse.name || '',
-        title: resumeDataToUse.title || '',
+        title: normalizeTextForATS(resumeDataToUse.title),
         email: resumeDataToUse.email || '',
         phone: resumeDataToUse.phone || '',
-        location: resumeDataToUse.location || '',
-        summary: resumeDataToUse.summary || '',
-        sections: resumeDataToUse.sections.map((section: any) => ({
+        location: normalizeTextForATS(resumeDataToUse.location),
+        summary: normalizeTextForATS(resumeDataToUse.summary),
+        sections: (resumeDataToUse.sections || []).map((section: any) => ({
           id: section.id,
-          title: section.title,
-          bullets: section.bullets.map((bullet: any) => ({
+          title: normalizeTextForATS(section.title),
+          bullets: (section.bullets || [])
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .map((bullet: any) => ({
             id: bullet.id,
-            text: bullet.text,
+              text: normalizeTextForATS(bullet.text),
             params: {}
           }))
         }))
@@ -431,40 +751,44 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       });
       
       if (matchRes.ok) {
-        const matchData = await matchRes.json();
-        const newScore = matchData.match_analysis?.similarity_score || null;
+        const matchData = await matchRes.json() as JobMatchResult;
+        const normalizedMatchData = normalizeMatchResult(matchData);
+        const newScore = normalizedMatchData?.match_analysis?.similarity_score ?? null;
         
-        setMatchResult(matchData);
+        setMatchResult(normalizedMatchData);
         
         // Track score change using functional update to get current value
         setCurrentATSScore((prevScore) => {
-          if (prevScore !== null && newScore !== null) {
-            const change = newScore - prevScore;
-            setScoreChange(change);
-            setPreviousATSScore(prevScore);
+          const previousRounded = roundScoreValue(prevScore);
+          const nextRounded = roundScoreValue(newScore);
+
+          if (previousRounded !== null && nextRounded !== null) {
+            const change = nextRounded - previousRounded;
+            setScoreChange(change !== 0 ? change : null);
+            setPreviousATSScore(previousRounded);
             
             // Clear score change indicator after 5 seconds
             setTimeout(() => {
               setScoreChange(null);
               setPreviousATSScore(null);
             }, 5000);
-          } else if (prevScore === null && newScore !== null) {
+          } else if (previousRounded === null && nextRounded !== null) {
             setPreviousATSScore(null);
             setScoreChange(null);
           }
           
-          return newScore;
+          return nextRounded;
         });
         
         // Update localStorage
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('currentMatchResult', JSON.stringify(matchData));
+            localStorage.setItem('currentMatchResult', JSON.stringify(normalizedMatchData));
             const jdKeywords = {
-              matching: matchData.match_analysis?.matching_keywords || [],
-              missing: matchData.match_analysis?.missing_keywords || [],
+              matching: normalizedMatchData?.match_analysis?.matching_keywords || [],
+              missing: normalizedMatchData?.match_analysis?.missing_keywords || [],
               high_frequency: selectedJobMetadata?.high_frequency_keywords || [],
-              priority: (matchData as any).priority_keywords || []
+              priority: (normalizedMatchData as any)?.priority_keywords || []
             };
             localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
             localStorage.setItem('currentJDText', jobDescription);
@@ -474,7 +798,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }
         
         if (onMatchResult) {
-          onMatchResult(matchData);
+          const resultForCallback = normalizedMatchData ?? matchData;
+          onMatchResult(resultForCallback);
         }
 
         return newScore;
@@ -489,19 +814,23 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     }
 
     return null;
-  }, [jobDescription, currentJobDescriptionId, selectedJobMetadata, onMatchResult]);
+  }, [jobDescription, selectedJobMetadata, onMatchResult]);
 
   const computeResumeSignature = useCallback((resume: any) => {
     if (!resume) return '';
 
     return JSON.stringify({
       name: resume.name || '',
-      title: resume.title || '',
-      summary: resume.summary || '',
+      title: normalizeTextForATS(resume.title),
+      summary: normalizeTextForATS(resume.summary),
       sections: (resume.sections || []).map((section: any) => ({
         id: section.id,
-        title: section.title,
-        bullets: (section.bullets || []).map((bullet: any) => (bullet.text || '').trim())
+        title: normalizeTextForATS(section.title),
+        bullets: (section.bullets || []).map((bullet: any) => ({
+          id: bullet.id,
+          text: normalizeTextForATS(bullet.text),
+          visible: bullet?.params?.visible !== false
+        }))
       }))
     });
   }, []);
@@ -513,7 +842,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
   // Auto-update ATS score when resume data changes (only if JD is selected)
   useEffect(() => {
-    if (!jobDescription || !currentJobDescriptionId || !resumeData) {
+    if (!jobDescription || !resumeData) {
       pendingResumeHashRef.current = null;
       setIsATSUpdatePending(false);
       return;
@@ -567,12 +896,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         setIsATSUpdatePending(false);
       }
     };
-  }, [resumeData, jobDescription, currentJobDescriptionId, computeResumeSignature, recalculateATSScore]);
+  }, [resumeData, jobDescription, computeResumeSignature, recalculateATSScore]);
 
   // Listen for resume data updates from AI improve
   useEffect(() => {
     const handleResumeDataUpdate = (event: CustomEvent) => {
-      if (event.detail?.resumeData && jobDescription && currentJobDescriptionId) {
+      if (event.detail?.resumeData && jobDescription) {
         setIsATSUpdatePending(true);
         recalculateATSScore(event.detail.resumeData, true).then((result) => {
           if (result !== null) {
@@ -589,11 +918,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         window.removeEventListener('resumeDataUpdated', handleResumeDataUpdate as EventListener);
       };
     }
-  }, [jobDescription, currentJobDescriptionId, recalculateATSScore, computeResumeSignature]);
+  }, [jobDescription, computeResumeSignature, recalculateATSScore]);
 
   useEffect(() => {
     lastCommittedResumeHashRef.current = null;
-  }, [jobDescription, currentJobDescriptionId]);
+  }, [jobDescription]);
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
   const [showBulletGenerator, setShowBulletGenerator] = useState(false);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
@@ -603,22 +932,58 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [generatedBullets, setGeneratedBullets] = useState<string[]>([]);
   const [showWorkExpSelector, setShowWorkExpSelector] = useState(false);
   const [workExpEntries, setWorkExpEntries] = useState<Array<{sectionId: string, bulletId: string, companyName: string, jobTitle: string, dateRange: string, sectionTitle: string, sectionType: 'work' | 'project'}>>([]);
-  const [selectedBulletIndices, setSelectedBulletIndices] = useState<Set<number>>(new Set());
-  const [bulletAssignments, setBulletAssignments] = useState<Map<number, string>>(new Map());
+  const [selectedBulletIndices, setSelectedBulletIndices] = useState<Set<number>>(new Set<number>());
+  const [bulletAssignments, setBulletAssignments] = useState<Map<number, string>>(new Map<number, string>());
   const [showSaveNameModal, setShowSaveNameModal] = useState(false);
   const [resumeSaveName, setResumeSaveName] = useState('');
   const [updatedResumeData, setUpdatedResumeData] = useState<any>(null);
   const [currentJDInfo, setCurrentJDInfo] = useState<{company?: string, title?: string, easy_apply_url?: string} | null>(null);
+  const [manualKeywordInput, setManualKeywordInput] = useState('');
+  const handleAddManualKeyword = useCallback(() => {
+    const trimmed = normalizeTextForATS(manualKeywordInput);
+    if (!trimmed) return;
+    const bulletText = trimmed.startsWith('•') ? trimmed : `• ${trimmed}`;
+    setGeneratedBullets((prev) => [bulletText, ...prev]);
+    setManualKeywordInput('');
+  }, [manualKeywordInput]);
+  const [isManualATSRefreshing, setIsManualATSRefreshing] = useState(false);
 
-  const handleSaveJobDescription = async () => {
+  const handleManualATSRefresh = useCallback(async () => {
+    if (!resumeData) return;
+    setIsManualATSRefreshing(true);
+    try {
+      const result = await recalculateATSScore(resumeData, true);
+      if (result !== null) {
+        lastCommittedResumeHashRef.current = computeResumeSignature(resumeData);
+      }
+    } catch (error) {
+      console.error('Manual ATS refresh failed:', error);
+    } finally {
+      setIsManualATSRefreshing(false);
+    }
+  }, [resumeData, recalculateATSScore, computeResumeSignature]);
+
+  const shouldUseSingleColumnLayout = Boolean(matchResult);
+
+  const jobSummary = useMemo(() => {
+    return {
+      title: selectedJobMetadata?.title || currentJDInfo?.title || initialJobDescription?.slice(0, 48) || '',
+      company: selectedJobMetadata?.company || currentJDInfo?.company || '',
+      location: selectedJobMetadata?.location || selectedJobMetadata?.remoteStatus || '',
+      workType: selectedJobMetadata?.remoteStatus || '',
+      jobType: selectedJobMetadata?.jobType || ''
+    };
+  }, [selectedJobMetadata, currentJDInfo, initialJobDescription]);
+
+  const handleSaveJobDescription = async (): Promise<number | null> => {
     if (!jobDescription || !jobDescription.trim()) {
       alert('Please enter a job description to save.');
-      return;
+      return null;
     }
 
     if (!isAuthenticated || !user?.email) {
       alert('Please sign in to save job descriptions');
-      return;
+      return null;
     }
 
     try {
@@ -632,6 +997,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       };
 
       const precomputed = buildPrecomputedKeywordPayload();
+      const scoreSnapshotPayload = scoreSnapshotBase
+        ? { ...scoreSnapshotBase, updated_at: new Date().toISOString() }
+        : null;
+      const atsInsightsPayload = scoreSnapshotPayload
+        ? { ...(precomputed?.atsInsights || {}), score_snapshot: scoreSnapshotPayload }
+        : precomputed?.atsInsights || null;
 
       // Show loading state
       const saveButton = document.querySelector('[data-save-job-btn]') as HTMLButtonElement;
@@ -659,7 +1030,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           priority_keywords: precomputed?.priorityKeywords,
           soft_skills: precomputed?.softSkills,
           high_frequency_keywords: precomputed?.highFrequencyKeywords,
-          ats_insights: precomputed?.atsInsights
+          ats_insights: atsInsightsPayload
         })
       });
 
@@ -710,6 +1081,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       document.body.appendChild(notification);
       setTimeout(() => notification.remove(), 5000);
 
+      return result.id || currentJobDescriptionId || null;
+
     } catch (error) {
       console.error('Failed to save job description:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -721,27 +1094,37 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         saveButton.disabled = false;
         saveButton.textContent = 'Save to Jobs';
       }
+
+      return null;
     }
   };
 
-  const handleSaveResumeWithName = async () => {
-    if (!resumeSaveName || !resumeSaveName.trim()) {
+  const handleSaveResumeWithName = async (
+    options?: { nameOverride?: string; resumeOverride?: any; suppressModalReset?: boolean; jobDescriptionIdOverride?: number | null }
+  ): Promise<{ resumeId: number | null; versionId: number | null } | null> => {
+    const rawName = options?.nameOverride ?? resumeSaveName;
+    const trimmedName = rawName?.trim();
+
+    if (!trimmedName) {
       alert('Please enter a resume name.');
-      return;
+      return null;
     }
 
     if (!isAuthenticated || !user?.email) {
       alert('Please sign in to save resumes to your profile');
-      return;
+      return null;
     }
 
-    if (!updatedResumeData) {
+    const resumePayload = options?.resumeOverride ?? updatedResumeData ?? resumeData;
+
+    if (!resumePayload) {
       alert('No resume data to save');
-      return;
+      return null;
     }
 
     try {
-      const saveName = resumeSaveName.trim();
+      const saveName = trimmedName;
+      setResumeSaveName(saveName);
       const apiBase = config.apiBase || 'http://localhost:8000';
       
       // Check if resume with this name already exists to show appropriate message
@@ -768,23 +1151,25 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       const url = `${apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`;
 
       // Clean resume data - remove fieldsVisible and ensure params are compatible
-      const cleanedSections = (updatedResumeData.sections || []).map((section: any) => ({
+      const cleanedSections = (resumePayload.sections || []).map((section: any) => ({
         id: section.id,
-        title: section.title,
-        bullets: (section.bullets || []).map((bullet: any) => ({
+        title: normalizeTextForATS(section.title),
+        bullets: (section.bullets || [])
+          .filter((bullet: any) => bullet?.params?.visible !== false)
+          .map((bullet: any) => ({
           id: bullet.id,
-          text: bullet.text,
-          params: {} // Remove visible flag from params for API compatibility
+            text: normalizeTextForATS(bullet.text),
+            params: {}
         }))
       }));
 
       const payload = {
         name: saveName,
-        title: updatedResumeData.title || '',
-        email: updatedResumeData.email || '',
-        phone: updatedResumeData.phone || '',
-        location: updatedResumeData.location || '',
-        summary: updatedResumeData.summary || '',
+        title: normalizeTextForATS(resumePayload.title) || '',
+        email: resumePayload.email || '',
+        phone: resumePayload.phone || '',
+        location: normalizeTextForATS(resumePayload.location) || '',
+        summary: normalizeTextForATS(resumePayload.summary) || '',
         sections: cleanedSections,
         template: 'tech'
       };
@@ -818,27 +1203,33 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         throw new Error(result.message || 'Save failed on server');
       }
 
-      // Create match session if we have a currentJobDescriptionId (optional - allows saving master resumes without JDs)
-      if (currentJobDescriptionId) {
+      const targetJobDescriptionId = options?.jobDescriptionIdOverride ?? currentJobDescriptionId;
+
+      // Create match session if we have a job description (optional - allows saving master resumes without JDs)
+      if (targetJobDescriptionId) {
         try {
-          // Get ATS score - prefer updated score if available, otherwise use current
           const atsScore = updatedATSScore !== null ? updatedATSScore : (matchResult?.match_analysis?.similarity_score || currentATSScore);
           
-          // Ensure JD is saved with all metadata
           const jdMetadata: any = {
             easy_apply_url: currentJDInfo?.easy_apply_url || selectedJobMetadata?.easy_apply_url || null,
             work_type: selectedJobMetadata?.remoteStatus || null,
             job_type: selectedJobMetadata?.jobType || null,
             company: currentJDInfo?.company || selectedJobMetadata?.company || null
           };
+          const keywordBundle = buildPrecomputedKeywordPayload();
+          const scoreSnapshotPayload = scoreSnapshotBase
+            ? { ...scoreSnapshotBase, updated_at: new Date().toISOString() }
+            : null;
+          const atsInsightsPayload = scoreSnapshotPayload
+            ? { ...(keywordBundle?.atsInsights || {}), score_snapshot: scoreSnapshotPayload }
+            : keywordBundle?.atsInsights || null;
           
-          // Update JD with metadata if needed
           try {
             await fetch(`${apiBase}/api/job-descriptions`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                id: currentJobDescriptionId,
+                id: targetJobDescriptionId,
                 user_email: user.email,
                 title: selectedJobMetadata?.title || currentJDInfo?.title || '',
                 company: jdMetadata.company || '',
@@ -847,7 +1238,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 work_type: jdMetadata.work_type || null,
                 job_type: jdMetadata.job_type || null,
                 source: 'app',
-                url: null
+                url: null,
+                extracted_keywords: keywordBundle?.extractedKeywordsPayload,
+                priority_keywords: keywordBundle?.priorityKeywords,
+                soft_skills: keywordBundle?.softSkills,
+                high_frequency_keywords: keywordBundle?.highFrequencyKeywords,
+                ats_insights: atsInsightsPayload
               })
             });
             console.log('JD updated with metadata:', jdMetadata);
@@ -855,20 +1251,19 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             console.warn('Failed to update JD metadata (continuing anyway):', jdUpdateError);
           }
           
-          // Create match session linking resume and JD
           const matchResponse = await fetch(`${apiBase}/api/matches`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               resumeId: result.resume_id,
-              jobDescriptionId: currentJobDescriptionId,
+              jobDescriptionId: targetJobDescriptionId,
               user_email: user.email,
               resume_name: saveName,
-              resume_title: updatedResumeData.title || '',
-              resume_snapshot: updatedResumeData,
+              resume_title: resumePayload.title || '',
+              resume_snapshot: resumePayload,
               resume_version_id: result.version_id,
               ats_score: atsScore ? Math.round(atsScore) : null,
-              jd_metadata: jdMetadata  // Pass JD metadata
+              jd_metadata: jdMetadata
             })
           });
           
@@ -880,40 +1275,37 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           console.log('Match session created successfully:', {
             matchId: matchSessionResult.id || matchSessionResult.match_id,
             resumeId: result.resume_id,
-            jobDescriptionId: currentJobDescriptionId,
-            atsScore: atsScore,
-            jdMetadata: jdMetadata
+            jobDescriptionId: targetJobDescriptionId,
+            atsScore,
+            jdMetadata
           });
         } catch (matchError) {
           console.error('Failed to create match session:', matchError);
           alert(`Resume saved, but failed to link with job description: ${matchError instanceof Error ? matchError.message : 'Unknown error'}`);
         }
       } else {
-        // Save as master resume (without JD match)
         console.log('Saving master resume without JD match');
       }
 
-      // Clean up states
+      if (!options?.suppressModalReset) {
       setShowSaveNameModal(false);
+      }
       setResumeSaveName('');
       setUpdatedResumeData(null);
       setGeneratedBullets([]);
       setWorkExpEntries([]);
-      setSelectedBulletIndices(new Set());
-      setBulletAssignments(new Map());
+      setSelectedBulletIndices(new Set<number>());
+      setBulletAssignments(new Map<number, string>());
       setSelectedKeywords(new Set());
       setSelectedWorkExpSection('');
       setBulletGeneratorCompany('');
       setBulletGeneratorJobTitle('');
 
-      // Show success notification (no navigation)
       const newVersionNumber = existingVersionCount + 1;
-      const atsScore = updatedATSScore !== null ? updatedATSScore : (matchResult?.match_analysis?.similarity_score || currentATSScore);
-      const matchScoreText = currentJobDescriptionId && atsScore ? ` (ATS Score: ${Math.round(atsScore)}%)` : '';
-      const resumeType = currentJobDescriptionId ? 'job match' : 'master resume';
+      const atsScoreForToast = updatedATSScore !== null ? updatedATSScore : (matchResult?.match_analysis?.similarity_score || currentATSScore);
+      const matchScoreText = (options?.jobDescriptionIdOverride ?? currentJobDescriptionId) && atsScoreForToast ? ` (ATS Score: ${Math.round(atsScoreForToast)}%)` : '';
       const jobInfo = currentJDInfo?.company || selectedJobMetadata?.company ? ` - ${currentJDInfo?.company || selectedJobMetadata?.company}` : '';
       
-      // Show toast notification
       const notification = document.createElement('div');
       notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
       notification.innerHTML = `
@@ -922,7 +1314,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           <div>
             <div class="font-bold text-lg">Saved to Jobs!</div>
             <div class="text-sm mt-1">${saveName}${jobInfo}${matchScoreText}</div>
-            ${currentJobDescriptionId ? `<div class="text-xs mt-1 text-green-100">Resume matched with JD • ATS: ${Math.round(atsScore || 0)}%</div>` : ''}
+            ${(options?.jobDescriptionIdOverride ?? currentJobDescriptionId) ? `<div class="text-xs mt-1 text-green-100">Resume matched with JD • ATS: ${Math.round(atsScoreForToast || 0)}%</div>` : ''}
             ${isExistingResume ? `<div class="text-xs mt-1 text-green-100">Version ${newVersionNumber} created</div>` : ''}
           </div>
           <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
@@ -930,10 +1322,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       `;
       document.body.appendChild(notification);
       setTimeout(() => notification.remove(), 5000);
+
+      return { resumeId: result.resume_id ?? null, versionId: result.version_id ?? null };
     } catch (error) {
       console.error('Failed to save resume:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       alert(`Failed to save resume: ${errorMessage}`);
+      return null;
     }
   };
 
@@ -956,6 +1351,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               title: jd.title || '',
               easy_apply_url: jd.easy_apply_url || ''
             });
+            setSelectedJobMetadata((prev) => mergeMetadata(prev, {
+              title: jd.title || undefined,
+              company: jd.company || undefined,
+              jobType: jd.job_type || jd.jobType || undefined,
+              remoteStatus: jd.work_type || jd.remoteStatus || undefined,
+              location: jd.location || undefined,
+              easy_apply_url: jd.easy_apply_url || undefined,
+            }));
           }
         } catch (error) {
           console.error('Failed to fetch JD info:', error);
@@ -980,18 +1383,20 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       // Clean resume data - remove fieldsVisible and ensure compatibility with backend
       const cleanedResumeData = {
         name: resumeData.name || '',
-        title: resumeData.title || '',
+        title: normalizeTextForATS(resumeData.title),
         email: resumeData.email || '',
         phone: resumeData.phone || '',
-        location: resumeData.location || '',
-        summary: resumeData.summary || '',
-        sections: resumeData.sections.map((section: any) => ({
+        location: normalizeTextForATS(resumeData.location),
+        summary: normalizeTextForATS(resumeData.summary),
+        sections: (resumeData.sections || []).map((section: any) => ({
           id: section.id,
-          title: section.title,
-          bullets: section.bullets.map((bullet: any) => ({
+          title: normalizeTextForATS(section.title),
+          bullets: (section.bullets || [])
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .map((bullet: any) => ({
             id: bullet.id,
-            text: bullet.text,
-            params: {} // Remove visible flag from params for API compatibility
+              text: normalizeTextForATS(bullet.text),
+              params: {}
           }))
         }))
       };
@@ -1011,20 +1416,23 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
-      setMatchResult(result);
-      setCurrentATSScore(result.match_analysis?.similarity_score || null);
+      const rawResult = await response.json() as JobMatchResult;
+      const normalizedResult = normalizeMatchResult(rawResult);
+      setMatchResult(normalizedResult);
+      setCurrentATSScore(normalizedResult?.match_analysis?.similarity_score ?? null);
       setSelectedKeywords(new Set());
+      const metadataFromText = deriveJobMetadataFromText(jobDescription);
+      setSelectedJobMetadata((prev) => mergeMetadata(prev, metadataFromText));
       
       // Store match result and keywords in localStorage for VisualResumeEditor
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem('currentMatchResult', JSON.stringify(result));
+          localStorage.setItem('currentMatchResult', JSON.stringify(normalizedResult));
           const jdKeywords = {
-            matching: result.match_analysis?.matching_keywords || [],
-            missing: result.match_analysis?.missing_keywords || [],
+            matching: normalizedResult?.match_analysis?.matching_keywords || [],
+            missing: normalizedResult?.match_analysis?.missing_keywords || [],
             high_frequency: selectedJobMetadata?.high_frequency_keywords || [],
-            priority: (result as any).priority_keywords || []
+            priority: (normalizedResult as any)?.priority_keywords || []
           };
           localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
           localStorage.setItem('currentJDText', jobDescription);
@@ -1034,7 +1442,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
       
       if (onMatchResult) {
-        onMatchResult(result);
+        const resultForCallback = normalizedResult ?? rawResult;
+        onMatchResult(resultForCallback);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze job match');
@@ -1056,6 +1465,37 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     if (score >= 40) return 'bg-orange-100';
     return 'bg-red-100';
   };
+
+  const keywordCoverageValue =
+    atsKeywordMetrics.keywordCoverage ??
+    (scoreSnapshotBase?.keyword_coverage ?? null);
+  const matchedKeywordCount =
+    atsKeywordMetrics.matchedCount ??
+    scoreSnapshotBase?.matched_keywords_count ??
+    estimatedATS?.matchedKeywords.length ??
+    null;
+  const totalKeywordCount =
+    atsKeywordMetrics.totalCount ??
+    scoreSnapshotBase?.total_keywords ??
+    estimatedATS?.totalKeywords ??
+    null;
+  const missingKeywordSample =
+    (scoreSnapshotBase?.missing_keywords_sample &&
+      scoreSnapshotBase.missing_keywords_sample.length > 0
+      ? scoreSnapshotBase.missing_keywords_sample
+      : estimatedATS?.missingKeywords?.slice(0, 3) ||
+        matchResult?.match_analysis?.missing_keywords?.slice(0, 3) ||
+        []) || [];
+  const matchTierLabel =
+    overallATSScore !== null
+      ? overallATSScore >= 80
+        ? 'Excellent Match'
+        : overallATSScore >= 60
+          ? 'Good Match'
+          : overallATSScore >= 40
+            ? 'Fair Match'
+            : 'Needs Improvement'
+      : 'Score Pending';
 
   const content = (
     <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
@@ -1140,24 +1580,67 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </div>
                 </div>
               )}
-              {selectedJobMetadata.keywords && selectedJobMetadata.keywords.length > 0 && (
+              {(selectedJobMetadata?.keywords && selectedJobMetadata.keywords.length > 0) || manualKeywordInput ? (
                 <div>
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">📊 Top Keywords</div>
                   <div className="flex flex-wrap gap-2">
-                    {selectedJobMetadata.keywords.map((keyword, idx) => (
+                    {selectedJobMetadata?.keywords?.map((keyword, idx) => (
                       <span key={idx} className="px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-500 to-purple-600 text-white">
                         {keyword}
                       </span>
                     ))}
+                    {manualKeywordInput && (
+                      <button
+                        onClick={() => {
+                          const trimmed = manualKeywordInput.trim();
+                          if (!trimmed) return;
+                          setGeneratedBullets((prev) => [trimmed, ...prev]);
+                          setManualKeywordInput('');
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-white border border-purple-300 text-purple-700 hover:bg-purple-50 transition"
+                        title="Add manual keyword as bullet seed"
+                      >
+                        <span>＋</span> Add "{manualKeywordInput}"
+                      </button>
+                    )}
                   </div>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      type="text"
+                      value={manualKeywordInput}
+                      onChange={(e) => setManualKeywordInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const trimmed = manualKeywordInput.trim();
+                          if (!trimmed) return;
+                          setGeneratedBullets((prev) => [trimmed, ...prev]);
+                          setManualKeywordInput('');
+                        }
+                      }}
+                      placeholder="Type keyword or bullet seed..."
+                      className="flex-1 px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        const trimmed = manualKeywordInput.trim();
+                        if (!trimmed) return;
+                        setGeneratedBullets((prev) => [trimmed, ...prev]);
+                        setManualKeywordInput('');
+                      }}
+                      className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition"
+                    >
+                      Add
+                    </button>
                 </div>
-              )}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${shouldUseSingleColumnLayout ? 'lg:grid-cols-1' : 'lg:grid-cols-2'}`}>
         {/* Left Column: Job Description Input */}
         <div className="space-y-4">
           {/* Analyze Button */}
@@ -1188,7 +1671,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         </div>
 
         {/* Right Column: Metadata Graphics */}
-        <div className="space-y-4">
+        <div className={`space-y-4 ${shouldUseSingleColumnLayout ? 'lg:col-span-1' : ''}`}>
           {selectedJobMetadata || jobDescription ? (
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 rounded-lg p-6 space-y-6">
               {/* Job Title & Company */}
@@ -1397,86 +1880,235 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               {matchResult ? (
             <div className="space-y-6">
               {/* Matching ATS Score */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border-2 border-blue-200">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <span>🎯</span> Matching ATS Score
-              </h4>
+          <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm w-full max-w-full">
+            <div className="flex flex-wrap gap-5">
+              <div className="space-y-4 flex-1 min-w-[200px] max-w-[320px]">
+                <div className="flex items-center gap-4">
+                  <div className="relative inline-flex h-24 w-24 flex-shrink-0 items-center justify-center sm:h-28 sm:w-28">
+                    <svg viewBox="0 0 120 120" className="h-full w-full">
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="52"
+                        fill="none"
+                        stroke="#e5e7eb"
+                        strokeWidth="8"
+                      />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="52"
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeWidth="8"
+                        strokeDasharray={`${Math.max(0, Math.min(100, overallATSScore ?? 0)) * 3.27} 999`}
+                        strokeDashoffset="0"
+                        className={`${getScoreColor(overallATSScore ?? 0).replace('text-', 'stroke-')} drop-shadow-sm`}
+                        style={{
+                          transform: 'rotate(-90deg)',
+                          transformOrigin: 'center',
+                          transition: 'stroke-dasharray 0.6s ease-out'
+                        }}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className={`text-[28px] font-bold sm:text-[32px] ${getScoreColor(overallATSScore ?? 0)}`}>
+                        {overallATSScore !== null ? `${overallATSScore}%` : '—'}
+                      </span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        ATS Score
+                      </span>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Overall Match
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <span className={`text-2xl font-bold sm:text-3xl lg:text-4xl ${getScoreColor(overallATSScore ?? 0)}`}>
+                        {overallATSScore !== null ? `${overallATSScore}%` : '—'}
+                      </span>
+                      {scoreChange !== null && scoreChange !== 0 && previousATSScore !== null && (
+                        <span
+                          className={`text-sm font-bold px-2 py-1 rounded ${
+                            scoreChange > 0
+                              ? 'bg-green-100 text-green-700 border border-green-300'
+                              : 'bg-red-100 text-red-700 border border-red-300'
+                          }`}
+                        >
+                          {scoreChange > 0 ? '↑' : '↓'} {Math.abs(scoreChange)}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <button
+                        onClick={handleManualATSRefresh}
+                        disabled={isManualATSRefreshing || !resumeData}
+                        className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1 font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        {isManualATSRefreshing ? (
+                          <>
+                            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <circle cx="12" cy="12" r="9" strokeWidth="2" className="opacity-30" />
+                              <path d="M15 9l-3 3 3 3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            Refreshing…
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <path d="M4.93 4.93a10 10 0 1114.14 0L12 12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            Refresh ATS
+                          </>
+                        )}
+                      </button>
+                      {isAnalyzing && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-600">
+                          <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4" />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
+                          Updating…
+                        </span>
+                      )}
+                      {!isAnalyzing && isATSUpdatePending && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-500">
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <circle cx="12" cy="12" r="9" strokeWidth="2" className="opacity-40" />
+                            <path d="M12 7v4.2l2.1 2.1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          Pending auto-update
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-sm text-gray-700">
+                      {matchTierLabel}
+                      {scoreSnapshotBase?.analysis_summary ? ` • ${scoreSnapshotBase.analysis_summary}` : ''}
+                    </p>
+                    {scoreChange !== null && scoreChange > 0 && previousATSScore !== null && (
+                      <p className="mt-1 text-xs font-semibold text-green-600">
+                        Improved from {previousATSScore}%.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 text-sm">
               {isAnalyzing && (
-                <span className="text-sm text-blue-600 font-medium flex items-center gap-1">
-                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-blue-600">
+                      <svg
+                        className="h-4 w-4 animate-spin"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                   </svg>
-                  Updating...
+                      Updating…
                 </span>
               )}
               {!isAnalyzing && isATSUpdatePending && (
-                <span className="text-sm text-gray-500 font-medium flex items-center gap-1">
-                  <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-gray-600">
+                      <svg
+                        className="h-4 w-4 text-gray-400"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
                     <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"></circle>
                     <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M12 7v4.2l2.1 2.1" />
                   </svg>
-                  Pending changes…
+                      Pending changes
                 </span>
               )}
             </div>
+              </div>
+              <div className="flex-1 min-w-[220px]">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <div className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
+                      <span>Keyword Coverage</span>
+                      {matchedKeywordCount !== null && totalKeywordCount !== null && (
+                        <span className="text-gray-400">
+                          {matchedKeywordCount}/{totalKeywordCount}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-gray-900">
+                      {keywordCoverageValue !== null ? `${keywordCoverageValue}%` : '—'}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      JD keywords already reflected in your resume.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3">
+                    <div className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
+                      <span>Estimated ATS (Keyword Fit)</span>
             {estimatedATS && (
-              <div className="mb-2 text-xs text-gray-500 text-right">
-                Estimated ATS: <span className="font-semibold text-gray-700">{estimatedATS.score}%</span>
-                {' '}• matches {estimatedATS.matchedKeywords.length}/{estimatedATS.totalKeywords}
-                {estimatedATS.missingKeywords.length > 0 && (
-                  <>
-                    {' '}• missing:{' '}
-                    {estimatedATS.missingKeywords.slice(0, 3).map((keyword, idx) => (
-                      <span key={keyword}>
-                        {idx > 0 ? ', ' : ''}
+                        <span className="text-blue-600">
+                          {estimatedATS.matchedKeywords.length}/{estimatedATS.totalKeywords}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-blue-700">
+                      {estimatedATS ? `${estimatedATS.score}%` : '—'}
+                    </div>
+                    {estimatedATS?.missingKeywords?.length ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {estimatedATS.missingKeywords.slice(0, 3).map((keyword) => (
+                          <span
+                            key={keyword}
+                            className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-blue-700 shadow-sm"
+                          >
                         {prettifyKeyword(keyword)}
                       </span>
                     ))}
-                    {estimatedATS.missingKeywords.length > 3 ? '…' : ''}
-                  </>
+                        {estimatedATS.missingKeywords.length > 3 && (
+                          <span className="text-xs text-blue-600">+{estimatedATS.missingKeywords.length - 3} more</span>
                 )}
               </div>
-            )}
-            <div className="flex items-center justify-center">
-                <div className="relative inline-block">
-                <svg viewBox="0 0 36 36" className="w-32 h-32">
-                    <path className="text-gray-200" stroke="currentColor" strokeWidth="4" fill="none" d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32" />
-                    <path className={`${getScoreColor(matchResult.match_analysis.similarity_score).replace('text-','stroke-')}`} strokeLinecap="round" strokeWidth="4" fill="none"
-                      strokeDasharray={`${Math.max(0, Math.min(100, matchResult.match_analysis.similarity_score))}, 100`} d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32" />
-                  </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className={`text-4xl font-bold ${getScoreColor(matchResult.match_analysis.similarity_score)}`}>
-                    {matchResult.match_analysis.similarity_score}%
+                    ) : (
+                      <p className="mt-1 text-xs text-blue-700/70">
+                        Quick keyword scan for resume alignment.
+                      </p>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-purple-100 bg-purple-50/60 px-4 py-3 sm:col-span-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+                      Focus Areas
+                </div>
+                    <p className="mt-2 text-sm text-purple-900">
+                      {scoreSnapshotBase?.analysis_summary ||
+                        'Highlight quantifiable wins and align technical stacks with the job description.'}
+                    </p>
+                    {missingKeywordSample.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {missingKeywordSample.map((keyword) => (
+                          <span
+                            key={keyword}
+                            className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-purple-700 shadow-sm"
+                          >
+                            {prettifyKeyword(keyword)}
                   </span>
-                  <span className="text-sm text-gray-600 mt-1">ATS Score</span>
+                        ))}
+              </div>
+                    )}
                   </div>
                 </div>
+                <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+                  Overall ATS uses the full AI comparison of your resume to the JD. Estimated ATS is a quick keyword
+                  check—use both to prioritize updates.
+                </div>
               </div>
-            <div className="mt-4 text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <p className="text-sm text-gray-700 font-medium">
-                  {matchResult.match_analysis.similarity_score >= 80 ? 'Excellent Match' :
-                   matchResult.match_analysis.similarity_score >= 60 ? 'Good Match' :
-                   matchResult.match_analysis.similarity_score >= 40 ? 'Fair Match' : 'Needs Improvement'}
-                </p>
-                {scoreChange !== null && scoreChange !== 0 && previousATSScore !== null && (
-                  <span className={`text-sm font-bold px-2 py-1 rounded ${
-                    scoreChange > 0 
-                      ? 'bg-green-100 text-green-700 border border-green-300' 
-                      : 'bg-red-100 text-red-700 border border-red-300'
-                  }`}>
-                    {scoreChange > 0 ? '↑' : '↓'} {Math.abs(scoreChange).toFixed(1)}%
-                  </span>
-                )}
-              </div>
-              {scoreChange !== null && scoreChange > 0 && previousATSScore !== null && (
-                <p className="text-xs text-green-600 font-medium mt-1">
-                  ✨ Improved from {previousATSScore.toFixed(1)}%!
-                </p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">{matchResult.analysis_summary.overall_match}</p>
                 </div>
               </div>
 
@@ -1763,12 +2395,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           <div className="pt-4 border-t border-gray-200 space-y-3">
             {matchResult && currentJobDescriptionId && (
               <button
-                onClick={() => {
-                  if (!currentJobDescriptionId) {
-                    alert('Please select a job description first');
-                    return;
-                  }
-                  
+                onClick={async () => {
                   if (!isAuthenticated || !user?.email) {
                     alert('Please sign in to save resumes to your profile');
                     return;
@@ -1792,8 +2419,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     suggestedName = resumeData.name ? `${resumeData.name} Resume` : 'My Resume';
                   }
 
-                  // Save job description directly without saving resume
-                  handleSaveJobDescription();
+                  const resumePayload = updatedResumeData ?? resumeData;
+                  const savedJobId = await handleSaveJobDescription();
+                  if (savedJobId) {
+                    await handleSaveResumeWithName({
+                      nameOverride: suggestedName,
+                      resumeOverride: resumePayload,
+                      suppressModalReset: true,
+                      jobDescriptionIdOverride: savedJobId,
+                    });
+                  }
                 }}
                 data-save-job-btn
                 className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1838,7 +2473,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-3">
-                      This estimate updates instantly as you edit. Click “Analyze Match” to run the full AI comparison.
+                      This estimate updates instantly as you edit. Click "Analyze Match" to run the full AI comparison.
                     </p>
                   </div>
                 ) : null
@@ -2164,9 +2799,38 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         }
                         if (generatedBulletsList.length > 0) {
                           // No work experience entries found, add bullets directly to section
-                          const newBullets = generatedBulletsList.map((bulletText: string) => ({
+                          const existingTexts = new Set(
+                            selectedSection.bullets.map((b: any) => (b.text || '').replace(/^•\s*/, '').trim().toLowerCase())
+                          );
+                          const sanitizedBullets = generatedBulletsList
+                            .map((bulletText: string) => bulletText.replace(/^•\s*/, '').trim())
+                            .filter((text: string) => text.length > 0)
+                            .filter((text: string) => {
+                              const lower = text.toLowerCase();
+                              if (existingTexts.has(lower)) {
+                                return false;
+                              }
+                              existingTexts.add(lower);
+                              return true;
+                            });
+
+                          if (sanitizedBullets.length === 0) {
+                            alert('All generated bullet points already exist in this section – nothing new to add.');
+                            setShowBulletGenerator(false);
+                            setSelectedKeywords(new Set());
+                            setSelectedWorkExpSection('');
+                            setBulletGeneratorCompany('');
+                            setBulletGeneratorJobTitle('');
+                            setGeneratedBullets([]);
+                            setBulletAssignments(new Map<number, string>());
+                            setSelectedBulletIndices(new Set<number>());
+                            setWorkExpEntries([]);
+                            return;
+                          }
+
+                          const newBullets = sanitizedBullets.map((text) => ({
                             id: `bullet-${Date.now()}-${Math.random()}`,
-                            text: bulletText,
+                            text: text.startsWith('•') ? text : `• ${text}`,
                             params: {}
                           }));
 
@@ -2190,8 +2854,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                           }
 
                           const successMsg = markedBullets.length > 0
-                            ? `✅ Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} and added ${generatedBulletsList.length} new bullet point${generatedBulletsList.length > 1 ? 's' : ''} to ${selectedSection.title}!`
-                            : `✅ Successfully generated and added ${generatedBulletsList.length} bullet point${generatedBulletsList.length > 1 ? 's' : ''} to ${selectedSection.title}!`;
+                            ? `✅ Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} and added ${sanitizedBullets.length} new bullet point${sanitizedBullets.length > 1 ? 's' : ''} to ${selectedSection.title}!`
+                            : `✅ Successfully generated and added ${sanitizedBullets.length} bullet point${sanitizedBullets.length > 1 ? 's' : ''} to ${selectedSection.title}!`;
                           
                           alert(successMsg);
                         } else if (markedBullets.length > 0) {
@@ -2209,7 +2873,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         if (generatedBulletsList.length > 0) {
                           setWorkExpEntries(entries);
                           setSelectedBulletIndices(new Set(generatedBulletsList.map((_: any, idx: number) => idx)));
-                          setBulletAssignments(new Map());
+                          setBulletAssignments(new Map<number, string>());
                           setShowBulletGenerator(false);
                           setShowWorkExpSelector(true);
                         } else {
@@ -2327,7 +2991,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       <button
                         onClick={() => {
                           if (allSelected) {
-                            setSelectedBulletIndices(new Set());
+                            setSelectedBulletIndices(new Set<number>());
                           } else {
                             setSelectedBulletIndices(new Set(unassignedIndices));
                           }
@@ -2425,7 +3089,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                                 newAssignments.set(bulletIdx, entryKey);
                               });
                               setBulletAssignments(newAssignments);
-                              setSelectedBulletIndices(new Set());
+                              setSelectedBulletIndices(new Set<number>());
                               
                               // Calculate updated ATS score after assignment
                               if (jobDescription && currentJobDescriptionId) {
@@ -2446,15 +3110,17 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                                   });
                                   
                                   tempEntriesByKey.forEach(({ entry, bulletIndices }) => {
-                                    const tempSection = tempSections.find((s: any) => s.id === entry.sectionId);
-                                    if (!tempSection) return;
+                                    const selectedSection = tempSections.find((s: any) => s.id === entry.sectionId);
+                                    if (!selectedSection) return;
                                     
-                                    const headerBulletIndex = tempSection.bullets.findIndex((b: any) => b.id === entry.bulletId);
+                                    // Find the index of the header bullet
+                                    const headerBulletIndex = selectedSection.bullets.findIndex((b: any) => b.id === entry.bulletId);
                                     if (headerBulletIndex === -1) return;
                                     
+                                    // Find where to insert (after all bullets for this entry, before next header or end)
                                     let insertIndex = headerBulletIndex + 1;
-                                    for (let i = headerBulletIndex + 1; i < tempSection.bullets.length; i++) {
-                                      const bullet = tempSection.bullets[i];
+                                    for (let i = headerBulletIndex + 1; i < selectedSection.bullets.length; i++) {
+                                      const bullet = selectedSection.bullets[i];
                                       if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
                                         insertIndex = i;
                                         break;
@@ -2462,19 +3128,46 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                                       insertIndex = i + 1;
                                     }
                                     
-                                    const tempNewBullets = bulletIndices.map((bulletIdx: number) => ({
-                                      id: `temp-bullet-${bulletIdx}`,
-                                      text: generatedBullets[bulletIdx].startsWith('•') 
-                                        ? generatedBullets[bulletIdx] 
-                                        : `• ${generatedBullets[bulletIdx]}`,
+                                    // Avoid inserting duplicate bullet content
+                                    const existingTexts = new Set(
+                                      selectedSection.bullets.map((b: any) => (b.text || '').replace(/^•\s*/, '').trim().toLowerCase())
+                                    );
+                                    const normalizedTexts: string[] = [];
+                                    bulletIndices.forEach((bulletIdx: number) => {
+                                      const raw = generatedBullets[bulletIdx] || '';
+                                      const normalized = raw.replace(/^•\s*/, '').trim();
+                                      if (!normalized) {
+                                        return;
+                                      }
+                                      const lower = normalized.toLowerCase();
+                                      if (existingTexts.has(lower)) {
+                                        return;
+                                      }
+                                      existingTexts.add(lower);
+                                      normalizedTexts.push(normalized);
+                                    });
+
+                                    if (normalizedTexts.length === 0) {
+                                      return;
+                                    }
+
+                                    // Create new bullet points for this entry
+                                    const tempNewBullets = normalizedTexts.map((text: string, idx: number) => ({
+                                      id: `temp-bullet-${Date.now()}-${Math.random()}-${idx}`,
+                                      text: text.startsWith('•')
+                                        ? text
+                                        : `• ${text}`,
                                       params: {}
                                     }));
                                     
-                                    tempSection.bullets = [
-                                      ...tempSection.bullets.slice(0, insertIndex),
+                                    // Insert bullets at the correct position
+                                    selectedSection.bullets = [
+                                      ...selectedSection.bullets.slice(0, insertIndex),
                                       ...tempNewBullets,
-                                      ...tempSection.bullets.slice(insertIndex)
+                                      ...selectedSection.bullets.slice(insertIndex)
                                     ];
+
+                                    // Preview only: no mutation summary recorded here
                                   });
                                   
                                   const tempUpdatedResume = {
@@ -2512,7 +3205,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                                   
                                   if (matchResponse.ok) {
                                     const matchData = await matchResponse.json();
-                                    setUpdatedATSScore(matchData.match_analysis?.similarity_score || null);
+                                    setUpdatedATSScore(roundScoreValue(matchData.match_analysis?.similarity_score));
                                   }
                                 } catch (error) {
                                   console.error('Failed to calculate updated ATS score:', error);
@@ -2579,8 +3272,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     setShowWorkExpSelector(false);
                     setGeneratedBullets([]);
                     setWorkExpEntries([]);
-                    setSelectedBulletIndices(new Set());
-                    setBulletAssignments(new Map());
+                    setSelectedBulletIndices(new Set<number>());
+                    setBulletAssignments(new Map<number, string>());
                   }}
                   className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors"
                 >
@@ -2635,12 +3328,33 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         insertIndex = i + 1;
                       }
 
+                      const existingTexts = new Set(
+                        selectedSection.bullets.map((b: any) => (b.text || '').replace(/^•\s*/, '').trim().toLowerCase())
+                      );
+                      const normalizedTexts: string[] = [];
+                      bulletIndices.forEach((bulletIdx: number) => {
+                        const raw = generatedBullets[bulletIdx] || '';
+                        const normalized = raw.replace(/^•\s*/, '').trim();
+                        if (!normalized) {
+                          return;
+                        }
+                        const lower = normalized.toLowerCase();
+                        if (existingTexts.has(lower)) {
+                          return;
+                        }
+                        existingTexts.add(lower);
+                        normalizedTexts.push(normalized);
+                      });
+
+                      if (normalizedTexts.length === 0) {
+                        assignmentResults.push(`Skipped duplicate bullets for ${entry.companyName}`);
+                        return;
+                      }
+
                       // Create new bullet points for this entry
-                      const newBullets = bulletIndices.map((bulletIdx: number) => ({
-                        id: `bullet-${Date.now()}-${Math.random()}-${bulletIdx}`,
-                        text: generatedBullets[bulletIdx].startsWith('•') 
-                          ? generatedBullets[bulletIdx] 
-                          : `• ${generatedBullets[bulletIdx]}`,
+                      const newBullets = normalizedTexts.map((text, idx) => ({
+                        id: `bullet-${Date.now()}-${Math.random()}-${idx}`,
+                        text: text.startsWith('•') ? text : `• ${text}`,
                         params: {}
                       }));
 
@@ -2651,7 +3365,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         ...selectedSection.bullets.slice(insertIndex)
                       ];
 
-                      assignmentResults.push(`${bulletIndices.length} bullet${bulletIndices.length > 1 ? 's' : ''} to ${entry.companyName}`);
+                      assignmentResults.push(`${newBullets.length} bullet${newBullets.length > 1 ? 's' : ''} to ${entry.companyName}`);
                     });
 
                     const updatedResume = {
@@ -2692,9 +3406,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         
                         if (matchResponse.ok) {
                           const matchData = await matchResponse.json();
-                          setUpdatedATSScore(matchData.match_analysis?.similarity_score || null);
+                          const normalizedMatchData = normalizeMatchResult(matchData);
+                          setUpdatedATSScore(roundScoreValue(matchData.match_analysis?.similarity_score));
                           // Update match result with new score
-                          setMatchResult(matchData);
+                          setMatchResult(normalizedMatchData);
                         }
                       } catch (error) {
                         console.error('Failed to recalculate ATS score:', error);
@@ -2725,9 +3440,34 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       suggestedName = resumeData.name ? `${resumeData.name} Resume` : 'My Resume';
                     }
 
-                    // Save job description directly without saving resume
+                    // Save job description and linked resume
                     setShowWorkExpSelector(false);
-                    handleSaveJobDescription();
+                    const savedJobId = await handleSaveJobDescription();
+                    if (savedJobId) {
+                      let suggestedName = '';
+                      if (currentJDInfo?.company) {
+                        const companyName = currentJDInfo.company.trim();
+                        const jobTitle = currentJDInfo.title ? ` - ${currentJDInfo.title.trim()}` : '';
+                        suggestedName = `${companyName}${jobTitle} Resume`;
+                      } else if (currentJDInfo?.title) {
+                        suggestedName = `${currentJDInfo.title.trim()} Resume`;
+                      } else if (selectedJobMetadata?.company) {
+                        const companyName = selectedJobMetadata.company.trim();
+                        const jobTitle = selectedJobMetadata.title ? ` - ${selectedJobMetadata.title.trim()}` : '';
+                        suggestedName = `${companyName}${jobTitle} Resume`;
+                      } else if (selectedJobMetadata?.title) {
+                        suggestedName = `${selectedJobMetadata.title.trim()} Resume`;
+                      } else {
+                        suggestedName = resumeData.name ? `${resumeData.name} Resume` : 'My Resume';
+                      }
+
+                      await handleSaveResumeWithName({
+                        nameOverride: suggestedName,
+                        resumeOverride: updatedResume,
+                        suppressModalReset: true,
+                        jobDescriptionIdOverride: savedJobId,
+                      });
+                    }
                   }}
                   data-save-job-btn
                   disabled={bulletAssignments.size === 0}
@@ -2789,7 +3529,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={handleSaveResumeWithName}
+                  onClick={() => handleSaveResumeWithName()}
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 font-semibold transition-all"
                 >
                   Save Resume
@@ -2802,8 +3542,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     // Clean up bullet generation states
                     setGeneratedBullets([]);
                     setWorkExpEntries([]);
-                    setSelectedBulletIndices(new Set());
-                    setBulletAssignments(new Map());
+                    setSelectedBulletIndices(new Set<number>());
+                    setBulletAssignments(new Map<number, string>());
                     setSelectedKeywords(new Set());
                     setSelectedWorkExpSection('');
                     setBulletGeneratorCompany('');

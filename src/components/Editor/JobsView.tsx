@@ -137,6 +137,14 @@ export default function JobsView({ onBack }: Props) {
     }
   }
 
+  const getScoreColor = (score?: number | null) => {
+    if (score === null || score === undefined) return 'text-gray-500'
+    if (score >= 80) return 'text-green-600'
+    if (score >= 60) return 'text-yellow-600'
+    if (score >= 40) return 'text-orange-600'
+    return 'text-red-600'
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
       <div className="bg-white border-b shadow-sm sticky top-0 z-20">
@@ -193,6 +201,21 @@ export default function JobsView({ onBack }: Props) {
                   {savedJDs.map((jd) => {
                     const bestMatch = jd.best_resume_version
                     const resumeCount = jd.resume_versions?.length || 0
+                    const scoreSnapshot =
+                      jd.ats_insights && typeof jd.ats_insights === 'object'
+                        ? (jd.ats_insights as any).score_snapshot ?? null
+                        : null
+                    const overallScore =
+                      bestMatch?.score ?? (typeof scoreSnapshot?.overall_score === 'number' ? scoreSnapshot.overall_score : null)
+                    const keywordCoverage =
+                      bestMatch?.keyword_coverage ??
+                      (typeof scoreSnapshot?.keyword_coverage === 'number' ? scoreSnapshot.keyword_coverage : null)
+                    const estimatedKeywordScore =
+                      typeof scoreSnapshot?.estimated_keyword_score === 'number'
+                        ? scoreSnapshot.estimated_keyword_score
+                        : null
+                    const ringScore = overallScore !== null ? Math.max(0, Math.min(100, overallScore)) : 0
+                    const ringStrokeClass = getScoreColor(overallScore).replace('text-', 'stroke-')
                     return (
                       <tr key={jd.id} className="hover:bg-gray-50">
                         <td className="p-3">
@@ -223,26 +246,67 @@ export default function JobsView({ onBack }: Props) {
                           </span>
                         </td>
                         <td className="p-3 text-sm">
-                          {bestMatch ? (
-                            <div className="space-y-2">
-                              <div className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-xs font-semibold ${
-                                (bestMatch.score || 0) >= 80 ? 'bg-green-100 text-green-700' :
-                                (bestMatch.score || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-orange-100 text-orange-700'
-                              }`}>
-                                <span>ATS: {bestMatch.score}%</span>
-                                {bestMatch.keyword_coverage !== undefined && bestMatch.keyword_coverage !== null && (
-                                  <span className="text-[10px] opacity-75">• Keywords {Math.round(bestMatch.keyword_coverage)}%</span>
-                                )}
+                          {overallScore !== null ? (
+                            <div className="flex items-center gap-3">
+                              <div className="relative inline-flex h-12 w-12 items-center justify-center">
+                                <svg viewBox="0 0 36 36" className="h-12 w-12">
+                                  <path
+                                    className="text-gray-200"
+                                    stroke="currentColor"
+                                    strokeWidth="3"
+                                    fill="none"
+                                    d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                                  />
+                                  <path
+                                    className={ringStrokeClass}
+                                    strokeLinecap="round"
+                                    strokeWidth="3"
+                                    fill="none"
+                                    strokeDasharray={`${ringScore}, 100`}
+                                    d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                                  />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                  <span className={`text-sm font-semibold ${getScoreColor(overallScore)}`}>
+                                    {overallScore}%
+                                  </span>
+                                  <span className="text-[10px] uppercase text-gray-400">ATS</span>
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-600">
-                                {bestMatch.resume_name ? bestMatch.resume_name : 'Resume'}
-                                {bestMatch.resume_version_label && (
-                                  <span className="ml-1 text-gray-400">({bestMatch.resume_version_label})</span>
+                              <div className="space-y-1">
+                                <div className={`text-sm font-semibold ${getScoreColor(overallScore)}`}>
+                                  {overallScore}% match
+                                </div>
+                                {keywordCoverage !== null && (
+                                  <div className="text-[11px] text-gray-500">
+                                    Keywords {Math.round(keywordCoverage)}%
+                                  </div>
                                 )}
-                              </div>
-                              <div className="text-[11px] text-gray-400">
-                                Updated {bestMatch.updated_at ? new Date(bestMatch.updated_at).toLocaleDateString() : 'recently'}
+                                {estimatedKeywordScore !== null && (
+                                  <div className="text-[11px] text-gray-500">
+                                    Est. keyword fit {estimatedKeywordScore}%
+                                  </div>
+                                )}
+                                {bestMatch?.resume_name && (
+                                  <div className="text-[11px] text-gray-500">
+                                    {bestMatch.resume_name}
+                                    {bestMatch.resume_version_label && (
+                                      <span className="ml-1 text-gray-400">
+                                        ({bestMatch.resume_version_label})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {bestMatch?.updated_at && (
+                                  <div className="text-[11px] text-gray-400">
+                                    Updated {new Date(bestMatch.updated_at).toLocaleDateString()}
+                                  </div>
+                                )}
+                                {!bestMatch?.updated_at && scoreSnapshot?.updated_at && (
+                                  <div className="text-[11px] text-gray-400">
+                                    Updated {new Date(scoreSnapshot.updated_at).toLocaleDateString()}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ) : (
