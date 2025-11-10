@@ -355,7 +355,8 @@ export default function JobsView({ onBack }: Props) {
                             {bestMatch?.resume_id && (
                               <button
                                 onClick={() => {
-                                  window.location.href = `/editor?resumeId=${bestMatch.resume_id}&jdId=${jd.id}`
+                                  const versionQuery = bestMatch.resume_version_id ? `&resumeVersionId=${bestMatch.resume_version_id}` : ''
+                                  window.location.href = `/editor?resumeId=${bestMatch.resume_id}${versionQuery}&jdId=${jd.id}`
                                 }}
                                 className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 whitespace-nowrap"
                               >

@@ -291,6 +291,278 @@ const GENERIC_HEADINGS = new Set([
   'about company',
 ]);
 
+const COMMON_TITLE_WORDS = new Set([
+  'senior',
+  'junior',
+  'lead',
+  'principal',
+  'staff',
+  'head',
+  'chief',
+  'executive',
+  'director',
+  'manager',
+  'engineer',
+  'developer',
+  'designer',
+  'analyst',
+  'architect',
+  'consultant',
+  'scientist',
+  'specialist',
+  'coordinator',
+  'administrator',
+  'associate',
+  'assistant',
+  'officer',
+  'strategist',
+  'technician',
+  'advisor',
+  'engineer',
+  'developer',
+  'consultant',
+  'intern',
+  'fellow',
+  'product',
+  'project',
+  'program',
+  'operations',
+  'marketing',
+  'sales',
+  'support',
+  'customer',
+  'success',
+  'experience',
+  'quality',
+  'security',
+  'compliance',
+  'platform',
+  'cloud',
+  'devops',
+  'sre',
+  'site',
+  'reliability',
+  'software',
+  'hardware',
+  'data',
+  'analytics',
+  'ai',
+  'ml',
+  'machine',
+  'learning',
+  'finance',
+  'accounting',
+  'people',
+  'talent',
+  'human',
+  'resources',
+  'hr',
+  'information',
+  'technology',
+  'it',
+  'systems',
+  'full',
+  'stack',
+  'full-stack',
+  'fullstack',
+  'frontend',
+  'backend',
+  'mobile',
+  'ios',
+  'android',
+  'ux',
+  'ui',
+  'creative',
+  'content',
+  'editor',
+  'writer',
+  'copywriter',
+  'engineers',
+]);
+
+const TITLE_STOP_TOKENS = new Set([
+  'to',
+  'for',
+  'with',
+  'in',
+  'on',
+  'who',
+  'that',
+  'which',
+  'while',
+  'where',
+  'responsible',
+  'responsibilities',
+  'support',
+  'supporting',
+  'help',
+  'helping',
+  'join',
+  'joining',
+  'drive',
+  'driving',
+  'deliver',
+  'delivering',
+  'ensure',
+  'ensuring',
+  'work',
+  'working',
+  'collaborate',
+  'collaborating',
+  'partner',
+  'partnering',
+  'lead',
+  'leading',
+  'manage',
+  'managing',
+  'oversee',
+  'overseeing',
+  'design',
+  'designing',
+  'develop',
+  'developing',
+  'build',
+  'building',
+  'create',
+  'creating',
+  'maintain',
+  'maintaining',
+  'implement',
+  'implementing',
+  'coordinate',
+  'coordinating',
+  'plan',
+  'planning',
+  'execute',
+  'executing',
+  'deliverables',
+  'across',
+  'across,',
+  'and,',
+  'including',
+  'own',
+  'owning',
+  'ownership',
+  'enable',
+  'enabling',
+  'help',
+  'ensure',
+]);
+
+const TITLE_INTRO_PATTERNS = [
+  /^we\s*(?:are|'re)\s*(?:looking|seeking|hiring)\s*for\s+(?:an?\s+)?/i,
+  /^we\s*(?:are|'re)\s*(?:seeking|hiring)\s+(?:an?\s+)?/i,
+  /^looking\s+for\s+(?:an?\s+)?/i,
+  /^seeking\s+(?:an?\s+)?/i,
+  /^hiring\s+(?:an?\s+)?/i,
+  /^as\s+(?:an?\s+)?/i,
+  /^the\s+ideal\s+candidate\s+is\s+(?:an?\s+)?/i,
+];
+
+const isLikelyTitleToken = (token: string) => {
+  if (!token) return false;
+  const cleaned = token.replace(/^[^a-z0-9+#/&-]+|[^a-z0-9+#/&-]+$/gi, '');
+  if (!cleaned) return false;
+  const lower = cleaned.toLowerCase();
+  if (COMMON_TITLE_WORDS.has(lower)) return true;
+  if (cleaned.length <= 5 && cleaned === cleaned.toUpperCase()) return true;
+  if (/[+/&-]/.test(cleaned)) return true;
+  return /^[A-Z]/.test(cleaned);
+};
+
+const extractJobTitleFromSentence = (value?: string | null): string | null => {
+  if (!value) return null;
+  let text = value.replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+
+  for (const pattern of TITLE_INTRO_PATTERNS) {
+    if (pattern.test(text)) {
+      text = text.replace(pattern, '').trim();
+      break;
+    }
+  }
+
+  const punctuationIndex = text.search(/[.,;:]/);
+  if (punctuationIndex > 0) {
+    text = text.slice(0, punctuationIndex).trim();
+  }
+
+  const rawTokens = text
+    .split(/\s+/)
+    .map((token) => token.replace(/^[^a-z0-9+#/&-]+|[^a-z0-9+#/&-]+$/gi, ''))
+    .filter(Boolean);
+
+  if (rawTokens.length === 0) return null;
+
+  let start = rawTokens.findIndex((token) => {
+    const lower = token.toLowerCase();
+    return /^[A-Z]/.test(token) || COMMON_TITLE_WORDS.has(lower);
+  });
+  if (start === -1) {
+    start = 0;
+  }
+
+  const selected: string[] = [];
+  for (let i = start; i < rawTokens.length; i += 1) {
+    const token = rawTokens[i];
+    if (!token) continue;
+    const lower = token.toLowerCase();
+    if (selected.length > 0 && TITLE_STOP_TOKENS.has(lower)) break;
+    if ((lower === 'a' || lower === 'an' || lower === 'the') && selected.length === 0) continue;
+    if (lower === 'and' && selected.length > 0) {
+      // Allow "and" only if next token looks like part of a title
+      const nextToken = rawTokens[i + 1];
+      if (nextToken && isLikelyTitleToken(nextToken)) {
+        selected.push('and');
+        continue;
+      }
+      break;
+    }
+    selected.push(token);
+    if (selected.length >= 8) break;
+  }
+
+  while (selected.length && !isLikelyTitleToken(selected[0])) {
+    selected.shift();
+  }
+  while (selected.length && !isLikelyTitleToken(selected[selected.length - 1])) {
+    selected.pop();
+  }
+
+  const candidate = selected.join(' ').trim();
+  if (!candidate) return null;
+  const words = candidate.split(/\s+/);
+  if (words.length === 0 || words.length > 8) return null;
+  if (/^(?:looking|seeking|hiring)\b/i.test(candidate)) return null;
+
+  const formatted = words
+    .map((word, idx) => {
+      const lower = word.toLowerCase();
+      if ((lower === 'and' || lower === 'of' || lower === 'for' || lower === 'to') && idx !== 0) {
+        return lower;
+      }
+      if (word.toUpperCase() === word || /[A-Z]/.test(word.slice(1))) {
+        return word;
+      }
+      if (word.includes('/')) {
+        return word
+          .split('/')
+          .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part))
+          .join('/');
+      }
+      if (word.includes('-')) {
+        return word
+          .split('-')
+          .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part))
+          .join('-');
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+
+  return formatted;
+};
+
 const extractKeyPhrases = (text: string): string[] => {
   if (!text) return [];
   const cleaned = text.replace(/\r\n?/g, '\n');
@@ -336,6 +608,15 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
   const lines = normalized.split('\n').map((line) => line.trim()).filter(Boolean);
 
   const metadata: JobMetadata = {};
+  const assignTitleFromCandidate = (candidate?: string | null) => {
+    if (!candidate) return false;
+    const cleaned = extractJobTitleFromSentence(candidate);
+    if (cleaned) {
+      metadata.title = cleaned;
+      return true;
+    }
+    return false;
+  };
 
   let titleFromLabel = extractLineValue([
     /(?:position|job title|title)\s*[:\-]\s*([^\n]+)/i,
@@ -346,12 +627,16 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
     titleFromLabel = null;
   }
 
+  if (titleFromLabel) {
+    assignTitleFromCandidate(titleFromLabel);
+  }
+
   const companyFromLabel = extractLineValue([
     /(?:company|employer|organization)\s*[:\-]\s*([^\n]+)/i,
     /(?:at|@)\s*([A-Z][\w\s&.,'-]{2,70})/i,
   ], normalized);
 
-  if (lines.length > 0 && !titleFromLabel) {
+  if (lines.length > 0 && !metadata.title) {
     const firstLine = lines[0];
     const titleCompanyMatch = firstLine.match(/^([^@\-•]{3,120}?)(?:\s+(?:at|@)\s+(.+))?$/i);
     if (titleCompanyMatch) {
@@ -359,21 +644,24 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
       if (possibleTitle?.trim()) {
         const normalizedTitle = possibleTitle.trim();
         if (!GENERIC_HEADINGS.has(normalizedTitle.toLowerCase())) {
-          metadata.title = normalizedTitle;
+          assignTitleFromCandidate(normalizedTitle);
         }
       }
-      if (!companyFromLabel && possibleCompany?.trim()) {
+      if (!metadata.company && !companyFromLabel && possibleCompany?.trim()) {
         metadata.company = possibleCompany.trim();
       }
     } else {
       if (!GENERIC_HEADINGS.has(firstLine.toLowerCase())) {
-        metadata.title = firstLine;
+        assignTitleFromCandidate(firstLine);
       }
     }
   }
 
-  if (titleFromLabel) {
-    metadata.title = titleFromLabel;
+  if (!metadata.title && titleFromLabel) {
+    const cleanedLabelTitle = extractJobTitleFromSentence(titleFromLabel) || titleFromLabel;
+    if (cleanedLabelTitle && !GENERIC_HEADINGS.has(cleanedLabelTitle.toLowerCase())) {
+      metadata.title = cleanedLabelTitle;
+    }
   }
   if (companyFromLabel) {
     metadata.company = companyFromLabel;
@@ -408,8 +696,9 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
       if (candidate.startsWith('•') || candidate.startsWith('-')) continue;
       if (candidate.length < 4) continue;
       if (/^(responsibilities|requirements|qualifications|about|role|skills)\b/i.test(candidate.toLowerCase())) continue;
-      metadata.title = candidate;
-      break;
+      if (assignTitleFromCandidate(candidate)) {
+        break;
+      }
     }
   }
 

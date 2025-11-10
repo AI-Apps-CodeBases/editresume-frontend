@@ -155,7 +155,8 @@ export default function ResumesView({ onBack }: Props) {
                   <div className="flex items-center gap-2 mt-4">
                     <button
                       onClick={() => {
-                        window.location.href = `/editor?resumeId=${resume.id}`
+                        const versionQuery = resume.latest_version_id ? `&resumeVersionId=${resume.latest_version_id}` : ''
+                        window.location.href = `/editor?resumeId=${resume.id}${versionQuery}`
                       }}
                       className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-all font-semibold text-center"
                     >

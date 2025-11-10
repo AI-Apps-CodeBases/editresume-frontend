@@ -186,7 +186,33 @@ interface Props {
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
 }
 
-const isCompanyHeaderBullet = (bullet: Bullet) => Boolean(bullet?.text?.startsWith('**') && bullet?.text?.includes('**', 2))
+const isCompanyHeaderBullet = (bullet: Bullet) => {
+  if (!bullet?.text) return false
+  const raw = bullet.text.trim()
+  if (!raw) return false
+  if (raw.startsWith('**') && raw.includes('**', 2)) return true
+
+  const normalized = raw.replace(/^•\s*/, '')
+  const parts = normalized.split(' / ').map((part) => part.trim()).filter(Boolean)
+  if (parts.length < 2) return false
+
+  const [companyPart, rolePart] = parts
+  if (!companyPart || !rolePart) return false
+
+  const hasCompanyText = /[A-Za-z]/.test(companyPart)
+  const hasRoleText = /[A-Za-z]/.test(rolePart)
+  if (!hasCompanyText || !hasRoleText) return false
+
+  if (parts.length >= 3) {
+    const datePart = parts[parts.length - 1]
+    if (datePart) {
+      const hasDateHint = /(\d{4}|\b(?:present|current|past|ongoing)\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b)/i.test(datePart)
+      if (!hasDateHint) return false
+    }
+  }
+
+  return true
+}
 
 const partitionCompanyGroups = (bullets: Bullet[]) => {
   const groups: Bullet[][] = []
@@ -247,7 +273,7 @@ export default function VisualResumeEditor({
     priority: string[];
   } | null>(null);
   const [showAIImproveModal, setShowAIImproveModal] = useState(false);
-  const [aiImproveContext, setAiImproveContext] = useState<{sectionId: string, bulletId: string, currentText: string} | null>(null);
+  const [aiImproveContext, setAiImproveContext] = useState<{sectionId: string, bulletId: string, currentText: string, mode?: 'existing' | 'new'} | null>(null);
   const [selectedMissingKeywords, setSelectedMissingKeywords] = useState<Set<string>>(new Set());
   const [generatedBulletOptions, setGeneratedBulletOptions] = useState<string[]>([]);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
@@ -2011,7 +2037,7 @@ export default function VisualResumeEditor({
                         const jobTitle = parts[1]?.trim() || 'Unknown Role'
                         const dateRange = parts[2]?.trim() || 'Unknown Date'
 
-                        const companyBullets: Bullet[] = group.slice(1).filter(b => b.text?.trim() && b.text?.startsWith('•'))
+                        const companyBullets: Bullet[] = group.slice(1)
                         const uncheckedBulletCount = companyBullets.filter(bullet => bullet.params?.visible === false).length
 
                         return (
@@ -2101,7 +2127,8 @@ export default function VisualResumeEditor({
                                       jobTitle,
                                       dateRange,
                                       sectionId: section.id,
-                                      bulletId: headerBullet.id
+                                      bulletId: headerBullet.id,
+                                      mode: 'new'
                                     })
                                     setShowAIWorkExperience(true)
                                   }}
@@ -2133,6 +2160,13 @@ export default function VisualResumeEditor({
                             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                               <div className="space-y-3">
                                 {companyBullets.map(companyBullet => {
+                                  const normalizedText = companyBullet.text?.trim() || ''
+                                  const isHeaderLike = normalizedText.startsWith('**') || normalizedText.split(' / ').length >= 2
+                                  const isBulletLike = normalizedText.startsWith('•') || normalizedText.startsWith('-')
+                                  if (!isBulletLike && isHeaderLike) {
+                                    return null
+                                  }
+
                                   const bulletMatch = checkBulletMatches(companyBullet.text, section.title)
                                   const hasMatch = bulletMatch.matches
                                   const hasNoMatch = jdKeywords && !hasMatch && companyBullet.text.trim().length > 0
@@ -2254,7 +2288,7 @@ export default function VisualResumeEditor({
                                                 }))
                                               }
                                             }}
-                                            className={`text-sm outline-none hover:bg-white focus:bg-white px-2 py-1 rounded transition-colors cursor-text ${
+                                            className={`text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
                                               hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0' : ''
                                             } ${
                                               companyBullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch ? 'text-gray-800 font-medium' : 'text-gray-700'
@@ -2273,11 +2307,12 @@ export default function VisualResumeEditor({
                                               setAiImproveContext({
                                                 sectionId: section.id,
                                                 bulletId: companyBullet.id,
-                                                currentText: companyBullet.text
+                                                currentText: companyBullet.text,
+                                                mode: 'existing'
                                               })
                                               setShowAIImproveModal(true)
                                             } else if (onAIImprove) {
-                                              (async () => {
+                                              ;(async () => {
                                                 try {
                                                   setIsAILoading(true)
                                                   const improvedText = await onAIImprove(companyBullet.text)
@@ -2507,8 +2542,7 @@ export default function VisualResumeEditor({
                                   data-section-id={section.id}
                                   data-bullet-id={bullet.id}
                                     onBlur={(e) => {
-                                      updateBullet(section.id, bullet.id, e.currentTarget.textContent || '');
-                                      // Trigger ATS recalculation
+                                      updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
                                       if (typeof window !== 'undefined') {
                                         window.dispatchEvent(new CustomEvent('resumeDataUpdated', { 
                                           detail: { resumeData: { ...data, sections: data.sections.map(s =>
@@ -2540,12 +2574,12 @@ export default function VisualResumeEditor({
                                       setAiImproveContext({
                                         sectionId: section.id,
                                         bulletId: bullet.id,
-                                        currentText: bullet.text
-                                      });
-                                      setShowAIImproveModal(true);
+                                        currentText: bullet.text,
+                                        mode: 'existing'
+                                      })
+                                      setShowAIImproveModal(true)
                                     } else if (onAIImprove) {
-                                      // Fallback to old behavior if no JD keywords
-                                      (async () => {
+                                      ;(async () => {
                                       try {
                                         setIsAILoading(true)
                                         const improvedText = await onAIImprove(bullet.text)
@@ -2555,7 +2589,7 @@ export default function VisualResumeEditor({
                                       } finally {
                                         setIsAILoading(false)
                                       }
-                                      })();
+                                      })()
                                     }
                                   }}
                                   disabled={isAILoading}
@@ -2612,8 +2646,6 @@ export default function VisualResumeEditor({
                 </div>
                 
                 <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-                  {generatedBulletOptions.length === 0 ? (
-                    <>
                       <div className="mb-4">
                         <p className="text-sm text-gray-700 mb-3">Current bullet:</p>
                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -2625,20 +2657,20 @@ export default function VisualResumeEditor({
                         <p className="text-sm font-semibold text-gray-900 mb-3">Select missing keywords to include (choose 2-8):</p>
                         <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
                           {jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30).map((keyword, idx) => {
-                            const isSelected = selectedMissingKeywords.has(keyword);
+                        const isSelected = selectedMissingKeywords.has(keyword)
                             return (
                               <button
                                 key={idx}
                                 onClick={() => {
-                                  const newSelected = new Set(selectedMissingKeywords);
+                              const newSelected = new Set(selectedMissingKeywords)
                                   if (isSelected) {
-                                    newSelected.delete(keyword);
+                                newSelected.delete(keyword)
                                   } else if (newSelected.size < 8) {
-                                    newSelected.add(keyword);
+                                newSelected.add(keyword)
                                   } else {
-                                    alert('Please select maximum 8 keywords');
+                                alert('Please select maximum 8 keywords')
                                   }
-                                  setSelectedMissingKeywords(newSelected);
+                              setSelectedMissingKeywords(newSelected)
                                 }}
                                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                                   isSelected
@@ -2648,7 +2680,7 @@ export default function VisualResumeEditor({
                               >
                                 {isSelected && '✓ '}{keyword}
                               </button>
-                            );
+                        )
                           })}
                         </div>
                         {selectedMissingKeywords.size > 0 && (
@@ -2660,312 +2692,55 @@ export default function VisualResumeEditor({
                       
                       <button
                         onClick={async () => {
+                      if (!aiImproveContext) return
                           if (selectedMissingKeywords.size < 2) {
-                            alert('Please select at least 2 keywords (minimum 2, maximum 8)');
-                            return;
+                        alert('Please select at least 2 keywords (minimum 2, maximum 8)')
+                        return
                           }
                           if (selectedMissingKeywords.size > 8) {
-                            alert('Please select maximum 8 keywords');
-                            return;
+                        alert('Please select maximum 8 keywords')
+                        return
                           }
                           
-                          setIsGeneratingBullets(true);
+                      setIsGeneratingBullets(true)
                           try {
-                            const keywordsArray = Array.from(selectedMissingKeywords);
-                            const response = await fetch(`${config.apiBase}/api/ai/generate_bullets_from_keywords`, {
+                        const keywordsArray = Array.from(selectedMissingKeywords)
+                        const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
-                                keywords: keywordsArray,
-                                job_description: typeof window !== 'undefined' ? localStorage.getItem('currentJDText') || '' : '',
-                                company_title: '',
-                                job_title: '',
-                                section_title: data.sections.find(s => s.id === aiImproveContext.sectionId)?.title || 'Work Experience',
-                                context: {
-                                  resume_data: {
-                                    name: data.name,
-                                    title: data.title,
-                                    summary: data.summary
-                                  }
-                                }
-                              }),
-                            });
-                            
-                            if (response.ok) {
-                              const result = await response.json();
-                              if (result.bullets && result.bullets.length > 0) {
-                                setGeneratedBulletOptions(result.bullets.slice(0, 3));
+                            keywords: keywordsArray.join(', '),
+                            current_bullet: aiImproveContext.currentText,
+                            mode: aiImproveContext.mode === 'existing' ? 'improve' : 'create'
+                          })
+                        })
+                        const data = await response.json()
+                        if (data.success && data.bullet_text) {
+                          const newText = `• ${data.bullet_text.trim()}`
+                          updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, newText)
+                          setShowAIImproveModal(false)
+                          setAiImproveContext(null)
+                          setSelectedMissingKeywords(new Set())
+                          setGeneratedBulletOptions([])
                               } else {
-                                alert('Failed to generate bullet points');
-                              }
-                            } else {
-                              throw new Error('Failed to generate bullets');
+                          alert(data.error || 'Failed to improve bullet')
                             }
                           } catch (error) {
-                            console.error('Failed to generate bullets:', error);
-                            alert('Failed to generate bullet points. Please try again.');
+                        console.error('Failed to improve bullet:', error)
+                        alert('Failed to improve bullet. Please try again.')
                           } finally {
-                            setIsGeneratingBullets(false);
-                          }
-                        }}
-                        disabled={selectedMissingKeywords.size < 2 || selectedMissingKeywords.size > 8 || isGeneratingBullets}
-                        className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
-                      >
-                        {isGeneratingBullets ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Generating...
-                          </span>
-                        ) : (
-                          `Generate 3 Bullet Options (${selectedMissingKeywords.size} keyword${selectedMissingKeywords.size > 1 ? 's' : ''} selected)`
-                        )}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900 mb-3">Select bullet points to add to your work experience (you can select multiple):</p>
-                        <div className="space-y-3">
-                          {generatedBulletOptions.map((option: string, idx: number) => {
-                            // Highlight selected keywords in the bullet text
-                            let highlightedText = option.startsWith('•') ? option : `• ${option}`;
-                            const selectedKeywordsArray = Array.from(selectedMissingKeywords);
-                            selectedKeywordsArray.forEach(keyword => {
-                              if (keyword.length > 1) {
-                                const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-                                highlightedText = highlightedText.replace(regex, (match) => {
-                                  return `<mark class="bg-yellow-300 font-semibold px-1 rounded">${match}</mark>`;
-                                });
-                              }
-                            });
-                            
-                            const isSelected = selectedBullets.has(idx);
-                            
-                            return (
-                              <div
-                                key={idx}
-                                className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                                  isSelected 
-                                    ? 'bg-gradient-to-r from-green-50 to-green-100 border-green-400' 
-                                    : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 hover:border-blue-400'
-                                }`}
-                                onClick={() => {
-                                  const newSelected = new Set(selectedBullets);
-                                  if (isSelected) {
-                                    newSelected.delete(idx);
-                                  } else {
-                                    newSelected.add(idx);
-                                  }
-                                  setSelectedBullets(newSelected);
-                                }}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      const newSelected = new Set(selectedBullets);
-                                      if (e.target.checked) {
-                                        newSelected.add(idx);
-                                      } else {
-                                        newSelected.delete(idx);
-                                      }
-                                      setSelectedBullets(newSelected);
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-1"
-                                  />
-                                  <div className="flex-1">
-                                    <p className="text-gray-800" dangerouslySetInnerHTML={{ __html: highlightedText }} />
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <button
-                            onClick={async () => {
-                              const selectedIndices = Array.from(selectedBullets);
-                              if (selectedIndices.length === 0) {
-                                alert('Please select at least one bullet point to add');
-                                return;
-                              }
-                              
-                              // Show loading notification
-                              const loadingNotification = document.createElement('div');
-                              loadingNotification.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
-                              loadingNotification.innerHTML = `
-                                <div class="flex items-center gap-3">
-                                  <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  <div>
-                                    <div class="font-bold text-lg">Adding Bullet Points...</div>
-                                    <div class="text-sm mt-1">Please wait</div>
-                                  </div>
-                                </div>
-                              `;
-                              document.body.appendChild(loadingNotification);
-                              
-                              try {
-                                // Find the work experience section
-                                const section = data.sections.find(s => s.id === aiImproveContext.sectionId);
-                                
-                                if (!section) {
-                                  throw new Error('Could not find section');
-                                }
-                                
-                                // Add selected bullets to the section
-                                const newBullets = selectedIndices.map((idx: number, i: number) => {
-                                  const option = generatedBulletOptions[idx];
-                                  return {
-                                    id: `bullet-${Date.now()}-${i}`,
-                                    text: option.startsWith('•') ? option : `• ${option}`,
-                                    params: {}
-                                  };
-                                });
-                                
-                                // Find the position to insert
-                                // If it's a work experience bullet, try to find the company header
-                                const currentBulletIndex = section.bullets.findIndex(b => b.id === aiImproveContext.bulletId);
-                                
-                                let updatedBullets: any[];
-                                
-                                if (currentBulletIndex >= 0) {
-                                  // Check if the current bullet is a company header (starts with **)
-                                  const currentBullet = section.bullets[currentBulletIndex];
-                                  if (currentBullet.text?.startsWith('**')) {
-                                    // Insert after the company header
-                                    updatedBullets = [
-                                      ...section.bullets.slice(0, currentBulletIndex + 1),
-                                      ...newBullets,
-                                      ...section.bullets.slice(currentBulletIndex + 1)
-                                    ];
-                                  } else {
-                                    // Find the nearest company header before this bullet
-                                    let companyHeaderIndex = -1;
-                                    for (let i = currentBulletIndex; i >= 0; i--) {
-                                      if (section.bullets[i].text?.startsWith('**')) {
-                                        companyHeaderIndex = i;
-                                        break;
-                                      }
-                                    }
-                                    
-                                    if (companyHeaderIndex >= 0) {
-                                      // Find the last bullet point under this company header
-                                      let lastBulletIndex = companyHeaderIndex;
-                                      for (let i = companyHeaderIndex + 1; i < section.bullets.length; i++) {
-                                        if (section.bullets[i].text?.startsWith('**')) {
-                                          break; // Next company header found
-                                        }
-                                        if (section.bullets[i].text?.trim() && !section.bullets[i].text?.startsWith('**')) {
-                                          lastBulletIndex = i;
-                                        }
-                                      }
-                                      // Insert after the last bullet of this company
-                                      updatedBullets = [
-                                        ...section.bullets.slice(0, lastBulletIndex + 1),
-                                        ...newBullets,
-                                        ...section.bullets.slice(lastBulletIndex + 1)
-                                      ];
-                                    } else {
-                                      // No company header found, append to the end
-                                      updatedBullets = [...section.bullets, ...newBullets];
-                                    }
-                                  }
-                                } else {
-                                  // Bullet not found, append to the end
-                                  updatedBullets = [...section.bullets, ...newBullets];
-                                }
-                                
-                                const updatedSections = data.sections.map(s =>
-                                  s.id === section.id ? { ...s, bullets: updatedBullets } : s
-                                );
-                                
-                                // Update the resume data
-                                const updatedResumeData = { ...data, sections: updatedSections };
-                                onChange(updatedResumeData);
-                                
-                                // Trigger ATS score recalculation by dispatching a custom event
-                                if (typeof window !== 'undefined') {
-                                  window.dispatchEvent(new CustomEvent('resumeDataUpdated', { 
-                                    detail: { resumeData: updatedResumeData }
-                                  }));
-                                }
-                                
-                                // Remove loading notification
-                                loadingNotification.remove();
-                                
-                                // Show success notification with ATS score update message
-                                const successNotification = document.createElement('div');
-                                successNotification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
-                                successNotification.innerHTML = `
-                                  <div class="flex items-center gap-3">
-                                    <div class="text-2xl">✅</div>
-                                    <div>
-                                      <div class="font-bold text-lg">Bullet Points Added!</div>
-                                      <div class="text-sm mt-1">${selectedIndices.length} bullet point${selectedIndices.length > 1 ? 's' : ''} added to your work experience</div>
-                                      <div class="text-xs mt-1 text-green-100">📊 ATS score is updating...</div>
-                                    </div>
-                                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
-                                  </div>
-                                `;
-                                document.body.appendChild(successNotification);
-                                setTimeout(() => successNotification.remove(), 5000);
-                                
-                              } catch (error) {
-                                console.error('Failed to add bullet points:', error);
-                                loadingNotification.remove();
-                                
-                                // Show error notification
-                                const errorNotification = document.createElement('div');
-                                errorNotification.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
-                                errorNotification.innerHTML = `
-                                  <div class="flex items-center gap-3">
-                                    <div class="text-2xl">❌</div>
-                                    <div>
-                                      <div class="font-bold text-lg">Failed to Add</div>
-                                      <div class="text-sm mt-1">${error instanceof Error ? error.message : 'Unknown error occurred'}</div>
-                                    </div>
-                                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
-                                  </div>
-                                `;
-                                document.body.appendChild(errorNotification);
-                                setTimeout(() => errorNotification.remove(), 5000);
-                                return;
-                              }
-                              
-                              // Close modal and reset state
-                              setShowAIImproveModal(false);
-                              setAiImproveContext(null);
-                              setSelectedMissingKeywords(new Set());
-                              setGeneratedBulletOptions([]);
-                              setSelectedBullets(new Set());
-                            }}
-                            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={selectedBullets.size === 0}
-                          >
-                            Add Selected ({selectedBullets.size})
+                        setIsGeneratingBullets(false)
+                      }
+                    }}
+                    className={`w-full py-3 rounded-xl font-semibold text-white shadow-lg transition-all ${
+                      isGeneratingBullets
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
+                    }`}
+                    disabled={isGeneratingBullets}
+                  >
+                    {isGeneratingBullets ? 'Generating...' : 'Enhance bullet with keywords'}
                           </button>
-                          <button
-                            onClick={() => {
-                              setGeneratedBulletOptions([]);
-                              setSelectedMissingKeywords(new Set());
-                              setSelectedBullets(new Set());
-                            }}
-                            className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors"
-                          >
-                            Back
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
                 </div>
               </div>
             </div>

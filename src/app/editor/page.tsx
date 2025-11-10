@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, Suspense, useRef } from 'react'
 import config from '@/lib/config';
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -84,6 +84,139 @@ const EditorPageContent = () => {
       }>
     }>
   })
+  const lastLoadedRef = useRef<{ resumeId?: number | null; versionId?: number | null }>({})
+  const lastQueryParamsRef = useRef<{ resumeIdParam?: string | null; resumeVersionIdParam?: string | null }>({})
+  const resumeIdParam = searchParams.get('resumeId')
+  const resumeVersionIdParam = searchParams.get('resumeVersionId')
+  useEffect(() => {
+    if (!isAuthenticated || !user?.email) return
+
+    const resumeId = resumeIdParam ? Number(resumeIdParam) : null
+    let resumeVersionId = resumeVersionIdParam ? Number(resumeVersionIdParam) : null
+
+    if ((!resumeId && !resumeVersionId) || Number.isNaN(resumeId ?? undefined) || Number.isNaN(resumeVersionId ?? undefined)) {
+      return
+    }
+
+    if (
+      lastQueryParamsRef.current.resumeIdParam === resumeIdParam &&
+      lastQueryParamsRef.current.resumeVersionIdParam === resumeVersionIdParam
+    ) {
+      return
+    }
+
+    let cancelled = false
+
+    const fetchResumeData = async () => {
+      lastQueryParamsRef.current = { resumeIdParam, resumeVersionIdParam }
+      try {
+        let resumeMeta: any = null
+
+        if (resumeId && user?.email) {
+          try {
+            const metaRes = await fetch(`${config.apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+            if (metaRes.ok) {
+              const metaJson = await metaRes.json()
+              const matched = (metaJson.resumes || []).find((item: any) => item.id === resumeId)
+              if (matched) {
+                resumeMeta = matched
+                if (!resumeVersionId && matched.latest_version_id) {
+                  resumeVersionId = matched.latest_version_id
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Failed to load resume metadata:', err)
+          }
+        }
+
+        if (!resumeVersionId && resumeId && user?.email) {
+          try {
+            const versionsRes = await fetch(
+              `${config.apiBase}/api/resume/${resumeId}/versions?user_email=${encodeURIComponent(user.email)}`
+            )
+            if (versionsRes.ok) {
+              const versionsJson = await versionsRes.json()
+              const firstVersion = (versionsJson.versions || [])[0]
+              if (firstVersion?.id) {
+                resumeVersionId = firstVersion.id
+              }
+            }
+          } catch (err) {
+            console.error('Failed to load resume versions:', err)
+          }
+        }
+
+        if (!resumeVersionId) {
+          console.warn('No resume version available to load')
+          return
+        }
+
+        const versionRes = await fetch(
+          `${config.apiBase}/api/resume/version/${resumeVersionId}?user_email=${encodeURIComponent(user.email)}`
+        )
+        if (!versionRes.ok) {
+          console.error('Failed to load resume version:', await versionRes.text())
+          return
+        }
+
+        const versionJson = await versionRes.json()
+        const versionPayload = versionJson?.version?.resume_data || {}
+        const personalInfo = versionPayload.personalInfo || {}
+        const sections = Array.isArray(versionPayload.sections) ? versionPayload.sections : []
+
+        const normalizedResume = {
+          name: personalInfo.name || resumeMeta?.name || '',
+          title: resumeMeta?.title || '',
+          email: personalInfo.email || '',
+          phone: personalInfo.phone || '',
+          location: personalInfo.location || '',
+          summary: typeof versionPayload.summary === 'string' ? versionPayload.summary : '',
+          sections
+        }
+
+        if (cancelled) return
+
+        setResumeData(normalizedResume)
+        setPreviewKey((prev) => prev + 1)
+        setReplacements({})
+        setShowWizard(false)
+        if (resumeId) {
+          setCurrentResumeId(resumeId)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('currentResumeId', String(resumeId))
+          }
+        }
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('resumeData', JSON.stringify(normalizedResume))
+          } catch (error) {
+            console.error('Error caching resume data from server:', error)
+          }
+        }
+
+        const allowedTemplates = ['clean', 'two-column', 'compact', 'minimal', 'modern', 'tech'] as const
+        if (resumeMeta?.template && allowedTemplates.includes(resumeMeta.template)) {
+          setSelectedTemplate(resumeMeta.template)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('selectedTemplate', resumeMeta.template)
+          }
+        }
+
+        lastLoadedRef.current = { resumeId: resumeId ?? null, versionId: resumeVersionId }
+        lastQueryParamsRef.current = { resumeIdParam, resumeVersionIdParam }
+      } catch (error) {
+        console.error('Failed to load resume from server:', error)
+      }
+    }
+
+    fetchResumeData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [resumeIdParam, resumeVersionIdParam, isAuthenticated, user?.email])
 
   // Handle client-side mounting to avoid hydration errors
   useEffect(() => {
@@ -203,7 +336,44 @@ const EditorPageContent = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  
+  useEffect(() => {
+     if (typeof window === 'undefined') return
+     const resumeUploadParam = searchParams.get('resumeUpload')
+     const uploadToken = searchParams.get('uploadToken')
+     if (resumeUploadParam === '1') {
+       setCurrentResumeId(null)
+       try {
+         localStorage.removeItem('currentResumeId')
+         if (uploadToken) {
+           const stored = window.sessionStorage.getItem(`uploadedResume:${uploadToken}`)
+           if (stored) {
+             try {
+               const parsed = JSON.parse(stored)
+               if (parsed?.resume) {
+                 setResumeData(parsed.resume)
+                 localStorage.setItem('resumeData', JSON.stringify(parsed.resume))
+               }
+               if (parsed?.template) {
+                 setSelectedTemplate(parsed.template)
+                 localStorage.setItem('selectedTemplate', parsed.template)
+               }
+             } catch (e) {
+               console.error('Failed to apply uploaded resume payload', e)
+             } finally {
+               window.sessionStorage.removeItem(`uploadedResume:${uploadToken}`)
+             }
+           }
+         }
+       } catch (e) {
+         console.warn('Failed to clear currentResumeId from localStorage', e)
+       }
+ 
+       const url = new URL(window.location.href)
+       url.searchParams.delete('resumeUpload')
+       url.searchParams.delete('uploadToken')
+       window.history.replaceState({}, '', url.toString())
+     }
+   }, [searchParams])
 
   const generateResumeId = () => {
     return Math.floor(Math.random() * 1000000) + 1

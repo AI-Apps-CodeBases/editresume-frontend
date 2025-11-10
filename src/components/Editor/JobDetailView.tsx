@@ -156,6 +156,72 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
+  const sanitizeKeywordValue = useCallback((value: any): string | null => {
+    if (!value) return null
+    if (typeof value === 'string') return value.trim()
+    if (typeof value === 'object' && value !== null) {
+      if (typeof value.keyword === 'string') return value.keyword.trim()
+      if (typeof value.name === 'string') return value.name.trim()
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          const candidate = sanitizeKeywordValue(entry)
+          if (candidate) return candidate
+        }
+      }
+    }
+    return null
+  }, [])
+
+  const formatKeywordDisplay = useCallback((keyword: string): string => {
+    if (!keyword) return keyword
+    if (keyword.length <= 3) return keyword.toUpperCase()
+    return keyword
+      .split(/[\s/-]+/)
+      .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+      .join(' ')
+      .replace(/([A-Za-z])([A-Z][a-z])/g, '$1 $2')
+  }, [])
+
+  const allTechnicalSkills = useMemo(() => {
+    if (!job) return []
+    const extracted = job.extracted_keywords
+    const rawSkills: string[] = []
+    if (extracted && Array.isArray(extracted.technical_keywords)) {
+      rawSkills.push(...extracted.technical_keywords)
+    }
+    if (Array.isArray(job.priority_keywords)) {
+      rawSkills.push(...job.priority_keywords)
+    }
+    const cleaned = rawSkills
+      .map(sanitizeKeywordValue)
+      .filter((value): value is string => !!value)
+      .map((value) => value.toLowerCase())
+
+    return Array.from(new Set(cleaned)).slice(0, 24)
+  }, [job, sanitizeKeywordValue])
+
+  const highlightedKeywords = useMemo(() => {
+    if (!job) return []
+    const extracted = job.extracted_keywords
+    const rawKeywords: string[] = []
+    if (extracted && Array.isArray(extracted.general_keywords)) {
+      rawKeywords.push(...extracted.general_keywords)
+    }
+    if (Array.isArray(job.high_frequency_keywords)) {
+      job.high_frequency_keywords.forEach((item: any) => {
+        const keyword = sanitizeKeywordValue(item)
+        if (keyword) rawKeywords.push(keyword)
+      })
+    }
+
+    const cleaned = rawKeywords
+      .map(sanitizeKeywordValue)
+      .filter((value): value is string => !!value)
+      .map((value) => value.toLowerCase())
+
+    return Array.from(new Set(cleaned)).slice(0, 30)
+  }, [job, sanitizeKeywordValue])
+
   const updateJobField = async (field: string, value: any) => {
     if (!user?.email || !job) return
     
@@ -276,36 +342,52 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   }
 
   const handleUploadResumeForMatch = useCallback((data: any) => {
-    if (!job) {
-      return
-    }
+     if (!job) {
+       return
+     }
+ 
+     const normalizedResume = {
+       name: data?.name || '',
+       title: data?.title || '',
+       email: data?.email || '',
+       phone: data?.phone || '',
+       location: data?.location || '',
+       summary: data?.summary || '',
+       sections: Array.isArray(data?.sections) ? data.sections : []
+     }
+ 
+     if (typeof window !== 'undefined') {
+       try {
+         window.localStorage.setItem('activeJobDescriptionId', String(job.id))
+         if (job.content) {
+           window.localStorage.setItem('deepLinkedJD', job.content)
+         }
+         window.localStorage.removeItem('currentResumeId')
+         window.localStorage.removeItem('currentResumeVersionId')
 
-    const normalizedResume = {
-      name: data?.name || '',
-      title: data?.title || '',
-      email: data?.email || '',
-      phone: data?.phone || '',
-      location: data?.location || '',
-      summary: data?.summary || '',
-      sections: Array.isArray(data?.sections) ? data.sections : []
-    }
+         const uploadToken = `upload-${Date.now()}`
+         const payload = {
+           resume: normalizedResume,
+           template: data?.template || 'tech'
+         }
+         window.sessionStorage.setItem(`uploadedResume:${uploadToken}`, JSON.stringify(payload))
 
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem('resumeData', JSON.stringify(normalizedResume))
-        window.localStorage.setItem('selectedTemplate', 'tech')
-        window.localStorage.setItem('activeJobDescriptionId', String(job.id))
-        if (job.content) {
-          window.localStorage.setItem('deepLinkedJD', job.content)
-        }
-      } catch (err) {
-        console.error('Failed to cache uploaded resume for matching:', err)
-      }
+         const redirectUrl = new URL('/editor', window.location.origin)
+         redirectUrl.searchParams.set('jdId', String(job.id))
+         redirectUrl.searchParams.set('resumeUpload', '1')
+         redirectUrl.searchParams.set('uploadToken', uploadToken)
 
-      setShowUploadResumeModal(false)
-      window.location.href = `/editor?jdId=${job.id}`
-    }
-  }, [job])
+         setShowUploadResumeModal(false)
+         window.location.href = redirectUrl.toString()
+         return
+       } catch (err) {
+         console.error('Failed to cache uploaded resume for matching:', err)
+       }
+ 
+       setShowUploadResumeModal(false)
+       window.location.href = `/editor?jdId=${job.id}`
+     }
+   }, [job])
 
   if (loading) {
     return (
@@ -723,12 +805,62 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 </div>
               </div>
 
-              {job.content && (
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Job Description</h3>
-                  <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-700">{job.content}</pre>
-                  </div>
+              {(allTechnicalSkills.length > 0 || highlightedKeywords.length > 0 || job.content) && (
+                <div className="space-y-5">
+                  {(allTechnicalSkills.length > 0 || highlightedKeywords.length > 0) && (
+                    <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border border-blue-100 rounded-xl p-5 shadow-sm">
+                      <div className="grid gap-5 md:grid-cols-2">
+                        {allTechnicalSkills.length > 0 && (
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2 flex items-center gap-2">
+                              <span className="text-base">⚙️</span>
+                              Technical Skills
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {allTechnicalSkills.map((skill) => (
+                                <span
+                                  key={skill}
+                                  className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-green-500 to-green-600 text-white shadow-sm"
+                                >
+                                  {formatKeywordDisplay(skill)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {highlightedKeywords.length > 0 && (
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2 flex items-center gap-2">
+                              <span className="text-base">📊</span>
+                              Top Keywords
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {highlightedKeywords.map((keyword) => (
+                                <span
+                                  key={keyword}
+                                  className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-sm"
+                                >
+                                  {formatKeywordDisplay(keyword)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {job.content && (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-bold text-gray-900">Job Description</h3>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 max-h-[420px] overflow-y-auto">
+                        <pre className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">{job.content}</pre>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -823,82 +955,121 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
                 {job.resume_versions && job.resume_versions.length > 0 ? (
                   <div className="space-y-3">
-                    {job.resume_versions.map((match) => (
-                      <div
-                        key={match.id}
-                        className="border border-gray-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              (match.score || 0) >= 80 ? 'bg-green-100 text-green-700' :
-                              (match.score || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-orange-100 text-orange-700'
-                            }`}>
-                              ATS: {match.score}%
-                            </span>
-                            {match.keyword_coverage !== undefined && match.keyword_coverage !== null && (
-                              <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
-                                Keywords {Math.round(match.keyword_coverage)}%
+                    {job.resume_versions.map((match) => {
+                      const resolveNumeric = (...values: Array<number | null | undefined>) => {
+                        for (const value of values) {
+                          if (typeof value === 'number' && Number.isFinite(value)) {
+                            return Math.round(value)
+                          }
+                        }
+                        return null
+                      }
+
+                      const matchScore = resolveNumeric(
+                        match.score,
+                        (match as any)?.match_analysis?.similarity_score,
+                        (match as any)?.score_snapshot?.overall_score
+                      )
+
+                      const keywordCoverageValue = resolveNumeric(
+                        match.keyword_coverage,
+                        (match as any)?.match_analysis?.keyword_coverage,
+                        (match as any)?.score_snapshot?.keyword_coverage
+                      )
+
+                      const scoreClass = matchScore === null
+                        ? 'bg-gray-100 text-gray-500'
+                        : matchScore >= 80
+                          ? 'bg-green-100 text-green-700'
+                          : matchScore >= 60
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-orange-100 text-orange-700'
+
+                      return (
+                        <div
+                          key={match.id}
+                          className="border border-gray-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${scoreClass}`}>
+                                ATS: {matchScore !== null ? `${matchScore}%` : '—'}
                               </span>
-                            )}
-                            <span className="text-xs text-gray-400">
-                              {match.updated_at ? new Date(match.updated_at).toLocaleString() : match.created_at ? new Date(match.created_at).toLocaleString() : ''}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-700">
-                            {match.resume_name || 'Resume'}
-                            {match.resume_version_label && <span className="text-gray-400 ml-1">({match.resume_version_label})</span>}
-                          </div>
-                          {(match.matched_keywords?.length || match.missing_keywords?.length) && (
-                            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-2">
-                              {match.matched_keywords && match.matched_keywords.length > 0 && (
-                                <div>
-                                  <div className="text-xs font-semibold text-green-600 mb-1">Matched Keywords ({match.matched_keywords.length})</div>
-                                  <div className="flex flex-wrap gap-1 text-[11px]">
-                                    {match.matched_keywords.slice(0, 15).map((kw) => (
-                                      <span key={kw} className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full">{kw}</span>
-                                    ))}
-                                  </div>
-                                </div>
+                              {keywordCoverageValue !== null && (
+                                <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
+                                Keywords {keywordCoverageValue}%
+                                </span>
                               )}
-                              {match.missing_keywords && match.missing_keywords.length > 0 && (
-                                <div>
-                                  <div className="text-xs font-semibold text-red-600 mb-1">Improve These ({match.missing_keywords.length})</div>
-                                  <div className="flex flex-wrap gap-1 text-[11px]">
-                                    {match.missing_keywords.slice(0, 15).map((kw) => (
-                                      <span key={kw} className="px-2 py-0.5 bg-red-50 text-red-600 rounded-full">{kw}</span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                              <span className="text-xs text-gray-400">
+                                {match.updated_at ? new Date(match.updated_at).toLocaleString() : match.created_at ? new Date(match.created_at).toLocaleString() : ''}
+                              </span>
                             </div>
-                          )}
+                            <div className="text-sm text-gray-700">
+                              {match.resume_name || 'Resume'}
+                              {match.resume_version_label && <span className="text-gray-400 ml-1">({match.resume_version_label})</span>}
+                            </div>
+                            {(match.matched_keywords?.length || match.missing_keywords?.length) && (
+                              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-2">
+                                {match.matched_keywords && match.matched_keywords.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-green-600 mb-1">Matched Keywords ({match.matched_keywords.length})</div>
+                                    <div className="flex flex-wrap gap-1 text-[11px]">
+                                      {match.matched_keywords.slice(0, 15).map((kw) => (
+                                        <span key={kw} className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full">{kw}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {match.missing_keywords && match.missing_keywords.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-red-600 mb-1">Improve These ({match.missing_keywords.length})</div>
+                                    <div className="flex flex-wrap gap-1 text-[11px]">
+                                      {match.missing_keywords.slice(0, 15).map((kw) => (
+                                        <span key={kw} className="px-2 py-0.5 bg-red-50 text-red-600 rounded-full">{kw}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {match.resume_id && (
+                              <button
+                                onClick={() => {
+                                  const versionQuery = match.resume_version_id ? `&resumeVersionId=${match.resume_version_id}` : ''
+                                  window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}`
+                                }}
+                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                              >
+                                Improve in Editor
+                              </button>
+                            )}
+                            {match.resume_id && (
+                              <button
+                                onClick={() => {
+                                  const versionQuery = match.resume_version_id ? `&resumeVersionId=${match.resume_version_id}` : ''
+                                  window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}`
+                                }}
+                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                              >
+                                Improve in Editor
+                              </button>
+                            )}
+                            {match.resume_version_id && (
+                              <a
+                                href={`${config.apiBase}/api/resume/version/${match.resume_version_id}`}
+                                target="_blank"
+                                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
+                                rel="noopener noreferrer"
+                              >
+                                Download Version
+                              </a>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {match.resume_id && (
-                            <button
-                              onClick={() => {
-                                window.location.href = `/editor?resumeId=${match.resume_id}&jdId=${job.id}`
-                              }}
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                            >
-                              Improve in Editor
-                            </button>
-                          )}
-                          {match.resume_version_id && (
-                            <a
-                              href={`${config.apiBase}/api/resume/version/${match.resume_version_id}`}
-                              target="_blank"
-                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
-                              rel="noopener noreferrer"
-                            >
-                              Download Version
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-12 bg-gray-50 rounded-xl text-gray-500">
@@ -1002,7 +1173,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                           {match.resume_id && (
                             <button
                               onClick={() => {
-                                window.location.href = `/editor?resumeId=${match.resume_id}&jdId=${job.id}`
+                                const versionQuery = match.resume_version_id ? `&resumeVersionId=${match.resume_version_id}` : ''
+                                window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}`
                               }}
                               className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
                             >

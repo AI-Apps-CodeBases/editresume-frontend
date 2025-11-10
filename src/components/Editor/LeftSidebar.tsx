@@ -194,28 +194,31 @@ export default function LeftSidebar({
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {savedResumes.map((resume) => (
-                      <a
-                        key={resume.id}
-                        href={`/editor?resumeId=${resume.id}`}
-                        className="block p-2 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all"
-                      >
-                        <div className="font-semibold text-xs text-gray-900 truncate">{resume.name}</div>
-                        {resume.title && (
-                          <div className="text-xs text-gray-600 truncate">{resume.title}</div>
-                        )}
-                        <div className="flex items-center gap-2 mt-1">
-                          {resume.version_count && (
-                            <span className="text-[10px] text-gray-500">
-                              {resume.version_count} version{resume.version_count > 1 ? 's' : ''}
-                            </span>
+                    {savedResumes.map((resume) => {
+                      const versionQuery = resume.latest_version_id ? `&resumeVersionId=${resume.latest_version_id}` : ''
+                      return (
+                        <a
+                          key={resume.id}
+                          href={`/editor?resumeId=${resume.id}${versionQuery}`}
+                          className="block p-2 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all"
+                        >
+                          <div className="font-semibold text-xs text-gray-900 truncate">{resume.name}</div>
+                          {resume.title && (
+                            <div className="text-xs text-gray-600 truncate">{resume.title}</div>
                           )}
-                          {resume.template && (
-                            <span className="text-[10px] text-gray-400">• {resume.template}</span>
-                          )}
-                        </div>
-                      </a>
-                    ))}
+                          <div className="flex items-center gap-2 mt-1">
+                            {resume.version_count && (
+                              <span className="text-[10px] text-gray-500">
+                                {resume.version_count} version{resume.version_count > 1 ? 's' : ''}
+                              </span>
+                            )}
+                            {resume.template && (
+                              <span className="text-[10px] text-gray-400">• {resume.template}</span>
+                            )}
+                          </div>
+                        </a>
+                      )
+                    })}
                   </div>
                 )}
               </div>
