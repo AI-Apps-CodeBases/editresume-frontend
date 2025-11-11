@@ -45,6 +45,7 @@ export default function LeftSidebar({
     created_at?: string
     updated_at?: string
     version_count?: number
+    latest_version_id?: number
   }>>([])
   const [loading, setLoading] = useState(false)
 

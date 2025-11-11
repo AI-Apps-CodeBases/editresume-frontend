@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FirebaseError } from 'firebase/app'
@@ -21,7 +21,7 @@ const getErrorMessage = (error: unknown) => {
   return 'Unable to create account. Please try again.'
 }
 
-export default function SignupPage() {
+function SignupPageContent() {
   const { signUp, signInWithGoogle } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -168,6 +168,23 @@ export default function SignupPage() {
         <a href="/privacy" className="underline">Privacy Policy</a>.
       </p>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary via-blue-600 to-purple-600">
+          <div className="rounded-3xl bg-white/90 px-10 py-8 text-center shadow-2xl">
+            <div className="mb-4 text-3xl">✨</div>
+            <p className="text-sm font-semibold text-gray-700">Preparing signup form…</p>
+          </div>
+        </div>
+      }
+    >
+      <SignupPageContent />
+    </Suspense>
   )
 }
 

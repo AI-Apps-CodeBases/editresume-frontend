@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FirebaseError } from 'firebase/app'
@@ -23,7 +23,7 @@ const getErrorMessage = (error: unknown) => {
   return 'Unable to sign in. Please try again.'
 }
 
-export default function LoginPage() {
+function LoginPageContent() {
   const { signIn, signInWithGoogle } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -154,6 +154,23 @@ export default function LoginPage() {
         Need help? <a href="mailto:support@editresume.io" className="underline">Contact support</a>
       </p>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary via-blue-600 to-purple-600">
+          <div className="rounded-3xl bg-white/90 px-10 py-8 text-center shadow-2xl">
+            <div className="mb-4 text-3xl">🔐</div>
+            <p className="text-sm font-semibold text-gray-700">Preparing login form…</p>
+          </div>
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   )
 }
 
