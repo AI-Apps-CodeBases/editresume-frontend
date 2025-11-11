@@ -2304,11 +2304,12 @@ export default function VisualResumeEditor({
                                         <button
                                           onClick={() => {
                                             if (jdKeywords && jdKeywords.missing.length > 0) {
+                                              const cleanedText = (companyBullet.text || '').replace(/^[-•*]+\s*/, '').trim()
                                               setAiImproveContext({
                                                 sectionId: section.id,
                                                 bulletId: companyBullet.id,
                                                 currentText: companyBullet.text,
-                                                mode: 'existing'
+                                                mode: cleanedText.length > 0 ? 'existing' : 'new'
                                               })
                                               setShowAIImproveModal(true)
                                             } else if (onAIImprove) {
@@ -2571,11 +2572,12 @@ export default function VisualResumeEditor({
                                 <button
                                   onClick={() => {
                                     if (jdKeywords && jdKeywords.missing.length > 0) {
+                                      const cleanedText = (bullet.text || '').replace(/^[-•*]+\s*/, '').trim()
                                       setAiImproveContext({
                                         sectionId: section.id,
                                         bulletId: bullet.id,
                                         currentText: bullet.text,
-                                        mode: 'existing'
+                                        mode: cleanedText.length > 0 ? 'existing' : 'new'
                                       })
                                       setShowAIImproveModal(true)
                                     } else if (onAIImprove) {
@@ -2705,29 +2707,126 @@ export default function VisualResumeEditor({
                       setIsGeneratingBullets(true)
                           try {
                         const keywordsArray = Array.from(selectedMissingKeywords)
+                            const jobDescriptionText = typeof window !== 'undefined'
+                              ? localStorage.getItem('currentJDText') || ''
+                              : ''
+
+                            const targetSection = data.sections.find((s: any) =>
+                              normalizeId(s.id) === normalizeId(aiImproveContext.sectionId)
+                            )
+
+                            const sectionContext = targetSection
+                              ? (targetSection.bullets || [])
+                                  .map((b: any) => (b.text || '').replace(/^[-•*]+\s*/, '').trim())
+                                  .filter(Boolean)
+                                  .join('\n')
+                              : ''
+
+                            const resumeContextParts = [
+                              data.summary || '',
+                              sectionContext
+                            ].filter(Boolean)
+                            const resumeContext = resumeContextParts.join('\n')
+
                         const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
-                            keywords: keywordsArray.join(', '),
+                                keywords: keywordsArray,
                             current_bullet: aiImproveContext.currentText,
-                            mode: aiImproveContext.mode === 'existing' ? 'improve' : 'create'
-                          })
-                        })
-                        const data = await response.json()
-                        if (data.success && data.bullet_text) {
-                          const newText = `• ${data.bullet_text.trim()}`
+                                mode: aiImproveContext.mode === 'new' ? 'create' : 'improve',
+                                job_description: jobDescriptionText,
+                                resume_context: resumeContext,
+                                company_title: targetSection?.title || data.name,
+                                job_title: data.title,
+                                count: aiImproveContext.mode === 'new' ? 3 : 1
+                              })
+                            })
+
+                            if (!response.ok) {
+                              throw new Error(`HTTP error! status: ${response.status}`)
+                            }
+
+                            const result = await response.json()
+                            console.log('AI bullet response:', result)
+
+                            if (!result.success) {
+                              throw new Error(result.error || 'AI request failed')
+                            }
+
+                            const parseBulletOptions = (raw: unknown): string[] => {
+                              if (!raw) return []
+                              if (Array.isArray(raw)) {
+                                return raw
+                                  .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+                                  .filter(Boolean)
+                              }
+                              if (typeof raw === 'string') {
+                                const trimmed = raw.trim()
+                                if (!trimmed) return []
+                                try {
+                                  const parsed = JSON.parse(trimmed)
+                                  if (Array.isArray(parsed)) {
+                                    return parsed
+                                      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+                                      .filter(Boolean)
+                                  }
+                                } catch {
+                                  // ignore JSON parse errors, fall back to splitting lines
+                                }
+                                return trimmed
+                                  .split('\n')
+                                  .map((line) => line.trim().replace(/^[-•*]+\s*/, '').trim())
+                                  .filter(Boolean)
+                              }
+                              return []
+                            }
+
+                            if (result.mode === 'improve') {
+                              const improvedRaw = (result.improved_bullet || result.bullet_text || '').trim()
+                              if (!improvedRaw) {
+                                throw new Error('AI did not return an improved bullet')
+                              }
+                              const sanitized = improvedRaw.replace(/^[-•*]+\s*/, '').trim()
+                              const originalTrimmed = aiImproveContext.currentText.trim()
+                              const needsBullet =
+                                originalTrimmed.startsWith('•') ||
+                                originalTrimmed.startsWith('-') ||
+                                originalTrimmed.startsWith('*') ||
+                                originalTrimmed === ''
+                              const newText = needsBullet ? `• ${sanitized}` : sanitized
                           updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, newText)
                           setShowAIImproveModal(false)
                           setAiImproveContext(null)
                           setSelectedMissingKeywords(new Set())
                           setGeneratedBulletOptions([])
+                              setSelectedBullets(new Set())
                               } else {
-                          alert(data.error || 'Failed to improve bullet')
+                              const optionSources: Array<unknown> = [
+                                result.bullet_options,
+                                result.bullet_points,
+                                result.bullets,
+                                result.options,
+                                result.generated_bullets,
+                                result.bullet_text
+                              ]
+                              let options: string[] = []
+
+                              for (const source of optionSources) {
+                                options = parseBulletOptions(source)
+                                if (options.length) break
+                              }
+
+                              if (!options.length) {
+                                throw new Error('AI response missing bullet options')
+                              }
+
+                              setGeneratedBulletOptions(options)
+                              setSelectedBullets(new Set([0]))
                             }
                           } catch (error) {
-                        console.error('Failed to improve bullet:', error)
-                        alert('Failed to improve bullet. Please try again.')
+                            console.error('Failed to generate AI bullet:', error)
+                            alert(`Failed to generate bullet: ${(error as Error).message}`)
                           } finally {
                         setIsGeneratingBullets(false)
                       }
@@ -2739,8 +2838,90 @@ export default function VisualResumeEditor({
                     }`}
                     disabled={isGeneratingBullets}
                   >
-                    {isGeneratingBullets ? 'Generating...' : 'Enhance bullet with keywords'}
+                        {isGeneratingBullets
+                          ? 'Generating...'
+                          : aiImproveContext.mode === 'new'
+                            ? 'Generate bullet ideas'
+                            : 'Enhance bullet with keywords'}
                           </button>
+
+                      {generatedBulletOptions.length > 0 && (
+                        <div className="mt-6 space-y-4">
+                          <p className="text-sm font-semibold text-gray-900">
+                            Choose the bullet point you want to insert:
+                          </p>
+                          <div className="space-y-3">
+                            {generatedBulletOptions.map((option, idx) => {
+                              const isSelected = selectedBullets.has(idx)
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    const nextSelection = new Set<number>()
+                                    nextSelection.add(idx)
+                                    setSelectedBullets(nextSelection)
+                                  }}
+                                  className={`w-full text-left p-4 rounded-lg border transition-all ${
+                                    isSelected
+                                      ? 'border-blue-500 bg-blue-50 shadow-md'
+                                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <span
+                                      className={`mt-1 inline-flex h-4 w-4 rounded-full border-2 ${
+                                        isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                                      }`}
+                                    />
+                                    <p className="text-sm text-gray-800 leading-relaxed">{option}</p>
+                </div>
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!aiImproveContext) return
+                                if (selectedBullets.size === 0) {
+                                  alert('Please select a bullet to insert')
+                                  return
+                                }
+                                const selectedIndex = Array.from(selectedBullets)[0]
+                                const chosen = generatedBulletOptions[selectedIndex]
+                                if (!chosen) {
+                                  alert('Selected bullet is unavailable')
+                                  return
+                                }
+                                const sanitizedChoice = chosen.replace(/^[-•*]+\s*/, '').trim()
+                                const finalText = `• ${sanitizedChoice}`.trim()
+                                updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, finalText)
+                                setShowAIImproveModal(false)
+                                setAiImproveContext(null)
+                                setSelectedMissingKeywords(new Set())
+                                setGeneratedBulletOptions([])
+                                setSelectedBullets(new Set())
+                              }}
+                              className="flex-1 py-3 rounded-xl font-semibold text-white shadow-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all"
+                            >
+                              Use selected bullet
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGeneratedBulletOptions([])
+                                setSelectedBullets(new Set())
+                              }}
+                              className="flex-1 py-3 rounded-xl font-semibold text-blue-600 border border-blue-200 hover:bg-blue-50 transition-all"
+                            >
+                              Generate again
+                            </button>
+                          </div>
+                        </div>
+                      )}
                 </div>
               </div>
             </div>

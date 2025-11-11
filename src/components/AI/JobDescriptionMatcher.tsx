@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import config from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
+import { shouldPromptAuthentication } from '@/lib/guestAuth';
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -44,6 +45,9 @@ interface JobDescriptionMatcherProps {
   onSelectJobDescriptionId?: (id: number | null) => void;
   currentJobDescriptionId?: number | null; // Pass the current JD ID
 }
+
+const GUEST_JOB_STORAGE_KEY = 'guestSavedJobDescriptions';
+const GUEST_RESUME_STORAGE_KEY = 'guestSavedResumes';
 
 // Helper functions to extract metadata (same as extension)
 const extractJobType = (text: string): string | null => {
@@ -727,6 +731,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const { user, isAuthenticated } = useAuth();
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [selectedJobMetadata, setSelectedJobMetadata] = useState<JobMetadata | null>(null);
+  const [currentJDInfo, setCurrentJDInfo] = useState<{company?: string, title?: string, easy_apply_url?: string} | null>(null);
   useEffect(() => {
     if (initialJobDescription) setJobDescription(initialJobDescription);
   }, [initialJobDescription]);
@@ -744,6 +749,72 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [isCalculatingATS, setIsCalculatingATS] = useState(false);
   const [previousATSScore, setPreviousATSScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
+
+  const showGuestNotification = useCallback((title: string, message: string) => {
+    if (typeof window === 'undefined') return
+    const notification = document.createElement('div')
+    notification.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md'
+    notification.innerHTML = `
+      <div class="flex items-start gap-3">
+        <div class="text-2xl">✨</div>
+        <div>
+          <div class="font-bold text-lg">${title}</div>
+          <div class="text-sm mt-1 leading-snug">${message}</div>
+        </div>
+        <button class="ml-4 text-white/80 hover:text-white text-xl" aria-label="Close">&times;</button>
+      </div>
+    `
+    const closeButton = notification.querySelector('button')
+    const remove = () => notification.remove()
+    closeButton?.addEventListener('click', remove)
+    window.setTimeout(remove, 4000)
+    document.body.appendChild(notification)
+  }, [])
+
+  const saveGuestJobDescriptionLocally = useCallback((): number | null => {
+    if (typeof window === 'undefined') return null
+    try {
+      const stored = window.localStorage.getItem(GUEST_JOB_STORAGE_KEY)
+      const existing: any[] = stored ? JSON.parse(stored) : []
+      const fallbackTitle = selectedJobMetadata?.title || currentJDInfo?.title || 'Job Description'
+      const entryId = Date.now()
+      const entry = {
+        id: entryId,
+        title: fallbackTitle,
+        company: selectedJobMetadata?.company || currentJDInfo?.company || '',
+        content: jobDescription,
+        savedAt: new Date().toISOString()
+      }
+      existing.unshift(entry)
+      window.localStorage.setItem(GUEST_JOB_STORAGE_KEY, JSON.stringify(existing.slice(0, 5)))
+      showGuestNotification('Saved locally', 'We remembered this job. Create a free account to sync it across devices.')
+      return entryId
+    } catch (error) {
+      console.error('Failed to store guest job description', error)
+      showGuestNotification('Almost there', 'Please create a free account to save jobs permanently.')
+      return null
+    }
+  }, [jobDescription, selectedJobMetadata, currentJDInfo, showGuestNotification])
+
+  const saveGuestResumeLocally = useCallback((name: string, data: any) => {
+    if (typeof window === 'undefined') return
+    try {
+      const stored = window.localStorage.getItem(GUEST_RESUME_STORAGE_KEY)
+      const existing: any[] = stored ? JSON.parse(stored) : []
+      const entry = {
+        id: Date.now(),
+        name,
+        resume: data,
+        savedAt: new Date().toISOString()
+      }
+      existing.unshift(entry)
+      window.localStorage.setItem(GUEST_RESUME_STORAGE_KEY, JSON.stringify(existing.slice(0, 5)))
+      showGuestNotification('Resume saved locally', 'Sign in when you are ready to keep versions forever.')
+    } catch (error) {
+      console.error('Failed to store guest resume', error)
+      showGuestNotification('Almost there', 'Create a free account to save resumes to your profile.')
+    }
+  }, [showGuestNotification])
 
   const buildPrecomputedKeywordPayload = useCallback(() => {
     if (!jobDescription?.trim()) return null;
@@ -1226,7 +1297,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [showSaveNameModal, setShowSaveNameModal] = useState(false);
   const [resumeSaveName, setResumeSaveName] = useState('');
   const [updatedResumeData, setUpdatedResumeData] = useState<any>(null);
-  const [currentJDInfo, setCurrentJDInfo] = useState<{company?: string, title?: string, easy_apply_url?: string} | null>(null);
   const [manualKeywordInput, setManualKeywordInput] = useState('');
   const handleAddManualKeyword = useCallback(() => {
     const trimmed = normalizeTextForATS(manualKeywordInput);
@@ -1271,8 +1341,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     }
 
     if (!isAuthenticated || !user?.email) {
-      alert('Please sign in to save job descriptions');
-      return null;
+      const requireAuth = shouldPromptAuthentication('saveJobDescription', isAuthenticated)
+      if (requireAuth) {
+        alert('Please sign in to save job descriptions');
+        return null;
+      }
+      return saveGuestJobDescriptionLocally();
     }
 
     try {
@@ -1399,16 +1473,22 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       return null;
     }
 
-    if (!isAuthenticated || !user?.email) {
-      alert('Please sign in to save resumes to your profile');
-      return null;
-    }
-
     const resumePayload = options?.resumeOverride ?? updatedResumeData ?? resumeData;
 
     if (!resumePayload) {
       alert('No resume data to save');
       return null;
+    }
+
+    if (!isAuthenticated || !user?.email) {
+      const requireAuth = shouldPromptAuthentication('saveResume', isAuthenticated)
+      setResumeSaveName(trimmedName);
+      if (requireAuth) {
+        alert('Please sign in to save resumes to your profile');
+        return null;
+      }
+      saveGuestResumeLocally(trimmedName, resumePayload);
+      return { resumeId: null, versionId: null };
     }
 
     try {

@@ -2,6 +2,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode, useCallback } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '@/lib/firebaseClient'
+import { resetGuestActionCounters } from '@/lib/guestAuth'
+import { DEFAULT_PLAN, FeatureFlag, isFeatureEnabledForPlan, PlanTier } from '@/lib/planFeatures'
 
 export interface User {
   uid: string
@@ -9,18 +11,21 @@ export interface User {
   name: string
   isPremium: boolean
   createdAt?: string
+  planTier: PlanTier
 }
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   isAuthenticated: boolean
+  planTier: PlanTier
   signIn: (email: string, password: string) => Promise<void>
   signUp: (options: { email: string; password: string; name?: string }) => Promise<void>
   signInWithGoogle: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   logout: () => Promise<void>
   checkPremiumAccess: () => boolean
+  canUseFeature: (feature: FeatureFlag) => boolean
   refreshUser: () => Promise<void>
 }
 
@@ -40,6 +45,14 @@ googleProvider.setCustomParameters({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
+
+  const resolvePlanTier = useCallback((hasPremiumClaim: boolean): PlanTier => {
+    if (!premiumMode) {
+      return DEFAULT_PLAN
+    }
+    return hasPremiumClaim ? 'premium' : 'free'
+  }, [premiumMode])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -47,12 +60,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const tokenResult = await firebaseUser.getIdTokenResult()
           const isPremiumClaim = Boolean(tokenResult?.claims?.premium)
+          const planTier = resolvePlanTier(isPremiumClaim)
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email ?? '',
             name: getDisplayName(firebaseUser.email, firebaseUser.displayName),
             isPremium: isPremiumClaim,
-            createdAt: firebaseUser.metadata?.creationTime ?? undefined
+            createdAt: firebaseUser.metadata?.creationTime ?? undefined,
+            planTier
           })
           if (typeof window !== 'undefined') {
             localStorage.setItem('user', JSON.stringify({
@@ -60,20 +75,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               email: firebaseUser.email ?? '',
               name: getDisplayName(firebaseUser.email, firebaseUser.displayName),
               isPremium: isPremiumClaim,
-              createdAt: firebaseUser.metadata?.creationTime ?? undefined
+              createdAt: firebaseUser.metadata?.creationTime ?? undefined,
+              planTier
             }))
             const token = await firebaseUser.getIdToken()
             localStorage.setItem('authToken', token)
           }
         } catch (error) {
           console.error('Failed to hydrate user session from Firebase:', error)
-          setUser({
+          const fallbackPlan = resolvePlanTier(false)
+          const fallbackUser: User = {
             uid: firebaseUser.uid,
             email: firebaseUser.email ?? '',
             name: getDisplayName(firebaseUser.email, firebaseUser.displayName),
             isPremium: false,
-            createdAt: firebaseUser.metadata?.creationTime ?? undefined
-          })
+            createdAt: firebaseUser.metadata?.creationTime ?? undefined,
+            planTier: fallbackPlan
+          }
+          setUser(fallbackUser)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('user', JSON.stringify(fallbackUser))
+          }
         }
       } else {
         setUser(null)
@@ -87,6 +109,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (user) {
+      resetGuestActionCounters()
+    }
+  }, [user?.uid])
 
   const signIn = useCallback(async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password)
@@ -118,23 +146,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const checkPremiumAccess = useCallback(() => {
-    const premiumEnabled = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
-    if (!premiumEnabled) return true
-    return user?.isPremium ?? false
-  }, [user?.isPremium])
+    if (!premiumMode) return true
+    return user?.planTier === 'premium'
+  }, [user?.planTier, premiumMode])
+
+  const canUseFeature = useCallback((feature: FeatureFlag) => {
+    if (!premiumMode) return true
+    const tier = user?.planTier ?? 'free'
+    return isFeatureEnabledForPlan(tier, feature)
+  }, [user?.planTier, premiumMode])
 
   const value = useMemo<AuthContextType>(() => ({
     user,
     loading,
     isAuthenticated: !!user,
+    planTier: user?.planTier ?? DEFAULT_PLAN,
     signIn,
     signUp,
     signInWithGoogle,
     resetPassword,
     logout,
     checkPremiumAccess,
+    canUseFeature,
     refreshUser
-  }), [user, loading, signIn, signUp, signInWithGoogle, resetPassword, logout, checkPremiumAccess, refreshUser])
+  }), [user, loading, signIn, signUp, signInWithGoogle, resetPassword, logout, checkPremiumAccess, canUseFeature, refreshUser])
 
   return (
     <AuthContext.Provider value={value}>

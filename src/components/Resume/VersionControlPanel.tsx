@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { versionControlService, ResumeVersion, ResumeVersionData } from '@/lib/services/versionControl'
 import { useAuth } from '@/contexts/AuthContext'
+import { shouldPromptAuthentication } from '@/lib/guestAuth'
 
 interface VersionControlPanelProps {
   resumeId?: number
@@ -18,7 +19,7 @@ export default function VersionControlPanel({
   onSaveVersion,
   onCompareVersions
 }: VersionControlPanelProps) {
-  const { user } = useAuth()
+  const { user, isAuthenticated } = useAuth()
   const [versions, setVersions] = useState<ResumeVersion[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreateVersion, setShowCreateVersion] = useState(false)
@@ -241,15 +242,15 @@ export default function VersionControlPanel({
                       onClick={async () => {
                         try {
                           const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
-                          const userStr = localStorage.getItem('user')
-                          if (!userStr) {
+                          const requireAuth = shouldPromptAuthentication('exportResume', isAuthenticated)
+                          if (requireAuth || !user?.email) {
                             alert('Please sign in to export resumes')
                             return
                           }
-                          const user = JSON.parse(userStr)
-                          
+                          const userEmail = user.email
+                        
                           // Fetch version data
-                          const versionRes = await fetch(`${apiBase}/api/resume/version/${version.id}?user_email=${encodeURIComponent(user.email)}`)
+                          const versionRes = await fetch(`${apiBase}/api/resume/version/${version.id}?user_email=${encodeURIComponent(userEmail)}`)
                           if (!versionRes.ok) {
                             throw new Error('Failed to fetch version data')
                           }
@@ -258,7 +259,7 @@ export default function VersionControlPanel({
                           const resumeData = versionData.version.resume_data
                           
                           // Export as PDF
-                          const exportUrl = `${apiBase}/api/resume/export/pdf?user_email=${encodeURIComponent(user.email)}`
+                          const exportUrl = `${apiBase}/api/resume/export/pdf?user_email=${encodeURIComponent(userEmail)}`
                           const exportResponse = await fetch(exportUrl, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },

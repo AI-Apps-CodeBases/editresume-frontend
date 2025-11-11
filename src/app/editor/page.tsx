@@ -23,8 +23,8 @@ import ShareResumeModal from '@/components/Resume/ShareResumeModal'
 import JobsView from '@/components/Editor/JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 import { useCollaboration } from '@/hooks/useCollaboration'
-import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 import { versionControlService } from '@/lib/services/versionControl'
+import { shouldPromptAuthentication } from '@/lib/guestAuth'
 
 const EditorPageContent = () => {
   const { user, isAuthenticated, logout, checkPremiumAccess } = useAuth()
@@ -698,6 +698,14 @@ const EditorPageContent = () => {
     console.log('Is authenticated:', isAuthenticated)
     
     const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
+
+    if (!premiumMode) {
+      const requireAuth = shouldPromptAuthentication('exportResume', isAuthenticated)
+      if (requireAuth) {
+        setShowAuthModal(true)
+        return
+      }
+    }
     
     if (premiumMode && !isAuthenticated) {
       console.log('Premium mode - showing auth modal')
@@ -2363,16 +2371,14 @@ const EditorPageContent = () => {
 
 export default function EditorPage() {
   return (
-    <ProtectedRoute>
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading editor...</p>
-        </div>
-      </div>}>
-        <EditorPageContent />
-      </Suspense>
-    </ProtectedRoute>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading editor...</p>
+      </div>
+    </div>}>
+      <EditorPageContent />
+    </Suspense>
   )
 }
 

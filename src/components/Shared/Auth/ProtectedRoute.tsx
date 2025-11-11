@@ -41,3 +41,4 @@ export default function ProtectedRoute({ children, fallbackPath = '/auth/login' 
   return <>{children}</>
 }
 
+
