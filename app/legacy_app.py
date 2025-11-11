@@ -17,6 +17,10 @@ from database import get_db, create_tables, migrate_schema, User, Resume, Resume
 from sqlalchemy import text, or_
 from version_control import VersionControlService
 
+from app.api.firebase_auth import router as firebase_auth_router
+from app.api.stripe import router as stripe_router
+from app.middleware.firebase_auth import FirebaseAuthMiddleware
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -91,6 +95,19 @@ create_tables()
 migrate_schema()
 
 app = FastAPI(title="editresume.io API", version="0.1.0")
+
+app.add_middleware(
+    FirebaseAuthMiddleware,
+    protected_paths=(
+        "/api/auth/session",
+        "/api/billing/create-checkout-session",
+        "/api/billing/subscription",
+        "/api/billing/create-portal-session",
+    ),
+)
+
+app.include_router(firebase_auth_router)
+app.include_router(stripe_router)
 
 @app.middleware("http")
 async def timing_middleware(request: Request, call_next):

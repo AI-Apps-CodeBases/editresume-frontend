@@ -21,4 +21,6 @@ docx2txt==0.8
 nltk==3.8.1
 # Optional dependencies with fallback support
 language-tool-python==2.7.1
+firebase-admin==6.5.0
+stripe==10.12.0
 
