@@ -3,6 +3,9 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import SettingsPanel from '@/components/SettingsPanel'
+import config from '@/lib/config'
+import { auth } from '@/lib/firebaseClient'
+import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 
 interface ResumeHistory {
   id: string
@@ -17,6 +20,18 @@ interface PaymentHistory {
   amount: string
   status: string
   plan: string
+}
+
+interface SubscriptionStatus {
+  isPremium: boolean
+  subscriptionStatus?: string | null
+  subscriptionCurrentPeriodEnd?: string | null
+  stripeCustomerId?: string | null
+  stripeSubscriptionId?: string | null
+}
+
+interface CheckoutSessionResponse {
+  url: string
 }
 
 function ProfilePageContent() {
@@ -78,6 +93,37 @@ function ProfilePageContent() {
     }>
   }>>([])
   const [loading, setLoading] = useState(true)
+  const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionStatus | null>(null)
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const apiBase = config.apiBase
+  const isPremiumMember = subscriptionInfo?.isPremium ?? user?.isPremium ?? false
+  const subscriptionStatus = subscriptionInfo?.subscriptionStatus ?? (isPremiumMember ? 'active' : 'inactive')
+  const nextBillingDate = subscriptionInfo?.subscriptionCurrentPeriodEnd
+    ? new Date(subscriptionInfo.subscriptionCurrentPeriodEnd).toLocaleDateString()
+    : null
+
+  const loadUserData = useCallback(() => {
+    const savedResumes = localStorage.getItem('resumeHistory')
+    if (savedResumes) {
+      setResumeHistory(JSON.parse(savedResumes))
+    }
+
+    const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
+    if (premiumMode && isPremiumMember) {
+      setPaymentHistory([
+        {
+          id: '1',
+          date: new Date().toISOString().split('T')[0],
+          amount: '$9.99',
+          status: 'Paid',
+          plan: 'Premium Monthly'
+        }
+      ])
+    } else {
+      setPaymentHistory([])
+    }
+  }, [isPremiumMember])
 
   useEffect(() => {
     const checkAuth = setTimeout(() => {
@@ -96,27 +142,43 @@ function ProfilePageContent() {
     }
     
     return () => clearTimeout(checkAuth)
-  }, [isAuthenticated, router, searchParams])
+  }, [isAuthenticated, router, searchParams, loadUserData])
 
-  const loadUserData = () => {
-    const savedResumes = localStorage.getItem('resumeHistory')
-    if (savedResumes) {
-      setResumeHistory(JSON.parse(savedResumes))
+  const loadSubscriptionStatus = useCallback(async () => {
+    if (!isAuthenticated) {
+      setSubscriptionInfo(null)
+      return
     }
 
-    const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
-    if (premiumMode && user?.isPremium) {
-      setPaymentHistory([
-        {
-          id: '1',
-          date: new Date().toISOString().split('T')[0],
-          amount: '$9.99',
-          status: 'Paid',
-          plan: 'Premium Monthly'
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      return
+    }
+
+    setSubscriptionLoading(true)
+    try {
+      const token = await currentUser.getIdToken()
+      const response = await fetch(`${apiBase}/api/billing/subscription`, {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-      ])
+      })
+
+      if (response.ok) {
+        const data: SubscriptionStatus = await response.json()
+        setSubscriptionInfo(data)
+      } else if (response.status === 401) {
+        setSubscriptionInfo(null)
+      } else {
+        const errorText = await response.text().catch(() => '')
+        console.error('Failed to fetch subscription status', errorText)
+      }
+    } catch (error) {
+      console.error('Failed to fetch subscription status', error)
+    } finally {
+      setSubscriptionLoading(false)
     }
-  }
+  }, [apiBase, isAuthenticated])
 
   const fetchSavedResumes = useCallback(async () => {
     if (!isAuthenticated || !user?.email) return
@@ -177,6 +239,20 @@ function ProfilePageContent() {
     }
   }, [isAuthenticated, user, activeTab])
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSubscriptionInfo(null)
+      return
+    }
+    loadSubscriptionStatus()
+  }, [isAuthenticated, loadSubscriptionStatus])
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'billing') {
+      loadSubscriptionStatus()
+    }
+  }, [activeTab, isAuthenticated, loadSubscriptionStatus])
+
   // Refresh resumes when tab changes to jobs or resumes
   useEffect(() => {
     if ((activeTab === 'jobs' || activeTab === 'resumes') && isAuthenticated && user?.email) {
@@ -190,6 +266,53 @@ function ProfilePageContent() {
       router.push('/')
     }
   }
+
+  const handleStartCheckout = useCallback(async () => {
+    if (!isAuthenticated || checkoutLoading) return
+
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      alert('Unable to start checkout. Please sign in again.')
+      return
+    }
+
+    setCheckoutLoading(true)
+    try {
+      const token = await currentUser.getIdToken()
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const successUrl = origin ? `${origin}/profile?tab=billing` : undefined
+      const cancelUrl = successUrl
+
+      const response = await fetch(`${apiBase}/api/billing/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          successUrl,
+          cancelUrl
+        })
+      })
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}))
+        throw new Error(errorBody.detail || 'Failed to initiate checkout.')
+      }
+
+      const data: CheckoutSessionResponse = await response.json()
+      if (data?.url) {
+        window.location.href = data.url
+      } else {
+        throw new Error('Checkout URL missing in response.')
+      }
+    } catch (error) {
+      console.error('Checkout error', error)
+      alert(error instanceof Error ? error.message : 'Failed to start checkout. Please try again.')
+    } finally {
+      setCheckoutLoading(false)
+    }
+  }, [apiBase, checkoutLoading, isAuthenticated])
 
   if (loading) {
     return (
@@ -249,7 +372,7 @@ function ProfilePageContent() {
                 <h1 className="text-3xl font-bold text-gray-900">{user?.name}</h1>
                 <p className="text-gray-600">{user?.email}</p>
                 <div className="mt-2">
-                  {user?.isPremium ? (
+                  {isPremiumMember ? (
                     <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-sm font-semibold">
                       💎 Premium Member
                     </span>
@@ -261,9 +384,13 @@ function ProfilePageContent() {
                 </div>
               </div>
             </div>
-            {!user?.isPremium && process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true' && (
-              <button className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-lg transition-all">
-                ⬆️ Upgrade to Premium
+            {!isPremiumMember && process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true' && (
+              <button
+                onClick={handleStartCheckout}
+                disabled={checkoutLoading || subscriptionLoading}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {checkoutLoading ? 'Processing…' : '⬆️ Upgrade to Premium'}
               </button>
             )}
           </div>
@@ -933,7 +1060,11 @@ function ProfilePageContent() {
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold text-gray-900">Billing & Subscription</h2>
 
-                {user?.isPremium ? (
+                {subscriptionLoading ? (
+                  <div className="rounded-xl border-2 border-purple-200 bg-purple-50 py-10 text-center text-purple-700">
+                    Checking subscription status…
+                  </div>
+                ) : isPremiumMember ? (
                   <>
                     <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
                       <div className="flex items-start justify-between">
@@ -941,39 +1072,53 @@ function ProfilePageContent() {
                           <h3 className="text-xl font-bold text-purple-900 mb-2">Premium Plan</h3>
                           <p className="text-purple-700">Unlimited exports and premium templates</p>
                           <div className="mt-4 text-3xl font-bold text-purple-900">$9.99<span className="text-lg font-normal text-purple-700">/month</span></div>
+                          <div className="mt-3 text-sm text-purple-800">
+                            Status: <span className="font-semibold capitalize">{subscriptionStatus || 'active'}</span>
+                            {nextBillingDate && (
+                              <span className="ml-2">
+                                • Renews on <span className="font-semibold">{nextBillingDate}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <span className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-semibold">Active</span>
                       </div>
                     </div>
 
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900 mb-4">Payment History</h3>
-                      <div className="space-y-2">
-                        {paymentHistory.map((payment) => (
-                          <div
-                            key={payment.id}
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
-                                ✓
+                    {paymentHistory.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Payment History</h3>
+                        <div className="space-y-2">
+                          {paymentHistory.map((payment) => (
+                            <div
+                              key={payment.id}
+                              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
+                                  ✓
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-gray-900">{payment.plan}</div>
+                                  <div className="text-sm text-gray-600">{payment.date}</div>
+                                </div>
                               </div>
-                              <div>
-                                <div className="font-semibold text-gray-900">{payment.plan}</div>
-                                <div className="text-sm text-gray-600">{payment.date}</div>
+                              <div className="text-right">
+                                <div className="font-bold text-gray-900">{payment.amount}</div>
+                                <div className="text-sm text-green-600">{payment.status}</div>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className="font-bold text-gray-900">{payment.amount}</div>
-                              <div className="text-sm text-green-600">{payment.status}</div>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    <button className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold">
-                      Cancel Subscription
+                    <button
+                      type="button"
+                      className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold"
+                      onClick={() => alert('To manage or cancel your subscription, please contact support@editresume.io.')}
+                    >
+                      Manage Subscription
                     </button>
                   </>
                 ) : (
@@ -997,8 +1142,12 @@ function ProfilePageContent() {
                         <span className="text-green-500">✓</span> No watermarks
                       </li>
                     </ul>
-                    <button className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all">
-                      Upgrade for $9.99/month
+                    <button
+                      onClick={handleStartCheckout}
+                      disabled={checkoutLoading || subscriptionLoading}
+                      className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {checkoutLoading ? 'Redirecting…' : 'Upgrade for $9.99/month'}
                     </button>
                   </div>
                 )}
@@ -1020,16 +1169,18 @@ function ProfilePageContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4 animate-bounce">📄</div>
-          <p className="text-xl text-gray-600">Loading profile...</p>
+    <ProtectedRoute>
+      <Suspense fallback={
+        <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-6xl mb-4 animate-bounce">📄</div>
+            <p className="text-xl text-gray-600">Loading profile...</p>
+          </div>
         </div>
-      </div>
-    }>
-      <ProfilePageContent />
-    </Suspense>
+      }>
+        <ProfilePageContent />
+      </Suspense>
+    </ProtectedRoute>
   )
 }
 

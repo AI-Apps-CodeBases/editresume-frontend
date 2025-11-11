@@ -23,10 +23,11 @@ import ShareResumeModal from '@/components/Resume/ShareResumeModal'
 import JobsView from '@/components/Editor/JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 import { useCollaboration } from '@/hooks/useCollaboration'
+import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 import { versionControlService } from '@/lib/services/versionControl'
 
 const EditorPageContent = () => {
-  const { user, isAuthenticated, login, logout, checkPremiumAccess } = useAuth()
+  const { user, isAuthenticated, logout, checkPremiumAccess } = useAuth()
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -1936,7 +1937,6 @@ const EditorPageContent = () => {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onAuthSuccess={login}
       />
 
       {/* Cover Letter Generator */}
@@ -2363,14 +2363,16 @@ const EditorPageContent = () => {
 
 export default function EditorPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Loading editor...</p>
-      </div>
-    </div>}>
-      <EditorPageContent />
-    </Suspense>
+    <ProtectedRoute>
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading editor...</p>
+        </div>
+      </div>}>
+        <EditorPageContent />
+      </Suspense>
+    </ProtectedRoute>
   )
 }
 
