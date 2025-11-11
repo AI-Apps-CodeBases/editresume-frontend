@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Any, Union, Tuple
 import os
 import re
 import json
+import html
 import logging
 import secrets
 from datetime import datetime
@@ -864,46 +865,144 @@ async def generate_bullet_from_keywords(payload: dict):
         raise HTTPException(status_code=503, detail="OpenAI service not available")
     
     try:
-        keywords = payload.get('keywords', '')
+        raw_keywords = payload.get('keywords', '')
         company_title = payload.get('company_title', '')
         job_title = payload.get('job_title', '')
-        
-        if not keywords:
+        job_description = payload.get('job_description', '') or ''
+        resume_context = payload.get('resume_context', '') or ''
+        current_bullet = str(payload.get('current_bullet', '') or '').strip()
+        mode = str(payload.get('mode', 'improve')).lower()
+        requested_count = payload.get('count', 3)
+
+        if isinstance(raw_keywords, str):
+            keywords_list = [kw.strip() for kw in raw_keywords.split(',') if kw and kw.strip()]
+        elif isinstance(raw_keywords, (list, tuple, set)):
+            keywords_list = [str(kw).strip() for kw in raw_keywords if str(kw).strip()]
+        else:
+            keywords_list = []
+
+        if not keywords_list:
             raise HTTPException(status_code=400, detail="Keywords are required")
-        
-        context = f"""Generate a professional bullet point for a resume based on these keywords and context:
 
-Company: {company_title}
-Job Title: {job_title}
-Keywords: {keywords}
-
-Requirements:
-- Create ONE professional bullet point
-- Use action-oriented language (managed, implemented, developed, etc.)
-- Include specific technologies/tools if mentioned in keywords
-- Make it achievement-focused with metrics if possible
-- 1-2 lines maximum
-- Professional tone
-- ATS-optimized
-
-Return ONLY the bullet point text, no explanations or labels."""
+        keywords_str = ', '.join(keywords_list)
+        jd_excerpt = job_description[:800] if job_description else ''
+        resume_excerpt = resume_context[:800] if resume_context else ''
+        count = max(1, min(int(requested_count) if isinstance(requested_count, int) else 3, 5))
 
         headers = {
             "Authorization": f"Bearer {openai_client['api_key']}",
             "Content-Type": "application/json"
         }
-        
+
+        if mode in {'create', 'new'} or not current_bullet:
+            prompt = f"""You are crafting high-impact resume bullet points.
+
+Company: {company_title or 'Not specified'}
+Role: {job_title or 'Not specified'}
+Job Description Context:
+{jd_excerpt if jd_excerpt else 'Not provided'}
+
+Keywords to integrate naturally: {keywords_str}
+
+Resume context (useful achievements or tools):
+{resume_excerpt if resume_excerpt else 'Limited additional context provided'}
+
+Requirements:
+- Generate {count} distinct professional resume bullet points
+- Weave the provided keywords naturally across the bullets (avoid keyword stuffing)
+- Include metrics or quantified outcomes when possible
+- Use strong action verbs, professional tone, and ATS-friendly formatting
+- Each bullet: 1-2 lines (max 35 words)
+- Make bullets cover different achievements or angles
+
+Return ONLY a valid JSON array of plain strings, e.g. ["Bullet 1", "Bullet 2"]."""
+
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json={
+                    "model": openai_client['model'],
+                    "messages": [
+                        {"role": "system", "content": "You are a professional resume writer. Create compelling, keyword-optimized bullet points that highlight achievements."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 600,
+                    "temperature": 0.6
+                },
+                timeout=60
+            )
+
+            if response.status_code != 200:
+                logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=500, detail="AI service error")
+
+            result = response.json()
+            raw_content = result['choices'][0]['message']['content'].strip()
+
+            bullet_options: List[str] = []
+            try:
+                bullet_options = json.loads(raw_content)
+                if not isinstance(bullet_options, list):
+                    raise ValueError("Expected JSON list")
+            except Exception:
+                bullet_options = [line.strip().lstrip('•*- ').strip() for line in raw_content.split('\n') if line.strip()]
+
+            cleaned_options = []
+            for bullet in bullet_options:
+                if not bullet or len(bullet) < 5:
+                    continue
+                cleaned = bullet.replace('\u2022', '').lstrip('•*- ').strip()
+                if cleaned:
+                    cleaned_options.append(cleaned)
+                if len(cleaned_options) >= count:
+                    break
+
+            return {
+                "success": True,
+                "mode": "create",
+                "bullet_options": cleaned_options or bullet_options[:count],
+                "keywords_used": keywords_list,
+                "company_title": company_title,
+                "job_title": job_title,
+                "tokens_used": result.get('usage', {}).get('total_tokens', 0)
+            }
+
+        prompt = f"""Improve this resume bullet to maximize impact and include the specified keywords naturally.
+
+Current bullet:
+"{current_bullet}"
+
+Company: {company_title or 'Not specified'}
+Role: {job_title or 'Not specified'}
+
+Must-use keywords (blend seamlessly): {keywords_str}
+
+Job Description Context:
+{jd_excerpt if jd_excerpt else 'Not provided'}
+
+Resume context for inspiration:
+{resume_excerpt if resume_excerpt else 'Limited additional context provided'}
+
+Guidelines:
+- Preserve the original intent but enhance clarity, strength, and quantifiable impact
+- Integrate as many of the provided keywords as make sense without sounding forced
+- Use one sentence (1-2 lines) with a strong action verb
+- Maintain professional, ATS-friendly formatting
+- Focus on achievements, metrics, and outcomes where possible
+
+Return ONLY the improved bullet text, no explanations or extra formatting."""
+
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json={
-                "model": "gpt-3.5-turbo",
+                "model": openai_client['model'],
                 "messages": [
-                    {"role": "system", "content": "You are a professional resume writer. Create compelling bullet points that highlight achievements and technical skills."},
-                    {"role": "user", "content": context}
+                    {"role": "system", "content": "You are a professional resume writer. Rewrite content to be concise, metric-driven, and keyword optimized without sounding artificial."},
+                    {"role": "user", "content": prompt}
                 ],
-                "max_tokens": 150,
-                "temperature": 0.7
+                "max_tokens": 220,
+                "temperature": 0.5
             },
             timeout=60
         )
@@ -914,14 +1013,13 @@ Return ONLY the bullet point text, no explanations or labels."""
         
         result = response.json()
         bullet_text = result['choices'][0]['message']['content'].strip()
-        
-        # Clean up the response
-        bullet_text = bullet_text.replace('•', '').replace('*', '').strip()
-        
+        bullet_text = bullet_text.replace('\u2022', '').replace('•', '').replace('*', '').strip()
+
         return {
             "success": True,
-            "bullet_text": bullet_text,
-            "keywords_used": keywords,
+            "mode": "improve",
+            "improved_bullet": bullet_text,
+            "keywords_used": keywords_list,
             "company_title": company_title,
             "job_title": job_title,
             "tokens_used": result.get('usage', {}).get('total_tokens', 0)
@@ -1107,9 +1205,119 @@ async def generate_summary_from_experience(payload: dict):
 
         keyword_guidance = "\n\n".join(keyword_sections) if keyword_sections else "No additional keyword guidance provided."
 
+        def sanitize_bullet_text(text_value):
+            if not text_value:
+                return ""
+            text_str = str(text_value).strip()
+            text_str = text_str.lstrip("•*- ").strip()
+            return text_str
+
+        def format_section_text(section_data):
+            if not isinstance(section_data, dict):
+                return ""
+            title_value = section_data.get('title') or ''
+            title_text = str(title_value).strip()
+            lines = []
+            if title_text:
+                lines.append(title_text.upper())
+            bullets = section_data.get('bullets') or []
+            for bullet in bullets:
+                bullet_text = ""
+                if isinstance(bullet, dict):
+                    bullet_text = sanitize_bullet_text(bullet.get('text'))
+                else:
+                    bullet_text = sanitize_bullet_text(bullet)
+                if bullet_text:
+                    lines.append(f"- {bullet_text}")
+            return "\n".join(lines).strip()
+
+        work_section_texts: List[str] = []
+        skills_entries: List[str] = []
+        project_section_texts: List[str] = []
+
+        for section in sections or []:
+            formatted_section = format_section_text(section)
+            if not formatted_section:
+                continue
+
+            title_value = section.get('title') or ''
+            title_lower = str(title_value).lower()
+
+            if any(keyword in title_lower for keyword in ['experience', 'employment', 'career', 'work history', 'professional history', 'roles']):
+                work_section_texts.append(formatted_section)
+            elif 'project' in title_lower:
+                project_section_texts.append(formatted_section)
+            elif 'skill' in title_lower:
+                section_bullets = section.get('bullets') or []
+                skill_tokens = []
+                for bullet in section_bullets:
+                    bullet_text = ""
+                    if isinstance(bullet, dict):
+                        bullet_text = sanitize_bullet_text(bullet.get('text'))
+                    else:
+                        bullet_text = sanitize_bullet_text(bullet)
+                    if bullet_text:
+                        skill_tokens.append(bullet_text)
+                if skill_tokens:
+                    skills_entries.append(", ".join(skill_tokens))
+
+        if not work_section_texts and project_section_texts:
+            work_section_texts = project_section_texts
+
+        work_experience_text = "\n\n".join(work_section_texts).strip()
+
+        if not skills_entries:
+            aggregated_skills: List[str] = []
+            for section in sections or []:
+                for bullet in section.get('bullets') or []:
+                    bullet_text = ""
+                    if isinstance(bullet, dict):
+                        bullet_text = sanitize_bullet_text(bullet.get('text'))
+                    else:
+                        bullet_text = sanitize_bullet_text(bullet)
+                    if bullet_text:
+                        aggregated_skills.append(bullet_text)
+            skills_text = ", ".join(aggregated_skills[:20])
+        else:
+            skills_text = "\n".join(skills_entries).strip()
+
         job_description_excerpt = job_description.strip()
         if len(job_description_excerpt) > 2000:
             job_description_excerpt = job_description_excerpt[:2000] + "..."
+
+        def build_fallback_summary() -> str:
+            headline = title or "Experienced professional"
+            experience_phrases: List[str] = []
+            for section in sections or []:
+                bullets = section.get('bullets') or []
+                for bullet in bullets:
+                    bullet_text = ""
+                    if isinstance(bullet, dict):
+                        bullet_text = sanitize_bullet_text(bullet.get('text'))
+                    else:
+                        bullet_text = sanitize_bullet_text(bullet)
+                    if bullet_text:
+                        experience_phrases.append(bullet_text)
+                    if len(experience_phrases) >= 5:
+                        break
+                if len(experience_phrases) >= 5:
+                    break
+
+            keyword_snippet = ", ".join(combined_keywords[:6])
+            summary_parts = []
+
+            if experience_phrases:
+                summary_parts.append(
+                    "Key achievements include " + "; ".join(experience_phrases[:3])
+                )
+
+            if keyword_snippet:
+                summary_parts.append(f"Strengths across {keyword_snippet}.")
+
+            if not summary_parts:
+                return ""
+
+            return f"{headline} with a proven record of delivering results. " + " ".join(summary_parts)
 
         context = f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
 
@@ -1149,52 +1357,72 @@ Requirements for the Professional Summary:
 
 Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""
 
-        headers = {
-            "Authorization": f"Bearer {openai_client['api_key']}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "model": openai_client['model'],
-            "messages": [{"role": "user", "content": context}],
-            "max_tokens": 500,
-            "temperature": 0.7
-        }
-        
-        logger.info(f"Generating summary from experience for: {name}")
-        
-        response = openai_client['requests'].post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=60
-        )
-        
-        if response.status_code != 200:
-            raise Exception(f"OpenAI API error: {response.status_code}")
-        
-        result = response.json()
-        summary = result['choices'][0]['message']['content'].strip()
-        
-        # Remove any quotes or formatting markers
-        summary = summary.strip('"\'')
-        
-        logger.info(f"Generated summary: {len(summary)} characters")
-        
+        summary_text = ""
+        tokens_used = 0
+        fallback_error: Optional[str] = None
+
+        try:
+            headers = {
+                "Authorization": f"Bearer {openai_client['api_key']}",
+                "Content-Type": "application/json"
+            }
+
+            data = {
+                "model": openai_client['model'],
+                "messages": [{"role": "user", "content": context}],
+                "max_tokens": 500,
+                "temperature": 0.7
+            }
+
+            logger.info(f"Generating summary from experience for: {name}")
+
+            response = openai_client['requests'].post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=60
+            )
+
+            if response.status_code != 200:
+                raise Exception(f"OpenAI API error: {response.status_code} - {response.text}")
+
+            result = response.json()
+            summary_text = result['choices'][0]['message']['content'].strip()
+            tokens_used = result.get('usage', {}).get('total_tokens', 0)
+        except Exception as generation_error:
+            fallback_error = str(generation_error)
+            logger.error(f"OpenAI generate summary from experience error: {fallback_error}")
+            summary_text = build_fallback_summary()
+            if not summary_text:
+                default_headline = title or "Results-driven professional"
+                keyword_snippet = ", ".join(combined_keywords[:5])
+                if keyword_snippet:
+                    summary_text = f"{default_headline} known for expertise across {keyword_snippet}, committed to delivering measurable business impact."
+                else:
+                    summary_text = f"{default_headline} with a track record of driving successful outcomes and elevating team performance."
+
+        summary_text = summary_text.strip('"\'')
+
         keywords_incorporated = []
-        summary_lower = summary.lower()
+        summary_lower = summary_text.lower()
         for keyword in combined_keywords:
             if keyword.lower() in summary_lower:
                 keywords_incorporated.append(keyword)
 
-        return {
+        response_payload = {
             "success": True,
-            "summary": summary,
-            "tokens_used": result.get('usage', {}).get('total_tokens', 0),
-            "word_count": len(summary.split()),
+            "summary": summary_text,
+            "tokens_used": tokens_used,
+            "word_count": len(summary_text.split()),
             "keywords_incorporated": keywords_incorporated,
             "requested_keywords": combined_keywords
         }
+
+        if fallback_error:
+            response_payload["fallback"] = True
+            response_payload["error"] = fallback_error
+
+        return response_payload
     except Exception as e:
         logger.error(f"OpenAI generate summary from experience error: {str(e)}")
         error_message = "Failed to generate summary: " + str(e)
@@ -5486,6 +5714,94 @@ def _normalize_json_field(value: Any):
             return value
     return value
 
+GENERIC_TITLE_PATTERNS = [
+    'untitled job',
+    'this is a full time',
+    'this is a part time',
+    'this is a contractor',
+    'full time',
+    'part time',
+    'contractor',
+    'job title',
+    'job description',
+    'n/a',
+    'not specified'
+]
+
+def _looks_generic_title(title: str) -> bool:
+    if not title:
+        return True
+    normalized = re.sub(r'\s+', ' ', title).strip().lower()
+    for pattern in GENERIC_TITLE_PATTERNS:
+        if normalized == pattern or normalized.startswith(pattern):
+            return True
+    return False
+
+def _clean_candidate_title(candidate: str) -> Optional[str]:
+    if not candidate:
+        return None
+    candidate = html.unescape(candidate)
+    candidate = re.sub(r'<[^>]+>', ' ', candidate)
+    candidate = candidate.strip()
+    candidate = re.sub(r'^[•*\-]+', '', candidate).strip()
+    candidate = re.sub(r'^(job\s*title|title)\s*[:\-]\s*', '', candidate, flags=re.IGNORECASE).strip()
+    candidate = re.sub(r'\s+', ' ', candidate)
+    if not candidate:
+        return None
+    lower = candidate.lower()
+    if any(lower.startswith(prefix) for prefix in ['company', 'location', 'about ', 'description', 'job description', 'responsibilit', 'requirements']):
+        return None
+    if any(word in lower for word in ['full time', 'part time', 'contract', 'internship', 'permanent']) and len(candidate.split()) <= 3:
+        return None
+    if len(candidate) < 4 or len(candidate.split()) < 2 or len(candidate) > 80:
+        return None
+    return candidate.title() if candidate.isupper() else candidate
+
+def _extract_title_from_extracted_keywords(extracted: Dict[str, Any]) -> Optional[str]:
+    if not isinstance(extracted, dict):
+        return None
+    for key in ['job_title', 'title', 'position']:
+        value = extracted.get(key)
+        if isinstance(value, str):
+            cleaned = _clean_candidate_title(value)
+            if cleaned:
+                return cleaned
+    return None
+
+def _extract_job_title_from_content(content: str) -> Optional[str]:
+    if not content:
+        return None
+    text = html.unescape(content)
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<[^>]+>', '\n', text)
+    lines = [line.strip() for line in re.split(r'[\r\n]+', text) if line.strip()]
+    for line in lines:
+        cleaned = _clean_candidate_title(line)
+        if cleaned:
+            return cleaned
+    return None
+
+def _determine_final_job_title(provided_title: Optional[str], content: str, extracted_dict: Dict[str, Any]) -> Optional[str]:
+    candidates: List[str] = []
+    if provided_title and provided_title.strip():
+        candidates.append(re.sub(r'\s+', ' ', provided_title).strip())
+    extracted_title = _extract_title_from_extracted_keywords(extracted_dict)
+    if extracted_title:
+        candidates.append(extracted_title)
+    content_title = _extract_job_title_from_content(content)
+    if content_title:
+        candidates.append(content_title)
+
+    for candidate in candidates:
+        if candidate and not _looks_generic_title(candidate):
+            return candidate
+
+    for candidate in candidates:
+        if candidate:
+            return candidate
+
+    return None
+
 
 @app.post('/job-descriptions')
 def create_or_update_job_description(payload: JobDescriptionCreate, db: Session = Depends(get_db)):
@@ -5524,6 +5840,12 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
             extracted = keyword_extractor.extract_keywords(payload.content)
 
         extracted_dict = extracted if isinstance(extracted, dict) else {}
+
+        final_title = _determine_final_job_title(payload.title, payload.content, extracted_dict)
+        if not final_title or not final_title.strip():
+            raise HTTPException(status_code=400, detail="Unable to determine job title")
+        final_title = re.sub(r'\s+', ' ', final_title).strip()
+        payload.title = final_title
 
         precomputed_priority = _normalize_json_field(getattr(payload, 'priority_keywords', None))
         if precomputed_priority:
@@ -5574,7 +5896,7 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
                     
                     db.execute(update_sql, {
                         'user_id': user.id if user else None,
-                        'title': payload.title,
+                        'title': final_title,
                         'company': payload.company,
                         'source': payload.source,
                         'url': payload.url,
@@ -5618,7 +5940,7 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
                 # PostgreSQL JSON columns need JSON strings when using raw SQL
                 result = db.execute(insert_sql, {
                     'user_id': user.id if user else None,
-                    'title': payload.title,
+                    'title': final_title,
                     'company': payload.company,
                     'source': payload.source,
                     'url': payload.url,
@@ -5648,7 +5970,7 @@ def create_or_update_job_description(payload: JobDescriptionCreate, db: Session 
         
         # New columns exist - use normal SQLAlchemy insert/update
         jd.user_id = user.id if user else None
-        jd.title = payload.title
+        jd.title = final_title
         jd.company = payload.company
         jd.source = payload.source
         jd.url = payload.url
@@ -6378,8 +6700,6 @@ def create_or_update_job_description_api(
         logger.info(f"create_or_update_job_description_api: Received request with title={payload.title}, company={payload.company}")
         
         # Validate required fields
-        if not payload.title or not payload.title.strip():
-            raise HTTPException(status_code=400, detail="Title is required")
         if not payload.content or not payload.content.strip():
             raise HTTPException(status_code=400, detail="Content is required")
         
