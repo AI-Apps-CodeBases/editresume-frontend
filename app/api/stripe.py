@@ -22,8 +22,12 @@ router = APIRouter(prefix="/api/billing", tags=["billing"])
 
 
 class CheckoutSessionRequest(BaseModel):
-    successUrl: Optional[str] = Field(default=None, description="Override the default success URL")
-    cancelUrl: Optional[str] = Field(default=None, description="Override the default cancel URL")
+    successUrl: Optional[str] = Field(
+        default=None, description="Override the default success URL"
+    )
+    cancelUrl: Optional[str] = Field(
+        default=None, description="Override the default cancel URL"
+    )
 
 
 class CheckoutSessionResponse(BaseModel):
@@ -78,15 +82,24 @@ async def create_checkout_session(
 ) -> CheckoutSessionResponse:
     stripe = get_stripe_client()
     if not stripe:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe is not configured.",
+        )
     if not settings.stripe_price_id:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe price ID missing.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe price ID missing.",
+        )
 
     success_url = payload.successUrl or settings.stripe_success_url
     cancel_url = payload.cancelUrl or settings.stripe_cancel_url
 
     if not success_url or not cancel_url:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Success and cancel URLs must be configured.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Success and cancel URLs must be configured.",
+        )
 
     try:
         metadata = {
@@ -113,10 +126,16 @@ async def create_checkout_session(
         )
     except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
         logger.error("Stripe error creating checkout session: %s", exc)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to create checkout session.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to create checkout session.",
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Unexpected error creating checkout session.")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected error.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error.",
+        ) from exc
 
     return CheckoutSessionResponse(url=session["url"])
 
@@ -125,12 +144,18 @@ async def create_checkout_session(
 async def stripe_webhook(request: Request) -> WebhookResponse:
     stripe = get_stripe_client()
     if not stripe or not settings.stripe_webhook_secret:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe webhook not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe webhook not configured.",
+        )
 
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
     if not sig_header:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Stripe signature header.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing Stripe signature header.",
+        )
 
     try:
         event = stripe.Webhook.construct_event(
@@ -140,17 +165,23 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
         )
     except ValueError as exc:
         logger.warning("Stripe webhook received invalid payload: %s", exc)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload."
+        ) from exc
     except stripe.error.SignatureVerificationError as exc:  # type: ignore[attr-defined]
         logger.warning("Stripe webhook signature verification failed: %s", exc)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature."
+        ) from exc
 
     await _process_event(event, stripe)
     return WebhookResponse(received=True)
 
 
 @router.get("/subscription", response_model=SubscriptionStatusResponse)
-async def get_subscription_status(user: Dict[str, Any] = Depends(require_firebase_user)) -> SubscriptionStatusResponse:
+async def get_subscription_status(
+    user: Dict[str, Any] = Depends(require_firebase_user),
+) -> SubscriptionStatusResponse:
     profile = get_user_profile(user["uid"]) or {}
     return SubscriptionStatusResponse(
         isPremium=bool(profile.get("isPremium", False)),
@@ -162,15 +193,23 @@ async def get_subscription_status(user: Dict[str, Any] = Depends(require_firebas
 
 
 @router.post("/create-portal-session", response_model=PortalSessionResponse)
-async def create_portal_session(user: Dict[str, Any] = Depends(require_firebase_user)) -> PortalSessionResponse:
+async def create_portal_session(
+    user: Dict[str, Any] = Depends(require_firebase_user),
+) -> PortalSessionResponse:
     stripe = get_stripe_client()
     if not stripe:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe is not configured.",
+        )
 
     profile = get_user_profile(user["uid"]) or {}
     customer_id = profile.get("stripeCustomerId")
     if not customer_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No Stripe customer on file.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No Stripe customer on file.",
+        )
 
     return_url = (
         settings.stripe_portal_return_url
@@ -178,7 +217,10 @@ async def create_portal_session(user: Dict[str, Any] = Depends(require_firebase_
         or settings.stripe_cancel_url
     )
     if not return_url:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe portal return URL not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe portal return URL not configured.",
+        )
 
     try:
         session = stripe.billing_portal.Session.create(
@@ -187,10 +229,16 @@ async def create_portal_session(user: Dict[str, Any] = Depends(require_firebase_
         )
     except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
         logger.error("Stripe error creating portal session: %s", exc)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to create portal session.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to create portal session.",
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Unexpected error creating portal session.")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected error.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error.",
+        ) from exc
 
     return PortalSessionResponse(url=session["url"])
 
@@ -201,7 +249,10 @@ async def _process_event(event: Dict[str, Any], stripe) -> None:
 
     if event_type == "checkout.session.completed":
         await _handle_checkout_session_completed(data_object, stripe)
-    elif event_type in {"customer.subscription.updated", "customer.subscription.deleted"}:
+    elif event_type in {
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+    }:
         await _handle_subscription_event(data_object)
     else:
         logger.debug("Unhandled Stripe event type: %s", event_type)
@@ -218,7 +269,10 @@ async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) ->
         uid = user_doc.get("uid") if user_doc else None
 
     if not uid:
-        logger.warning("Checkout session completed without resolvable uid. Session id: %s", session.get("id"))
+        logger.warning(
+            "Checkout session completed without resolvable uid. Session id: %s",
+            session.get("id"),
+        )
         return
 
     status = None
@@ -231,7 +285,9 @@ async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) ->
         except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
             logger.error("Failed to retrieve subscription %s: %s", subscription_id, exc)
 
-    payload = _build_subscription_payload(status, current_period_end, customer_id, subscription_id)
+    payload = _build_subscription_payload(
+        status, current_period_end, customer_id, subscription_id
+    )
 
     if not payload:
         payload = {"stripeCustomerId": customer_id, "isPremium": False}
@@ -246,7 +302,9 @@ async def _handle_subscription_event(subscription: Dict[str, Any]) -> None:
 
     user_doc = find_user_by_stripe_customer(customer_id)
     if not user_doc:
-        logger.warning("Received subscription event for unknown customer: %s", customer_id)
+        logger.warning(
+            "Received subscription event for unknown customer: %s", customer_id
+        )
         return
 
     uid = user_doc.get("uid")
@@ -256,7 +314,7 @@ async def _handle_subscription_event(subscription: Dict[str, Any]) -> None:
     status = subscription.get("status")
     current_period_end = subscription.get("current_period_end")
     subscription_id = subscription.get("id")
-    payload = _build_subscription_payload(status, current_period_end, customer_id, subscription_id)
+    payload = _build_subscription_payload(
+        status, current_period_end, customer_id, subscription_id
+    )
     update_user_subscription(uid, payload)
-
-

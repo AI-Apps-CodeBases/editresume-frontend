@@ -30,19 +30,31 @@ class Settings(BaseSettings):
 
     database_url: Optional[str] = Field(default=None, env="DATABASE_URL")
 
-    additional_cors_origins: List[str] = Field(default_factory=list, env="ADDITIONAL_CORS_ORIGINS")
+    additional_cors_origins: List[str] = Field(
+        default_factory=list, env="ADDITIONAL_CORS_ORIGINS"
+    )
 
     firebase_project_id: Optional[str] = Field(default=None, env="FIREBASE_PROJECT_ID")
-    firebase_service_account_json: Optional[str] = Field(default=None, env="FIREBASE_SERVICE_ACCOUNT_JSON")
-    firebase_service_account_base64: Optional[str] = Field(default=None, env="FIREBASE_SERVICE_ACCOUNT_BASE64")
-    firebase_service_account_key_path: Optional[str] = Field(default=None, env="FIREBASE_SERVICE_ACCOUNT_KEY_PATH")
+    firebase_service_account_json: Optional[str] = Field(
+        default=None, env="FIREBASE_SERVICE_ACCOUNT_JSON"
+    )
+    firebase_service_account_base64: Optional[str] = Field(
+        default=None, env="FIREBASE_SERVICE_ACCOUNT_BASE64"
+    )
+    firebase_service_account_key_path: Optional[str] = Field(
+        default=None, env="FIREBASE_SERVICE_ACCOUNT_KEY_PATH"
+    )
 
     stripe_secret_key: Optional[str] = Field(default=None, env="STRIPE_SECRET_KEY")
-    stripe_webhook_secret: Optional[str] = Field(default=None, env="STRIPE_WEBHOOK_SECRET")
+    stripe_webhook_secret: Optional[str] = Field(
+        default=None, env="STRIPE_WEBHOOK_SECRET"
+    )
     stripe_price_id: Optional[str] = Field(default=None, env="STRIPE_PRICE_ID")
     stripe_success_url: Optional[str] = Field(default=None, env="STRIPE_SUCCESS_URL")
     stripe_cancel_url: Optional[str] = Field(default=None, env="STRIPE_CANCEL_URL")
-    stripe_portal_return_url: Optional[str] = Field(default=None, env="STRIPE_PORTAL_RETURN_URL")
+    stripe_portal_return_url: Optional[str] = Field(
+        default=None, env="STRIPE_PORTAL_RETURN_URL"
+    )
 
     model_config = SettingsConfigDict(
         case_sensitive=False,
@@ -96,5 +108,3 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
-
-

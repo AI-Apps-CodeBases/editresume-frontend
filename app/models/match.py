@@ -28,5 +28,3 @@ class JobMatch(Base):
 
 
 __all__ = ["JobMatch"]
-
-

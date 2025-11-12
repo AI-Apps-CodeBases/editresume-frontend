@@ -107,7 +107,9 @@ class MatchSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
-    job_description_id = Column(Integer, ForeignKey("job_descriptions.id"), nullable=False)
+    job_description_id = Column(
+        Integer, ForeignKey("job_descriptions.id"), nullable=False
+    )
     score = Column(Integer, nullable=False)
     keyword_coverage = Column(Float)
     matched_keywords = Column(JSON)
@@ -126,5 +128,3 @@ __all__ = [
     "JobCoverLetter",
     "MatchSession",
 ]
-
-

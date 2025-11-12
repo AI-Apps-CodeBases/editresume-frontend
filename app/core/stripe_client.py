@@ -19,6 +19,3 @@ def get_stripe_client() -> Optional[stripe.StripeClient]:
 
     stripe.api_key = settings.stripe_secret_key
     return stripe
-
-
-

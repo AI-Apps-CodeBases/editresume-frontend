@@ -27,11 +27,14 @@ class SessionResponse(BaseModel):
 def require_firebase_user(request: Request) -> Dict[str, Any]:
     user = getattr(request.state, "firebase_user", None)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized"
+        )
     return user
 
 
 @router.get("/session", response_model=SessionResponse)
-async def get_current_session(user: Dict[str, Any] = Depends(require_firebase_user)) -> SessionResponse:
+async def get_current_session(
+    user: Dict[str, Any] = Depends(require_firebase_user),
+) -> SessionResponse:
     return SessionResponse(user=user)
-

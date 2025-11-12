@@ -15,5 +15,3 @@ __all__ = [
     "KeywordExtractor",
     "VersionControlService",
 ]
-
-

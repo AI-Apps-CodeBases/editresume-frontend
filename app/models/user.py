@@ -28,5 +28,3 @@ class User(Base):
 
 
 __all__ = ["User"]
-
-
