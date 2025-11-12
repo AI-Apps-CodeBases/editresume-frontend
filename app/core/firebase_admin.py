@@ -91,14 +91,11 @@ def verify_id_token(id_token: str) -> Optional[Dict[str, Any]]:
         return None
     try:
         return firebase_auth.verify_id_token(id_token, app=app)
-    except firebase_exceptions.InvalidIdTokenError as exc:
-        logger.warning("Invalid Firebase ID token: %s", exc)
+    except firebase_exceptions.FirebaseError as exc:
+        logger.warning("Firebase ID token verification error: %s", exc)
         return None
-    except firebase_exceptions.ExpiredIdTokenError as exc:
-        logger.warning("Expired Firebase ID token: %s", exc)
-        return None
-    except firebase_exceptions.RevokedIdTokenError as exc:
-        logger.warning("Revoked Firebase ID token: %s", exc)
+    except ValueError as exc:
+        logger.warning("Firebase ID token value error: %s", exc)
         return None
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to verify Firebase ID token: %s", exc)

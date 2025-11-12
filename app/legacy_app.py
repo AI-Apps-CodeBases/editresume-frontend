@@ -97,6 +97,7 @@ except Exception as e:
 OPENAI_API_KEY = settings.openai_api_key
 OPENAI_MODEL = settings.openai_model or "gpt-4o-mini"
 OPENAI_MAX_TOKENS = settings.openai_max_tokens or 2000
+USE_AI_PARSER = os.getenv("USE_AI_PARSER", "true").lower() == "true"
 
 openai_client = None
 if OPENAI_API_KEY and OPENAI_API_KEY != "sk-your-openai-api-key-here":
@@ -3481,6 +3482,12 @@ async def upload_resume(file: UploadFile = File(...)):
 
 def parse_resume_with_ai(text: str) -> Dict:
     """Use AI to intelligently parse and structure resume content"""
+    if not USE_AI_PARSER:
+        logger.info(
+            "AI resume parser disabled via USE_AI_PARSER flag, using basic parser"
+        )
+        return parse_resume_text(text)
+
     if not openai_client:
         logger.warning("AI parsing not available, falling back to basic parsing")
         return parse_resume_text(text)
@@ -7865,6 +7872,103 @@ def create_or_update_job_description_api(
             logger.info(
                 "create_or_update_job_description_api: Saving job description without user (anonymous)"
             )
+
+        # Ensure manual primary key works when extension sends explicit id
+        if payload.id:
+            logger.info(
+                f"create_or_update_job_description_api: Ensuring JD id={payload.id} exists or will be overwritten by extension payload"
+            )
+            existing_jd = (
+                db.query(JobDescription)
+                .filter(JobDescription.id == payload.id)
+                .one_or_none()
+            )
+            if existing_jd:
+                if payload.user_email:
+                    user = (
+                        db.query(User).filter(User.email == payload.user_email).first()
+                    )
+                    if user and existing_jd.user_id and existing_jd.user_id != user.id:
+                        logger.warning(
+                            f"create_or_update_job_description_api: JD id={payload.id} owned by a different user; allowing overwrite for compatibility"
+                        )
+                # Delete existing row so we can insert with explicit id
+                db.query(JobDescription).filter(
+                    JobDescription.id == payload.id
+                ).delete()
+                db.commit()
+
+            # Prepare raw insert to respect the provided id without hitting autoincrement
+            insert_data = {
+                "id": payload.id,
+                "title": payload.title,
+                "company": payload.company,
+                "source": payload.source,
+                "url": payload.url,
+                "easy_apply_url": payload.easy_apply_url,
+                "location": payload.location,
+                "work_type": payload.work_type,
+                "job_type": payload.job_type,
+                "content": payload.content,
+                "priority_keywords": (
+                    json.dumps(payload.priority_keywords)
+                    if payload.priority_keywords
+                    else None
+                ),
+                "soft_skills": (
+                    json.dumps(payload.soft_skills) if payload.soft_skills else None
+                ),
+                "high_frequency_keywords": (
+                    json.dumps(payload.high_frequency_keywords)
+                    if payload.high_frequency_keywords
+                    else None
+                ),
+                "ats_insights": (
+                    json.dumps(payload.ats_insights) if payload.ats_insights else None
+                ),
+                "user_id": None,
+                "extracted_keywords": (
+                    json.dumps(payload.extracted_keywords)
+                    if payload.extracted_keywords
+                    else None
+                ),
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+
+            if payload.user_email:
+                user = db.query(User).filter(User.email == payload.user_email).first()
+                if user:
+                    insert_data["user_id"] = user.id
+
+            logger.info(
+                f"create_or_update_job_description_api: Creating JD with explicit id={payload.id} via raw insert"
+            )
+            db.execute(
+                text(
+                    """
+                INSERT INTO job_descriptions (
+                    id, title, company, source, url, easy_apply_url, location,
+                    work_type, job_type, content, priority_keywords, soft_skills,
+                    high_frequency_keywords, ats_insights, user_id, extracted_keywords,
+                    created_at, updated_at
+                ) VALUES (
+                    :id, :title, :company, :source, :url, :easy_apply_url, :location,
+                    :work_type, :job_type, :content, :priority_keywords, :soft_skills,
+                    :high_frequency_keywords, :ats_insights, :user_id, :extracted_keywords,
+                    :created_at, :updated_at
+                )
+            """
+                ),
+                insert_data,
+            )
+            db.commit()
+
+            logger.info(
+                f"create_or_update_job_description_api: Inserted JD with id={payload.id} successfully via raw SQL"
+            )
+            # Return freshly inserted job description payload
+            return get_job_description(payload.id, db=db)
 
         result = create_or_update_job_description(payload, db)
         logger.info(
