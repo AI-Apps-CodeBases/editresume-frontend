@@ -1636,8 +1636,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
         uncovered_missing_keywords = [
             keyword
             for keyword in missing_keywords
-            if keyword
-            and keyword.lower() not in summary_lower
+            if keyword and keyword.lower() not in summary_lower
         ]
 
         if uncovered_missing_keywords:
@@ -1651,7 +1650,10 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
             summary_text = summary_text.rstrip() + additional_clause
             summary_lower = summary_text.lower()
             for keyword in uncovered_missing_keywords:
-                if keyword.lower() in summary_lower and keyword not in keywords_incorporated:
+                if (
+                    keyword.lower() in summary_lower
+                    and keyword not in keywords_incorporated
+                ):
                     keywords_incorporated.append(keyword)
 
         response_payload = {

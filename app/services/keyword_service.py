@@ -462,7 +462,9 @@ class KeywordExtractor:
     ) -> List[Dict[str, any]]:
         """Extract high-frequency keywords that are most important for ATS"""
         try:
-            tokens = re.findall(r"\b[a-zA-Z0-9][a-zA-Z0-9+/.-]{1,}\b", cleaned_text.lower())
+            tokens = re.findall(
+                r"\b[a-zA-Z0-9][a-zA-Z0-9+/.-]{1,}\b", cleaned_text.lower()
+            )
 
             bigrams = [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens) - 1)]
 
@@ -483,11 +485,9 @@ class KeywordExtractor:
                     {
                         "keyword": term,
                         "frequency": count,
-                        "importance": "high"
-                        if count >= 3
-                        else "medium"
-                        if count == 2
-                        else "low",
+                        "importance": (
+                            "high" if count >= 3 else "medium" if count == 2 else "low"
+                        ),
                     }
                 )
 
@@ -504,6 +504,7 @@ class KeywordExtractor:
     ) -> Dict[str, any]:
         """Calculate similarity between job description and resume"""
         try:
+
             def normalize_collection(values):
                 if not values:
                     return set()
@@ -548,9 +549,7 @@ class KeywordExtractor:
             )
 
             # Combine all keywords for comparison
-            job_all_keywords = (
-                job_technical | job_general | job_soft | job_high_freq
-            )
+            job_all_keywords = job_technical | job_general | job_soft | job_high_freq
             resume_all_keywords = (
                 resume_technical | resume_general | resume_soft | resume_high_freq
             )
