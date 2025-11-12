@@ -370,19 +370,28 @@ class KeywordExtractor:
 
         return text.strip()
 
+    def _normalize_identifier(self, value: str) -> str:
+        """Normalize identifiers for comparison by stripping separators."""
+        return re.sub(r"[\s\-/\\.+]", "", value.lower())
+
     def _extract_technical_keywords(self, text: str) -> List[str]:
         """Extract technical keywords from text"""
+        if not text:
+            return []
+
         found_keywords = []
+        raw_text = text.lower()
+        normalized_text = self._normalize_identifier(text)
 
         for category, keywords in self.technical_keywords.items():
             for keyword in keywords:
-                # Check for exact matches and variations
-                if keyword in text:
+                keyword_lower = keyword.lower()
+                if keyword_lower in raw_text:
                     found_keywords.append(keyword)
-                # Check for variations (e.g., "Node.js" vs "nodejs")
-                elif keyword.replace(".", "").replace("-", "") in text.replace(
-                    ".", ""
-                ).replace("-", ""):
+                    continue
+
+                normalized_keyword = self._normalize_identifier(keyword_lower)
+                if normalized_keyword and normalized_keyword in normalized_text:
                     found_keywords.append(keyword)
 
         return list(set(found_keywords))
@@ -390,28 +399,20 @@ class KeywordExtractor:
     def _extract_general_keywords(self, text: str) -> List[str]:
         """Extract general keywords using simple frequency analysis"""
         try:
-            # Clean and tokenize text
-            words = re.findall(r"\b[a-zA-Z]{3,}\b", text.lower())
+            tokens = re.findall(r"\b[a-zA-Z0-9][a-zA-Z0-9+/.-]{1,}\b", text.lower())
 
-            # Remove stop words and technical keywords
             filtered_words = []
-            for word in words:
+            for token in tokens:
                 if (
-                    word not in self.stop_words
-                    and word not in self.all_technical_keywords
-                    and len(word) > 2
+                    token not in self.stop_words
+                    and token not in self.all_technical_keywords
+                    and len(token) >= 2
                 ):
-                    filtered_words.append(word)
+                    filtered_words.append(token)
 
-            # Count word frequencies
             word_counts = Counter(filtered_words)
 
-            # Get top keywords by frequency
-            top_keywords = [
-                word for word, count in word_counts.most_common(15) if count > 1
-            ]
-
-            return top_keywords
+            return [word for word, _ in word_counts.most_common(40)]
 
         except Exception as e:
             logger.error(f"Error extracting general keywords: {e}")
@@ -461,37 +462,34 @@ class KeywordExtractor:
     ) -> List[Dict[str, any]]:
         """Extract high-frequency keywords that are most important for ATS"""
         try:
-            # Extract both single words and bigrams
-            words = re.findall(r"\b[a-zA-Z]{4,}\b", cleaned_text.lower())
+            tokens = re.findall(r"\b[a-zA-Z0-9][a-zA-Z0-9+/.-]{1,}\b", cleaned_text.lower())
 
-            # Extract bigrams (two-word phrases)
-            bigrams = []
-            word_list = words
-            for i in range(len(word_list) - 1):
-                bigram = f"{word_list[i]} {word_list[i+1]}"
-                bigrams.append(bigram)
+            bigrams = [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens) - 1)]
 
             # Combine and count
-            all_terms = words + bigrams
+            all_terms = tokens + bigrams
             term_counts = Counter(all_terms)
 
             # Filter out stop words and very common terms
             filtered_terms = []
             for term, count in term_counts.most_common(30):
-                # Skip if it's a stop word or too generic
-                if term not in self.stop_words and len(term) > 3 and count > 1:
-                    # Check if it's a meaningful term (not just filler)
-                    if not any(
-                        word in term
-                        for word in ["this", "that", "with", "from", "have", "will"]
-                    ):
-                        filtered_terms.append(
-                            {
-                                "keyword": term,
-                                "frequency": count,
-                                "importance": "high" if count > 3 else "medium",
-                            }
-                        )
+                if term in self.stop_words:
+                    continue
+                compact = term.replace(" ", "")
+                if len(compact) < 2:
+                    continue
+
+                filtered_terms.append(
+                    {
+                        "keyword": term,
+                        "frequency": count,
+                        "importance": "high"
+                        if count >= 3
+                        else "medium"
+                        if count == 2
+                        else "low",
+                    }
+                )
 
             # Sort by frequency and return top 20
             filtered_terms.sort(key=lambda x: x["frequency"], reverse=True)
@@ -506,17 +504,55 @@ class KeywordExtractor:
     ) -> Dict[str, any]:
         """Calculate similarity between job description and resume"""
         try:
+            def normalize_collection(values):
+                if not values:
+                    return set()
+                return {
+                    value.strip().lower()
+                    for value in values
+                    if isinstance(value, str) and value.strip()
+                }
+
+            def normalize_high_frequency(values):
+                if not values:
+                    return set()
+                return {
+                    item.get("keyword", "").strip().lower()
+                    for item in values
+                    if isinstance(item, dict)
+                    and isinstance(item.get("keyword"), str)
+                    and item.get("keyword").strip()
+                }
+
             # Extract keywords from both texts
             job_keywords = self.extract_keywords(job_description)
             resume_keywords = self.extract_keywords(resume_text)
 
-            # Combine all keywords for comparison
-            job_all_keywords = set(
-                job_keywords["technical_keywords"] + job_keywords["general_keywords"]
-            )
-            resume_all_keywords = set(
+            # Normalize keyword buckets
+            job_technical = normalize_collection(job_keywords["technical_keywords"])
+            resume_technical = normalize_collection(
                 resume_keywords["technical_keywords"]
-                + resume_keywords["general_keywords"]
+            )
+
+            job_general = normalize_collection(job_keywords["general_keywords"])
+            resume_general = normalize_collection(resume_keywords["general_keywords"])
+
+            job_soft = normalize_collection(job_keywords.get("soft_skills", []))
+            resume_soft = normalize_collection(resume_keywords.get("soft_skills", []))
+
+            job_high_freq = normalize_high_frequency(
+                job_keywords.get("high_frequency_keywords")
+            )
+            resume_high_freq = normalize_high_frequency(
+                resume_keywords.get("high_frequency_keywords")
+            )
+
+            # Combine all keywords for comparison
+            job_all_keywords = (
+                job_technical | job_general | job_soft | job_high_freq
+            )
+            resume_all_keywords = (
+                resume_technical | resume_general | resume_soft | resume_high_freq
             )
 
             # Find matching keywords
@@ -532,8 +568,6 @@ class KeywordExtractor:
                 similarity_score = len(matching_keywords) / len(job_all_keywords)
 
             # Calculate technical keyword match
-            job_technical = set(job_keywords["technical_keywords"])
-            resume_technical = set(resume_keywords["technical_keywords"])
             technical_matches = job_technical.intersection(resume_technical)
             technical_missing = job_technical - resume_technical
 

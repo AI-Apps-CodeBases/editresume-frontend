@@ -1627,11 +1627,32 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
 
         summary_text = summary_text.strip("\"'")
 
-        keywords_incorporated = []
         summary_lower = summary_text.lower()
+        keywords_incorporated = []
         for keyword in combined_keywords:
             if keyword.lower() in summary_lower:
                 keywords_incorporated.append(keyword)
+
+        uncovered_missing_keywords = [
+            keyword
+            for keyword in missing_keywords
+            if keyword
+            and keyword.lower() not in summary_lower
+        ]
+
+        if uncovered_missing_keywords:
+            additional_clause = (
+                " Key focus areas include "
+                + ", ".join(uncovered_missing_keywords[:6])
+                + "."
+            )
+            if not summary_text.endswith((".", "!", "?")):
+                summary_text = summary_text.rstrip() + "."
+            summary_text = summary_text.rstrip() + additional_clause
+            summary_lower = summary_text.lower()
+            for keyword in uncovered_missing_keywords:
+                if keyword.lower() in summary_lower and keyword not in keywords_incorporated:
+                    keywords_incorporated.append(keyword)
 
         response_payload = {
             "success": True,
@@ -7898,6 +7919,44 @@ def create_or_update_job_description_api(
                 ).delete()
                 db.commit()
 
+            # Determine available columns to avoid referencing ones that may not exist
+            try:
+                columns_result = db.execute(
+                    text(
+                        """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name = 'job_descriptions'
+                """
+                    )
+                )
+                existing_columns = {row[0] for row in columns_result}
+            except Exception as column_check_error:
+                logger.warning(
+                    "create_or_update_job_description_api: Failed to inspect job_descriptions columns (%s). "
+                    "Proceeding with conservative column set.",
+                    column_check_error,
+                )
+                existing_columns = {
+                    "id",
+                    "title",
+                    "company",
+                    "source",
+                    "url",
+                    "easy_apply_url",
+                    "location",
+                    "work_type",
+                    "job_type",
+                    "content",
+                    "extracted_keywords",
+                    "priority_keywords",
+                    "soft_skills",
+                    "high_frequency_keywords",
+                    "ats_insights",
+                    "user_id",
+                    "created_at",
+                }
+
             # Prepare raw insert to respect the provided id without hitting autoincrement
             insert_data = {
                 "id": payload.id,
@@ -7911,56 +7970,116 @@ def create_or_update_job_description_api(
                 "job_type": payload.job_type,
                 "content": payload.content,
                 "priority_keywords": (
-                    json.dumps(payload.priority_keywords)
-                    if payload.priority_keywords
+                    (
+                        json.dumps(payload.priority_keywords)
+                        if payload.priority_keywords
+                        else json.dumps([])
+                    )
+                    if "priority_keywords" in existing_columns
                     else None
                 ),
                 "soft_skills": (
-                    json.dumps(payload.soft_skills) if payload.soft_skills else None
+                    (
+                        json.dumps(payload.soft_skills)
+                        if payload.soft_skills
+                        else json.dumps([])
+                    )
+                    if "soft_skills" in existing_columns
+                    else None
                 ),
                 "high_frequency_keywords": (
-                    json.dumps(payload.high_frequency_keywords)
-                    if payload.high_frequency_keywords
+                    (
+                        json.dumps(payload.high_frequency_keywords)
+                        if payload.high_frequency_keywords
+                        else json.dumps([])
+                    )
+                    if "high_frequency_keywords" in existing_columns
                     else None
                 ),
                 "ats_insights": (
-                    json.dumps(payload.ats_insights) if payload.ats_insights else None
+                    (
+                        json.dumps(payload.ats_insights)
+                        if payload.ats_insights
+                        else json.dumps({})
+                    )
+                    if "ats_insights" in existing_columns
+                    else None
                 ),
                 "user_id": None,
                 "extracted_keywords": (
-                    json.dumps(payload.extracted_keywords)
-                    if payload.extracted_keywords
+                    (
+                        json.dumps(payload.extracted_keywords)
+                        if payload.extracted_keywords
+                        else json.dumps({})
+                    )
+                    if "extracted_keywords" in existing_columns
                     else None
                 ),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": (
+                    datetime.utcnow() if "created_at" in existing_columns else None
+                ),
+                "updated_at": (
+                    datetime.utcnow() if "updated_at" in existing_columns else None
+                ),
             }
 
-            if payload.user_email:
+            if payload.user_email and "user_id" in existing_columns:
                 user = db.query(User).filter(User.email == payload.user_email).first()
                 if user:
                     insert_data["user_id"] = user.id
 
+            # Filter insert columns to only those that exist in the table
+            ordered_columns = [
+                "id",
+                "title",
+                "company",
+                "source",
+                "url",
+                "easy_apply_url",
+                "location",
+                "work_type",
+                "job_type",
+                "content",
+                "priority_keywords",
+                "soft_skills",
+                "high_frequency_keywords",
+                "ats_insights",
+                "user_id",
+                "extracted_keywords",
+                "created_at",
+                "updated_at",
+            ]
+            filtered_columns = [
+                column
+                for column in ordered_columns
+                if column in existing_columns and column in insert_data
+            ]
+            filtered_data = {col: insert_data[col] for col in filtered_columns}
+
+            if not filtered_columns:
+                logger.error(
+                    "create_or_update_job_description_api: No valid columns available for raw insert"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to save job description: No valid columns available",
+                )
+
             logger.info(
-                f"create_or_update_job_description_api: Creating JD with explicit id={payload.id} via raw insert"
+                f"create_or_update_job_description_api: Creating JD with explicit id={payload.id} via raw insert "
+                f"using columns {filtered_columns}"
             )
             db.execute(
                 text(
-                    """
+                    f"""
                 INSERT INTO job_descriptions (
-                    id, title, company, source, url, easy_apply_url, location,
-                    work_type, job_type, content, priority_keywords, soft_skills,
-                    high_frequency_keywords, ats_insights, user_id, extracted_keywords,
-                    created_at, updated_at
+                    {", ".join(filtered_columns)}
                 ) VALUES (
-                    :id, :title, :company, :source, :url, :easy_apply_url, :location,
-                    :work_type, :job_type, :content, :priority_keywords, :soft_skills,
-                    :high_frequency_keywords, :ats_insights, :user_id, :extracted_keywords,
-                    :created_at, :updated_at
+                    {", ".join(f":{col}" for col in filtered_columns)}
                 )
             """
                 ),
-                insert_data,
+                filtered_data,
             )
             db.commit()
 
