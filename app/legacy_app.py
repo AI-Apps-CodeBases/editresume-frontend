@@ -48,6 +48,7 @@ from version_control import VersionControlService
 
 from app.api.firebase_auth import router as firebase_auth_router
 from app.api.stripe import router as stripe_router
+from app.core.config import settings
 from app.middleware.firebase_auth import FirebaseAuthMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -93,9 +94,9 @@ except Exception as e:
     ai_improvement_engine = None
 
 # OpenAI Configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
+OPENAI_API_KEY = settings.openai_api_key
+OPENAI_MODEL = settings.openai_model or "gpt-4o-mini"
+OPENAI_MAX_TOKENS = settings.openai_max_tokens or 2000
 
 openai_client = None
 if OPENAI_API_KEY and OPENAI_API_KEY != "sk-your-openai-api-key-here":
@@ -1295,15 +1296,15 @@ async def generate_summary_from_experience(payload: dict):
         fallback_bullets = []
 
         for section in sections or []:
-            section_title = str(section.get('title') or '').strip()
-            bullets = section.get('bullets') or []
+            section_title = str(section.get("title") or "").strip()
+            bullets = section.get("bullets") or []
             bullet_texts = []
 
             for bullet in bullets:
-                text = str(bullet.get('text') or '').strip()
+                text = str(bullet.get("text") or "").strip()
                 if not text:
                     continue
-                cleaned = text.lstrip('-•*').strip()
+                cleaned = text.lstrip("-•*").strip()
                 if cleaned:
                     bullet_texts.append(cleaned)
 
@@ -1313,17 +1314,34 @@ async def generate_summary_from_experience(payload: dict):
             fallback_bullets.extend(bullet_texts)
 
             title_lower = section_title.lower()
-            if any(keyword in title_lower for keyword in ['experience', 'employment', 'career', 'history']):
+            if any(
+                keyword in title_lower
+                for keyword in ["experience", "employment", "career", "history"]
+            ):
                 work_experience_sections.append(
-                    f"{section_title or 'Experience'}:\n- " + "\n- ".join(bullet_texts[:8])
+                    f"{section_title or 'Experience'}:\n- "
+                    + "\n- ".join(bullet_texts[:8])
                 )
-            if any(keyword in title_lower for keyword in ['skill', 'competenc', 'strength', 'expertise', 'technology', 'technolog', 'tool']):
+            if any(
+                keyword in title_lower
+                for keyword in [
+                    "skill",
+                    "competenc",
+                    "strength",
+                    "expertise",
+                    "technology",
+                    "technolog",
+                    "tool",
+                ]
+            ):
                 skills_entries.extend(bullet_texts)
 
         if work_experience_sections:
             work_experience_text = "\n\n".join(work_experience_sections[:4])
         else:
-            work_experience_text = "- " + "\n- ".join(fallback_bullets[:12]) if fallback_bullets else ''
+            work_experience_text = (
+                "- " + "\n- ".join(fallback_bullets[:12]) if fallback_bullets else ""
+            )
 
         def normalize_keywords(values):
             normalized = []
