@@ -218,6 +218,14 @@ const prettifyKeyword = (keyword: string) => {
   return trimmed.replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
+type KeywordBadgeStatus = 'matched' | 'missing' | 'neutral';
+
+const KEYWORD_BADGE_STYLES: Record<KeywordBadgeStatus, string> = {
+  matched: 'border border-emerald-200 bg-emerald-50 text-emerald-700',
+  missing: 'border border-rose-200 bg-rose-50 text-rose-600',
+  neutral: 'border border-gray-200 bg-gray-100 text-gray-600',
+};
+
 interface JobMetadata {
   title?: string;
   company?: string;
@@ -235,6 +243,19 @@ interface JobMetadata {
     industry_terms?: string[];
   };
   easy_apply_url?: string;
+}
+
+interface KeywordGroupItem {
+  label: string;
+  status: KeywordBadgeStatus;
+}
+
+interface KeywordGroup {
+  label: string;
+  items: KeywordGroupItem[];
+  matchedCount: number;
+  missingCount: number;
+  total: number;
 }
 
 const roundScoreValue = (value?: number | null) =>
@@ -992,6 +1013,118 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     };
   }, [resumeData, buildPrecomputedKeywordPayload]);
 
+  const atsKeywordGroups = useMemo<KeywordGroup[]>(() => {
+    const keywordBundle = buildPrecomputedKeywordPayload();
+    if (!keywordBundle) return [];
+
+    const matchedSet = new Set<string>();
+    const missingSet = new Set<string>();
+
+    const collect = (values: string[] | undefined | null, target: Set<string>) => {
+      if (!values) return;
+      values.forEach((value) => {
+        if (!value) return;
+        const normalized = value.trim().toLowerCase();
+        if (normalized) {
+          target.add(normalized);
+        }
+      });
+    };
+
+    if (matchResult?.match_analysis) {
+      collect(matchResult.match_analysis.matching_keywords, matchedSet);
+      collect(matchResult.match_analysis.missing_keywords, missingSet);
+    } else if (estimatedATS) {
+      collect(estimatedATS.matchedKeywords, matchedSet);
+      collect(estimatedATS.missingKeywords, missingSet);
+    }
+
+    const dedupe = (keywords: string[]) => {
+      const seen = new Set<string>();
+      const result: string[] = [];
+      keywords.forEach((keyword) => {
+        if (!keyword) return;
+        const normalized = keyword.trim();
+        if (!normalized) return;
+        const lower = normalized.toLowerCase();
+        if (seen.has(lower)) return;
+        seen.add(lower);
+        result.push(normalized);
+      });
+      return result;
+    };
+
+    const baseTechnical = keywordBundle.extractedKeywordsPayload?.technical_keywords || [];
+    const highPriority = keywordBundle.highFrequencyKeywords
+      .filter((item) => item.importance === 'high' || item.importance === 'medium')
+      .map((item) => item.keyword);
+
+    const soft = keywordBundle.softSkills || [];
+    const general = keywordBundle.extractedKeywordsPayload?.general_keywords || [];
+
+    const hardList = dedupe([...baseTechnical, ...highPriority]);
+    const softList = dedupe(soft);
+    const blocked = new Set<string>([
+      ...hardList.map((word) => word.toLowerCase()),
+      ...softList.map((word) => word.toLowerCase()),
+    ]);
+
+    const insightKeywords = [
+      ...(keywordBundle.atsInsights?.action_verbs || []),
+      ...(keywordBundle.atsInsights?.metrics || []),
+      ...(keywordBundle.atsInsights?.industry_terms || []),
+    ];
+
+    const impactList = dedupe([
+      ...general.filter((keyword) => !blocked.has(keyword.toLowerCase())).slice(0, 20),
+      ...insightKeywords,
+    ]);
+
+    const statusOrder: Record<KeywordBadgeStatus, number> = { missing: 0, neutral: 1, matched: 2 };
+
+    const buildGroup = (label: string, keywords: string[]): KeywordGroup | null => {
+      if (!keywords.length) return null;
+
+      const items = keywords.map<KeywordGroupItem>((keyword) => {
+        const normalized = keyword.trim().toLowerCase();
+        let status: KeywordBadgeStatus = 'neutral';
+        if (matchedSet.has(normalized)) {
+          status = 'matched';
+        } else if (missingSet.has(normalized)) {
+          status = 'missing';
+        }
+        return {
+          label: prettifyKeyword(keyword),
+          status,
+        };
+      });
+
+      items.sort((a, b) => {
+        if (statusOrder[a.status] !== statusOrder[b.status]) {
+          return statusOrder[a.status] - statusOrder[b.status];
+        }
+        return a.label.localeCompare(b.label);
+      });
+
+      const matchedCount = items.filter((item) => item.status === 'matched').length;
+      const missingCount = items.filter((item) => item.status === 'missing').length;
+
+      return {
+        label,
+        items,
+        matchedCount,
+        missingCount,
+        total: items.length,
+      };
+    };
+
+    return [
+      buildGroup('Core Skills', hardList),
+      buildGroup('Soft Skills', softList),
+      buildGroup('Impact Drivers', impactList),
+    ].filter((group): group is KeywordGroup => Boolean(group));
+  }, [buildPrecomputedKeywordPayload, matchResult, estimatedATS]);
+
   const atsKeywordMetrics = useMemo(() => {
     if (!matchResult?.match_analysis) {
       return { keywordCoverage: null, matchedCount: null, totalCount: null, missingCount: null };
@@ -1321,6 +1454,267 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       setIsManualATSRefreshing(false);
     }
   }, [resumeData, recalculateATSScore, computeResumeSignature]);
+
+  const applyAssignmentsToResume = useCallback(
+    async (assignments: Map<number, string>) => {
+      if (!assignments.size) {
+        setShowWorkExpSelector(false);
+        return;
+      }
+
+      const entriesByKey = new Map<
+        string,
+        { entry: (typeof workExpEntries)[number]; bulletIndices: number[] }
+      >();
+
+      assignments.forEach((entryKey, bulletIdx) => {
+        if (!entriesByKey.has(entryKey)) {
+          const entry = workExpEntries.find(
+            (e) => `${e.sectionId}-${e.bulletId}` === entryKey
+          );
+          if (entry) {
+            entriesByKey.set(entryKey, { entry, bulletIndices: [] });
+          }
+        }
+        entriesByKey.get(entryKey)?.bulletIndices.push(bulletIdx);
+      });
+
+      let updatedSections = [...resumeData.sections];
+      const assignmentResults: string[] = [];
+
+      entriesByKey.forEach(({ entry, bulletIndices }) => {
+        const selectedSection = updatedSections.find(
+          (s: any) => s.id === entry.sectionId
+        );
+        if (!selectedSection) return;
+
+        const headerBulletIndex = selectedSection.bullets.findIndex(
+          (b: any) => b.id === entry.bulletId
+        );
+        if (headerBulletIndex === -1) return;
+
+        let insertIndex = headerBulletIndex + 1;
+        for (let i = headerBulletIndex + 1; i < selectedSection.bullets.length; i++) {
+          const bullet = selectedSection.bullets[i];
+          if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
+            insertIndex = i;
+            break;
+          }
+          insertIndex = i + 1;
+        }
+
+        const existingTexts = new Set(
+          selectedSection.bullets.map((b: any) =>
+            (b.text || '').replace(/^•\s*/, '').trim().toLowerCase()
+          )
+        );
+        const normalizedTexts: string[] = [];
+        bulletIndices.forEach((bulletIdx: number) => {
+          const raw = generatedBullets[bulletIdx] || '';
+          const normalized = raw.replace(/^•\s*/, '').trim();
+          if (!normalized) {
+            return;
+          }
+          const lower = normalized.toLowerCase();
+          if (existingTexts.has(lower)) {
+            return;
+          }
+          existingTexts.add(lower);
+          normalizedTexts.push(normalized);
+        });
+
+        if (!normalizedTexts.length) {
+          assignmentResults.push(
+            `Skipped duplicate bullets for ${entry.companyName}`
+          );
+          return;
+        }
+
+        const newBullets = normalizedTexts.map((text, idx) => ({
+          id: `bullet-${Date.now()}-${Math.random()}-${idx}`,
+          text: text.startsWith('•') ? text : `• ${text}`,
+          params: {},
+        }));
+
+        selectedSection.bullets = [
+          ...selectedSection.bullets.slice(0, insertIndex),
+          ...newBullets,
+          ...selectedSection.bullets.slice(insertIndex),
+        ];
+
+        assignmentResults.push(
+          `${newBullets.length} bullet${newBullets.length > 1 ? 's' : ''} added to ${
+            entry.companyName
+          }`
+        );
+      });
+
+      const updatedResume = {
+        ...resumeData,
+        sections: updatedSections,
+      };
+
+      if (jobDescription && currentJobDescriptionId) {
+        setIsCalculatingATS(true);
+        try {
+          const cleanedResumeData = {
+            name: updatedResume.name || '',
+            title: updatedResume.title || '',
+            email: updatedResume.email || '',
+            phone: updatedResume.phone || '',
+            location: updatedResume.location || '',
+            summary: updatedResume.summary || '',
+            sections: updatedResume.sections.map((section: any) => ({
+              id: section.id,
+              title: section.title,
+              bullets: section.bullets.map((bullet: any) => ({
+                id: bullet.id,
+                text: bullet.text,
+                params: {},
+              })),
+            })),
+          };
+
+          const matchResponse = await fetch(
+            `${config.apiBase}/api/ai/match_job_description`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                job_description: jobDescription,
+                resume_data: cleanedResumeData,
+              }),
+            }
+          );
+
+          if (matchResponse.ok) {
+            const matchData = await matchResponse.json();
+            const normalizedMatchData = normalizeMatchResult(matchData);
+            setUpdatedATSScore(
+              roundScoreValue(matchData.match_analysis?.similarity_score)
+            );
+            setMatchResult(normalizedMatchData);
+          }
+        } catch (error) {
+          console.error('Failed to recalculate ATS score:', error);
+        } finally {
+          setIsCalculatingATS(false);
+        }
+      }
+
+      if (onResumeUpdate) {
+        onResumeUpdate(updatedResume);
+      }
+
+      setGeneratedBullets([]);
+      setWorkExpEntries([]);
+      setSelectedBulletIndices(new Set<number>());
+      setBulletAssignments(new Map<number, string>());
+      setShowWorkExpSelector(false);
+      setSelectedKeywords(new Set());
+      setSelectedWorkExpSection('');
+      setBulletGeneratorCompany('');
+      setBulletGeneratorJobTitle('');
+
+      if (assignmentResults.length) {
+        alert(`✅ ${assignmentResults.join('; ')}`);
+      } else {
+        alert('✅ Bullet points added to your resume!');
+      }
+    },
+    [
+      resumeData,
+      jobDescription,
+      currentJobDescriptionId,
+      config.apiBase,
+      onResumeUpdate,
+      generatedBullets,
+      workExpEntries,
+      normalizeMatchResult,
+      setMatchResult,
+      setIsCalculatingATS,
+      setUpdatedATSScore,
+      setSelectedKeywords,
+    ]
+  );
+
+  useEffect(() => {
+    if (!showWorkExpSelector) return;
+    if (bulletAssignments.size === 0) return;
+
+    (async () => {
+      await applyAssignmentsToResume(new Map(bulletAssignments));
+    })();
+  }, [bulletAssignments, showWorkExpSelector, applyAssignmentsToResume]);
+
+  const addKeywordsToSkillsSection = useCallback(
+    (keywords: string[]) => {
+      if (!onResumeUpdate || !Array.isArray(resumeData.sections)) return;
+
+      const normalizedKeywords = keywords
+        .map((kw) => kw.trim())
+        .filter(Boolean);
+
+      if (!normalizedKeywords.length) return;
+
+      const sections = [...resumeData.sections];
+      let skillsSection =
+        sections.find((section: any) => {
+          const title = section.title?.toLowerCase?.() || '';
+          return title.includes('skill') || title.includes('technical');
+        }) || null;
+
+      if (!skillsSection) {
+        skillsSection = {
+          id: `skills-${Date.now()}`,
+          title: 'Skills',
+          bullets: [],
+        };
+        sections.push(skillsSection);
+      }
+
+      const existingSkills = new Set(
+        (skillsSection.bullets || []).map((bullet: any) =>
+          (bullet.text || '').replace(/^•\s*/, '').trim().toLowerCase()
+        )
+      );
+
+      const newBullets = normalizedKeywords
+        .filter((keyword) => !existingSkills.has(keyword.toLowerCase()))
+        .map((keyword) => ({
+          id: `skill-${Date.now()}-${Math.random()}`,
+          text: keyword,
+          params: { visible: true },
+        }));
+
+      if (!newBullets.length) {
+        alert('All selected keywords already exist in your Skills section.');
+        return;
+      }
+
+      const updatedSections = sections.map((section: any) =>
+        section.id === skillsSection!.id
+          ? {
+              ...section,
+              bullets: [...(section.bullets || []), ...newBullets],
+            }
+          : section
+      );
+
+      onResumeUpdate({
+        ...resumeData,
+        sections: updatedSections,
+      });
+
+      setSelectedKeywords(new Set());
+      alert(
+        `✅ Added ${newBullets.length} keyword${
+          newBullets.length > 1 ? 's' : ''
+        } to your Skills section.`
+      );
+    },
+    [onResumeUpdate, resumeData, setSelectedKeywords]
+  );
 
   const shouldUseSingleColumnLayout = Boolean(matchResult);
 
@@ -2401,7 +2795,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               )}
             </div>
               </div>
-              <div className="flex-1 min-w-[220px]">
+              <div className="flex-1 min-w-[240px]">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                     <div className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
@@ -2419,10 +2813,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       JD keywords already reflected in your resume.
                     </p>
                   </div>
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3">
                     <div className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
                       <span>Estimated ATS (Keyword Fit)</span>
-            {estimatedATS && (
+                      {estimatedATS && (
                         <span className="text-blue-600">
                           {estimatedATS.matchedKeywords.length}/{estimatedATS.totalKeywords}
                         </span>
@@ -2433,45 +2827,91 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     </div>
                     {estimatedATS?.missingKeywords?.length ? (
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {estimatedATS.missingKeywords.slice(0, 3).map((keyword) => (
+                        {estimatedATS.missingKeywords.slice(0, 4).map((keyword) => (
                           <span
                             key={keyword}
                             className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-blue-700 shadow-sm"
                           >
-                        {prettifyKeyword(keyword)}
-                      </span>
-                    ))}
-                        {estimatedATS.missingKeywords.length > 3 && (
-                          <span className="text-xs text-blue-600">+{estimatedATS.missingKeywords.length - 3} more</span>
-                )}
-              </div>
+                            {prettifyKeyword(keyword)}
+                          </span>
+                        ))}
+                        {estimatedATS.missingKeywords.length > 4 && (
+                          <span className="text-xs font-medium text-blue-600">
+                            +{estimatedATS.missingKeywords.length - 4} more
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <p className="mt-1 text-xs text-blue-700/70">
                         Quick keyword scan for resume alignment.
                       </p>
                     )}
                   </div>
-                  <div className="rounded-xl border border-purple-100 bg-purple-50/60 px-4 py-3 sm:col-span-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-purple-700">
-                      Focus Areas
                 </div>
-                    <p className="mt-2 text-sm text-purple-900">
-                      {scoreSnapshotBase?.analysis_summary ||
-                        'Highlight quantifiable wins and align technical stacks with the job description.'}
-                    </p>
-                    {missingKeywordSample.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {missingKeywordSample.map((keyword) => (
-                          <span
-                            key={keyword}
-                            className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-purple-700 shadow-sm"
-                          >
-                            {prettifyKeyword(keyword)}
-                  </span>
-                        ))}
-              </div>
-                    )}
+                {atsKeywordGroups.length > 0 && (
+                  <div className="mt-4">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                      Keyword Categories
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {atsKeywordGroups.map((group) => {
+                        const chipsToShow = group.items.slice(0, 12);
+                        return (
+                          <div key={group.label} className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
+                            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                              <span>{group.label}</span>
+                              <span className="text-gray-400">
+                                {group.matchedCount}/{group.total}
+                              </span>
+                            </div>
+                            <div
+                              className={`mt-1 text-xs font-semibold ${
+                                group.missingCount ? 'text-rose-600' : 'text-emerald-600'
+                              }`}
+                            >
+                              {group.missingCount ? `${group.missingCount} missing` : 'All keywords covered'}
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {chipsToShow.map((item, idx) => (
+                                <span
+                                  key={`${group.label}-${item.label}-${idx}`}
+                                  className={`rounded-full px-2 py-1 text-[11px] font-medium ${KEYWORD_BADGE_STYLES[item.status]}`}
+                                >
+                                  {item.status === 'missing' ? '!' : item.status === 'matched' ? '✓' : '•'} {item.label}
+                                </span>
+                              ))}
+                              {group.items.length > chipsToShow.length && (
+                                <span className="text-[11px] font-medium text-gray-500">
+                                  +{group.items.length - chipsToShow.length} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
+                )}
+                <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/60 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+                    Focus Areas
+                  </div>
+                  <p className="mt-2 text-sm text-purple-900">
+                    {scoreSnapshotBase?.analysis_summary ||
+                      'Highlight quantifiable wins and align technical stacks with the job description.'}
+                  </p>
+                  {missingKeywordSample.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {missingKeywordSample.map((keyword) => (
+                        <span
+                          key={keyword}
+                          className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-purple-700 shadow-sm"
+                        >
+                          {prettifyKeyword(keyword)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
                   Overall ATS uses the full AI comparison of your resume to the JD. Estimated ATS is a quick keyword
@@ -2535,23 +2975,34 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   Missing Keywords ({matchResult.match_analysis.missing_keywords.length})
                 </h4>
                 {selectedKeywords.size > 0 && (
-                  <button
-                    onClick={() => {
-                      const workExpSections = resumeData.sections.filter((s: any) => 
-                        s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')
-                      );
-                      if (workExpSections.length > 0) {
-                        setSelectedWorkExpSection(workExpSections[0].id);
-                      }
-                      setShowBulletGenerator(true);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Create Bullets ({selectedKeywords.size})
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const workExpSections = resumeData.sections.filter((s: any) => 
+                          s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')
+                        );
+                        if (workExpSections.length > 0) {
+                          setSelectedWorkExpSection(workExpSections[0].id);
+                        }
+                        setShowBulletGenerator(true);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Create Bullets ({selectedKeywords.size})
+                    </button>
+                    <button
+                      onClick={() => addKeywordsToSkillsSection(Array.from(selectedKeywords))}
+                      className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add to Skills ({selectedKeywords.size})
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -2841,6 +3292,50 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         </div>
                       )}
                     </div>
+                    {atsKeywordGroups.length > 0 && (
+                      <div className="mt-4">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
+                          Keyword Categories
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {atsKeywordGroups.map((group) => {
+                            const chipsToShow = group.items.slice(0, 10);
+                            return (
+                              <div key={`estimated-${group.label}`} className="rounded-xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
+                                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                  <span>{group.label}</span>
+                                  <span className="text-gray-400">
+                                    {group.matchedCount}/{group.total}
+                                  </span>
+                                </div>
+                                <div
+                                  className={`mt-1 text-xs font-semibold ${
+                                    group.missingCount ? 'text-rose-600' : 'text-emerald-600'
+                                  }`}
+                                >
+                                  {group.missingCount ? `${group.missingCount} missing` : 'All keywords covered'}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {chipsToShow.map((item, idx) => (
+                                    <span
+                                      key={`${group.label}-est-${item.label}-${idx}`}
+                                      className={`rounded-full px-2 py-1 text-[11px] font-medium ${KEYWORD_BADGE_STYLES[item.status]}`}
+                                    >
+                                      {item.status === 'missing' ? '!' : item.status === 'matched' ? '✓' : '•'} {item.label}
+                                    </span>
+                                  ))}
+                                  {group.items.length > chipsToShow.length && (
+                                    <span className="text-[11px] font-medium text-gray-500">
+                                      +{group.items.length - chipsToShow.length} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <p className="text-xs text-gray-500 mt-3">
                       This estimate updates instantly as you edit. Click "Analyze Match" to run the full AI comparison.
                     </p>
@@ -3446,147 +3941,27 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             <div className="text-gray-500 text-xs mt-1">{entry.dateRange}</div>
                           </div>
                           <button
-                            onClick={async () => {
-                              const unassignedSelected = Array.from(selectedBulletIndices).filter(idx => !bulletAssignments.has(idx));
-                              if (unassignedSelected.length === 0) {
+                            onClick={() => {
+                              const unassignedSelected = Array.from(selectedBulletIndices).filter(
+                                (idx) => !bulletAssignments.has(idx)
+                              );
+                              if (!unassignedSelected.length) {
                                 alert('Please select at least one unassigned bullet point');
                                 return;
                               }
-                              
-                              const newAssignments = new Map(bulletAssignments);
-                              unassignedSelected.forEach(bulletIdx => {
-                                newAssignments.set(bulletIdx, entryKey);
+
+                              const assignmentsForEntry = new Map<number, string>();
+                              unassignedSelected.forEach((bulletIdx) => {
+                                assignmentsForEntry.set(bulletIdx, entryKey);
                               });
-                              setBulletAssignments(newAssignments);
+
                               setSelectedBulletIndices(new Set<number>());
-                              
-                              // Calculate updated ATS score after assignment
-                              if (jobDescription && currentJobDescriptionId) {
-                                setIsCalculatingATS(true);
-                                try {
-                                  // Create temporary updated resume with assignments
-                                  let tempSections = [...resumeData.sections];
-                                  const tempEntriesByKey = new Map<string, {entry: typeof workExpEntries[0], bulletIndices: number[]}>();
-                                  
-                                  newAssignments.forEach((assignedKey, bulletIdx) => {
-                                    if (!tempEntriesByKey.has(assignedKey)) {
-                                      const tempEntry = workExpEntries.find(e => `${e.sectionId}-${e.bulletId}` === assignedKey);
-                                      if (tempEntry) {
-                                        tempEntriesByKey.set(assignedKey, { entry: tempEntry, bulletIndices: [] });
-                                      }
-                                    }
-                                    tempEntriesByKey.get(assignedKey)?.bulletIndices.push(bulletIdx);
-                                  });
-                                  
-                                  tempEntriesByKey.forEach(({ entry, bulletIndices }) => {
-                                    const selectedSection = tempSections.find((s: any) => s.id === entry.sectionId);
-                                    if (!selectedSection) return;
-                                    
-                                    // Find the index of the header bullet
-                                    const headerBulletIndex = selectedSection.bullets.findIndex((b: any) => b.id === entry.bulletId);
-                                    if (headerBulletIndex === -1) return;
-                                    
-                                    // Find where to insert (after all bullets for this entry, before next header or end)
-                                    let insertIndex = headerBulletIndex + 1;
-                                    for (let i = headerBulletIndex + 1; i < selectedSection.bullets.length; i++) {
-                                      const bullet = selectedSection.bullets[i];
-                                      if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
-                                        insertIndex = i;
-                                        break;
-                                      }
-                                      insertIndex = i + 1;
-                                    }
-                                    
-                                    // Avoid inserting duplicate bullet content
-                                    const existingTexts = new Set(
-                                      selectedSection.bullets.map((b: any) => (b.text || '').replace(/^•\s*/, '').trim().toLowerCase())
-                                    );
-                                    const normalizedTexts: string[] = [];
-                                    bulletIndices.forEach((bulletIdx: number) => {
-                                      const raw = generatedBullets[bulletIdx] || '';
-                                      const normalized = raw.replace(/^•\s*/, '').trim();
-                                      if (!normalized) {
-                                        return;
-                                      }
-                                      const lower = normalized.toLowerCase();
-                                      if (existingTexts.has(lower)) {
-                                        return;
-                                      }
-                                      existingTexts.add(lower);
-                                      normalizedTexts.push(normalized);
-                                    });
-
-                                    if (normalizedTexts.length === 0) {
-                                      return;
-                                    }
-
-                                    // Create new bullet points for this entry
-                                    const tempNewBullets = normalizedTexts.map((text: string, idx: number) => ({
-                                      id: `temp-bullet-${Date.now()}-${Math.random()}-${idx}`,
-                                      text: text.startsWith('•')
-                                        ? text
-                                        : `• ${text}`,
-                                      params: {}
-                                    }));
-                                    
-                                    // Insert bullets at the correct position
-                                    selectedSection.bullets = [
-                                      ...selectedSection.bullets.slice(0, insertIndex),
-                                      ...tempNewBullets,
-                                      ...selectedSection.bullets.slice(insertIndex)
-                                    ];
-
-                                    // Preview only: no mutation summary recorded here
-                                  });
-                                  
-                                  const tempUpdatedResume = {
-                                    ...resumeData,
-                                    sections: tempSections
-                                  };
-                                  
-                                  // Calculate ATS score for updated resume
-                                  const cleanedResumeData = {
-                                    name: tempUpdatedResume.name || '',
-                                    title: tempUpdatedResume.title || '',
-                                    email: tempUpdatedResume.email || '',
-                                    phone: tempUpdatedResume.phone || '',
-                                    location: tempUpdatedResume.location || '',
-                                    summary: tempUpdatedResume.summary || '',
-                                    sections: tempUpdatedResume.sections.map((section: any) => ({
-                                      id: section.id,
-                                      title: section.title,
-                                      bullets: section.bullets.map((bullet: any) => ({
-                                        id: bullet.id,
-                                        text: bullet.text,
-                                        params: {}
-                                      }))
-                                    }))
-                                  };
-                                  
-                                  const matchResponse = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      job_description: jobDescription,
-                                      resume_data: cleanedResumeData
-                                    }),
-                                  });
-                                  
-                                  if (matchResponse.ok) {
-                                    const matchData = await matchResponse.json();
-                                    setUpdatedATSScore(roundScoreValue(matchData.match_analysis?.similarity_score));
-                                  }
-                                } catch (error) {
-                                  console.error('Failed to calculate updated ATS score:', error);
-                                } finally {
-                                  setIsCalculatingATS(false);
-                                }
-                              }
+                              setBulletAssignments(assignmentsForEntry);
                             }}
-                            disabled={selectedBulletIndices.size === 0 || Array.from(selectedBulletIndices).every(idx => bulletAssignments.has(idx))}
+                            disabled={selectedBulletIndices.size === 0}
                             className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            Assign Selected ({Array.from(selectedBulletIndices).filter(idx => !bulletAssignments.has(idx)).length})
+                            Assign Selected
                           </button>
                         </div>
                         {assignedBullets.length > 0 && (
@@ -3622,229 +3997,23 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               </div>
             </div>
             
-            <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-              <div className="text-sm text-gray-600">
-                {bulletAssignments.size > 0 && (
-                  <span>
-                    {bulletAssignments.size} bullet{bulletAssignments.size > 1 ? 's' : ''} assigned
-                    {generatedBullets.filter((_, idx) => !bulletAssignments.has(idx)).length > 0 && (
-                      <span className="text-orange-600 ml-2">
-                        ({generatedBullets.filter((_, idx) => !bulletAssignments.has(idx)).length} remaining)
-                      </span>
-                    )}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    setShowWorkExpSelector(false);
-                    setGeneratedBullets([]);
-                    setWorkExpEntries([]);
-                    setSelectedBulletIndices(new Set<number>());
-                    setBulletAssignments(new Map<number, string>());
-                  }}
-                  className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    if (bulletAssignments.size === 0) {
-                      alert('Please assign at least one bullet point to a work experience or project entry');
-                      return;
-                    }
-                    
-                    const unassignedCount = generatedBullets.filter((_, idx) => !bulletAssignments.has(idx)).length;
-                    if (unassignedCount > 0) {
-                      const proceed = confirm(`${unassignedCount} bullet${unassignedCount > 1 ? 's' : ''} will not be added. Do you want to continue?`);
-                      if (!proceed) return;
-                    }
-
-                    // Group bullets by work experience entry
-                    const entriesByKey = new Map<string, {entry: typeof workExpEntries[0], bulletIndices: number[]}>();
-                    
-                    bulletAssignments.forEach((entryKey, bulletIdx) => {
-                      if (!entriesByKey.has(entryKey)) {
-                        const entry = workExpEntries.find(e => `${e.sectionId}-${e.bulletId}` === entryKey);
-                        if (entry) {
-                          entriesByKey.set(entryKey, { entry, bulletIndices: [] });
-                        }
-                      }
-                      entriesByKey.get(entryKey)?.bulletIndices.push(bulletIdx);
-                    });
-
-                    // Update resume with all assignments
-                    let updatedSections = [...resumeData.sections];
-                    const assignmentResults: string[] = [];
-
-                    entriesByKey.forEach(({ entry, bulletIndices }) => {
-                      const selectedSection = updatedSections.find((s: any) => s.id === entry.sectionId);
-                      if (!selectedSection) return;
-
-                      // Find the index of the header bullet
-                      const headerBulletIndex = selectedSection.bullets.findIndex((b: any) => b.id === entry.bulletId);
-                      if (headerBulletIndex === -1) return;
-
-                      // Find where to insert (after all bullets for this entry, before next header or end)
-                      let insertIndex = headerBulletIndex + 1;
-                      for (let i = headerBulletIndex + 1; i < selectedSection.bullets.length; i++) {
-                        const bullet = selectedSection.bullets[i];
-                        if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
-                          insertIndex = i;
-                          break;
-                        }
-                        insertIndex = i + 1;
-                      }
-
-                      const existingTexts = new Set(
-                        selectedSection.bullets.map((b: any) => (b.text || '').replace(/^•\s*/, '').trim().toLowerCase())
-                      );
-                      const normalizedTexts: string[] = [];
-                      bulletIndices.forEach((bulletIdx: number) => {
-                        const raw = generatedBullets[bulletIdx] || '';
-                        const normalized = raw.replace(/^•\s*/, '').trim();
-                        if (!normalized) {
-                          return;
-                        }
-                        const lower = normalized.toLowerCase();
-                        if (existingTexts.has(lower)) {
-                          return;
-                        }
-                        existingTexts.add(lower);
-                        normalizedTexts.push(normalized);
-                      });
-
-                      if (normalizedTexts.length === 0) {
-                        assignmentResults.push(`Skipped duplicate bullets for ${entry.companyName}`);
-                        return;
-                      }
-
-                      // Create new bullet points for this entry
-                      const newBullets = normalizedTexts.map((text, idx) => ({
-                        id: `bullet-${Date.now()}-${Math.random()}-${idx}`,
-                        text: text.startsWith('•') ? text : `• ${text}`,
-                        params: {}
-                      }));
-
-                      // Insert bullets at the correct position
-                      selectedSection.bullets = [
-                        ...selectedSection.bullets.slice(0, insertIndex),
-                        ...newBullets,
-                        ...selectedSection.bullets.slice(insertIndex)
-                      ];
-
-                      assignmentResults.push(`${newBullets.length} bullet${newBullets.length > 1 ? 's' : ''} to ${entry.companyName}`);
-                    });
-
-                    const updatedResume = {
-                      ...resumeData,
-                      sections: updatedSections
-                    };
-
-                    // Recalculate ATS score with updated resume
-                    if (jobDescription && currentJobDescriptionId) {
-                      setIsCalculatingATS(true);
-                      try {
-                        const cleanedResumeData = {
-                          name: updatedResume.name || '',
-                          title: updatedResume.title || '',
-                          email: updatedResume.email || '',
-                          phone: updatedResume.phone || '',
-                          location: updatedResume.location || '',
-                          summary: updatedResume.summary || '',
-                          sections: updatedResume.sections.map((section: any) => ({
-                            id: section.id,
-                            title: section.title,
-                            bullets: section.bullets.map((bullet: any) => ({
-                              id: bullet.id,
-                              text: bullet.text,
-                              params: {}
-                            }))
-                          }))
-                        };
-                        
-                        const matchResponse = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            job_description: jobDescription,
-                            resume_data: cleanedResumeData
-                          }),
-                        });
-                        
-                        if (matchResponse.ok) {
-                          const matchData = await matchResponse.json();
-                          const normalizedMatchData = normalizeMatchResult(matchData);
-                          setUpdatedATSScore(roundScoreValue(matchData.match_analysis?.similarity_score));
-                          // Update match result with new score
-                          setMatchResult(normalizedMatchData);
-                        }
-                      } catch (error) {
-                        console.error('Failed to recalculate ATS score:', error);
-                      } finally {
-                        setIsCalculatingATS(false);
-                      }
-                    }
-
-                    if (onResumeUpdate) {
-                      onResumeUpdate(updatedResume);
-                    }
-
-                    // Generate smart resume name based on JD
-                    let suggestedName = '';
-                    if (currentJDInfo?.company) {
-                      const companyName = currentJDInfo.company.trim();
-                      const jobTitle = currentJDInfo.title ? ` - ${currentJDInfo.title.trim()}` : '';
-                      suggestedName = `${companyName}${jobTitle} Resume`;
-                    } else if (currentJDInfo?.title) {
-                      suggestedName = `${currentJDInfo.title.trim()} Resume`;
-                    } else if (selectedJobMetadata?.company) {
-                      const companyName = selectedJobMetadata.company.trim();
-                      const jobTitle = selectedJobMetadata.title ? ` - ${selectedJobMetadata.title.trim()}` : '';
-                      suggestedName = `${companyName}${jobTitle} Resume`;
-                    } else if (selectedJobMetadata?.title) {
-                      suggestedName = `${selectedJobMetadata.title.trim()} Resume`;
-                    } else {
-                      suggestedName = resumeData.name ? `${resumeData.name} Resume` : 'My Resume';
-                    }
-
-                    // Save job description and linked resume
-                    setShowWorkExpSelector(false);
-                    const savedJobId = await handleSaveJobDescription();
-                    if (savedJobId) {
-                      let suggestedName = '';
-                      if (currentJDInfo?.company) {
-                        const companyName = currentJDInfo.company.trim();
-                        const jobTitle = currentJDInfo.title ? ` - ${currentJDInfo.title.trim()}` : '';
-                        suggestedName = `${companyName}${jobTitle} Resume`;
-                      } else if (currentJDInfo?.title) {
-                        suggestedName = `${currentJDInfo.title.trim()} Resume`;
-                      } else if (selectedJobMetadata?.company) {
-                        const companyName = selectedJobMetadata.company.trim();
-                        const jobTitle = selectedJobMetadata.title ? ` - ${selectedJobMetadata.title.trim()}` : '';
-                        suggestedName = `${companyName}${jobTitle} Resume`;
-                      } else if (selectedJobMetadata?.title) {
-                        suggestedName = `${selectedJobMetadata.title.trim()} Resume`;
-                      } else {
-                        suggestedName = resumeData.name ? `${resumeData.name} Resume` : 'My Resume';
-                      }
-
-                      await handleSaveResumeWithName({
-                        nameOverride: suggestedName,
-                        resumeOverride: updatedResume,
-                        suppressModalReset: true,
-                        jobDescriptionIdOverride: savedJobId,
-                      });
-                    }
-                  }}
-                  data-save-job-btn
-                  disabled={bulletAssignments.size === 0}
-                  className="px-6 py-2 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
-                >
-                  Save to Jobs ({bulletAssignments.size})
-                </button>
-              </div>
+            <div className="flex items-center justify-end p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowWorkExpSelector(false);
+                  setGeneratedBullets([]);
+                  setWorkExpEntries([]);
+                  setSelectedBulletIndices(new Set<number>());
+                  setBulletAssignments(new Map<number, string>());
+                  setSelectedKeywords(new Set());
+                  setSelectedWorkExpSection('');
+                  setBulletGeneratorCompany('');
+                  setBulletGeneratorJobTitle('');
+                }}
+                className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

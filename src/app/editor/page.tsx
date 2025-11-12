@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense, useRef } from 'react'
-import config from '@/lib/config';
-import { useSearchParams } from 'next/navigation'
+import config from '@/lib/config'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GlobalReplacements from '@/components/AI/GlobalReplacements'
@@ -28,6 +28,7 @@ import { shouldPromptAuthentication } from '@/lib/guestAuth'
 
 const EditorPageContent = () => {
   const { user, isAuthenticated, logout, checkPremiumAccess } = useAuth()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -52,6 +53,9 @@ const EditorPageContent = () => {
   const [roomId, setRoomId] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
   const [currentView, setCurrentView] = useState<'editor' | 'jobs' | 'resumes'>('editor')
+  const [latestCoverLetter, setLatestCoverLetter] = useState<string | null>(null)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [fullscreenExportMenuOpen, setFullscreenExportMenuOpen] = useState(false)
   const [userName, setUserName] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('userName') || ''
@@ -87,6 +91,27 @@ const EditorPageContent = () => {
   })
   const lastLoadedRef = useRef<{ resumeId?: number | null; versionId?: number | null }>({})
   const lastQueryParamsRef = useRef<{ resumeIdParam?: string | null; resumeVersionIdParam?: string | null }>({})
+  const exportMenuRef = useRef<HTMLDivElement | null>(null)
+  const fullscreenExportMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setExportMenuOpen(false)
+      }
+      if (
+        fullscreenExportMenuRef.current &&
+        !fullscreenExportMenuRef.current.contains(event.target as Node)
+      ) {
+        setFullscreenExportMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleDocumentClick)
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick)
+    }
+  }, [])
   const resumeIdParam = searchParams.get('resumeId')
   const resumeVersionIdParam = searchParams.get('resumeVersionId')
   useEffect(() => {
@@ -692,7 +717,7 @@ const EditorPageContent = () => {
     localStorage.setItem('resumeHistory', JSON.stringify(resumes.slice(0, 10)))
   }
 
-  const handleExport = async (format: 'pdf' | 'docx') => {
+  const handleExport = async (format: 'pdf' | 'docx' | 'cover-letter-pdf') => {
     console.log('Export requested:', format)
     console.log('Resume data:', resumeData)
     console.log('Is authenticated:', isAuthenticated)
@@ -719,7 +744,16 @@ const EditorPageContent = () => {
       return
     }
 
-    saveToHistory()
+    const isCoverLetterExport = format === 'cover-letter-pdf'
+    if (isCoverLetterExport && !latestCoverLetter) {
+      alert('Generate a cover letter first, then try exporting again.')
+      setShowCoverLetterGenerator(true)
+      return
+    }
+
+    if (!isCoverLetterExport) {
+      saveToHistory()
+    }
     
     if (isAuthenticated && user?.email) {
       try {
@@ -735,7 +769,8 @@ const EditorPageContent = () => {
 
     setIsExporting(true)
     try {
-      const exportUrl = `${config.apiBase}/api/resume/export/${format}`
+      const exportFormat = format === 'cover-letter-pdf' ? 'pdf' : format
+      const exportUrl = `${config.apiBase}/api/resume/export/${exportFormat}`
       console.log('Export URL:', exportUrl)
       
       // Add user email to URL for analytics tracking
@@ -756,13 +791,14 @@ const EditorPageContent = () => {
       }))
       
       const exportData = {
+        cover_letter: isCoverLetterExport ? latestCoverLetter : undefined,
         name: resumeData.name,
         title: resumeData.title,
         email: resumeData.email,
         phone: resumeData.phone,
         location: resumeData.location,
         summary: resumeData.summary,
-        sections: cleanedSections,
+        sections: isCoverLetterExport ? [] : cleanedSections,
         replacements,
         template: selectedTemplate,
         design: {
@@ -789,7 +825,7 @@ const EditorPageContent = () => {
       console.log('Export response status:', response.status)
       console.log('Export response ok:', response.ok)
       // After successful export, save resume version and record match session if a JD is active
-      if (response.ok && activeJobDescriptionId && isAuthenticated && user?.email) {
+      if (!isCoverLetterExport && response.ok && activeJobDescriptionId && isAuthenticated && user?.email) {
         try {
           // First, save or update resume and create a version
           let resumeId = currentResumeId;
@@ -938,8 +974,10 @@ const EditorPageContent = () => {
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
+        const downloadExtension = exportFormat
+        const downloadNameBase = isCoverLetterExport ? (resumeData.name || 'cover_letter') : (resumeData.name || 'resume')
         a.href = url
-        a.download = `${resumeData.name || 'resume'}.${format}`
+        a.download = `${downloadNameBase}.${downloadExtension}`
         document.body.appendChild(a)
         a.click()
         window.URL.revokeObjectURL(url)
@@ -955,6 +993,16 @@ const EditorPageContent = () => {
       alert(`Export failed: ${errorMessage}. Make sure backend is running.`)
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  const handleExportOption = async (option: 'pdf' | 'docx' | 'cover-letter') => {
+    if (option === 'pdf') {
+      await handleExport('pdf')
+    } else if (option === 'docx') {
+      await handleExport('docx')
+    } else {
+      await handleExport('cover-letter-pdf')
     }
   }
 
@@ -1458,6 +1506,12 @@ const EditorPageContent = () => {
                   </button>
                 )}
                 <button
+                  onClick={() => router.push('/upload')}
+                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
+                >
+                  📤 Upload Resume
+                </button>
+                <button
                   onClick={() => {
                     console.log('New Resume button clicked')
                     setShowWizard(true)
@@ -1472,23 +1526,70 @@ const EditorPageContent = () => {
                     Enter your name to enable export →
                   </span>
                 )}
-                
-                <button 
-                  onClick={() => handleExport('docx')}
-                  disabled={isExporting || !resumeData.name}
-                  className="rounded-pill bg-gradient-to-r from-accent-teal to-emerald-400 px-5 py-2 text-xs font-semibold text-surface-900 shadow-glow transition hover:translate-y-[-2px] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:translate-y-0"
-                  title={!resumeData.name ? "Enter your name first" : "Export as DOCX"}
-                >
-                  📄 Export DOCX
-                </button>
-                <button 
-                  onClick={() => handleExport('pdf')}
-                  disabled={isExporting || !resumeData.name}
-                  className="rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:translate-y-0"
-                  title={!resumeData.name ? "Enter your name first" : "Export as PDF"}
-                >
-                  {isExporting ? '⏳ Exporting...' : '📥 Export PDF'}
-                </button>
+
+                <div className="relative" ref={exportMenuRef}>
+                  <button
+                    onClick={() => setExportMenuOpen((prev) => !prev)}
+                    className="inline-flex items-center gap-2 rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px]"
+                    disabled={isExporting}
+                    aria-haspopup="menu"
+                    aria-expanded={exportMenuOpen}
+                  >
+                    {isExporting ? '⏳ Exporting...' : '📤 Export'}
+                    <span className="text-[10px]">▾</span>
+                  </button>
+                  {exportMenuOpen && (
+                    <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-border-subtle bg-white p-2 shadow-lg">
+                      <button
+                        className={`w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
+                          (!resumeData.name || isExporting)
+                            ? 'cursor-not-allowed text-text-muted opacity-50'
+                            : 'text-text-primary hover:bg-primary-50'
+                        }`}
+                        onClick={() => {
+                          setExportMenuOpen(false)
+                          handleExportOption('pdf')
+                        }}
+                        disabled={!resumeData.name || isExporting}
+                      >
+                        📥 Export PDF
+                      </button>
+                      <button
+                        className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
+                          (!resumeData.name || isExporting)
+                            ? 'cursor-not-allowed text-text-muted opacity-50'
+                            : 'text-text-primary hover:bg-primary-50'
+                        }`}
+                        onClick={() => {
+                          setExportMenuOpen(false)
+                          handleExportOption('docx')
+                        }}
+                        disabled={!resumeData.name || isExporting}
+                      >
+                        📝 Export DOCX
+                      </button>
+                      <button
+                        className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
+                          (!latestCoverLetter || isExporting)
+                            ? 'cursor-not-allowed text-text-muted opacity-50'
+                            : 'text-text-primary hover:bg-primary-50'
+                        }`}
+                        onClick={() => {
+                          setExportMenuOpen(false)
+                          handleExportOption('cover-letter')
+                        }}
+                        disabled={!latestCoverLetter || isExporting}
+                      >
+                        ✉️ Export Cover Letter (PDF)
+                      </button>
+                      {!latestCoverLetter && (
+                        <p className="mt-2 px-3 text-[11px] text-text-muted">
+                          Generate a cover letter to enable this option.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1926,26 +2027,69 @@ const EditorPageContent = () => {
 
             {/* Quick Actions */}
             <div className="flex items-center justify-center gap-3 mt-4">
-              <button
-                onClick={() => handleExport('pdf')}
-                disabled={isExporting}
-                className="px-6 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark disabled:opacity-50 flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Export PDF
-              </button>
-              <button
-                onClick={() => handleExport('docx')}
-                disabled={isExporting}
-                className="px-6 py-3 bg-white text-gray-900 rounded-lg font-semibold hover:bg-gray-100 disabled:opacity-50 flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Export DOCX
-              </button>
+              <div className="relative" ref={fullscreenExportMenuRef}>
+                <button
+                  onClick={() => setFullscreenExportMenuOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
+                  disabled={isExporting}
+                  aria-haspopup="menu"
+                  aria-expanded={fullscreenExportMenuOpen}
+                >
+                  {isExporting ? '⏳ Exporting...' : '📤 Export'}
+                  <span className="text-sm">▾</span>
+                </button>
+                {fullscreenExportMenuOpen && (
+                  <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-border-subtle bg-white p-2 shadow-lg">
+                    <button
+                      className={`w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
+                        (!resumeData.name || isExporting)
+                          ? 'cursor-not-allowed text-text-muted opacity-50'
+                          : 'text-text-primary hover:bg-primary-50'
+                      }`}
+                      onClick={() => {
+                        setFullscreenExportMenuOpen(false)
+                        handleExportOption('pdf')
+                      }}
+                      disabled={!resumeData.name || isExporting}
+                    >
+                      📥 Export PDF
+                    </button>
+                    <button
+                      className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
+                        (!resumeData.name || isExporting)
+                          ? 'cursor-not-allowed text-text-muted opacity-50'
+                          : 'text-text-primary hover:bg-primary-50'
+                      }`}
+                      onClick={() => {
+                        setFullscreenExportMenuOpen(false)
+                        handleExportOption('docx')
+                      }}
+                      disabled={!resumeData.name || isExporting}
+                    >
+                      📝 Export DOCX
+                    </button>
+                    <button
+                      className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
+                        (!latestCoverLetter || isExporting)
+                          ? 'cursor-not-allowed text-text-muted opacity-50'
+                          : 'text-text-primary hover:bg-primary-50'
+                      }`}
+                      onClick={() => {
+                        setFullscreenExportMenuOpen(false)
+                        handleExportOption('cover-letter')
+                      }}
+                      disabled={!latestCoverLetter || isExporting}
+                    >
+                      ✉️ Export Cover Letter (PDF)
+                    </button>
+                    {!latestCoverLetter && (
+                      <p className="mt-2 px-3 text-[11px] text-text-muted">
+                        Generate a cover letter to enable this option.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1961,6 +2105,7 @@ const EditorPageContent = () => {
         <CoverLetterGenerator
           resumeData={resumeData}
           onClose={() => setShowCoverLetterGenerator(false)}
+          onCoverLetterChange={setLatestCoverLetter}
         />
       )}
 

@@ -32,9 +32,10 @@ interface CoverLetterData {
 interface Props {
   resumeData: ResumeData
   onClose: () => void
+  onCoverLetterChange?: (letter: string | null) => void
 }
 
-export default function CoverLetterGenerator({ resumeData, onClose }: Props) {
+export default function CoverLetterGenerator({ resumeData, onClose, onCoverLetterChange }: Props) {
   const [companyName, setCompanyName] = useState('')
   const [positionTitle, setPositionTitle] = useState('')
   const [jobDescription, setJobDescription] = useState('')
@@ -94,6 +95,7 @@ export default function CoverLetterGenerator({ resumeData, onClose }: Props) {
 
       const data = await response.json()
       setCoverLetter(data.cover_letter)
+      onCoverLetterChange?.(data.cover_letter?.full_letter ?? null)
     } catch (error) {
       console.error('Cover letter generation failed:', error)
       alert('Failed to generate cover letter: ' + (error as Error).message)
@@ -132,6 +134,7 @@ export default function CoverLetterGenerator({ resumeData, onClose }: Props) {
     updatedCoverLetter.full_letter = `${updatedCoverLetter.opening}\n\n${updatedCoverLetter.body}\n\n${updatedCoverLetter.closing}`
     
     setCoverLetter(updatedCoverLetter)
+    onCoverLetterChange?.(updatedCoverLetter.full_letter)
     setEditingParagraph(null)
     setEditedContent('')
   }
