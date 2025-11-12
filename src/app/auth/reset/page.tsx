@@ -46,11 +46,11 @@ export default function ResetPage() {
   }
 
   return (
-    <div className="w-full rounded-[32px] border border-border-subtle bg-surface-500/85 p-10 shadow-card backdrop-blur">
+    <div className="w-full rounded-[32px] border border-border-subtle bg-white p-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
       <div className="mb-8 text-center">
         <div className="mb-4 text-4xl">📮</div>
-        <h1 className="text-3xl font-semibold text-white">Reset your password</h1>
-        <p className="mt-2 text-sm text-text-secondary">
+        <h1 className="text-3xl font-semibold text-text-primary">Reset your password</h1>
+        <p className="mt-2 text-sm text-text-muted">
           Enter your email and we’ll send a fresh reset link.
         </p>
       </div>
@@ -65,7 +65,7 @@ export default function ResetPage() {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-2xl border border-border-subtle bg-surface-500/60 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full rounded-2xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
             placeholder="you@example.com"
             autoComplete="email"
             required

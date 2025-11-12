@@ -6,8 +6,6 @@ import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import { auth } from '@/lib/firebaseClient'
-import Navbar from '@/components/layout/Navbar'
-import Footer from '@/components/layout/Footer'
 
 interface SubscriptionStatus {
   isPremium: boolean
@@ -208,18 +206,18 @@ function BillingContent() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
-      <div className="rounded-[32px] border border-border-subtle bg-surface-500/80 p-10 shadow-card backdrop-blur">
+      <div className="rounded-[32px] border border-border-subtle bg-white p-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
             <span className="badge">SUBSCRIPTION OVERVIEW</span>
-            <h1 className="mt-4 text-3xl font-semibold text-white">
+            <h1 className="mt-4 text-3xl font-semibold text-text-primary">
               {isPremium ? 'Premium unlocked — keep shipping resumes.' : 'Upgrade to unlock the full resume OS'}
             </h1>
-            <p className="mt-3 max-w-2xl text-sm text-text-secondary">
-              Manage billing, sync invoices, and stay on top of your plan in a dark, cinematic workspace.
+            <p className="mt-3 max-w-2xl text-sm text-text-muted">
+              Manage billing, sync invoices, and stay on top of your plan with clear pricing and instant plan controls.
             </p>
           </div>
-          <div className="flex flex-col items-start gap-3 text-sm text-text-secondary sm:items-end sm:text-right">
+          <div className="flex flex-col items-start gap-3 text-sm text-text-muted sm:items-end sm:text-right">
             <span className="surface-pill">
               Status:{' '}
               <span className="font-semibold text-text-primary">{loading ? 'Checking…' : subscriptionStatus}</span>
@@ -231,7 +229,7 @@ function BillingContent() {
             )}
           </div>
         </div>
-        <div className="mt-8 flex flex-wrap gap-3 text-xs text-text-secondary sm:text-sm">
+        <div className="mt-8 flex flex-wrap gap-3 text-xs text-text-muted sm:text-sm">
           <span className="surface-pill">Signed in as {user?.email}</span>
           {subscription?.stripeSubscriptionId && (
             <span className="surface-pill">Subscription ID: {subscription.stripeSubscriptionId}</span>
@@ -256,26 +254,26 @@ function BillingContent() {
           return (
             <div
               key={plan.id}
-              className={`relative overflow-hidden rounded-[32px] border border-border-subtle bg-surface-500/75 p-8 shadow-card transition hover:border-border-strong hover:shadow-glow ${
-                plan.highlight ? 'bg-gradient-to-br from-accent-gradientStart/35 via-surface-500/90 to-accent-gradientEnd/35' : ''
+              className={`relative overflow-hidden rounded-[32px] border border-border-subtle bg-white p-8 shadow-[0_20px_38px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_28px_48px_rgba(15,23,42,0.08)] ${
+                plan.highlight ? 'ring-2 ring-primary-200' : ''
               }`}
             >
               {plan.highlight && (
-                <div className="absolute right-5 top-5 rounded-pill bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
+                <div className="absolute right-5 top-5 rounded-pill bg-primary-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-primary-700">
                   Most loved
                 </div>
               )}
-              <h2 className="text-xl font-semibold text-white">{plan.name}</h2>
-              <p className="mt-2 text-sm text-text-secondary">{plan.headline}</p>
+              <h2 className="text-xl font-semibold text-text-primary">{plan.name}</h2>
+              <p className="mt-2 text-sm text-text-muted">{plan.headline}</p>
               <div className="mt-6 flex items-baseline gap-2">
-                <span className="text-4xl font-semibold text-white">{plan.price}</span>
+                <span className="text-4xl font-semibold text-text-primary">{plan.price}</span>
                 <span className="text-sm text-text-muted">{plan.cadence}</span>
               </div>
-              <ul className="mt-6 space-y-3 text-sm text-text-secondary">
+              <ul className="mt-6 space-y-3 text-sm text-text-muted">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-center gap-2">
-                    <span className="text-accent-teal">●</span>
-                    <span>{feature}</span>
+                    <span className="text-primary-600">●</span>
+                    <span className="text-text-muted">{feature}</span>
                   </li>
                 ))}
               </ul>
@@ -299,22 +297,22 @@ function BillingContent() {
                     </button>
                   )
                 ) : (
-                  <div className="rounded-[20px] border border-border-subtle bg-white/5 px-5 py-3 text-sm text-text-secondary">
+                  <div className="rounded-[20px] border border-border-subtle bg-primary-50/60 px-5 py-3 text-sm text-text-muted">
                     Always available with every account.
                   </div>
                 )}
-                {isCurrent && <span className="text-xs uppercase tracking-[0.3em] text-text-secondary">Current plan</span>}
+                {isCurrent && <span className="text-xs uppercase tracking-[0.3em] text-primary-600">Current plan</span>}
               </div>
             </div>
           )
         })}
       </div>
 
-      <div className="mt-12 rounded-[28px] border border-border-subtle bg-surface-500/75 p-8 text-text-secondary shadow-card">
-        <h3 className="text-lg font-semibold text-white">Need a hand?</h3>
+      <div className="mt-12 rounded-[28px] border border-border-subtle bg-white p-8 text-text-muted shadow-[0_18px_32px_rgba(15,23,42,0.05)]">
+        <h3 className="text-lg font-semibold text-text-primary">Need a hand?</h3>
         <p className="mt-2 text-sm">
           Something off with billing or invoices? Reach us at{' '}
-          <a className="font-semibold text-text-primary underline" href="mailto:support@editresume.io">
+          <a className="font-semibold text-primary-700 underline" href="mailto:support@editresume.io">
             support@editresume.io
           </a>
           .
@@ -327,13 +325,9 @@ function BillingContent() {
 export default function BillingPage() {
   return (
     <ProtectedRoute>
-      <>
-        <Navbar />
-        <main className="min-h-screen">
-          <BillingContent />
-        </main>
-        <Footer />
-      </>
+      <main className="min-h-screen bg-body-gradient">
+        <BillingContent />
+      </main>
     </ProtectedRoute>
   )
 }

@@ -3,8 +3,6 @@
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useCallback } from 'react'
-import Navbar from '@/components/layout/Navbar'
-import Footer from '@/components/layout/Footer'
 import UploadResume from '@/components/Editor/UploadResume'
 
 const quickActions = [
@@ -54,14 +52,14 @@ export default function UploadPage() {
 
   return (
     <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
-      <Navbar />
+
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-4 py-16 sm:px-6 lg:px-8">
         <section className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <span className="badge-gradient">Upload + Diagnose</span>
-            <h1 className="text-display text-white">Drop in your resume. We’ll prep it for edits in seconds.</h1>
-            <p className="max-w-xl text-lg text-text-secondary">
+            <h1 className="text-display text-text-primary">Drop in your resume. We’ll prep it for edits in seconds.</h1>
+            <p className="max-w-xl text-lg text-text-muted">
               Import from PDF or DOCX, keep every structured section, and unlock ATS-aware diagnostics the moment it
               lands in the editor.
             </p>
@@ -69,7 +67,7 @@ export default function UploadPage() {
               <Link href="/editor?new=true" className="button-secondary text-sm">
                 Start from scratch
               </Link>
-              <Link href="/auth/signup" className="button-ghost text-sm text-text-secondary">
+              <Link href="/auth/signup" className="button-ghost text-sm">
                 Need an account? →
               </Link>
             </div>
@@ -83,8 +81,8 @@ export default function UploadPage() {
                   <div className="flex items-center gap-3 text-text-primary">
                     <span className="text-2xl">{item.icon}</span>
                     <div>
-                      <div className="text-sm font-semibold uppercase tracking-[0.3em] text-text-secondary">{item.title}</div>
-                      <p className="mt-2 text-sm text-text-secondary/90">{item.description}</p>
+                      <div className="text-sm font-semibold uppercase tracking-[0.3em] text-text-muted">{item.title}</div>
+                      <p className="mt-2 text-sm text-text-muted">{item.description}</p>
                     </div>
                   </div>
                 </Link>
@@ -92,13 +90,13 @@ export default function UploadPage() {
             </div>
           </div>
 
-          <div className="rounded-[32px] border border-border-subtle bg-surface-500/70 p-8 shadow-card backdrop-blur">
+          <div className="rounded-[32px] border border-border-subtle bg-white p-8 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.4em] text-text-muted">Upload</p>
-                <h2 className="mt-2 text-heading text-white">Bring your resume into edit mode</h2>
+                <h2 className="mt-2 text-heading text-text-primary">Bring your resume into edit mode</h2>
               </div>
-              <span className="surface-pill text-xs font-semibold text-text-secondary">PDF · DOCX</span>
+              <span className="surface-pill text-xs font-semibold text-text-muted">PDF · DOCX</span>
             </div>
             <UploadResume variant="modal" onUploadSuccess={handleUploadSuccess} />
             <div className="mt-6 text-xs text-text-muted">
@@ -112,7 +110,7 @@ export default function UploadPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <span className="badge">Playbooks</span>
-              <h2 className="mt-4 text-heading text-white">What happens after import?</h2>
+              <h2 className="mt-4 text-heading text-text-primary">What happens after import?</h2>
             </div>
             <Link href="/editor" className="button-secondary text-sm">
               Go to editor
@@ -137,15 +135,14 @@ export default function UploadPage() {
               },
             ].map((item) => (
               <div key={item.title} className="dashboard-card-tight space-y-3">
-                <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                <p className="text-sm text-text-secondary">{item.description}</p>
+                <h3 className="text-lg font-semibold text-text-primary">{item.title}</h3>
+                <p className="text-sm text-text-muted">{item.description}</p>
               </div>
             ))}
           </div>
         </section>
       </main>
 
-      <Footer />
     </div>
   )
 }

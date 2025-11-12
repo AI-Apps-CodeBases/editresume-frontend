@@ -13,14 +13,14 @@ interface StatsPanelProps {
 export function StatsPanel({ stats, className }: StatsPanelProps) {
   return (
     <div
-      className={`flex flex-wrap items-center gap-3 rounded-pill border border-border-subtle bg-white/5 px-4 py-3 text-xs text-text-secondary sm:text-sm ${
+      className={`flex flex-wrap items-center gap-3 rounded-3xl border border-border-subtle bg-white px-4 py-3 text-xs text-text-muted shadow-[0_12px_24px_rgba(15,23,42,0.05)] sm:text-sm ${
         className ?? ''
       }`}
     >
       {stats.map((stat) => (
         <div
           key={stat.label}
-          className="pill-stat min-w-[160px] flex-1 items-center justify-start gap-3 rounded-pill border border-border-subtle bg-transparent px-4 py-2 text-left"
+          className="pill-stat min-w-[160px] flex-1 items-center justify-start gap-3 rounded-pill border border-border-subtle bg-white px-4 py-2 text-left"
         >
           <div className="flex items-baseline gap-2">
             <strong>{stat.value}</strong>

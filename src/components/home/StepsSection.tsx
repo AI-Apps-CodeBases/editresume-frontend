@@ -1,61 +1,113 @@
-const steps = [
+const prompts = ['Administer medications', 'Collaborate on care plans', 'Educate patients'] as const
+
+const generatedExamples = [
   {
-    number: '01',
-    title: 'Drop in your current resume or start blank',
-    description:
-      'Import from DOCX, PDF, or LinkedIn. Auto-structure sections, keep all formatting intact, and prime the editor with your content.',
+    original: 'Created work schedule',
+    enhanced: 'Coordinated weekly frontline staffing schedules covering 35+ shifts with zero coverage gaps.',
   },
   {
-    number: '02',
-    title: 'Pair AI with version control',
-    description:
-      'Spin up drafts with guided AI flows, compare changes side-by-side, and ship the version that best matches the job in play.',
-  },
-  {
-    number: '03',
-    title: 'Match jobs, send, track',
-    description:
-      'Sync job posts, tailor your resume automatically, and push applications with Jobright. Every outcome rolls into analytics.',
+    original: 'Communication',
+    enhanced: 'Led cross-functional communications between hiring team, recruiters, and leadership for 15 open roles.',
   },
 ]
 
-function StepCard({ number, title, description }: (typeof steps)[0]) {
-  return (
-    <div className="group relative overflow-hidden rounded-[28px] border border-border-subtle bg-surface-500/70 p-8 shadow-card transition hover:border-border-strong hover:shadow-glow">
-      <div className="absolute top-0 right-0 h-24 w-24 rounded-bl-[48px] bg-accent-pink/20 transition group-hover:bg-accent-gradientEnd/25" />
-      <div className="relative z-10 flex flex-col gap-4">
-        <span className="inline-flex w-fit items-center rounded-pill border border-border-subtle bg-white/5 px-4 py-2 text-xs font-semibold tracking-[0.35em] text-text-secondary">
-          {number}
-        </span>
-        <h3 className="text-xl font-semibold text-white">{title}</h3>
-        <p className="text-sm text-text-secondary">{description}</p>
-      </div>
-    </div>
-  )
-}
-
 export default function StepsSection() {
   return (
-    <section className="section-spacing">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-16 lg:grid-cols-[0.5fr_1fr]">
-          <div>
-            <span className="badge">HOW IT WORKS</span>
-            <h2 className="mt-6 text-heading text-white">Ship a tailored resume in less time than it takes to brew coffee.</h2>
-            <p className="mt-4 text-base text-text-secondary">
-              Every workflow in editresume.io is designed for speed—no wrestling with formatting, no exporting every
-              single update. Just build, tailor, and ship.
+    <section className="section-spacing bg-[#f4f7ff]">
+      <div className="container-padding mx-auto max-w-7xl">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,0.9fr)_1fr] lg:items-center lg:gap-16">
+          <div className="space-y-6">
+            <span className="badge-gradient">GENERATE WITH AI</span>
+            <h2 className="text-3xl font-semibold text-text-primary sm:text-4xl">
+              Generate resume bullet points that sound polished and personal.
+            </h2>
+            <p className="text-base leading-relaxed text-text-muted">
+              Type a skill, responsibility, or accomplishment and let editresume.io draft wording that impresses hiring
+              managers. Adjust tone, add metrics, and save the best version to your resume instantly.
             </p>
+            <ul className="mt-8 space-y-4">
+              <li className="flex gap-3 rounded-2xl bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+                <span className="mt-1 h-6 w-6 flex-shrink-0 rounded-full bg-primary-100 text-center text-xs font-semibold text-primary-700">
+                  1
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">Describe what you did</p>
+                  <p className="text-sm text-text-muted">Give the AI a keyword or quick sentence about the task.</p>
+                </div>
+              </li>
+              <li className="flex gap-3 rounded-2xl bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+                <span className="mt-1 h-6 w-6 flex-shrink-0 rounded-full bg-primary-100 text-center text-xs font-semibold text-primary-700">
+                  2
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">Review three polished options</p>
+                  <p className="text-sm text-text-muted">
+                    Mix and match wording, adjust impact, and slot the best version into your resume.
+                  </p>
+                </div>
+              </li>
+              <li className="flex gap-3 rounded-2xl bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+                <span className="mt-1 h-6 w-6 flex-shrink-0 rounded-full bg-primary-100 text-center text-xs font-semibold text-primary-700">
+                  3
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">Stay aligned with ATS expectations</p>
+                  <p className="text-sm text-text-muted">
+                    Every suggestion is tuned for clarity, keywords, and measurable results.
+                  </p>
+                </div>
+              </li>
+            </ul>
           </div>
-          <div className="grid gap-6">
-            {steps.map((step) => (
-              <StepCard key={step.number} {...step} />
-            ))}
+
+          <div className="rounded-[32px] border border-border-subtle bg-white p-8 shadow-[0_22px_40px_rgba(15,23,42,0.06)]">
+            <label htmlFor="aiPrompt" className="text-sm font-semibold text-text-primary">
+              Try it out! Enter text here.
+            </label>
+            <div className="mt-3 rounded-2xl border border-border-subtle bg-white/80 p-4">
+              <textarea
+                id="aiPrompt"
+                className="h-28 w-full resize-none rounded-xl border border-border-subtle p-4 text-sm text-text-primary outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+                placeholder="E.g. Managed patient intake for 30+ daily visits"
+                readOnly
+                value=""
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
+              <span>3/3 generates available</span>
+              <button className="button-primary text-xs uppercase tracking-[0.25em]" type="button" disabled>
+                Generate with AI
+              </button>
+            </div>
+
+            <p className="mt-6 text-xs font-semibold uppercase tracking-[0.25em] text-primary-600">
+              Not sure what to write? Try one of these:
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              {prompts.map((prompt) => (
+                <span
+                  key={prompt}
+                  className="inline-flex items-center rounded-full border border-border-subtle bg-primary-50 px-4 py-2 text-xs font-semibold text-primary-700"
+                >
+                  {prompt}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-8 space-y-5">
+              {generatedExamples.map((example) => (
+                <div key={example.original} className="rounded-2xl border border-border-subtle bg-[#f8fbff] p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-text-muted">Original</p>
+                  <p className="mt-2 text-sm text-text-muted">{example.original}</p>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.25em] text-primary-600">AI generated</p>
+                  <p className="mt-2 text-sm font-semibold text-text-primary">{example.enhanced}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
     </section>
   )
 }
-
-

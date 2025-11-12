@@ -1332,11 +1332,11 @@ const EditorPageContent = () => {
   return (
     <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
       {mounted && !showWizard && (
-        <header className="sticky top-0 z-30 border-b border-border-subtle bg-surface-500/85 shadow-card backdrop-blur">
+        <header className="sticky top-0 z-30 border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)] backdrop-blur">
           <div className="mx-auto w-full max-w-7xl px-4 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3 mobile-header">
-              <a href="/" className="flex items-center gap-3 text-sm font-semibold text-white transition hover:opacity-80">
-                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 text-base shadow-glow">
+              <a href="/" className="flex items-center gap-3 text-sm font-semibold text-text-primary transition hover:opacity-80">
+                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary-50 text-base font-semibold text-primary-600 shadow-[0_14px_26px_rgba(15,23,42,0.12)]">
                   ER
                 </span>
                 <span className="hidden text-base sm:inline">editresume.io</span>
@@ -1346,11 +1346,11 @@ const EditorPageContent = () => {
                   <div className="flex items-center gap-2 sm:gap-3">
                     <a
                       href="/profile"
-                      className="inline-flex items-center gap-2 rounded-pill border border-border-subtle bg-white/5 px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
+                      className="inline-flex items-center gap-2 rounded-pill border border-border-subtle bg-white px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-primary-200 hover:text-text-primary"
                     >
                       👋 {user?.name}
                       {user?.isPremium && (
-                        <span className="rounded-pill bg-white/15 px-2 py-0.5 text-[11px] text-accent-pink">
+                        <span className="rounded-pill bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-700">
                           PRO
                         </span>
                       )}
@@ -2383,7 +2383,7 @@ export default function EditorPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-body-gradient">
-          <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card backdrop-blur">
+          <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="mb-4 text-3xl animate-pulse">🛠️</div>
             <p className="text-sm font-semibold text-text-secondary">Loading editor…</p>
           </div>

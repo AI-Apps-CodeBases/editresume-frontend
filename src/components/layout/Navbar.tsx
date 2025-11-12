@@ -4,68 +4,75 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 
-const navigation = [
-  { href: '/editor', label: 'Editor' },
-  { href: '/upload', label: 'Upload' },
-  { href: '/profile', label: 'Profile' },
-  { href: '/billing', label: 'Billing' },
-]
+const primaryNav = [
+  { href: '/editor', label: 'Builder' },
+  { href: '/upload', label: 'Resumes' },
+  { href: '/profile', label: 'Profiles' },
+  { href: '/billing', label: 'Plans' },
+  { href: '/#resources', label: 'Resources' },
+] as const
 
 export default function Navbar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
   const isActive = (href: string) => {
+    if (href === '/#resources') return pathname === '/'
     if (href === '/') return pathname === '/'
     return pathname.startsWith(href)
   }
 
   return (
-    <header className="sticky top-0 z-40">
-      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <div className="relative flex items-center justify-between rounded-3xl border border-border-subtle bg-surface-500/75 px-5 py-3 shadow-frosted backdrop-blur-xl">
+    <header className="sticky top-0 z-50 bg-white shadow-[0_12px_20px_rgba(15,23,42,0.06)]">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-lg font-semibold text-white shadow-glow">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary-400 text-lg font-semibold text-white shadow-[0_18px_30px_rgba(15,98,254,0.28)]">
               ER
             </div>
-            <Link href="/" className="text-base font-semibold text-white sm:text-lg">
-              editresume.io
-            </Link>
+            <div className="flex flex-col">
+              <Link href="/" className="text-lg font-semibold text-text-primary">
+                editresume.io
+              </Link>
+              <span className="text-xs font-medium uppercase tracking-[0.25em] text-text-muted">
+                Resume Workspace
+              </span>
+            </div>
           </div>
 
-          <nav className="hidden items-center gap-1 md:flex">
-            {navigation.map((item) => (
+          <nav className="hidden items-center gap-6 lg:flex">
+            {primaryNav.map((item) => (
               <Link
-                key={item.href}
+                key={item.label}
                 href={item.href}
-                className={`inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition ${
-                  isActive(item.href)
-                    ? 'bg-white/15 text-white shadow-glow'
-                    : 'text-text-muted hover:bg-white/10 hover:text-text-primary'
+                className={`relative text-sm font-semibold transition ${
+                  isActive(item.href) ? 'text-primary-700' : 'text-text-muted hover:text-text-primary'
                 }`}
               >
                 {item.label}
+                {isActive(item.href) && (
+                  <span className="absolute -bottom-2 left-0 right-0 h-0.5 rounded-full bg-primary-600" />
+                )}
               </Link>
             ))}
           </nav>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-3 lg:flex">
             <Link href="/auth/login" className="button-ghost text-sm">
-              Sign in
+              Login
             </Link>
             <Link href="/auth/signup" className="button-primary text-sm">
-              Start Free
+              Create my resume
             </Link>
           </div>
 
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border-subtle bg-white/5 text-white transition hover:border-border-strong hover:bg-white/10 md:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border-subtle bg-white text-text-primary transition hover:border-border-strong lg:hidden"
             onClick={() => setOpen((prev) => !prev)}
             aria-expanded={open}
             aria-label="Toggle navigation"
           >
-            <span className="sr-only">Toggle navigation</span>
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
               <path
                 d="M4 7h16M4 12h16M4 17h16"
@@ -79,29 +86,29 @@ export default function Navbar() {
         </div>
 
         {open && (
-          <div className="mt-3 overflow-hidden rounded-3xl border border-border-subtle bg-surface-500/90 shadow-frosted backdrop-blur-xl md:hidden">
-            <nav className="flex flex-col divide-y divide-border-subtle">
-              {navigation.map((item) => (
+          <div className="pb-6 lg:hidden">
+            <nav className="flex flex-col gap-1 rounded-2xl border border-border-subtle bg-white p-4 shadow-[0_18px_30px_rgba(15,23,42,0.06)]">
+              {primaryNav.map((item) => (
                 <Link
-                  key={item.href}
+                  key={item.label}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className={`px-5 py-4 text-sm font-medium ${
-                    isActive(item.href) ? 'bg-white/10 text-white' : 'text-text-secondary hover:bg-white/5'
+                  className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                    isActive(item.href) ? 'bg-primary-50 text-primary-700' : 'text-text-muted hover:bg-primary-50/50'
                   }`}
                 >
                   {item.label}
                 </Link>
               ))}
+              <div className="mt-4 flex flex-col gap-3">
+                <Link href="/auth/login" onClick={() => setOpen(false)} className="button-secondary text-center text-sm">
+                  Login
+                </Link>
+                <Link href="/auth/signup" onClick={() => setOpen(false)} className="button-primary text-center text-sm">
+                  Create my resume
+                </Link>
+              </div>
             </nav>
-            <div className="flex flex-col gap-3 px-5 py-4">
-              <Link href="/auth/login" onClick={() => setOpen(false)} className="button-secondary text-sm">
-                Sign in
-              </Link>
-              <Link href="/auth/signup" onClick={() => setOpen(false)} className="button-primary text-sm text-center">
-                Start Free
-              </Link>
-            </div>
           </div>
         )}
       </div>

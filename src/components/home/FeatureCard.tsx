@@ -11,15 +11,17 @@ interface FeatureCardProps {
 
 export function FeatureCard({ icon, title, description, href, cta, badge }: FeatureCardProps) {
   const content = (
-    <div className="h-full rounded-[28px] border border-border-subtle bg-surface-500/75 p-8 shadow-card transition duration-300 hover:-translate-y-1 hover:border-border-strong hover:shadow-glow">
+    <div className="h-full rounded-[28px] border border-border-subtle bg-white p-8 shadow-[0_18px_32px_rgba(15,23,42,0.05)] transition duration-300 hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_26px_40px_rgba(15,23,42,0.08)]">
       <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-2xl">{icon}</div>
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-2xl text-primary-700 shadow-[0_12px_20px_rgba(15,23,42,0.06)]">
+          {icon}
+        </div>
         {badge && <span className="badge">{badge}</span>}
       </div>
-      <h3 className="mt-6 text-xl font-semibold text-white">{title}</h3>
-      <p className="mt-4 text-sm leading-relaxed text-text-secondary">{description}</p>
+      <h3 className="mt-6 text-xl font-semibold text-text-primary">{title}</h3>
+      <p className="mt-4 text-sm leading-relaxed text-text-muted">{description}</p>
       {cta && href && (
-        <span className="mt-6 inline-flex items-center text-sm font-semibold text-text-secondary transition hover:text-text-primary">
+        <span className="mt-6 inline-flex items-center text-sm font-semibold text-primary-600 transition hover:text-primary-700">
           {cta} →
         </span>
       )}

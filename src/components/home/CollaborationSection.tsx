@@ -1,40 +1,75 @@
 import Link from 'next/link'
+const resources = [
+  {
+    title: 'How to write a resume recruiters love',
+    href: '#',
+    date: 'Updated October 30, 2025',
+  },
+  {
+    title: 'Top entry-level careers that are AI-resistant',
+    href: '#',
+    date: 'Updated October 21, 2025',
+  },
+  {
+    title: 'Three best AI cover letter generators for 2025',
+    href: '#',
+    date: 'Updated May 28, 2025',
+  },
+] as const
 
 export default function CollaborationSection() {
   return (
-    <section className="section-spacing">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="relative overflow-hidden rounded-[36px] border border-border-subtle bg-surface-500/80 p-10 shadow-card backdrop-blur">
-          <div className="absolute inset-0 bg-navy-glow opacity-70 blur-[120px]" />
-          <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-accent-gradientEnd/30 blur-3xl" />
-          <div className="relative flex flex-col gap-10 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-2xl">
-              <span className="badge-gradient">COLLABORATION</span>
-              <h2 className="mt-6 text-heading text-white">A shared workspace for operators, jobseekers, and teams.</h2>
-              <p className="mt-4 text-base text-text-secondary">
-                Loop in mentors, recruiters, or managers without the download dance. Live cursors, contextual comments,
-                and a tidy audit trail keep everything crisp.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-3 text-xs text-text-secondary">
-                <span className="surface-pill">Share-by-link with permissions</span>
-                <span className="surface-pill">Comment + suggest mode</span>
-                <span className="surface-pill">Version history & restore</span>
-              </div>
+    <section id="resources" className="section-spacing bg-[#f4f7ff]">
+      <div className="container-padding mx-auto max-w-7xl">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,0.9fr)_1fr] lg:items-center lg:gap-16">
+          <div>
+            <span className="badge-gradient">RESOURCE CENTER</span>
+            <h2 className="mt-6 text-3xl font-semibold text-text-primary sm:text-4xl">
+              Resume help, interview prep, and job search tips from certified experts.
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-text-muted">
+              Browse guides written by CPRW-certified writers. Each article includes actionable steps to tailor your
+              resume, write cover letters, and navigate interviews with confidence.
+            </p>
+            <div className="mt-8 grid gap-3 text-sm text-text-muted">
+              <span className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                  43M+
+                </span>
+                Resumes created with editresume.io
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                  ATS
+                </span>
+                Templates tested to pass applicant tracking systems
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                  CPRW
+                </span>
+                Advice reviewed by Certified Professional Resume Writers
+              </span>
             </div>
-            <div className="flex flex-col gap-4">
-              <Link href="/auth/signup" className="button-primary text-sm text-center">
-                Invite collaborators
+          </div>
+
+          <div className="space-y-4">
+            {resources.map((resource) => (
+              <Link
+                key={resource.href}
+                href={resource.href}
+                className="block rounded-3xl border border-border-subtle bg-white px-6 py-5 shadow-[0_18px_32px_rgba(15,23,42,0.05)] transition hover:-translate-y-1 hover:border-primary-200"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary-600">{resource.date}</p>
+                <p className="mt-3 text-lg font-semibold text-text-primary">{resource.title}</p>
+                <span className="mt-4 inline-flex items-center text-sm font-semibold text-primary-600">
+                  Read guide →
+                </span>
               </Link>
-              <Link href="/shared/demo" className="button-secondary text-sm text-center">
-                Preview reviewer mode
-              </Link>
-              <span className="text-xs text-text-muted">No downloads. Just a clean, live resume workspace.</span>
-            </div>
+            ))}
           </div>
         </div>
       </div>
     </section>
   )
 }
-
-

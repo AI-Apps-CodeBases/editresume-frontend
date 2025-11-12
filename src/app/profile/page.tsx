@@ -6,8 +6,6 @@ import SettingsPanel from '@/components/SettingsPanel'
 import config from '@/lib/config'
 import { auth } from '@/lib/firebaseClient'
 import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
-import Navbar from '@/components/layout/Navbar'
-import Footer from '@/components/layout/Footer'
 import { StatsPanel } from '@/components/home/StatsPanel'
 
 interface ResumeHistory {
@@ -320,9 +318,9 @@ function ProfilePageContent() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-body-gradient">
-        <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card">
+        <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
           <div className="mb-4 text-4xl animate-pulse">📄</div>
-          <p className="text-sm font-semibold text-text-secondary">Loading profile…</p>
+          <p className="text-sm font-semibold text-text-muted">Loading profile…</p>
         </div>
       </div>
     )
@@ -346,8 +344,8 @@ function ProfilePageContent() {
 
   return (
     <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
-      <Navbar />
-      <header className="border-b border-border-subtle bg-surface-500/80 shadow-card backdrop-blur">
+
+      <header className="border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4">
           <div className="text-sm text-text-secondary">
             Personal workspace
@@ -373,12 +371,12 @@ function ProfilePageContent() {
         <div className="dashboard-card space-y-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-accent-gradientStart/40 text-3xl font-semibold text-white shadow-glow">
+              <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-primary-600 to-primary-400 text-3xl font-semibold text-white shadow-[0_20px_38px_rgba(15,23,42,0.18)]">
                 {user?.name?.charAt(0).toUpperCase()}
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-white">{user?.name}</h1>
-                <p className="mt-2 text-sm text-text-secondary">{user?.email}</p>
+                <h1 className="text-3xl font-semibold text-text-primary">{user?.name}</h1>
+                <p className="mt-2 text-sm text-text-muted">{user?.email}</p>
                 <div className="mt-4">
                   {isPremiumMember ? <span className="badge-gradient">Premium Member</span> : <span className="badge">Free Plan</span>}
                 </div>
@@ -405,7 +403,7 @@ function ProfilePageContent() {
           <StatsPanel stats={profileStats} />
         </div>
 
-        <div className="dashboard-card">
+      <div className="dashboard-card">
           <div className="border-b border-border-subtle pb-4">
             <div className="flex flex-wrap gap-2">
               {(['overview', 'history', 'resumes', 'jobs', 'billing', 'settings'] as const).map((tab) => (
@@ -1168,7 +1166,6 @@ function ProfilePageContent() {
           </div>
         </div>
       </div>
-      <Footer />
     </div>
   )
 }
@@ -1176,14 +1173,16 @@ function ProfilePageContent() {
 export default function ProfilePage() {
   return (
     <ProtectedRoute>
-      <Suspense fallback={
-        <div className="flex min-h-screen items-center justify-center bg-body-gradient">
-          <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card">
-            <div className="mb-4 text-4xl animate-pulse">📄</div>
-            <p className="text-sm font-semibold text-text-secondary">Loading profile…</p>
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center bg-body-gradient">
+            <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
+              <div className="mb-4 text-4xl animate-pulse">📄</div>
+              <p className="text-sm font-semibold text-text-muted">Loading profile…</p>
+            </div>
           </div>
-        </div>
-      }>
+        }
+      >
         <ProfilePageContent />
       </Suspense>
     </ProtectedRoute>

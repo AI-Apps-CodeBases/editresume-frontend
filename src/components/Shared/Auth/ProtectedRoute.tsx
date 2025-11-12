@@ -26,10 +26,10 @@ export default function ProtectedRoute({ children, fallbackPath = '/auth/login' 
   if (loading || (!isAuthenticated && typeof window !== 'undefined')) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-body-gradient text-text-primary">
-        <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-12 py-10 text-center shadow-card">
+        <div className="rounded-[28px] border border-border-subtle bg-white px-12 py-10 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
           <div className="mb-4 text-4xl">🔒</div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-text-secondary">Hang tight</p>
-          <p className="mt-3 text-base text-text-secondary">Checking your session…</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-text-muted">Hang tight</p>
+          <p className="mt-3 text-base text-text-muted">Checking your session…</p>
         </div>
       </div>
     )

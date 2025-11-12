@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import Navbar from '@/components/layout/Navbar'
-import Footer from '@/components/layout/Footer'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import SharedResumeComments from '@/components/Resume/SharedResumeComments'
 import { sharedResumeService, SharedResumeData } from '@/lib/services/sharedResume'
@@ -11,14 +9,12 @@ import { sharedResumeService, SharedResumeData } from '@/lib/services/sharedResu
 function LoadingView({ message }: { message: string }) {
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
-      <Navbar />
       <div className="flex flex-1 items-center justify-center px-4">
-        <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card">
+        <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
           <div className="mb-4 text-4xl animate-pulse">📄</div>
-          <p className="text-sm font-semibold text-text-secondary">{message}</p>
+          <p className="text-sm font-semibold text-text-muted">{message}</p>
         </div>
       </div>
-      <Footer />
     </div>
   )
 }
@@ -26,15 +22,13 @@ function LoadingView({ message }: { message: string }) {
 function MessageView({ title, description, icon }: { title: string; description: string; icon: string }) {
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
-      <Navbar />
       <div className="flex flex-1 items-center justify-center px-4">
-        <div className="max-w-md rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-10 text-center shadow-card">
+        <div className="max-w-md rounded-[28px] border border-border-subtle bg-white px-10 py-10 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
           <div className="mb-4 text-4xl">{icon}</div>
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
-          <p className="mt-3 text-sm text-text-secondary">{description}</p>
+          <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+          <p className="mt-3 text-sm text-text-muted">{description}</p>
         </div>
       </div>
-      <Footer />
     </div>
   )
 }
@@ -114,13 +108,12 @@ export default function SharedResumePage() {
   if (showPasswordForm) {
     return (
       <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
-        <Navbar />
         <div className="flex flex-1 items-center justify-center px-4">
-          <div className="w-full max-w-md rounded-[28px] border border-border-subtle bg-surface-500/85 px-8 py-10 shadow-card">
+          <div className="w-full max-w-md rounded-[28px] border border-border-subtle bg-white px-8 py-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="text-center">
               <div className="mb-4 text-4xl">🔒</div>
-              <h2 className="text-xl font-semibold text-white">Password Required</h2>
-              <p className="mt-2 text-sm text-text-secondary">This resume is locked. Enter the password to view.</p>
+              <h2 className="text-xl font-semibold text-text-primary">Password Required</h2>
+              <p className="mt-2 text-sm text-text-muted">This resume is locked. Enter the password to view.</p>
             </div>
             <form onSubmit={handlePasswordSubmit} className="mt-6 space-y-5">
               <div className="space-y-2">
@@ -129,7 +122,7 @@ export default function SharedResumePage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-2xl border border-border-subtle bg-surface-500/70 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full rounded-2xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
                   placeholder="Enter password"
                   required
                 />
@@ -141,7 +134,6 @@ export default function SharedResumePage() {
             </form>
           </div>
         </div>
-        <Footer />
       </div>
     )
   }
@@ -152,15 +144,14 @@ export default function SharedResumePage() {
 
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
-      <Navbar />
-      <header className="border-b border-border-subtle bg-surface-500/80 shadow-card backdrop-blur">
+      <header className="border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-semibold text-white">{sharedInfo.resume.name}</h1>
+              <h1 className="text-xl font-semibold text-text-primary">{sharedInfo.resume.name}</h1>
               <span className="badge">Shared</span>
             </div>
-            <p className="mt-2 text-sm text-text-secondary">
+            <p className="mt-2 text-sm text-text-muted">
               Template · {sharedInfo.resume.template} • Shared on{' '}
               {new Date(sharedInfo.shared_info.created_at).toLocaleDateString()}
             </p>
@@ -175,9 +166,9 @@ export default function SharedResumePage() {
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="rounded-[32px] border border-border-subtle bg-surface-500/70 shadow-card">
+          <div className="rounded-[32px] border border-border-subtle bg-white shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
-              <h2 className="text-base font-semibold text-white">Resume Preview</h2>
+              <h2 className="text-base font-semibold text-text-primary">Resume Preview</h2>
               <span className="text-xs uppercase tracking-[0.3em] text-text-muted">Read only</span>
             </div>
             <div className="px-6 py-6">
@@ -192,10 +183,10 @@ export default function SharedResumePage() {
             </div>
           </div>
 
-          <aside className="rounded-[32px] border border-border-subtle bg-surface-500/70 shadow-card">
+          <aside className="rounded-[32px] border border-border-subtle bg-white shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="border-b border-border-subtle px-6 py-4">
-              <h3 className="text-base font-semibold text-white">Comments & Feedback</h3>
-              <p className="mt-1 text-xs text-text-secondary">
+              <h3 className="text-base font-semibold text-text-primary">Comments & Feedback</h3>
+              <p className="mt-1 text-xs text-text-muted">
                 Add notes or highlight sections. Owners see updates instantly.
               </p>
             </div>
@@ -205,8 +196,6 @@ export default function SharedResumePage() {
           </aside>
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

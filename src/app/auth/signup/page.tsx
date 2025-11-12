@@ -65,11 +65,11 @@ function SignupPageContent() {
   const isBusy = loading || googleLoading
 
   return (
-    <div className="w-full rounded-[32px] border border-border-subtle bg-surface-500/85 p-10 shadow-card backdrop-blur">
+    <div className="w-full rounded-[32px] border border-border-subtle bg-white p-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
       <div className="mb-8 text-center">
         <div className="mb-4 text-4xl">✨</div>
-        <h1 className="text-3xl font-semibold text-white">Create your account</h1>
-        <p className="mt-2 text-sm text-text-secondary">Build resumes that actually convert and track every send.</p>
+        <h1 className="text-3xl font-semibold text-text-primary">Create your account</h1>
+        <p className="mt-2 text-sm text-text-muted">Build resumes that actually convert and track every send.</p>
       </div>
 
       <form className="space-y-5" onSubmit={handleSubmit}>
@@ -82,7 +82,7 @@ function SignupPageContent() {
             type="text"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="w-full rounded-2xl border border-border-subtle bg-surface-500/60 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full rounded-2xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
             placeholder="Alex Johnson"
             autoComplete="name"
             required
@@ -98,7 +98,7 @@ function SignupPageContent() {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-2xl border border-border-subtle bg-surface-500/60 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full rounded-2xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
             placeholder="you@example.com"
             autoComplete="email"
             required
@@ -114,7 +114,7 @@ function SignupPageContent() {
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-2xl border border-border-subtle bg-surface-500/60 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full rounded-2xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
             placeholder="••••••••"
             autoComplete="new-password"
             minLength={6}
@@ -147,7 +147,7 @@ function SignupPageContent() {
           type="button"
           onClick={handleGoogleSignUp}
           disabled={isBusy}
-          className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-border-subtle bg-white/5 px-4 py-3 text-sm font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-border-subtle bg-white px-4 py-3 text-sm font-semibold text-text-primary transition hover:border-primary-200 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="text-xl">🔎</span>
           {googleLoading ? 'Connecting…' : 'Continue with Google'}
@@ -180,9 +180,9 @@ export default function SignupPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-body-gradient">
-          <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card">
+          <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="mb-4 text-3xl">✨</div>
-            <p className="text-sm font-semibold text-text-secondary">Preparing signup form…</p>
+            <p className="text-sm font-semibold text-text-muted">Preparing signup form…</p>
           </div>
         </div>
       }
