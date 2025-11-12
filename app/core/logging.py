@@ -7,9 +7,7 @@ import sys
 from typing import Optional
 
 
-DEFAULT_LOG_FORMAT = (
-    "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-)
+DEFAULT_LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 
 
 def setup_logging(level: int = logging.INFO, fmt: Optional[str] = None) -> None:
@@ -26,5 +24,3 @@ def setup_logging(level: int = logging.INFO, fmt: Optional[str] = None) -> None:
         root_logger.removeHandler(existing)
 
     root_logger.addHandler(handler)
-
-

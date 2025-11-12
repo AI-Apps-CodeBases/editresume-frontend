@@ -29,7 +29,9 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
     def _requires_auth(self, path: str) -> bool:
         return any(path.startswith(prefix) for prefix in self.protected_paths)
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         request.state.firebase_user = None
         request.state.firebase_token = None
         request.state.firebase_auth_error = None
@@ -44,13 +46,22 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
 
             if sanitized.get("uid"):
                 try:
-                    await asyncio.to_thread(sync_user_profile, sanitized["uid"], sanitized)
+                    await asyncio.to_thread(
+                        sync_user_profile, sanitized["uid"], sanitized
+                    )
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning("Failed syncing Firestore profile for %s: %s", sanitized["uid"], exc)
+                    logger.warning(
+                        "Failed syncing Firestore profile for %s: %s",
+                        sanitized["uid"],
+                        exc,
+                    )
         elif token:
             request.state.firebase_auth_error = "invalid_token"
 
-        if self._requires_auth(request.url.path) and request.state.firebase_user is None:
+        if (
+            self._requires_auth(request.url.path)
+            and request.state.firebase_user is None
+        ):
             return JSONResponse({"detail": "Unauthorized"}, status_code=401)
 
         return await call_next(request)
@@ -64,4 +75,3 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
         if len(parts) != 2 or parts[0].lower() != "bearer":
             return None
         return parts[1].strip() or None
-

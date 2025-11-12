@@ -64,5 +64,3 @@ class SharedResumeComment(Base):
 
 
 __all__ = ["SharedResume", "ResumeView", "SharedResumeComment"]
-
-

@@ -106,8 +106,7 @@ def migrate_schema() -> None:
         if row and row[0] == "NO":
             conn.execute(
                 text(
-                    "ALTER TABLE job_descriptions "
-                    "ALTER COLUMN user_id DROP NOT NULL"
+                    "ALTER TABLE job_descriptions " "ALTER COLUMN user_id DROP NOT NULL"
                 )
             )
             conn.commit()
@@ -142,9 +141,7 @@ def migrate_schema() -> None:
                 )
             )
             conn.execute(
-                text(
-                    "ALTER TABLE match_sessions ALTER COLUMN user_id SET NOT NULL"
-                )
+                text("ALTER TABLE match_sessions ALTER COLUMN user_id SET NOT NULL")
             )
             conn.commit()
 
@@ -186,5 +183,3 @@ def migrate_schema() -> None:
                         )
                     )
                     conn.commit()
-
-

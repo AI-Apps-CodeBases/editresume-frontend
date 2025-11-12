@@ -57,7 +57,9 @@ def get_firebase_app() -> Optional[firebase_admin.App]:
             logger.error("Failed to load Firebase credential from JSON: %s", exc)
             return None
     else:
-        logger.warning("Firebase Admin SDK not configured. Set service account env vars.")
+        logger.warning(
+            "Firebase Admin SDK not configured. Set service account env vars."
+        )
         return None
 
     try:
@@ -272,4 +274,3 @@ def sanitized_user_from_token(token: Dict[str, Any]) -> Dict[str, Any]:
             }
         },
     }
-

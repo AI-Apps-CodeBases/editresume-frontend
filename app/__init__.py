@@ -8,5 +8,3 @@ remaining backwards compatible with existing entry points.
 """
 
 from .main import create_app, app  # noqa: F401
-
-
