@@ -1,14 +1,48 @@
 'use client'
-import { useState, useEffect } from 'react'
+
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import Navbar from '@/components/layout/Navbar'
+import Footer from '@/components/layout/Footer'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import SharedResumeComments from '@/components/Resume/SharedResumeComments'
 import { sharedResumeService, SharedResumeData } from '@/lib/services/sharedResume'
 
+function LoadingView({ message }: { message: string }) {
+  return (
+    <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
+      <Navbar />
+      <div className="flex flex-1 items-center justify-center px-4">
+        <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card">
+          <div className="mb-4 text-4xl animate-pulse">📄</div>
+          <p className="text-sm font-semibold text-text-secondary">{message}</p>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  )
+}
+
+function MessageView({ title, description, icon }: { title: string; description: string; icon: string }) {
+  return (
+    <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
+      <Navbar />
+      <div className="flex flex-1 items-center justify-center px-4">
+        <div className="max-w-md rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-10 text-center shadow-card">
+          <div className="mb-4 text-4xl">{icon}</div>
+          <h2 className="text-lg font-semibold text-white">{title}</h2>
+          <p className="mt-3 text-sm text-text-secondary">{description}</p>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  )
+}
+
 export default function SharedResumePage() {
   const params = useParams()
   const shareToken = params.token as string
-  
+
   const [resumeData, setResumeData] = useState<any>(null)
   const [sharedInfo, setSharedInfo] = useState<SharedResumeData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -25,12 +59,11 @@ export default function SharedResumePage() {
   const loadSharedResume = async (providedPassword?: string) => {
     setLoading(true)
     setError(null)
-    
+
     try {
       const result = await sharedResumeService.getSharedResume(shareToken, providedPassword)
       setSharedInfo(result)
-      
-      // Convert resume data to the format expected by PreviewPanel
+
       const formattedData = {
         name: result.resume_data.personalInfo?.name || result.resume.name,
         title: result.resume.title,
@@ -38,28 +71,26 @@ export default function SharedResumePage() {
         phone: result.resume_data.personalInfo?.phone || '',
         location: result.resume_data.personalInfo?.location || '',
         summary: result.resume_data.summary || '',
-        sections: result.resume_data.sections || []
+        sections: result.resume_data.sections || [],
       }
-      
+
       setResumeData(formattedData)
-      
-      // Track the view
+
       try {
         await sharedResumeService.trackView(shareToken)
       } catch (err) {
         console.log('Failed to track view:', err)
       }
-      
     } catch (err: any) {
       if (err.message.includes('401')) {
         setShowPasswordForm(true)
-        setError('This resume is password protected')
+        setError('This resume is password protected.')
       } else if (err.message.includes('410')) {
-        setError('This shared resume has expired')
+        setError('This shared resume has expired.')
       } else if (err.message.includes('404')) {
-        setError('Shared resume not found')
+        setError('Shared resume not found.')
       } else {
-        setError('Failed to load resume')
+        setError('Failed to load resume.')
       }
       console.error('Failed to load shared resume:', err)
     } finally {
@@ -73,123 +104,84 @@ export default function SharedResumePage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading resume...</p>
-        </div>
-      </div>
-    )
+    return <LoadingView message="Preparing shared resume…" />
   }
 
   if (error && !showPasswordForm) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <svg className="w-12 h-12 text-red-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
-            <p className="text-red-700">{error}</p>
-          </div>
-        </div>
-      </div>
-    )
+    return <MessageView title="Unable to load resume" description={error} icon="⚠️" />
   }
 
   if (showPasswordForm) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-          <div className="p-6">
-            <div className="text-center mb-6">
-              <svg className="w-12 h-12 text-blue-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <h2 className="text-xl font-semibold text-gray-900">Password Required</h2>
-              <p className="text-gray-600 mt-2">This resume is password protected</p>
+      <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
+        <Navbar />
+        <div className="flex flex-1 items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-[28px] border border-border-subtle bg-surface-500/85 px-8 py-10 shadow-card">
+            <div className="text-center">
+              <div className="mb-4 text-4xl">🔒</div>
+              <h2 className="text-xl font-semibold text-white">Password Required</h2>
+              <p className="mt-2 text-sm text-text-secondary">This resume is locked. Enter the password to view.</p>
             </div>
-
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
+            <form onSubmit={handlePasswordSubmit} className="mt-6 space-y-5">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.35em] text-text-secondary">Password</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-2xl border border-border-subtle bg-surface-500/70 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
                   placeholder="Enter password"
                   required
                 />
               </div>
-
-              {error && (
-                <div className="text-red-600 text-sm">{error}</div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Access Resume
+              {error && <div className="text-xs font-semibold text-accent-warning">{error}</div>}
+              <button type="submit" className="button-primary w-full justify-center text-sm">
+                Access resume
               </button>
             </form>
           </div>
         </div>
+        <Footer />
       </div>
     )
   }
 
   if (!resumeData || !sharedInfo) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">No resume data available</p>
-        </div>
-      </div>
-    )
+    return <MessageView title="No resume data available" description="We couldn't locate any resume details for this share link." icon="🗂️" />
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">
-                {sharedInfo.resume.name}
-              </h1>
-              <span className="ml-3 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                Shared Resume
-              </span>
+    <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
+      <Navbar />
+      <header className="border-b border-border-subtle bg-surface-500/80 shadow-card backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-semibold text-white">{sharedInfo.resume.name}</h1>
+              <span className="badge">Shared</span>
             </div>
-            <div className="text-sm text-gray-500">
-              Shared on {new Date(sharedInfo.shared_info.created_at).toLocaleDateString()}
-            </div>
+            <p className="mt-2 text-sm text-text-secondary">
+              Template · {sharedInfo.resume.template} • Shared on{' '}
+              {new Date(sharedInfo.shared_info.created_at).toLocaleDateString()}
+            </p>
           </div>
+          {sharedInfo.shared_info.expires_at && (
+            <span className="surface-pill text-xs text-text-secondary">
+              Expires on {new Date(sharedInfo.shared_info.expires_at).toLocaleDateString()}
+            </span>
+          )}
         </div>
       </header>
 
-      {/* Resume Preview */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Resume Preview */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-              <div className="p-4 border-b bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">Resume Preview</h2>
-                  <div className="text-sm text-gray-600">
-                    Template: {sharedInfo.resume.template}
-                  </div>
-                </div>
-              </div>
-              <div className="p-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="rounded-[32px] border border-border-subtle bg-surface-500/70 shadow-card">
+            <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
+              <h2 className="text-base font-semibold text-white">Resume Preview</h2>
+              <span className="text-xs uppercase tracking-[0.3em] text-text-muted">Read only</span>
+            </div>
+            <div className="px-6 py-6">
+              <div className="overflow-hidden rounded-2xl border border-border-subtle bg-black/10">
                 <PreviewPanel
                   data={resumeData}
                   template={(sharedInfo.resume.template || 'tech') as 'tech' | 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern'}
@@ -200,30 +192,21 @@ export default function SharedResumePage() {
             </div>
           </div>
 
-          {/* Comments Sidebar */}
-          <div className="lg:col-span-1">
-            <SharedResumeComments 
-              shareToken={shareToken}
-              targetType="resume"
-              targetId="resume"
-            />
-          </div>
+          <aside className="rounded-[32px] border border-border-subtle bg-surface-500/70 shadow-card">
+            <div className="border-b border-border-subtle px-6 py-4">
+              <h3 className="text-base font-semibold text-white">Comments & Feedback</h3>
+              <p className="mt-1 text-xs text-text-secondary">
+                Add notes or highlight sections. Owners see updates instantly.
+              </p>
+            </div>
+            <div className="px-2 py-4 sm:px-4">
+              <SharedResumeComments shareToken={shareToken} targetType="resume" targetId="resume" />
+            </div>
+          </aside>
         </div>
-      </div>
+      </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="text-center text-sm text-gray-500">
-            <p>This resume was shared using EditResume.io</p>
-            <p className="mt-1">
-              {sharedInfo.shared_info.expires_at && (
-                <>Expires on {new Date(sharedInfo.shared_info.expires_at).toLocaleDateString()}</>
-              )}
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

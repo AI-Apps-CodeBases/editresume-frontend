@@ -1,22 +1,24 @@
-import Hero from '@/components/Hero'
-import Problem from '@/components/Problem'
-import Steps from '@/components/Steps'
-import Features from '@/components/Features'
-import Preview from '@/components/Preview'
-import Pricing from '@/components/Pricing'
-import FooterCTA from '@/components/FooterCTA'
+import Navbar from '@/components/layout/Navbar'
+import Footer from '@/components/layout/Footer'
+import HeroSection from '@/components/home/HeroSection'
+import FeatureGrid from '@/components/home/FeatureGrid'
+import StepsSection from '@/components/home/StepsSection'
+import TestimonialsSection from '@/components/home/TestimonialsSection'
+import CollaborationSection from '@/components/home/CollaborationSection'
 
 export default function Page() {
   return (
-    <main className="min-h-screen">
-      <Hero />
-      <Problem />
-      <Steps />
-      <Features />
-      <Preview />
-      <Pricing />
-      <FooterCTA />
-    </main>
+    <>
+      <Navbar />
+      <main className="min-h-screen">
+        <HeroSection />
+        <FeatureGrid />
+        <StepsSection />
+        <TestimonialsSection />
+        <CollaborationSection />
+      </main>
+      <Footer />
+    </>
   )
 }
 

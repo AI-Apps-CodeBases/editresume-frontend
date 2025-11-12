@@ -6,6 +6,9 @@ import SettingsPanel from '@/components/SettingsPanel'
 import config from '@/lib/config'
 import { auth } from '@/lib/firebaseClient'
 import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
+import Navbar from '@/components/layout/Navbar'
+import Footer from '@/components/layout/Footer'
+import { StatsPanel } from '@/components/home/StatsPanel'
 
 interface ResumeHistory {
   id: string
@@ -316,10 +319,10 @@ function ProfilePageContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4 animate-bounce">📄</div>
-          <p className="text-xl text-gray-600">Loading profile...</p>
+      <div className="flex min-h-screen items-center justify-center bg-body-gradient">
+        <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card">
+          <div className="mb-4 text-4xl animate-pulse">📄</div>
+          <p className="text-sm font-semibold text-text-secondary">Loading profile…</p>
         </div>
       </div>
     )
@@ -335,79 +338,81 @@ function ProfilePageContent() {
     accountAge: 'New User'
   }
 
+  const profileStats = [
+    { value: `${stats.resumesCreated}`, label: 'RESUMES', caption: 'Created' },
+    { value: `${stats.exportsThisMonth}`, label: 'EXPORTS', caption: 'This month' },
+    { value: stats.accountAge, label: 'ACCOUNT', caption: 'Status' },
+  ]
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
-      <header className="bg-white border-b shadow-sm">
-        <div className="mx-auto max-w-7xl px-4 py-4">
-          <div className="flex items-center justify-between">
-            <a href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              editresume.io
+    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
+      <Navbar />
+      <header className="border-b border-border-subtle bg-surface-500/80 shadow-card backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4">
+          <div className="text-sm text-text-secondary">
+            Personal workspace
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <a
+              href="/editor"
+              className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
+            >
+              ← Back to Editor
             </a>
-            <div className="flex gap-3">
-              <a
-                href="/editor"
-                className="px-4 py-2 rounded-lg border-2 border-blue-500 text-blue-600 hover:bg-blue-50 transition-all font-semibold"
-              >
-                ← Back to Editor
-              </a>
-              <button
-                onClick={logout}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-lg transition-all font-semibold"
-              >
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={logout}
+              className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-          <div className="flex items-start justify-between">
+      <div className="mx-auto w-full max-w-7xl px-4 py-16 space-y-10">
+        <div className="dashboard-card space-y-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-3xl font-bold">
+              <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-accent-gradientStart/40 text-3xl font-semibold text-white shadow-glow">
                 {user?.name?.charAt(0).toUpperCase()}
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">{user?.name}</h1>
-                <p className="text-gray-600">{user?.email}</p>
-                <div className="mt-2">
-                  {isPremiumMember ? (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-sm font-semibold">
-                      💎 Premium Member
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm font-semibold">
-                      🆓 Free Plan
-                    </span>
-                  )}
+                <h1 className="text-3xl font-semibold text-white">{user?.name}</h1>
+                <p className="mt-2 text-sm text-text-secondary">{user?.email}</p>
+                <div className="mt-4">
+                  {isPremiumMember ? <span className="badge-gradient">Premium Member</span> : <span className="badge">Free Plan</span>}
                 </div>
               </div>
             </div>
-            {!isPremiumMember && process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true' && (
-              <button
-                onClick={handleStartCheckout}
-                disabled={checkoutLoading || subscriptionLoading}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {checkoutLoading ? 'Processing…' : '⬆️ Upgrade to Premium'}
-              </button>
-            )}
+            <div className="flex flex-wrap gap-3">
+              {!isPremiumMember && process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true' && (
+                <button
+                  onClick={handleStartCheckout}
+                  disabled={checkoutLoading || subscriptionLoading}
+                  className="button-primary text-xs disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {checkoutLoading ? 'Processing…' : '⬆️ Upgrade to Premium'}
+                </button>
+              )}
+              <span className="surface-pill text-[11px]">
+                Status:{' '}
+                <strong className="ml-1 text-text-primary">
+                  {subscriptionStatus}
+                </strong>
+              </span>
+            </div>
           </div>
+          <StatsPanel stats={profileStats} />
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg mb-6">
-          <div className="border-b">
-            <div className="flex gap-1 p-2">
+        <div className="dashboard-card">
+          <div className="border-b border-border-subtle pb-4">
+            <div className="flex flex-wrap gap-2">
               {(['overview', 'history', 'resumes', 'jobs', 'billing', 'settings'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                    activeTab === tab
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
+                  className={`tab-pill ${activeTab === tab ? 'tab-pill-active' : 'tab-pill-muted'}`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
@@ -415,7 +420,7 @@ function ProfilePageContent() {
             </div>
           </div>
 
-          <div className="p-8">
+          <div className="mt-8 space-y-6">
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold text-gray-900">Account Overview</h2>
@@ -1163,6 +1168,7 @@ function ProfilePageContent() {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   )
 }
@@ -1171,10 +1177,10 @@ export default function ProfilePage() {
   return (
     <ProtectedRoute>
       <Suspense fallback={
-        <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-6xl mb-4 animate-bounce">📄</div>
-            <p className="text-xl text-gray-600">Loading profile...</p>
+        <div className="flex min-h-screen items-center justify-center bg-body-gradient">
+          <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card">
+            <div className="mb-4 text-4xl animate-pulse">📄</div>
+            <p className="text-sm font-semibold text-text-secondary">Loading profile…</p>
           </div>
         </div>
       }>

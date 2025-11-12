@@ -3,6 +3,13 @@ import type { Metadata } from 'next'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { ModalProvider } from '@/contexts/ModalContext'
+import { Plus_Jakarta_Sans } from 'next/font/google'
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sans',
+})
 
 export const metadata: Metadata = {
   title: 'editresume.io – Structured resume editor',
@@ -16,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-white text-gray-900 antialiased">
+      <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
         <AuthProvider>
           <SettingsProvider>
             <ModalProvider>

@@ -66,18 +66,16 @@ function LoginPageContent() {
   const isBusy = loading || googleLoading
 
   return (
-    <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-2xl">
+    <div className="w-full rounded-[32px] border border-border-subtle bg-surface-500/85 p-10 shadow-card backdrop-blur">
       <div className="mb-8 text-center">
         <div className="mb-4 text-4xl">🔐</div>
-        <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          Sign in to manage your resumes and saved jobs.
-        </p>
+        <h1 className="text-3xl font-semibold text-white">Welcome back</h1>
+        <p className="mt-2 text-sm text-text-secondary">Sign in to continue building magnetic resumes.</p>
       </div>
 
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div>
-          <label htmlFor="email" className="mb-2 block text-sm font-semibold text-gray-700">
+          <label htmlFor="email" className="mb-2 block text-xs font-semibold uppercase tracking-[0.35em] text-text-secondary">
             Email
           </label>
           <input
@@ -85,7 +83,7 @@ function LoginPageContent() {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:border-purple-400 focus:outline-none focus:ring-4 focus:ring-purple-100"
+            className="w-full rounded-2xl border border-border-subtle bg-surface-500/60 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
             placeholder="you@example.com"
             autoComplete="email"
             required
@@ -93,9 +91,9 @@ function LoginPageContent() {
         </div>
 
         <div>
-          <div className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-700">
+          <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-text-secondary">
             <label htmlFor="password">Password</label>
-            <Link href="/auth/reset" className="text-purple-600 hover:text-purple-500">
+            <Link href="/auth/reset" className="text-text-muted hover:text-text-primary">
               Forgot?
             </Link>
           </div>
@@ -104,7 +102,7 @@ function LoginPageContent() {
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:border-purple-400 focus:outline-none focus:ring-4 focus:ring-purple-100"
+            className="w-full rounded-2xl border border-border-subtle bg-surface-500/60 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
             placeholder="••••••••"
             autoComplete="current-password"
             minLength={6}
@@ -113,7 +111,7 @@ function LoginPageContent() {
         </div>
 
         {error && (
-          <div className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div className="rounded-2xl border border-accent-warning/40 bg-accent-warning/10 px-4 py-3 text-sm text-accent-warning">
             {error}
           </div>
         )}
@@ -121,37 +119,40 @@ function LoginPageContent() {
         <button
           type="submit"
           disabled={isBusy}
-          className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-sm font-semibold text-white transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+          className="button-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
 
       <div className="mt-6">
-        <div className="flex items-center gap-3">
-          <span className="h-px flex-1 bg-gray-200"></span>
-          <span className="text-xs uppercase tracking-wide text-gray-400">or continue with</span>
-          <span className="h-px flex-1 bg-gray-200"></span>
+        <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-muted">
+          <span className="h-px flex-1 bg-border-subtle" />
+          Or continue with
+          <span className="h-px flex-1 bg-border-subtle" />
         </div>
         <button
           type="button"
           onClick={handleGoogleSignIn}
           disabled={isBusy}
-          className="mt-4 flex w-full items-center justify-center gap-3 rounded-xl border-2 border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:border-purple-300 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-border-subtle bg-white/5 px-4 py-3 text-sm font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="text-xl">🔎</span>
           {googleLoading ? 'Connecting…' : 'Continue with Google'}
         </button>
       </div>
 
-      <p className="mt-8 text-center text-sm text-gray-500">
+      <p className="mt-8 text-center text-sm text-text-secondary">
         No account yet?{' '}
-        <Link href="/auth/signup" className="font-semibold text-purple-600 hover:text-purple-500">
+        <Link href="/auth/signup" className="font-semibold text-text-primary underline-offset-4 hover:underline">
           Create one
         </Link>
       </p>
-      <p className="mt-4 text-center text-xs text-gray-400">
-        Need help? <a href="mailto:support@editresume.io" className="underline">Contact support</a>
+      <p className="mt-4 text-center text-xs text-text-muted">
+        Need help?{' '}
+        <a href="mailto:support@editresume.io" className="font-semibold text-text-primary underline-offset-4 hover:underline">
+          Contact support
+        </a>
       </p>
     </div>
   )
@@ -161,10 +162,10 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary via-blue-600 to-purple-600">
-          <div className="rounded-3xl bg-white/90 px-10 py-8 text-center shadow-2xl">
+        <div className="flex min-h-screen items-center justify-center bg-body-gradient">
+          <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card">
             <div className="mb-4 text-3xl">🔐</div>
-            <p className="text-sm font-semibold text-gray-700">Preparing login form…</p>
+            <p className="text-sm font-semibold text-text-secondary">Preparing login form…</p>
           </div>
         </div>
       }

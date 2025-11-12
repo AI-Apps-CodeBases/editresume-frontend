@@ -6,6 +6,8 @@ import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import { auth } from '@/lib/firebaseClient'
+import Navbar from '@/components/layout/Navbar'
+import Footer from '@/components/layout/Footer'
 
 interface SubscriptionStatus {
   isPremium: boolean
@@ -205,147 +207,119 @@ function BillingContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white">
-      <header className="border-b border-white/10 bg-black/40 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <Link href="/" className="text-2xl font-semibold text-white hover:text-indigo-300 transition">
-            editresume.io
-          </Link>
-          <div className="flex items-center gap-3 text-sm">
-            <Link
-              href="/profile?tab=billing"
-              className="rounded-xl border border-white/20 px-4 py-2 text-white hover:border-indigo-400 hover:text-indigo-200 transition"
-            >
-              Back to dashboard
-            </Link>
-            <Link
-              href="/editor"
-              className="rounded-xl bg-indigo-500/90 px-4 py-2 font-semibold text-white hover:bg-indigo-400 transition"
-            >
-              Open editor
-            </Link>
+    <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className="rounded-[32px] border border-border-subtle bg-surface-500/80 p-10 shadow-card backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <div>
+            <span className="badge">SUBSCRIPTION OVERVIEW</span>
+            <h1 className="mt-4 text-3xl font-semibold text-white">
+              {isPremium ? 'Premium unlocked — keep shipping resumes.' : 'Upgrade to unlock the full resume OS'}
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm text-text-secondary">
+              Manage billing, sync invoices, and stay on top of your plan in a dark, cinematic workspace.
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-3 text-sm text-text-secondary sm:items-end sm:text-right">
+            <span className="surface-pill">
+              Status:{' '}
+              <span className="font-semibold text-text-primary">{loading ? 'Checking…' : subscriptionStatus}</span>
+            </span>
+            {nextBillingDate && (
+              <span className="surface-pill">
+                Renews on <span className="font-semibold text-text-primary">{nextBillingDate}</span>
+              </span>
+            )}
           </div>
         </div>
-      </header>
+        <div className="mt-8 flex flex-wrap gap-3 text-xs text-text-secondary sm:text-sm">
+          <span className="surface-pill">Signed in as {user?.email}</span>
+          {subscription?.stripeSubscriptionId && (
+            <span className="surface-pill">Subscription ID: {subscription.stripeSubscriptionId}</span>
+          )}
+          {subscription?.stripeCustomerId && (
+            <span className="surface-pill">Customer ID: {subscription.stripeCustomerId}</span>
+          )}
+        </div>
+        <div className="mt-8 flex flex-wrap gap-4 text-xs text-text-muted">
+          <Link href="/profile?tab=billing" className="button-secondary text-xs sm:text-sm">
+            Back to dashboard
+          </Link>
+          <Link href="/editor" className="button-primary text-xs sm:text-sm">
+            Open editor
+          </Link>
+        </div>
+      </div>
 
-      <main className="mx-auto flex min-h-[calc(100vh-80px)] w-full max-w-6xl flex-col gap-10 px-6 py-12">
-        <section className="rounded-3xl bg-white/10 p-8 shadow-2xl shadow-indigo-900/40 backdrop-blur-lg">
-          <div className="flex flex-wrap items-center justify-between gap-6">
-            <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-indigo-200">Subscription Overview</p>
-              <h1 className="mt-3 text-3xl font-bold text-white">
-                {isPremium ? 'You’re on Premium 🎉' : 'Upgrade to unleash every feature'}
-              </h1>
-              <p className="mt-2 max-w-xl text-indigo-100">
-                Manage your plan, access premium tools, and keep your resume optimized for every job.
-              </p>
-            </div>
-            <div className="flex flex-col items-end gap-2 text-right text-sm text-indigo-100">
-              <span className="rounded-full border border-indigo-300/40 px-4 py-1 font-semibold uppercase tracking-wide">
-                Status: <span className="text-white">{loading ? 'Checking…' : subscriptionStatus}</span>
-              </span>
-              {nextBillingDate && (
-                <span className="rounded-full border border-indigo-300/40 px-4 py-1">
-                  Renews on <span className="font-semibold text-white">{nextBillingDate}</span>
-                </span>
+      <div className="mt-12 grid gap-6 md:grid-cols-2">
+        {plans.map((plan) => {
+          const isCurrent = (plan.id === 'premium' && isPremium) || (plan.id === 'free' && !isPremium)
+          return (
+            <div
+              key={plan.id}
+              className={`relative overflow-hidden rounded-[32px] border border-border-subtle bg-surface-500/75 p-8 shadow-card transition hover:border-border-strong hover:shadow-glow ${
+                plan.highlight ? 'bg-gradient-to-br from-accent-gradientStart/35 via-surface-500/90 to-accent-gradientEnd/35' : ''
+              }`}
+            >
+              {plan.highlight && (
+                <div className="absolute right-5 top-5 rounded-pill bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
+                  Most loved
+                </div>
               )}
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3 text-sm text-indigo-100">
-            <span className="rounded-full bg-white/10 px-3 py-1">Signed in as {user?.email}</span>
-            {subscription?.stripeSubscriptionId && (
-              <span className="rounded-full bg-white/10 px-3 py-1">
-                Subscription ID: {subscription.stripeSubscriptionId}
-              </span>
-            )}
-            {subscription?.stripeCustomerId && (
-              <span className="rounded-full bg-white/10 px-3 py-1">
-                Customer ID: {subscription.stripeCustomerId}
-              </span>
-            )}
-          </div>
-        </section>
-
-        <section className="grid gap-6 md:grid-cols-2">
-          {plans.map((plan) => {
-            const isCurrent = (plan.id === 'premium' && isPremium) || (plan.id === 'free' && !isPremium)
-            const isPremiumPlan = plan.id === 'premium'
-
-            return (
-              <div
-                key={plan.id}
-                className={`relative overflow-hidden rounded-3xl border ${
-                  plan.highlight
-                    ? 'border-indigo-500/80 bg-gradient-to-br from-indigo-600/70 via-indigo-500/60 to-purple-600/70'
-                    : 'border-white/15 bg-white/5'
-                } p-8 shadow-lg transition hover:shadow-2xl`}
-              >
-                {plan.highlight && (
-                  <div className="absolute right-4 top-4 rounded-full bg-white/90 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700">
-                    Most popular
+              <h2 className="text-xl font-semibold text-white">{plan.name}</h2>
+              <p className="mt-2 text-sm text-text-secondary">{plan.headline}</p>
+              <div className="mt-6 flex items-baseline gap-2">
+                <span className="text-4xl font-semibold text-white">{plan.price}</span>
+                <span className="text-sm text-text-muted">{plan.cadence}</span>
+              </div>
+              <ul className="mt-6 space-y-3 text-sm text-text-secondary">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-center gap-2">
+                    <span className="text-accent-teal">●</span>
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 flex flex-col gap-3">
+                {plan.id === 'premium' ? (
+                  isPremium ? (
+                    <button
+                      onClick={handleManageSubscription}
+                      disabled={portalLoading}
+                      className="button-secondary justify-center disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {portalLoading ? 'Opening portal…' : 'Manage subscription'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCheckout}
+                      disabled={checkoutLoading}
+                      className="button-primary justify-center disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {checkoutLoading ? 'Starting checkout…' : 'Upgrade to Premium'}
+                    </button>
+                  )
+                ) : (
+                  <div className="rounded-[20px] border border-border-subtle bg-white/5 px-5 py-3 text-sm text-text-secondary">
+                    Always available with every account.
                   </div>
                 )}
-                <h2 className="text-xl font-semibold text-white">{plan.name}</h2>
-                <p className="mt-2 text-sm text-indigo-100">{plan.headline}</p>
-                <div className="mt-6 flex items-baseline gap-2">
-                  <span className="text-4xl font-bold text-white">{plan.price}</span>
-                  <span className="text-sm text-indigo-100">{plan.cadence}</span>
-                </div>
-                <ul className="mt-6 space-y-3 text-sm text-indigo-100">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2">
-                      <span className="text-lg">✅</span>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-8 flex flex-col gap-3">
-                  {plan.id === 'premium' ? (
-                    isPremium ? (
-                      <button
-                        onClick={handleManageSubscription}
-                        disabled={portalLoading}
-                        className="rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-semibold text-white shadow-lg backdrop-blur hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {portalLoading ? 'Opening portal…' : 'Manage subscription'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleCheckout}
-                        disabled={checkoutLoading}
-                        className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-indigo-700 shadow-lg hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {checkoutLoading ? 'Starting checkout…' : 'Upgrade to Premium'}
-                      </button>
-                    )
-                  ) : (
-                    <div className="rounded-xl border border-white/20 px-4 py-3 text-sm text-indigo-100">
-                      Always available with every account.
-                    </div>
-                  )}
-                  {isCurrent && (
-                    <span className="text-xs uppercase tracking-wider text-indigo-200">
-                      Currently on this plan
-                    </span>
-                  )}
-                </div>
+                {isCurrent && <span className="text-xs uppercase tracking-[0.3em] text-text-secondary">Current plan</span>}
               </div>
-            )
-          })}
-        </section>
+            </div>
+          )
+        })}
+      </div>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-8 text-indigo-100">
-          <h3 className="text-xl font-semibold text-white">Have a question?</h3>
-          <p className="mt-2 text-sm">
-            Need help with billing, invoices, or something doesn’t look right? Reach us at{' '}
-            <a className="font-semibold text-white underline" href="mailto:support@editresume.io">
-              support@editresume.io
-            </a>
-            .
-          </p>
-        </section>
-      </main>
+      <div className="mt-12 rounded-[28px] border border-border-subtle bg-surface-500/75 p-8 text-text-secondary shadow-card">
+        <h3 className="text-lg font-semibold text-white">Need a hand?</h3>
+        <p className="mt-2 text-sm">
+          Something off with billing or invoices? Reach us at{' '}
+          <a className="font-semibold text-text-primary underline" href="mailto:support@editresume.io">
+            support@editresume.io
+          </a>
+          .
+        </p>
+      </div>
     </div>
   )
 }
@@ -353,7 +327,13 @@ function BillingContent() {
 export default function BillingPage() {
   return (
     <ProtectedRoute>
-      <BillingContent />
+      <>
+        <Navbar />
+        <main className="min-h-screen">
+          <BillingContent />
+        </main>
+        <Footer />
+      </>
     </ProtectedRoute>
   )
 }

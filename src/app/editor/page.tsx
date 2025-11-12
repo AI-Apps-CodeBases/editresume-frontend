@@ -1330,25 +1330,34 @@ const EditorPageContent = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
+    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
       {mounted && !showWizard && (
-        <header className="bg-white border-b sticky top-0 z-20 shadow-sm">
-          <div className="w-full px-4 py-3">
-            <div className="flex items-center justify-between mobile-header">
-              <a href="/" className="text-xl font-bold text-primary">editresume.io</a>
-              <div className="flex gap-3 items-center mobile-header-buttons">
+        <header className="sticky top-0 z-30 border-b border-border-subtle bg-surface-500/85 shadow-card backdrop-blur">
+          <div className="mx-auto w-full max-w-7xl px-4 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mobile-header">
+              <a href="/" className="flex items-center gap-3 text-sm font-semibold text-white transition hover:opacity-80">
+                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 text-base shadow-glow">
+                  ER
+                </span>
+                <span className="hidden text-base sm:inline">editresume.io</span>
+              </a>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mobile-header-buttons">
                 {isAuthenticated ? (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <a
                       href="/profile"
-                      className="text-sm text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1"
+                      className="inline-flex items-center gap-2 rounded-pill border border-border-subtle bg-white/5 px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
                     >
                       👋 {user?.name}
-                      {user?.isPremium && <span className="ml-1 text-xs bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-0.5 rounded-full">PRO</span>}
+                      {user?.isPremium && (
+                        <span className="rounded-pill bg-white/15 px-2 py-0.5 text-[11px] text-accent-pink">
+                          PRO
+                        </span>
+                      )}
                     </a>
                     <button
                       onClick={logout}
-                      className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-red-400 hover:bg-red-50 transition-all font-semibold"
+                      className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
                     >
                       Logout
                     </button>
@@ -1356,21 +1365,21 @@ const EditorPageContent = () => {
                 ) : (
                   <button
                     onClick={() => setShowAuthModal(true)}
-                    className="text-sm px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 transition-all font-semibold"
+                    className="button-primary text-xs sm:text-sm"
                   >
                     🔐 Sign In
                   </button>
                 )}
                 <button
                   onClick={() => setShowCoverLetterGenerator(true)}
-                  className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all font-semibold"
+                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
                 >
                   📝 Cover Letter
                 </button>
                 {isAuthenticated && currentResumeId && (
                   <button
                     onClick={() => setShowShareResume(true)}
-                    className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all font-semibold"
+                    className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
                   >
                     🔗 Share
                   </button>
@@ -1443,7 +1452,7 @@ const EditorPageContent = () => {
                         alert(`Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
                       }
                     }}
-                    className="text-sm px-4 py-2 rounded-lg bg-gradient-to-r from-green-600 to-blue-600 text-white hover:shadow-lg transform hover:scale-105 transition-all font-semibold"
+                    className="rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px]"
                   >
                     💾 Save Resume
                   </button>
@@ -1453,13 +1462,13 @@ const EditorPageContent = () => {
                     console.log('New Resume button clicked')
                     setShowWizard(true)
                   }}
-                  className="text-sm px-4 py-2 rounded-lg border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all font-semibold"
+                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
                 >
                   ✨ New Resume
                 </button>
                 
                 {!resumeData.name && (
-                  <span className="text-xs text-gray-500 italic">
+                  <span className="text-[11px] italic text-text-muted">
                     Enter your name to enable export →
                   </span>
                 )}
@@ -1467,7 +1476,7 @@ const EditorPageContent = () => {
                 <button 
                   onClick={() => handleExport('docx')}
                   disabled={isExporting || !resumeData.name}
-                  className="text-sm px-5 py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold"
+                  className="rounded-pill bg-gradient-to-r from-accent-teal to-emerald-400 px-5 py-2 text-xs font-semibold text-surface-900 shadow-glow transition hover:translate-y-[-2px] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:translate-y-0"
                   title={!resumeData.name ? "Enter your name first" : "Export as DOCX"}
                 >
                   📄 Export DOCX
@@ -1475,7 +1484,7 @@ const EditorPageContent = () => {
                 <button 
                   onClick={() => handleExport('pdf')}
                   disabled={isExporting || !resumeData.name}
-                  className="text-sm px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none transition-all font-semibold shadow-md"
+                  className="rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:translate-y-0"
                   title={!resumeData.name ? "Enter your name first" : "Export as PDF"}
                 >
                   {isExporting ? '⏳ Exporting...' : '📥 Export PDF'}
@@ -2371,12 +2380,16 @@ const EditorPageContent = () => {
 
 export default function EditorPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Loading editor...</p>
-      </div>
-    </div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-body-gradient">
+          <div className="rounded-[28px] border border-border-subtle bg-surface-500/85 px-10 py-8 text-center shadow-card backdrop-blur">
+            <div className="mb-4 text-3xl animate-pulse">🛠️</div>
+            <p className="text-sm font-semibold text-text-secondary">Loading editor…</p>
+          </div>
+        </div>
+      }
+    >
       <EditorPageContent />
     </Suspense>
   )

@@ -46,18 +46,18 @@ export default function ResetPage() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-2xl">
+    <div className="w-full rounded-[32px] border border-border-subtle bg-surface-500/85 p-10 shadow-card backdrop-blur">
       <div className="mb-8 text-center">
         <div className="mb-4 text-4xl">📮</div>
-        <h1 className="text-3xl font-bold text-gray-900">Reset your password</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          Enter your email and we will send you a reset link.
+        <h1 className="text-3xl font-semibold text-white">Reset your password</h1>
+        <p className="mt-2 text-sm text-text-secondary">
+          Enter your email and we’ll send a fresh reset link.
         </p>
       </div>
 
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div>
-          <label htmlFor="email" className="mb-2 block text-sm font-semibold text-gray-700">
+          <label htmlFor="email" className="mb-2 block text-xs font-semibold uppercase tracking-[0.35em] text-text-secondary">
             Email
           </label>
           <input
@@ -65,7 +65,7 @@ export default function ResetPage() {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:border-purple-400 focus:outline-none focus:ring-4 focus:ring-purple-100"
+            className="w-full rounded-2xl border border-border-subtle bg-surface-500/60 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
             placeholder="you@example.com"
             autoComplete="email"
             required
@@ -73,13 +73,13 @@ export default function ResetPage() {
         </div>
 
         {error && (
-          <div className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div className="rounded-2xl border border-accent-warning/40 bg-accent-warning/10 px-4 py-3 text-sm text-accent-warning">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="rounded-xl border-2 border-green-200 bg-green-50 px-4 py-3 text-sm text-green-600">
+          <div className="rounded-2xl border border-accent-teal/50 bg-accent-teal/10 px-4 py-3 text-sm text-accent-teal">
             {success}
           </div>
         )}
@@ -87,22 +87,22 @@ export default function ResetPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-sm font-semibold text-white transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+          className="button-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
         >
           {loading ? 'Sending link…' : 'Send reset link'}
         </button>
       </form>
 
-      <div className="mt-8 space-y-2 text-center text-sm text-gray-500">
+      <div className="mt-8 space-y-2 text-center text-sm text-text-secondary">
         <p>
           Remembered your password?{' '}
-          <Link href="/auth/login" className="font-semibold text-purple-600 hover:text-purple-500">
+          <Link href="/auth/login" className="font-semibold text-text-primary underline-offset-4 hover:underline">
             Sign in
           </Link>
         </p>
         <p>
           Need an account?{' '}
-          <Link href="/auth/signup" className="font-semibold text-purple-600 hover:text-purple-500">
+          <Link href="/auth/signup" className="font-semibold text-text-primary underline-offset-4 hover:underline">
             Create one
           </Link>
         </p>
