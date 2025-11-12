@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import config from '@/lib/config'
 
 interface Props {
   onUploadSuccess: (data: any) => void
@@ -63,7 +64,8 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
       const formData = new FormData()
       formData.append('file', file)
 
-      const uploadUrl = `${process.env.NEXT_PUBLIC_API_BASE || 'https://editresume-staging.onrender.com'}/api/resume/upload`
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE || config.apiBase
+      const uploadUrl = `${baseUrl}/api/resume/upload`
       console.log('Upload URL:', uploadUrl)
 
       const response = await fetch(uploadUrl, {
