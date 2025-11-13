@@ -6,6 +6,7 @@ import SettingsPanel from '@/components/SettingsPanel'
 import config from '@/lib/config'
 import { auth } from '@/lib/firebaseClient'
 import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
+import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { StatsPanel } from '@/components/home/StatsPanel'
 
 interface ResumeHistory {
@@ -1154,6 +1155,8 @@ function ProfilePageContent() {
                     </button>
                   </div>
                 )}
+
+                <ResumeAutomationFlow />
               </div>
             )}
 

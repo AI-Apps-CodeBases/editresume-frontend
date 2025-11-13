@@ -57,14 +57,6 @@ export default function Navbar() {
             ))}
           </nav>
 
-          <div className="hidden items-center gap-3 lg:flex">
-            <Link href="/auth/login" className="button-ghost text-sm">
-              Login
-            </Link>
-            <Link href="/auth/signup" className="button-primary text-sm">
-              Create my resume
-            </Link>
-          </div>
 
           <button
             type="button"
@@ -100,14 +92,6 @@ export default function Navbar() {
                   {item.label}
                 </Link>
               ))}
-              <div className="mt-4 flex flex-col gap-3">
-                <Link href="/auth/login" onClick={() => setOpen(false)} className="button-secondary text-center text-sm">
-                  Login
-                </Link>
-                <Link href="/auth/signup" onClick={() => setOpen(false)} className="button-primary text-center text-sm">
-                  Create my resume
-                </Link>
-              </div>
             </nav>
           </div>
         )}
