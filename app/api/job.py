@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -36,44 +36,74 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/job-descriptions", tags=["jobs"])
 
 
+def get_user_email_from_request(
+    request: Request,
+    user_email: Optional[str] = None,
+) -> Optional[str]:
+    """Extract user email from Firebase auth or query parameter"""
+    # First try Firebase auth (for extension and frontend)
+    firebase_user = getattr(request.state, "firebase_user", None)
+    if firebase_user and firebase_user.get("email"):
+        return firebase_user["email"]
+    # Fallback to query parameter (for backward compatibility)
+    return user_email
+
+
 @router.post("")
 async def create_job_description(
     payload: dict,  # TODO: Create proper Pydantic model
+    request: Request,
     user_email: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """Create or update a job description"""
+    # Extract user email from Firebase auth or query parameter
+    email = get_user_email_from_request(request, user_email)
+    if email:
+        payload["user_email"] = email
     return create_or_update_job_description(payload, db)
 
 
 @router.get("")
 async def list_job_descriptions(
+    request: Request,
     user_email: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """List job descriptions for a user"""
-    return list_user_job_descriptions(user_email, db)
+    # Extract user email from Firebase auth or query parameter
+    email = get_user_email_from_request(request, user_email)
+    return list_user_job_descriptions(email, db)
 
 
 @router.get("/{jd_id}")
 async def get_job_description(
     jd_id: int,
+    request: Request,
     user_email: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """Get a specific job description"""
-    return get_job_description_detail(jd_id, user_email, db)
+    # Extract user email from Firebase auth or query parameter
+    email = get_user_email_from_request(request, user_email)
+    return get_job_description_detail(jd_id, email, db)
 
 
 @router.delete("/{jd_id}")
 async def delete_job_description(
     jd_id: int,
-    user_email: str = Query(..., description="User email for authentication"),
+    request: Request,
+    user_email: Optional[str] = Query(None, description="User email for authentication (optional if using Firebase auth)"),
     db: Session = Depends(get_db),
 ):
     """Delete a job description"""
     try:
-        user = db.query(User).filter(User.email == user_email).first()
+        # Extract user email from Firebase auth or query parameter
+        email = get_user_email_from_request(request, user_email)
+        if not email:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        user = db.query(User).filter(User.email == email).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -105,11 +135,15 @@ async def delete_job_description(
 async def update_job_description(
     jd_id: int,
     payload: JobDescriptionUpdate,
+    request: Request,
     user_email: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """Update specific fields of a job description"""
     try:
+        # Extract user email from Firebase auth or query parameter
+        email = get_user_email_from_request(request, user_email)
+        
         jd, jd_has_new_columns = safe_get_job_description(jd_id, db)
         if not jd:
             raise HTTPException(status_code=404, detail="Job description not found")
@@ -149,7 +183,7 @@ async def update_job_description(
         db.commit()
         db.refresh(jd)
 
-        return get_job_description_detail(jd_id, user_email, db)
+        return get_job_description_detail(jd_id, email, db)
     except HTTPException:
         raise
     except Exception as e:
