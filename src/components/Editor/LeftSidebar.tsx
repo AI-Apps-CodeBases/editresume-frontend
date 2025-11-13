@@ -14,6 +14,14 @@ interface Props {
   isConnected?: boolean
   activeUsers?: Array<{ user_id: string; name: string; joined_at: string }>
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
+  onOpenAIWizard?: () => void
+  onOpenAIImprovements?: () => void
+  onOpenCoverLetter?: () => void
+  onShowMatchView?: () => void
+  onShowAnalysisView?: () => void
+  onOpenGrammarPanel?: () => void
+  onOpenJobMatchAnalytics?: () => void
+  previewMode?: 'live' | 'match' | 'analysis'
 }
 
 export default function LeftSidebar({ 
@@ -25,7 +33,15 @@ export default function LeftSidebar({
   onLeaveRoom,
   isConnected = false,
   activeUsers = [],
-  onViewChange
+  onViewChange,
+  onOpenAIWizard,
+  onOpenAIImprovements,
+  onOpenCoverLetter,
+  onShowMatchView,
+  onShowAnalysisView,
+  onOpenGrammarPanel,
+  onOpenJobMatchAnalytics,
+  previewMode
 }: Props) {
   const { user, isAuthenticated } = useAuth()
   const [activeSection, setActiveSection] = useState<'jobs' | 'resumes' | 'collaboration' | null>(null)
@@ -104,6 +120,87 @@ export default function LeftSidebar({
     }
   ]
 
+  const aiShortcuts: Array<{
+    id: string
+    title: string
+    icon: string
+    description: string
+    onClick: () => void
+    isActive?: boolean
+  }> = []
+
+  if (onOpenAIWizard) {
+    aiShortcuts.push({
+      id: 'ai-wizard',
+      title: 'AI Content Wizard',
+      icon: '🤖',
+      description: 'Generate resume sections with guided prompts',
+      onClick: onOpenAIWizard
+    })
+  }
+
+  if (onOpenAIImprovements) {
+    aiShortcuts.push({
+      id: 'ai-improvements',
+      title: 'AI Resume Improvements',
+      icon: '✨',
+      description: 'Analyze and upgrade your resume instantly',
+      onClick: onOpenAIImprovements
+    })
+  }
+
+  if (onShowMatchView) {
+    aiShortcuts.push({
+      id: 'job-match',
+      title: 'Job Match Assistant',
+      icon: '🎯',
+      description: 'Compare your resume with job descriptions',
+      onClick: onShowMatchView,
+      isActive: previewMode === 'match'
+    })
+  }
+
+  if (onShowAnalysisView) {
+    aiShortcuts.push({
+      id: 'ats-analysis',
+      title: 'Enhanced ATS Analyzer',
+      icon: '📊',
+      description: 'Run our advanced ATS compatibility analysis',
+      onClick: onShowAnalysisView,
+      isActive: previewMode === 'analysis'
+    })
+  }
+
+  if (onOpenCoverLetter) {
+    aiShortcuts.push({
+      id: 'cover-letter',
+      title: 'Cover Letter Generator',
+      icon: '✉️',
+      description: 'Draft tailored cover letters in seconds',
+      onClick: onOpenCoverLetter
+    })
+  }
+
+  if (onOpenGrammarPanel) {
+    aiShortcuts.push({
+      id: 'grammar',
+      title: 'Grammar & Style Review',
+      icon: '📝',
+      description: 'Polish writing with AI-powered grammar checks',
+      onClick: onOpenGrammarPanel
+    })
+  }
+
+  if (onOpenJobMatchAnalytics) {
+    aiShortcuts.push({
+      id: 'job-analytics',
+      title: 'Job Match Analytics',
+      icon: '📈',
+      description: 'Review performance across job applications',
+      onClick: onOpenJobMatchAnalytics
+    })
+  }
+
   const handleItemClick = (itemId: string) => {
     if (itemId === 'jobs' && onViewChange) {
       onViewChange('jobs')
@@ -156,6 +253,33 @@ export default function LeftSidebar({
             )
           })}
         </div>
+
+        {aiShortcuts.length > 0 && (
+          <div className="px-3 pb-4">
+            <div className="px-1 pb-2">
+              <h3 className="text-xs font-semibold text-gray-500 tracking-wide uppercase">AI Features</h3>
+            </div>
+            <div className="space-y-2">
+              {aiShortcuts.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={item.onClick}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 ${
+                    item.isActive
+                      ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-2 border-purple-200 shadow-md'
+                      : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 text-gray-700 hover:shadow-sm hover:border hover:border-purple-200'
+                  }`}
+                >
+                  <div className="text-xl flex-shrink-0">{item.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm truncate">{item.title}</div>
+                    <p className="text-xs text-gray-500 truncate leading-relaxed">{item.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {activeSection && (
           <div className="p-3 border-t border-gray-200 bg-gray-50">

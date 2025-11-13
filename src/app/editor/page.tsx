@@ -1629,6 +1629,17 @@ const EditorPageContent = () => {
                     isConnected={collaboration.isConnected}
                     activeUsers={collaboration.activeUsers}
                     onViewChange={setCurrentView}
+                    previewMode={previewMode}
+                    onShowMatchView={() => setPreviewMode('match')}
+                    onShowAnalysisView={() => setPreviewMode('analysis')}
+                    onOpenAIWizard={() => setShowAIWizard(true)}
+                    onOpenAIImprovements={() => setShowAIImprovements(true)}
+                    onOpenCoverLetter={() => setShowCoverLetterGenerator(true)}
+                    onOpenGrammarPanel={() => {
+                      setGrammarEnabled(true)
+                      setShowGrammarPanel(true)
+                    }}
+                    onOpenJobMatchAnalytics={() => setShowJobMatchAnalytics(true)}
                     onAIImprove={async (text: string) => {
                       try {
                         console.log('AI Improve requested for:', text)

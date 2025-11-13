@@ -40,6 +40,14 @@ interface Props {
   isConnected?: boolean
   activeUsers?: Array<{ user_id: string; name: string; joined_at: string }>
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
+  onOpenAIWizard?: () => void
+  onOpenAIImprovements?: () => void
+  onOpenCoverLetter?: () => void
+  onShowMatchView?: () => void
+  onShowAnalysisView?: () => void
+  onOpenGrammarPanel?: () => void
+  onOpenJobMatchAnalytics?: () => void
+  previewMode?: 'live' | 'match' | 'analysis'
 }
 
 const isCompanyHeaderBullet = (bullet: Bullet) => {
@@ -120,7 +128,15 @@ export default function VisualResumeEditor({
   onLeaveRoom,
   isConnected = false,
   activeUsers = [],
-  onViewChange
+  onViewChange,
+  onOpenAIWizard,
+  onOpenAIImprovements,
+  onOpenCoverLetter,
+  onShowMatchView,
+  onShowAnalysisView,
+  onOpenGrammarPanel,
+  onOpenJobMatchAnalytics,
+  previewMode
 }: Props) {
   const [jdKeywords, setJdKeywords] = useState<{
     matching: string[];
@@ -1272,6 +1288,14 @@ export default function VisualResumeEditor({
           isConnected={isConnected}
           activeUsers={activeUsers}
           onViewChange={onViewChange}
+          onOpenAIWizard={onOpenAIWizard}
+          onOpenAIImprovements={onOpenAIImprovements}
+          onOpenCoverLetter={onOpenCoverLetter}
+          onShowMatchView={onShowMatchView}
+          onShowAnalysisView={onShowAnalysisView}
+          onOpenGrammarPanel={onOpenGrammarPanel}
+          onOpenJobMatchAnalytics={onOpenJobMatchAnalytics}
+          previewMode={previewMode}
         />
       </div>
 

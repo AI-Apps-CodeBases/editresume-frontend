@@ -116,6 +116,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.uid])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const MESSAGE_SOURCE = 'editresume-extension'
+    const TOKEN_REQUEST = 'EDITRESUME_EXTENSION_TOKEN_REQUEST'
+    const TOKEN_RESPONSE = 'EDITRESUME_EXTENSION_TOKEN_RESPONSE'
+
+    const handleExtensionTokenRequest = async (event: MessageEvent) => {
+      if (!event?.data || typeof event.data !== 'object') return
+      if (event.origin !== window.location.origin) return
+      const { type, source } = event.data as { type?: string; source?: string }
+      if (type !== TOKEN_REQUEST || source !== MESSAGE_SOURCE) return
+
+      const reply = (payload: Record<string, unknown>) => {
+        try {
+          event.source?.postMessage(
+            {
+              type: TOKEN_RESPONSE,
+              source: MESSAGE_SOURCE,
+              ...payload
+            },
+            event.origin
+          )
+        } catch (err) {
+          console.error('Failed to postMessage back to extension:', err)
+        }
+      }
+
+      if (!auth.currentUser) {
+        reply({ ok: false, error: 'not_authenticated' })
+        return
+      }
+
+      try {
+        const token = await auth.currentUser.getIdToken(true)
+        reply({ ok: true, token })
+      } catch (error) {
+        console.error('Failed to fetch Firebase ID token for extension:', error)
+        reply({ ok: false, error: 'token_error' })
+      }
+    }
+
+    window.addEventListener('message', handleExtensionTokenRequest)
+    return () => window.removeEventListener('message', handleExtensionTokenRequest)
+  }, [user?.uid])
+
   const signIn = useCallback(async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password)
   }, [])
