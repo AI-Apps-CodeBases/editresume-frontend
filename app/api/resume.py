@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -605,8 +605,6 @@ async def track_resume_view(
 ):
     """Track a view of a shared resume"""
     try:
-        from fastapi import Request
-
         shared_resume = (
             db.query(SharedResume)
             .filter(
