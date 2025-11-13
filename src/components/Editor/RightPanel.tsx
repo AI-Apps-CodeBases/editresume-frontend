@@ -3,12 +3,14 @@ import React, { useState } from 'react'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GrammarStylePanel from '@/components/AI/GrammarStylePanel'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
+import config from '@/lib/config'
 
 interface RightPanelProps {
   activeTab?: 'live' | 'match' | 'analysis' | 'grammar' | 'comments'
   onTabChange?: (tab: 'live' | 'match' | 'analysis' | 'grammar' | 'comments') => void
   leftSidebarCollapsed?: boolean
   onResumeUpdate?: (updatedResume: any) => void
+  onAIImprove?: (text: string, context?: string) => Promise<string>
   resumeData?: {
     name: string
     title: string
@@ -34,11 +36,13 @@ export default function RightPanel({
   onTabChange,
   leftSidebarCollapsed = false,
   onResumeUpdate,
+  onAIImprove,
   resumeData,
   template = 'clean'
 }: RightPanelProps) {
   const [atsScore] = useState(68)
   const [aiImprovements] = useState(2)
+  const [isApplyingImprovement, setIsApplyingImprovement] = useState<string | null>(null)
 
   const tabs = [
     { id: 'live' as const, label: 'Live', icon: '⚡' },
@@ -86,10 +90,100 @@ export default function RightPanel({
     }
   }
 
+  const handleApplyImprovement = async (suggestion: typeof suggestions[0]) => {
+    if (!resumeData || !onResumeUpdate) return
+
+    setIsApplyingImprovement(suggestion.id)
+    try {
+      // Map suggestion titles to API strategy names (matching backend strategy_mapping)
+      // Backend maps: "leadership" -> "leadership_emphasis", "achievements" -> "quantified_achievements", "ats" -> "ats_compatibility"
+      const strategyMap: Record<string, string> = {
+        'Highlight Leadership Experience': 'leadership', // Backend will map to "leadership_emphasis"
+        'Remove Special Characters': 'ats', // Backend will map to "ats_compatibility"
+        'Add Quantifiable Metrics': 'achievements', // Backend will map to "quantified_achievements"
+      }
+
+      const strategy = strategyMap[suggestion.title] || suggestion.title.toLowerCase().replace(/\s+/g, '_')
+
+      const cleanedResumeData = {
+        name: resumeData.name || '',
+        title: resumeData.title || '',
+        email: resumeData.email || '',
+        phone: resumeData.phone || '',
+        location: resumeData.location || '',
+        summary: resumeData.summary || '',
+        sections: (resumeData.sections || []).map((section: any) => ({
+          id: section.id,
+          title: section.title,
+          bullets: (section.bullets || []).map((bullet: any) => ({
+            id: bullet.id,
+            text: bullet.text,
+            params: {}
+          }))
+        }))
+      }
+
+      console.log('Applying improvement with strategy:', strategy)
+      console.log('Resume data:', cleanedResumeData)
+
+      const response = await fetch(`${config.apiBase}/api/ai/apply_improvement`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resume_data: cleanedResumeData,
+          job_description: '', // Optional, can be empty
+          target_role: '', // Optional, can be empty
+          industry: '', // Optional, can be empty
+          strategy: strategy
+        }),
+      })
+
+      console.log('API Response status:', response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('API Error response:', errorText)
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+      }
+
+      const result = await response.json()
+      console.log('Apply improvement result:', result)
+      
+      if (result.success) {
+        // API returns improved_content as text, not updated_resume
+        // Show success message with improved content
+        const { showCustomAlert } = await import('@/lib/modals')
+        await showCustomAlert(
+          `AI Improvement Applied!\n\n${result.improved_content || `Applied "${suggestion.title}" improvement successfully!`}`,
+          {
+            title: 'AI Improvement Applied!',
+            type: 'success',
+            icon: '✨'
+          }
+        )
+        
+        // Note: The API returns improved_content as text, not a structured resume object
+        // The user can manually apply the suggestions or we could enhance this to auto-apply
+        // For now, we just show the improved content in the alert
+      } else {
+        throw new Error(result.error || result.suggestions?.[0] || 'Failed to apply improvement')
+      }
+    } catch (error) {
+      console.error('Failed to apply improvement:', error)
+      const { showCustomAlert } = await import('@/lib/modals')
+      showCustomAlert(
+        `Failed to apply "${suggestion.title}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { title: 'Error', type: 'error' }
+      )
+    } finally {
+      setIsApplyingImprovement(null)
+    }
+  }
+
   return (
-    <div className={`bg-white border-l border-gray-200 flex flex-col h-full custom-scrollbar transition-all duration-300 ${
-      leftSidebarCollapsed ? 'w-[600px]' : 'w-[500px]'
-    }`}>
+    <div className="bg-white border-l border-gray-200 flex flex-col h-full w-full custom-scrollbar transition-all duration-300">
       {/* Tabs */}
       <div className="flex items-center border-b border-gray-200 bg-gray-50">
         {tabs.map((tab) => (
@@ -170,8 +264,12 @@ export default function RightPanel({
                         </div>
                       </div>
                     </div>
-                    <button className="w-full px-3 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-                      Apply with AI
+                    <button 
+                      onClick={() => handleApplyImprovement(suggestion)}
+                      disabled={isApplyingImprovement === suggestion.id}
+                      className="w-full px-3 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isApplyingImprovement === suggestion.id ? 'Applying...' : 'Apply with AI'}
                     </button>
                   </div>
                 ))}

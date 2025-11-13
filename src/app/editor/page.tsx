@@ -8,7 +8,7 @@ import GlobalReplacements from '@/components/AI/GlobalReplacements'
 import TemplateSelector from '@/components/Resume/TemplateSelector'
 import NewResumeWizard from '@/components/Editor/NewResumeWizard'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
-import VisualResumeEditor from '@/components/Editor/VisualResumeEditor'
+import ModernEditorLayout from '@/components/Editor/ModernEditorLayout'
 import AIWizard from '@/components/AI/AIWizard'
 import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 import EnhancedATSScoreWidget from '@/components/AI/EnhancedATSScoreWidget'
@@ -1377,980 +1377,239 @@ const EditorPageContent = () => {
     }
   }
 
-  return (
-    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
-      {mounted && !showWizard && (
-        <header className="sticky top-0 z-30 border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)] backdrop-blur">
-          <div className="mx-auto w-full max-w-7xl px-4 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 mobile-header">
-              <a href="/" className="flex items-center gap-3 text-sm font-semibold text-text-primary transition hover:opacity-80">
-                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary-50 text-base font-semibold text-primary-600 shadow-[0_14px_26px_rgba(15,23,42,0.12)]">
-                  ER
-                </span>
-                <span className="hidden text-base sm:inline">editresume.io</span>
-              </a>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mobile-header-buttons">
-                {isAuthenticated ? (
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <a
-                      href="/profile"
-                      className="inline-flex items-center gap-2 rounded-pill border border-border-subtle bg-white px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-primary-200 hover:text-text-primary"
-                    >
-                      👋 {user?.name}
-                      {user?.isPremium && (
-                        <span className="rounded-pill bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-700">
-                          PRO
-                        </span>
-                      )}
-                    </a>
-                    <button
-                      onClick={logout}
-                      className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowAuthModal(true)}
-                    className="button-primary text-xs sm:text-sm"
-                  >
-                    🔐 Sign In
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowCoverLetterGenerator(true)}
-                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                >
-                  📝 Cover Letter
-                </button>
-                {isAuthenticated && currentResumeId && (
-                  <button
-                    onClick={() => setShowShareResume(true)}
-                    className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                  >
-                    🔗 Share
-                  </button>
-                )}
-                {isAuthenticated && user && (
-                  <button
-                    onClick={async () => {
-                      if (!resumeData.name && !resumeData.sections?.length) {
-                        alert('Please add some content to your resume before saving');
-                        return;
-                      }
-                      const resumeName = prompt('Enter a name for this resume:', resumeData.name || 'My Resume');
-                      if (!resumeName) return;
-                      
-                      try {
-                        const cleanedSections = resumeData.sections.map((section: any) => ({
-                          id: section.id,
-                          title: section.title,
-                          bullets: section.bullets.map((bullet: any) => ({
-                            id: bullet.id,
-                            text: bullet.text,
-                            params: {}
-                          }))
-                        }));
-                        
-                        const response = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            name: resumeName,
-                            title: resumeData.title || '',
-                            email: resumeData.email || '',
-                            phone: resumeData.phone || '',
-                            location: resumeData.location || '',
-                            summary: resumeData.summary || '',
-                            sections: cleanedSections,
-                            template: selectedTemplate
-                          })
-                        });
-                        
-                        if (response.ok) {
-                          const result = await response.json();
-                          if (result.success) {
-                            setCurrentResumeId(result.resume_id);
-                            
-                            // Show toast notification instead of navigating
-                            const notification = document.createElement('div');
-                            notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
-                            notification.innerHTML = `
-                              <div class="flex items-center gap-3">
-                                <div class="text-2xl">✅</div>
-                                <div>
-                                  <div class="font-bold text-lg">Resume Saved!</div>
-                                  <div class="text-sm mt-1">${resumeName}</div>
-                                  <div class="text-xs mt-1 text-green-100">Saved to Master Resumes</div>
-                                </div>
-                                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
-                              </div>
-                            `;
-                            document.body.appendChild(notification);
-                            setTimeout(() => notification.remove(), 5000);
-                          } else {
-                            throw new Error(result.message || 'Save failed');
-                          }
-                        } else {
-                          throw new Error(`HTTP ${response.status}`);
-                        }
-                      } catch (error) {
-                        console.error('Failed to save resume:', error);
-                        alert(`Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                      }
-                    }}
-                    className="rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px]"
-                  >
-                    💾 Save Resume
-                  </button>
-                )}
-                <button
-                  onClick={() => router.push('/upload')}
-                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                >
-                  📤 Upload Resume
-                </button>
-                <button
-                  onClick={() => {
-                    console.log('New Resume button clicked')
-                    setShowWizard(true)
-                  }}
-                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                >
-                  ✨ New Resume
-                </button>
-                
-                {!resumeData.name && (
-                  <span className="text-[11px] italic text-text-muted">
-                    Enter your name to enable export →
-                  </span>
-                )}
-
-                <div className="relative" ref={exportMenuRef}>
-                  <button
-                    onClick={() => setExportMenuOpen((prev) => !prev)}
-                    className="inline-flex items-center gap-2 rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px]"
-                    disabled={isExporting}
-                    aria-haspopup="menu"
-                    aria-expanded={exportMenuOpen}
-                  >
-                    {isExporting ? '⏳ Exporting...' : '📤 Export'}
-                    <span className="text-[10px]">▾</span>
-                  </button>
-                  {exportMenuOpen && (
-                    <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-border-subtle bg-white p-2 shadow-lg">
-                      <button
-                        className={`w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                          (!resumeData.name || isExporting)
-                            ? 'cursor-not-allowed text-text-muted opacity-50'
-                            : 'text-text-primary hover:bg-primary-50'
-                        }`}
-                        onClick={() => {
-                          setExportMenuOpen(false)
-                          handleExportOption('pdf')
-                        }}
-                        disabled={!resumeData.name || isExporting}
-                      >
-                        📥 Export PDF
-                      </button>
-                      <button
-                        className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                          (!resumeData.name || isExporting)
-                            ? 'cursor-not-allowed text-text-muted opacity-50'
-                            : 'text-text-primary hover:bg-primary-50'
-                        }`}
-                        onClick={() => {
-                          setExportMenuOpen(false)
-                          handleExportOption('docx')
-                        }}
-                        disabled={!resumeData.name || isExporting}
-                      >
-                        📝 Export DOCX
-                      </button>
-                      <button
-                        className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                          (!latestCoverLetter || isExporting)
-                            ? 'cursor-not-allowed text-text-muted opacity-50'
-                            : 'text-text-primary hover:bg-primary-50'
-                        }`}
-                        onClick={() => {
-                          setExportMenuOpen(false)
-                          handleExportOption('cover-letter')
-                        }}
-                        disabled={!latestCoverLetter || isExporting}
-                      >
-                        ✉️ Export Cover Letter (PDF)
-                      </button>
-                      {!latestCoverLetter && (
-                        <p className="mt-2 px-3 text-[11px] text-text-muted">
-                          Generate a cover letter to enable this option.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
+  // Handler for Save Resume button
+  const handleSaveResume = async () => {
+    if (!resumeData.name && !resumeData.sections?.length) {
+      alert('Please add some content to your resume before saving');
+      return;
+    }
+    const resumeName = prompt('Enter a name for this resume:', resumeData.name || 'My Resume');
+    if (!resumeName) return;
+    
+    if (!isAuthenticated || !user?.email) {
+      setShowAuthModal(true);
+      return;
+    }
+    
+    try {
+      const cleanedSections = resumeData.sections.map((section: any) => ({
+        id: section.id,
+        title: section.title,
+        bullets: section.bullets.map((bullet: any) => ({
+          id: bullet.id,
+          text: bullet.text,
+          params: {}
+        }))
+      }));
+      
+      const response = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: resumeName,
+          title: resumeData.title || '',
+          email: resumeData.email || '',
+          phone: resumeData.phone || '',
+          location: resumeData.location || '',
+          summary: resumeData.summary || '',
+          sections: cleanedSections,
+          template: selectedTemplate
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setCurrentResumeId(result.resume_id);
+          
+          // Show toast notification
+          const notification = document.createElement('div');
+          notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
+          notification.innerHTML = `
+            <div class="flex items-center gap-3">
+              <div class="text-2xl">✅</div>
+              <div>
+                <div class="font-bold text-lg">Resume Saved!</div>
+                <div class="text-sm mt-1">${resumeName}</div>
+                <div class="text-xs mt-1 text-green-100">Saved to Master Resumes</div>
               </div>
+              <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
             </div>
-          </div>
-        </header>
+          `;
+          document.body.appendChild(notification);
+          setTimeout(() => notification.remove(), 5000);
+        } else {
+          throw new Error(result.message || 'Save failed');
+        }
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Failed to save resume:', error);
+      alert(`Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Handler for Upload Resume button
+  const handleUploadResume = () => {
+    router.push('/upload');
+  };
+
+  // Handler for New Resume button
+  const handleNewResume = () => {
+    setShowWizard(true);
+  };
+
+  // Handler for Export (convert handleExportOption to match expected format)
+  const handleExportForLayout = async (format: 'pdf' | 'docx' | 'cover-letter') => {
+    await handleExportOption(format);
+  };
+
+  if (!mounted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="mb-4 text-3xl animate-pulse">🛠️</div>
+          <p className="text-sm font-semibold text-gray-600">Loading editor…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showWizard) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <NewResumeWizard
+          onComplete={handleWizardComplete}
+          onCancel={() => setShowWizard(false)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 overflow-hidden">
+      <ModernEditorLayout
+        resumeData={resumeData}
+        onResumeUpdate={handleResumeDataChange}
+        onViewChange={setCurrentView}
+        currentView={currentView}
+        template={selectedTemplate}
+        onAddContent={handleAddContent}
+        roomId={roomId}
+        onAddComment={handleAddComment}
+        onResolveComment={handleResolveComment}
+        onDeleteComment={handleDeleteComment}
+        onCreateRoom={handleCreateRoom}
+        onJoinRoom={handleJoinRoom}
+        onLeaveRoom={handleLeaveRoom}
+        isConnected={collaboration.isConnected}
+        activeUsers={collaboration.activeUsers}
+        onAIImprove={async (text: string) => {
+          try {
+            console.log('AI Improve requested for:', text)
+            const response = await fetch(`${config.apiBase}/api/openai/improve-bullet`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ bullet: text, tone: 'professional' })
+            })
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`)
+            }
+            
+            const data = await response.json()
+            console.log('AI Improve response:', data)
+            
+            let improved = data.improved || data.improved_bullet || text
+            improved = improved.replace(/^["']|["']$/g, '')
+            
+            console.log('Final improved text:', improved)
+            return improved
+          } catch (error) {
+            console.error('AI improvement failed:', error)
+            alert('AI improvement failed: ' + (error as Error).message)
+            return text
+          }
+        }}
+        onNewResume={handleNewResume}
+        onSaveResume={handleSaveResume}
+        onUploadResume={handleUploadResume}
+        onExport={handleExportForLayout}
+        isExporting={isExporting}
+        hasCoverLetter={!!latestCoverLetter}
+        userName={userName}
+        isAuthenticated={isAuthenticated}
+        onLogout={logout}
+        onSignIn={() => setShowAuthModal(true)}
+      />
+
+      {/* Modals */}
+      {showAuthModal && (
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+        />
       )}
 
-      <div className="w-full px-4 py-4">
-        {!mounted || showWizard ? (
-          <NewResumeWizard
-            onComplete={handleWizardComplete}
-            onCancel={() => setShowWizard(false)}
-          />
-        ) : currentView === 'jobs' ? (
-          <JobsView onBack={() => setCurrentView('editor')} />
-        ) : currentView === 'resumes' ? (
-          <ResumesView onBack={() => setCurrentView('editor')} />
-        ) : (
-          <div className="space-y-4">
-            {/* Visual Editor */}
-            <div className="space-y-4">
-              {/* Two Column Layout for Visual Editor - 60/40 split */}
-              <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 mobile-editor-grid">
-                {/* Left - Visual Editor (60% of screen) */}
-                <div className="lg:col-span-6 space-y-4 mobile-editor-full">
-                  <VisualResumeEditor
-                    data={resumeData}
-                    onChange={handleResumeDataChange}
-                    template={selectedTemplate}
-                    onAddContent={handleAddContent}
-                    roomId={roomId}
-                    onAddComment={handleAddComment}
-                    onResolveComment={handleResolveComment}
-                    onDeleteComment={handleDeleteComment}
-                    onCreateRoom={handleCreateRoom}
-                    onJoinRoom={handleJoinRoom}
-                    onLeaveRoom={handleLeaveRoom}
-                    isConnected={collaboration.isConnected}
-                    activeUsers={collaboration.activeUsers}
-                    onViewChange={setCurrentView}
-                    onAIImprove={async (text: string) => {
-                      try {
-                        console.log('AI Improve requested for:', text)
-                        const response = await fetch(`${config.apiBase}/api/openai/improve-bullet`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ bullet: text, tone: 'professional' })
-                        })
-                        
-                        if (!response.ok) {
-                          throw new Error(`HTTP error! status: ${response.status}`)
-                        }
-                        
-                        const data = await response.json()
-                        console.log('AI Improve response:', data)
-                        
-                        let improved = data.improved || data.improved_bullet || text
-                        improved = improved.replace(/^["']|["']$/g, '')
-                        
-                        console.log('Final improved text:', improved)
-                        return improved
-                      } catch (error) {
-                        console.error('AI improvement failed:', error)
-                        alert('AI improvement failed: ' + (error as Error).message)
-                        return text
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Right - Live Preview (40% of screen) */}
-                <div className="lg:col-span-4 mobile-preview-bottom">
-                  <div className="sticky top-4">
-                    <div className="bg-white rounded-xl shadow-lg p-4 border">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-gray-700">📄 {previewMode === 'live' ? 'Live Preview' : previewMode === 'match' ? 'Match Job Description' : 'Analysis'}</h3>
-                          <div className="inline-flex bg-gray-100 rounded-lg p-1 text-xs">
-                            <button
-                              className={`px-3 py-1 rounded-md ${previewMode === 'live' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-                              onClick={() => setPreviewMode('live')}
-                            >
-                              Live
-                            </button>
-                            <button
-                              className={`px-3 py-1 rounded-md ${previewMode === 'match' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-                              onClick={() => setPreviewMode('match')}
-                            >
-                              Match JD
-                            </button>
-                            <button
-                              className={`px-3 py-1 rounded-md ${previewMode === 'analysis' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-                              onClick={() => setPreviewMode('analysis')}
-                            >
-                              Analysis
-                            </button>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 mobile-preview-controls">
-                          {/* Grammar Check Switch */}
-                          <button
-                            onClick={() => {
-                              setGrammarEnabled(!grammarEnabled)
-                              setShowGrammarPanel(!grammarEnabled)
-                            }}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                              grammarEnabled
-                                ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-                                : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
-                            }`}
-                            title="Toggle Grammar Check"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <span>Grammar</span>
-                          </button>
-                          
-                          {/* Comments Switch */}
-                          <button
-                            onClick={() => {
-                              setCommentsEnabled(!commentsEnabled)
-                              setShowCommentsPanel(!commentsEnabled)
-                            }}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                              commentsEnabled
-                                ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                                : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
-                            }`}
-                            title="Toggle Comments"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            <span>Comments</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (previewMode !== 'live') setPreviewMode('live')
-                              setFullscreenPreview(true)
-                            }}
-                            disabled={previewMode !== 'live'}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${previewMode === 'live' ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
-                            title={previewMode === 'live' ? 'View fullscreen preview' : 'Fullscreen available only in Live mode'}
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                            </svg>
-                            Full Page
-                          </button>
-                          <div className="mobile-preview-scale">
-                            <button
-                              onClick={() => setPreviewScale(Math.max(0.4, previewScale - 0.1))}
-                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold touch-target"
-                            >
-                              −
-                            </button>
-                            <span className="text-xs text-gray-600 min-w-[45px] text-center">{Math.round(previewScale * 100)}%</span>
-                            <button
-                              onClick={() => setPreviewScale(Math.min(1, previewScale + 0.1))}
-                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-sm font-semibold touch-target"
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div 
-                      className="overflow-y-auto overflow-x-hidden border-2 rounded-lg bg-gray-50 flex justify-center" 
-                      style={{ 
-                        maxHeight: 'calc(100vh - 300px)',
-                        minHeight: '400px'
-                      }}
-                    >
-                      {previewMode === 'live' ? (
-                        <div style={{ 
-                          transform: `scale(${previewScale})`,
-                          transformOrigin: 'top center',
-                          width: '850px',
-                          margin: '0 auto'
-                        }}>
-                          <PreviewPanel
-                            key={previewKey}
-                            data={resumeData}
-                            replacements={replacements}
-                            template={selectedTemplate}
-                          />
-                        </div>
-                      ) : previewMode === 'match' ? (
-                        <div className="p-3 w-full max-w-4xl">
-                          <JobDescriptionMatcher
-                            resumeData={resumeData as any}
-                            standalone={false}
-                            onClose={() => {}}
-                            onResumeUpdate={(updatedResume) => {
-                              setResumeData(updatedResume);
-                              setPreviewKey(prev => prev + 1);
-                              if (typeof window !== 'undefined') {
-                                try {
-                                  localStorage.setItem('resumeData', JSON.stringify(updatedResume));
-                                  console.log('💾 Improved resume saved to localStorage');
-                                } catch (error) {
-                                  console.error('Error saving improved resume:', error);
-                                }
-                              }
-                            }}
-                            initialJobDescription={deepLinkedJD || undefined}
-                            onSelectJobDescriptionId={(id) => {
-                              setActiveJobDescriptionId(id);
-                              // Also fetch and save the JD content
-                              if (id) {
-                                fetch(`${config.apiBase}/api/job-descriptions/${id}`)
-                                  .then(res => res.ok ? res.json() : null)
-                                  .then(data => {
-                                    if (data && data.content) {
-                                      setDeepLinkedJD(data.content);
-                                      if (typeof window !== 'undefined') {
-                                        localStorage.setItem('deepLinkedJD', data.content);
-                                      }
-                                    }
-                                  })
-                                  .catch(() => {})
-                              }
-                            }}
-                            currentJobDescriptionId={activeJobDescriptionId}
-                          />
-                        </div>
-                      ) : (
-                        <div className="p-3 w-full max-w-4xl">
-                          <EnhancedATSScoreWidget resumeData={resumeData as any} onClose={() => {}} inline={true} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* AI Content Wizard */}
-                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4 mt-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-purple-900 mb-1">🤖 AI Content Wizard</h3>
-                      <p className="text-sm text-purple-700">Add new content to your resume with AI assistance</p>
-                    </div>
-                    <button
-                      onClick={() => setShowAIWizard(true)}
-                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
-                    >
-                      ✨ Open AI Wizard
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white rounded-lg p-4 border border-purple-200 text-center">
-                      <div className="text-2xl mb-2">💼</div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Add Jobs</h4>
-                      <p className="text-xs text-gray-600">Add work experience with AI-generated content</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-purple-200 text-center">
-                      <div className="text-2xl mb-2">🚀</div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Add Projects</h4>
-                      <p className="text-xs text-gray-600">Create project entries with technical details</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-purple-200 text-center">
-                      <div className="text-2xl mb-2">🛠️</div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Add Skills</h4>
-                      <p className="text-xs text-gray-600">Generate categorized skills sections</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-xs text-blue-700">
-                      💡 <strong>How it works:</strong> Tell the AI what you want to add (e.g., "Add a DevOps job at Google with Jenkins and Kubernetes experience"), and it will generate realistic content that fits your resume perfectly.
-                      </p>
-                    </div>
-                  
-                </div>
-
-
-                {/* AI-Powered Resume Improvements */}
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-purple-900 mb-1">🤖 AI-Powered Resume Improvements</h3>
-                      <p className="text-sm text-purple-700">Get intelligent suggestions to optimize your resume with 10 proven improvement strategies</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setPreviewMode('analysis')}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
-                      >
-                        🎯 Enhanced ATS Score
-                      </button>
-                      <button
-                        onClick={() => setShowAIImprovements(true)}
-                        className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
-                      >
-                        ✨ AI Improvements
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white rounded-lg p-4 border border-purple-200">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="text-2xl">🎯</div>
-                        <h4 className="font-semibold text-gray-900">Enhanced ATS Analysis</h4>
-                      </div>
-                      <p className="text-xs text-gray-600 mb-3">Comprehensive ATS compatibility scoring with AI-powered improvement suggestions</p>
-                      <ul className="text-xs text-gray-600 space-y-1">
-                        <li>• Structure & formatting analysis</li>
-                        <li>• Keyword optimization scoring</li>
-                        <li>• Job description alignment</li>
-                        <li>• Content quality assessment</li>
-                      </ul>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-purple-200">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="text-2xl">✨</div>
-                        <h4 className="font-semibold text-gray-900">10 AI Improvement Strategies</h4>
-                      </div>
-                      <p className="text-xs text-gray-600 mb-3">Intelligent suggestions based on proven resume improvement techniques</p>
-                      <ul className="text-xs text-gray-600 space-y-1">
-                        <li>• Professional summary enhancement</li>
-                        <li>• Quantified achievements</li>
-                        <li>• Career transition support</li>
-                        <li>• Leadership emphasis</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                    <p className="text-xs text-purple-700">
-                      💡 <strong>How it works:</strong> Our AI analyzes your resume using 10 proven improvement strategies, from professional summary enhancement to ATS optimization. Get specific, actionable suggestions with examples and apply them with one click.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Cover Letter Generator */}
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-green-900 mb-1">📝 Cover Letter Generator</h3>
-                      <p className="text-sm text-green-700">Generate tailored cover letters with AI that match your resume to specific job applications</p>
-                    </div>
-                    <button
-                      onClick={() => setShowCoverLetterGenerator(true)}
-                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
-                    >
-                      ✨ Generate Cover Letter
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
-                      <div className="text-2xl mb-2">🎯</div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Tailored Content</h4>
-                      <p className="text-xs text-gray-600">AI matches your experience to job requirements</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
-                      <div className="text-2xl mb-2">✏️</div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Customizable</h4>
-                      <p className="text-xs text-gray-600">Edit each paragraph to your preference</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
-                      <div className="text-2xl mb-2">📄</div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Export Ready</h4>
-                      <p className="text-xs text-gray-600">Export as PDF or DOCX with your resume</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <p className="text-xs text-green-700">
-                      💡 <strong>How it works:</strong> Enter the company name, job title, and job description. Choose your preferred tone (professional, friendly, or concise), and AI will generate a personalized cover letter that highlights your relevant experience.
-                    </p>
-                  </div>
-                </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Fullscreen Preview Modal */}
-      {fullscreenPreview && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-8">
-          <div className="relative w-full h-full max-w-[900px] max-h-full flex flex-col">
-            {/* Controls */}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white text-lg font-bold">Full Page Preview - {selectedTemplate}</h2>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setPreviewScale(Math.max(0.5, previewScale - 0.1))}
-                  className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-lg font-semibold"
-                >
-                  −
-                </button>
-                <span className="text-white font-semibold min-w-[60px] text-center">{Math.round(previewScale * 100)}%</span>
-                <button
-                  onClick={() => setPreviewScale(Math.min(1.5, previewScale + 0.1))}
-                  className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-lg font-semibold"
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => setFullscreenPreview(false)}
-                  className="ml-4 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Close
-                </button>
-              </div>
-            </div>
-            
-            {/* Preview Content */}
-            <div className="flex-1 overflow-auto bg-gray-900 rounded-lg p-8 flex justify-center">
-              <div 
-                className="bg-white shadow-2xl"
-                style={{ 
-                  transform: `scale(${previewScale})`,
-                  transformOrigin: 'top center',
-                  width: '850px',
-                  margin: '0 auto'
+      {/* Keep all other modals */}
+      {showAIWizard && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-xl font-bold">AI Content Wizard</h2>
+              <button
+                onClick={() => {
+                  setShowAIWizard(false)
+                  setAiWizardContext(null)
                 }}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
               >
-                {/* Fullscreen always shows Live Preview */}
-                <PreviewPanel
-                  data={resumeData}
-                  replacements={replacements}
-                  template={selectedTemplate}
-                />
-              </div>
+                ×
+              </button>
             </div>
-
-            {/* Quick Actions */}
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <div className="relative" ref={fullscreenExportMenuRef}>
-                <button
-                  onClick={() => setFullscreenExportMenuOpen((prev) => !prev)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
-                  disabled={isExporting}
-                  aria-haspopup="menu"
-                  aria-expanded={fullscreenExportMenuOpen}
-                >
-                  {isExporting ? '⏳ Exporting...' : '📤 Export'}
-                  <span className="text-sm">▾</span>
-                </button>
-                {fullscreenExportMenuOpen && (
-                  <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-border-subtle bg-white p-2 shadow-lg">
-                    <button
-                      className={`w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                        (!resumeData.name || isExporting)
-                          ? 'cursor-not-allowed text-text-muted opacity-50'
-                          : 'text-text-primary hover:bg-primary-50'
-                      }`}
-                      onClick={() => {
-                        setFullscreenExportMenuOpen(false)
-                        handleExportOption('pdf')
-                      }}
-                      disabled={!resumeData.name || isExporting}
-                    >
-                      📥 Export PDF
-                    </button>
-                    <button
-                      className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                        (!resumeData.name || isExporting)
-                          ? 'cursor-not-allowed text-text-muted opacity-50'
-                          : 'text-text-primary hover:bg-primary-50'
-                      }`}
-                      onClick={() => {
-                        setFullscreenExportMenuOpen(false)
-                        handleExportOption('docx')
-                      }}
-                      disabled={!resumeData.name || isExporting}
-                    >
-                      📝 Export DOCX
-                    </button>
-                    <button
-                      className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                        (!latestCoverLetter || isExporting)
-                          ? 'cursor-not-allowed text-text-muted opacity-50'
-                          : 'text-text-primary hover:bg-primary-50'
-                      }`}
-                      onClick={() => {
-                        setFullscreenExportMenuOpen(false)
-                        handleExportOption('cover-letter')
-                      }}
-                      disabled={!latestCoverLetter || isExporting}
-                    >
-                      ✉️ Export Cover Letter (PDF)
-                    </button>
-                    {!latestCoverLetter && (
-                      <p className="mt-2 px-3 text-[11px] text-text-muted">
-                        Generate a cover letter to enable this option.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <AIWizard
+                resumeData={resumeData}
+                onClose={() => {
+                  setShowAIWizard(false)
+                  setAiWizardContext(null)
+                }}
+                context={aiWizardContext}
+                onAddContent={handleAddContent}
+              />
             </div>
           </div>
         </div>
       )}
 
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
-
-      {/* Cover Letter Generator */}
       {showCoverLetterGenerator && (
-        <CoverLetterGenerator
-          resumeData={resumeData}
-          onClose={() => setShowCoverLetterGenerator(false)}
-          onCoverLetterChange={setLatestCoverLetter}
-        />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-xl font-bold">Cover Letter Generator</h2>
+              <button
+                onClick={() => setShowCoverLetterGenerator(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <CoverLetterGenerator
+                resumeData={resumeData}
+                onClose={() => setShowCoverLetterGenerator(false)}
+                onCoverLetterChange={(letter: string | null) => {
+                  setLatestCoverLetter(letter)
+                  setShowCoverLetterGenerator(false)
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* AI Content Wizard */}
-      {showAIWizard && (
-        <AIWizard
-          resumeData={resumeData}
-          context={aiWizardContext}
-          onAddContent={(newContent) => {
-            console.log('=== AI WIZARD ADDING CONTENT ===')
-            console.log('New content from AI wizard:', newContent)
-            console.log('Content type:', newContent.type)
-            console.log('Content data:', newContent.content)
-            console.log('Position:', newContent.position)
-            console.log('Current resume data before update:', resumeData)
-            
-            try {
-              if (newContent.type === 'job') {
-                // Add new job experience
-                const workExperienceSection = resumeData.sections.find(s => 
-                  s.title.toLowerCase().includes('experience') || 
-                  s.title.toLowerCase().includes('work') ||
-                  s.title.toLowerCase().includes('employment') ||
-                  s.title.toLowerCase().includes('professional')
-                )
-                
-                console.log('Available sections:', resumeData.sections.map(s => s.title))
-                console.log('Found work experience section:', workExperienceSection)
-                
-                if (newContent.content) {
-                  let targetSection = workExperienceSection
-                  
-                  // If no work experience section found, create one
-                  if (!targetSection) {
-                    console.log('No work experience section found, creating one...')
-                    targetSection = {
-                      id: Date.now().toString(),
-                      title: 'Work Experience',
-                      bullets: []
-                    }
-                    // Add the new section to the beginning of sections array
-                    resumeData.sections.unshift(targetSection)
-                  }
-                  const content = newContent.content
-                  const bullets = content.bullets || []
-                  
-                  console.log('Content bullets:', bullets)
-                  
-                  console.log('Content validation:', {
-                    company: content.company,
-                    role: content.role,
-                    duration: content.duration,
-                    bullets: bullets,
-                    fullContent: content
-                  })
-                  
-                  // Handle undefined values with fallbacks
-                  const company = content.company || 'Unknown Company'
-                  const role = content.role || 'Unknown Role'
-                  const duration = content.duration || 'Unknown Duration'
-                  
-                  console.log('Using fallbacks:', { company, role, duration })
-                  
-                  const newBullets = [
-                    { 
-                      id: Date.now().toString(), 
-                      text: `**${company} / ${role} / ${duration}**`, 
-                      params: {} 
-                    },
-                    ...bullets.filter((bullet: string) => bullet && bullet.trim()).map((bullet: string) => ({
-                      id: Date.now().toString() + Math.random(),
-                      text: `• ${bullet}`,
-                      params: {}
-                    }))
-                  ]
-                  
-                  console.log('New bullets to add:', newBullets)
-                  
-                  // Clean up existing placeholder entries
-                  const cleanExistingBullets = (bullets: any[]) => {
-                    return bullets.filter(bullet => 
-                      bullet.text && 
-                      bullet.text.trim() && 
-                      !bullet.text.includes('Company / Role / Duration') &&
-                      !bullet.text.includes('**Company**') &&
-                      !bullet.text.includes('**Role**') &&
-                      !bullet.text.includes('**Duration**')
-                    )
-                  }
-                  
-                  const updatedSections = resumeData.sections.map(section => {
-                    if (section.id === targetSection.id) {
-                      let updatedBullets
-                      const cleanedExistingBullets = cleanExistingBullets(section.bullets)
-                      
-                      if (newContent.position === 'beginning') {
-                        updatedBullets = [...newBullets, ...cleanedExistingBullets]
-                      } else if (newContent.position === 'middle') {
-                        const middleIndex = Math.floor(cleanedExistingBullets.length / 2)
-                        const newBulletsList = [...cleanedExistingBullets]
-                        newBulletsList.splice(middleIndex, 0, ...newBullets)
-                        updatedBullets = newBulletsList
-                      } else {
-                        updatedBullets = [...cleanedExistingBullets, ...newBullets]
-                      }
-                      
-                      console.log('Updated bullets for section:', updatedBullets)
-                      return { ...section, bullets: updatedBullets }
-                    }
-                    return section
-                  })
-                  
-                  console.log('Updated sections:', updatedSections)
-                  const newResumeData = { ...resumeData, sections: updatedSections }
-                  console.log('New resume data:', newResumeData)
-                  console.log('Calling handleResumeDataChange to update preview...')
-                  handleResumeDataChange(newResumeData)
-                  console.log('handleResumeDataChange completed')
-                } else {
-                  console.log('No content provided')
-                }
-              } else if (newContent.type === 'project') {
-                // Add new project
-                const projectsSection = resumeData.sections.find(s => 
-                  s.title.toLowerCase().includes('project')
-                ) || resumeData.sections[0] // fallback to first section
-                
-                console.log('Found projects section:', projectsSection)
-                
-                if (newContent.content) {
-                  const content = newContent.content
-                  const bullets = content.bullets || []
-                  
-                  const newBullets = [
-                    { id: Date.now().toString(), text: `**${content.name || 'Project Name'}**`, params: {} },
-                    { id: Date.now().toString() + '1', text: content.description || 'Project description', params: {} },
-                    ...bullets.map((bullet: string) => ({
-                      id: Date.now().toString() + Math.random(),
-                      text: `• ${bullet}`,
-                      params: {}
-                    }))
-                  ]
-                  
-                  console.log('New project bullets:', newBullets)
-                  
-                  const updatedSections = resumeData.sections.map(section => {
-                    if (section.id === projectsSection.id) {
-                      const updatedBullets = [...section.bullets, ...newBullets]
-                      console.log('Updated project bullets:', updatedBullets)
-                      return { ...section, bullets: updatedBullets }
-                    }
-                    return section
-                  })
-                  
-                  const newResumeData = { ...resumeData, sections: updatedSections }
-                  console.log('New resume data with project:', newResumeData)
-                  handleResumeDataChange(newResumeData)
-                }
-              } else if (newContent.type === 'skill') {
-                // Add new skills section
-                if (newContent.content && newContent.content.categories) {
-                  const categories = newContent.content.categories
-                  const skillBullets = Object.entries(categories).map(([category, skills]) => 
-                    `**${category}:** ${Array.isArray(skills) ? skills.join(', ') : skills}`
-                  )
-                  
-                  const newSection = {
-                    id: Date.now().toString(),
-                    title: 'Skills',
-                    bullets: skillBullets.map(skill => ({
-                      id: Date.now().toString() + Math.random(),
-                      text: skill,
-                      params: {}
-                    }))
-                  }
-                  
-                  console.log('New skills section:', newSection)
-                  
-                  const newResumeData = { 
-                    ...resumeData, 
-                    sections: [...resumeData.sections, newSection] 
-                  }
-                  console.log('New resume data with skills:', newResumeData)
-                  handleResumeDataChange(newResumeData)
-                }
-              } else if (newContent.type === 'education') {
-                // Add new education section
-                if (newContent.content) {
-                  const content = newContent.content
-                  const educationBullets = [
-                    `**${content.institution || 'Institution'}**`,
-                    `${content.degree || 'Degree'} - ${content.year || 'Year'}`,
-                    ...(content.coursework || []).map((course: string) => `• ${course}`),
-                    ...(content.honors || []).map((honor: string) => `• ${honor}`)
-                  ]
-                  
-                  const newSection = {
-                    id: Date.now().toString(),
-                    title: 'Education',
-                    bullets: educationBullets.map(edu => ({
-                      id: Date.now().toString() + Math.random(),
-                      text: edu,
-                      params: {}
-                    }))
-                  }
-                  
-                  console.log('New education section:', newSection)
-                  
-                  const newResumeData = { 
-                    ...resumeData, 
-                    sections: [...resumeData.sections, newSection] 
-                  }
-                  console.log('New resume data with education:', newResumeData)
-                  handleResumeDataChange(newResumeData)
-                }
-              }
-              
-              setShowAIWizard(false)
-            } catch (error) {
-              console.error('Error adding content:', error)
-              alert('Failed to add content: ' + (error as Error).message)
-            }
-          }}
-          onClose={() => {
-            setShowAIWizard(false)
-            setAiWizardContext(null)
-          }}
-        />
-      )}
-
-      {/* ATS/Analysis modals removed: Analysis lives only in side preview via previewMode */}
-
-      {/* AI Improvement Widget */}
-      {showAIImprovements && (
-        <AIImprovementWidget
-          resumeData={resumeData}
-          jobDescription=""
-          targetRole=""
-          industry=""
-          onClose={() => setShowAIImprovements(false)}
-        />
-      )}
-
-      {/* Version Control Panel */}
-      {showVersionControl && (
+      {showVersionControl && currentResumeId && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-4 border-b">
@@ -2366,9 +1625,9 @@ const EditorPageContent = () => {
                 </button>
               </div>
             </div>
-            <div className="p-4">
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-120px)]">
               <VersionControlPanel
-                resumeId={currentResumeId || undefined}
+                resumeId={currentResumeId}
                 resumeData={resumeData}
                 onVersionLoad={handleVersionLoad}
                 onSaveVersion={handleVersionSave}
@@ -2379,28 +1638,15 @@ const EditorPageContent = () => {
         </div>
       )}
 
-      {/* Version Comparison Modal */}
       {showVersionComparison && comparisonVersions && (
         <VersionComparisonModal
           isOpen={showVersionComparison}
-          onClose={() => {
-            setShowVersionComparison(false)
-            setComparisonVersions(null)
-          }}
+          onClose={() => setShowVersionComparison(false)}
           version1Id={comparisonVersions.version1Id}
           version2Id={comparisonVersions.version2Id}
         />
       )}
 
-      {/* Export Analytics Dashboard */}
-      {showExportAnalytics && (
-        <ExportAnalyticsDashboard
-          isOpen={showExportAnalytics}
-          onClose={() => setShowExportAnalytics(false)}
-        />
-      )}
-
-      {/* Share Resume Modal */}
       {showShareResume && currentResumeId && (
         <ShareResumeModal
           isOpen={showShareResume}
@@ -2422,103 +1668,19 @@ const EditorPageContent = () => {
         />
       )}
 
-      {/* Job Match Analytics Dashboard */}
+      {showExportAnalytics && (
+        <ExportAnalyticsDashboard
+          isOpen={showExportAnalytics}
+          onClose={() => setShowExportAnalytics(false)}
+        />
+      )}
+
       {showJobMatchAnalytics && (
         <JobMatchAnalyticsDashboard
           isOpen={showJobMatchAnalytics}
           onClose={() => setShowJobMatchAnalytics(false)}
         />
       )}
-
-      {/* Grammar Check Panel */}
-      {showGrammarPanel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
-          setShowGrammarPanel(false)
-          setGrammarEnabled(false)
-        }}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden z-[10001]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Grammar & Style Checker
-              </h2>
-              <button
-                onClick={() => {
-                  setShowGrammarPanel(false)
-                  setGrammarEnabled(false)
-                }}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <GrammarStylePanel
-                resumeData={resumeData}
-                onApplySuggestion={(sectionId: string, bulletId: string, newText: string) => {
-                  const sections = resumeData.sections.map(section =>
-                    section.id === sectionId
-                      ? {
-                          ...section,
-                          bullets: section.bullets.map(bullet =>
-                            bullet.id === bulletId
-                              ? { ...bullet, text: newText }
-                              : bullet
-                          )
-                        }
-                      : section
-                  )
-                  handleResumeDataChange({ ...resumeData, sections })
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Comments Panel */}
-      {showCommentsPanel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
-          setShowCommentsPanel(false)
-          setCommentsEnabled(false)
-        }}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden z-[10001]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                Comments & Feedback
-              </h2>
-              <button
-                onClick={() => {
-                  setShowCommentsPanel(false)
-                  setCommentsEnabled(false)
-                }}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <div className="text-center py-8">
-                <div className="text-6xl mb-4">💬</div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Comments Feature</h3>
-                <p className="text-gray-600 mb-4">
-                  Comments are available for individual sections and bullets in the editor.
-                </p>
-                <p className="text-sm text-gray-500">
-                  Click on any section or bullet point in the visual editor to add comments and feedback.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      
     </div>
   )
 }
@@ -2527,10 +1689,10 @@ export default function EditorPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-body-gradient">
-          <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
+        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+          <div className="text-center">
             <div className="mb-4 text-3xl animate-pulse">🛠️</div>
-            <p className="text-sm font-semibold text-text-secondary">Loading editor…</p>
+            <p className="text-sm font-semibold text-gray-600">Loading editor…</p>
           </div>
         </div>
       }
@@ -2539,4 +1701,3 @@ export default function EditorPage() {
     </Suspense>
   )
 }
-

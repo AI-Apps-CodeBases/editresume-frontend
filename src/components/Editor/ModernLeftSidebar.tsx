@@ -20,6 +20,13 @@ export default function ModernLeftSidebar({ onViewChange, currentView = 'editor'
 
   const mainItems = [
     {
+      id: 'editor',
+      title: 'Editor',
+      icon: '📝',
+      description: 'Resume builder',
+      requiresAuth: false,
+    },
+    {
       id: 'jobs',
       title: 'Jobs',
       icon: '💼',
@@ -49,7 +56,9 @@ export default function ModernLeftSidebar({ onViewChange, currentView = 'editor'
   ]
 
   const handleItemClick = (itemId: string) => {
-    if (itemId === 'jobs' || itemId === 'resumes') {
+    if (itemId === 'editor') {
+      onViewChange?.('editor')
+    } else if (itemId === 'jobs' || itemId === 'resumes') {
       onViewChange?.(itemId as 'jobs' | 'resumes')
     }
   }

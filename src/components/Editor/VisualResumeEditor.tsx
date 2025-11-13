@@ -16,7 +16,8 @@ import {
   useSensors,
   DragEndEvent
 } from '@dnd-kit/core'
-import { arrayMove, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 import { SortableContactFieldItem } from '@/features/resume/components/SortableContactFieldItem'
 import type { Bullet, CustomField, ResumeData, Section } from '@/features/resume/types'
@@ -40,6 +41,7 @@ interface Props {
   isConnected?: boolean
   activeUsers?: Array<{ user_id: string; name: string; joined_at: string }>
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
+  hideSidebar?: boolean // Hide the built-in sidebar when used in ModernEditorLayout
 }
 
 const isCompanyHeaderBullet = (bullet: Bullet) => {
@@ -120,7 +122,8 @@ export default function VisualResumeEditor({
   onLeaveRoom,
   isConnected = false,
   activeUsers = [],
-  onViewChange
+  onViewChange,
+  hideSidebar = false
 }: Props) {
   const [jdKeywords, setJdKeywords] = useState<{
     matching: string[];
@@ -234,11 +237,65 @@ export default function VisualResumeEditor({
   }, [contactFieldOrder]);
   
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Section order state - includes Title, Contact, Summary, and dynamic sections
+  const [sectionOrder, setSectionOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('resumeSectionOrder');
+      if (saved) return JSON.parse(saved);
+    }
+    // Default order: Title, Contact, Summary, then dynamic sections
+    return ['title', 'contact', 'summary', ...(data.sections || []).map(s => s.id)];
+  });
+
+  // Update section order when sections change
+  useEffect(() => {
+    const currentSectionIds = new Set(sectionOrder);
+    const newSectionIds = new Set(['title', 'contact', 'summary', ...(data.sections || []).map(s => s.id)]);
+    
+    // Add new sections to the end
+    const newSections = (data.sections || []).filter(s => !currentSectionIds.has(s.id));
+    if (newSections.length > 0) {
+      setSectionOrder(prev => [...prev, ...newSections.map(s => s.id)]);
+    }
+    
+    // Remove deleted sections
+    const removedSections = Array.from(currentSectionIds).filter(id => 
+      id !== 'title' && id !== 'contact' && id !== 'summary' && !newSectionIds.has(id)
+    );
+    if (removedSections.length > 0) {
+      setSectionOrder(prev => prev.filter(id => !removedSections.includes(id)));
+    }
+  }, [data.sections]);
+
+  // Save section order to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('resumeSectionOrder', JSON.stringify(sectionOrder));
+    }
+  }, [sectionOrder]);
+
+  // Handle section reordering
+  const handleSectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = sectionOrder.indexOf(active.id as string);
+      const newIndex = sectionOrder.indexOf(over.id as string);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(sectionOrder, oldIndex, newIndex);
+        setSectionOrder(newOrder);
+      }
+    }
+  };
   
   // Contact field definitions
   const contactFields = {
@@ -805,7 +862,7 @@ export default function VisualResumeEditor({
     // Find the section and update the company header
     const sections = data.sections.map(section => {
       if (section.id === sectionId) {
-        const updatedBullets = section.bullets.map(bullet => {
+        const updatedBullets = (section.bullets || []).map(bullet => {
           if (bullet.id === bulletId) {
             // Update the company header with new information
             return {
@@ -870,7 +927,7 @@ export default function VisualResumeEditor({
       // Find the section and update the item header
       const sections = data.sections.map(section => {
         if (section.id === sectionId) {
-          const updatedBullets = section.bullets.map(bullet => {
+          const updatedBullets = (section.bullets || []).map(bullet => {
             if (bullet.id === bulletId) {
               // Update the item header with new information
               return {
@@ -964,7 +1021,7 @@ export default function VisualResumeEditor({
     onChange({ ...data, sections })
   }
 
-  const handleSectionDragEnd = () => {
+  const handleSectionDragEndOld = () => {
     setDraggedSection(null)
   }
 
@@ -1260,20 +1317,22 @@ export default function VisualResumeEditor({
 
   return (
     <div className="flex bg-gray-50 min-h-screen editor-layout">
-      {/* Left Sidebar */}
-      <div className="hidden lg:block sticky top-0 h-screen overflow-y-auto">
-        <LeftSidebar
-          resumeData={data}
-          onResumeUpdate={onChange}
-          roomId={roomId}
-          onCreateRoom={onCreateRoom}
-          onJoinRoom={onJoinRoom}
-          onLeaveRoom={onLeaveRoom}
-          isConnected={isConnected}
-          activeUsers={activeUsers}
-          onViewChange={onViewChange}
-        />
-      </div>
+      {/* Left Sidebar - Hidden when used in ModernEditorLayout */}
+      {!hideSidebar && (
+        <div className="hidden lg:block sticky top-0 h-screen overflow-y-auto">
+          <LeftSidebar
+            resumeData={data}
+            onResumeUpdate={onChange}
+            roomId={roomId}
+            onCreateRoom={onCreateRoom}
+            onJoinRoom={onJoinRoom}
+            onLeaveRoom={onLeaveRoom}
+            isConnected={isConnected}
+            activeUsers={activeUsers}
+            onViewChange={onViewChange}
+          />
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1" ref={editorRef}>
@@ -1307,451 +1366,339 @@ export default function VisualResumeEditor({
       )}
 
 
-      {/* Resume Template */}
-      <div className="bg-white shadow-xl rounded-lg overflow-hidden resume-container mx-4 lg:mx-auto" style={{ width: '100%', maxWidth: '850px', margin: '0 auto', minHeight: '1100px' }}>
-        <div className="p-6 lg:p-12">
-          {/* Name Section */}
-          <div className="text-center mb-4">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <input
-                type="checkbox"
-                checked={(data as any).fieldsVisible?.name !== false}
-                onChange={(e) => {
-                  const fieldsVisible = { ...(data as any).fieldsVisible, name: e.target.checked }
-                  onChange({ ...data, fieldsVisible })
-                }}
-                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                title="Toggle name visibility in preview"
-              />
-              <div
-                contentEditable
-                suppressContentEditableWarning
-                data-editable-type="field"
-                data-field="name"
-                onBlur={(e) => updateField('name', e.currentTarget.textContent || '')}
-                className={`text-4xl font-bold mb-2 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                  (data as any).fieldsVisible?.name === false ? 'text-gray-400 line-through' : 'text-gray-900'
-                }`}
-              >
-                {data.name || 'Click to edit name'}
-              </div>
+      {/* Resume Editor Canvas */}
+      <div className="h-full overflow-y-auto bg-gray-50 custom-scrollbar">
+        {/* Editor Toolbar */}
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3">
+          <div className="flex items-center justify-between">
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Resumes</span>
+              <span>/</span>
+              <span className="text-gray-900 font-medium">{data.name || 'Untitled Resume'}</span>
+              <span>/</span>
+              <span className="text-gray-600">Editor</span>
+            </div>
+
+            {/* Center: View Toggle */}
+            <div className="flex items-center gap-2">
+              <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">
+                Sections
+              </button>
+              <button className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-lg">
+                Full Page Preview
+              </button>
+            </div>
+
+            {/* Right: Actions */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500">
+                Saved · just now
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* Title Section - Collapsible */}
-          <div className="mb-4 border border-gray-200 rounded-lg">
-            <div 
-              className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => setIsTitleSectionOpen(!isTitleSectionOpen)}
+        {/* Resume Canvas */}
+        <div className="max-w-4xl mx-auto py-6 px-4">
+          {/* Candidate Name */}
+          <div className="mb-4">
+            <h1 className="text-2xl font-bold text-gray-900 text-center">
+              {data.name || 'Your Name'}
+            </h1>
+          </div>
+
+          {/* All Sections - Sortable */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleSectionDragEnd}
+          >
+            <SortableContext
+              items={sectionOrder}
+              strategy={verticalListSortingStrategy}
             >
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">📋 Title Section</span>
-                <span className="text-xs text-gray-500">({1 + customTitleFields.length} field{customTitleFields.length !== 0 ? 's' : ''})</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleAllTitleFields(true);
-                  }}
-                  className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                  title="Enable all title fields"
-                >
-                  ✓ All
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleAllTitleFields(false);
-                  }}
-                  className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
-                  title="Disable all title fields"
-                >
-                  ✗ All
-                </button>
-                <svg 
-                  className={`w-5 h-5 text-gray-500 transition-transform ${isTitleSectionOpen ? 'rotate-180' : ''}`}
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-            {isTitleSectionOpen && (
-              <div className="p-4 space-y-3">
+              <div className="space-y-4">
+                {sectionOrder.map((sectionId) => {
+                  // Title Section
+                  if (sectionId === 'title') {
+                    return (
+                      <SortableSectionCard
+                        key="title"
+                        id="title"
+                        title="Title Section"
+                        icon="📋"
+                        isEnabled={true}
+                        fieldCount={1 + customTitleFields.length}
+                        showGenerate={false}
+                      >
+              <div className="space-y-3">
                 {/* Default Title */}
-                <div className="flex items-center justify-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={(data as any).fieldsVisible?.title !== false}
-                    onChange={(e) => {
-                      const fieldsVisible = { ...(data as any).fieldsVisible, title: e.target.checked }
-                      onChange({ ...data, fieldsVisible })
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <span className="text-lg font-semibold text-gray-700">
+                    {data.title || 'Your Title'}
+                  </span>
+                  <button 
+                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    onClick={() => {
+                      const titleElement = document.querySelector('[data-field="title"]') as HTMLElement
+                      if (titleElement) {
+                        titleElement.focus()
+                        const range = document.createRange()
+                        range.selectNodeContents(titleElement)
+                        const sel = window.getSelection()
+                        sel?.removeAllRanges()
+                        sel?.addRange(range)
+                      }
                     }}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                    title="Toggle title visibility in preview"
-                  />
-                  <div
-                    contentEditable
-                    suppressContentEditableWarning
-                    data-editable-type="field"
-                    data-field="title"
-                    onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
-                    className={`flex-1 text-xl outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                      (data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-600'
-                    }`}
                   >
-                    {data.title || 'Click to edit title'}
-                  </div>
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
                 </div>
-                
-                {/* Custom Title Fields */}
-                {customTitleFields.map((customField) => (
-                  <div key={customField.id} className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={(data as any).fieldsVisible?.[customField.field] !== false}
-                      onChange={(e) => {
-                        const fieldsVisible = { ...(data as any).fieldsVisible, [customField.field]: e.target.checked }
-                        onChange({ ...data, fieldsVisible })
-                      }}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                    />
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      data-editable-type="field"
-                      data-field={customField.field}
-                      onBlur={(e) => {
-                        const value = e.currentTarget.textContent || '';
-                        onChange({ ...data, [customField.field]: value });
-                      }}
-                      className={`flex-1 text-xl outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                        (data as any).fieldsVisible?.[customField.field] === false ? 'text-gray-400 line-through' : 'text-gray-600'
-                      }`}
-                    >
-                      {(data as any)[customField.field] || 'Click to edit custom title'}
-                    </div>
-                    <button
-                      onClick={() => removeCustomTitleField(customField.id)}
-                      className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
-                      title="Remove this field"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                
-                {/* Add Title Field Button */}
-                <button
-                  onClick={addCustomTitleField}
-                  className="w-full py-2 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:bg-blue-50 font-semibold transition-all flex items-center justify-center gap-2"
-                >
-                  <span className="text-xl">+</span>
-                  Add Title Field
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Contact Information Section - Collapsible */}
-          <div className="mb-8 pb-6 border-b-2 border-gray-300">
-            <div 
-              className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors rounded-t-lg"
-              onClick={() => setIsContactSectionOpen(!isContactSectionOpen)}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">📞 Contact Information</span>
-                <span className="text-xs text-gray-500">({contactFieldOrder.length + customContactFields.length} field{contactFieldOrder.length + customContactFields.length !== 1 ? 's' : ''})</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleAllContactFields(true);
-                  }}
-                  className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                  title="Enable all contact fields"
-                >
-                  ✓ All
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleAllContactFields(false);
-                  }}
-                  className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
-                  title="Disable all contact fields"
-                >
-                  ✗ All
-                </button>
-                <svg 
-                  className={`w-5 h-5 text-gray-500 transition-transform ${isContactSectionOpen ? 'rotate-180' : ''}`}
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-            {isContactSectionOpen && (
-              <div className="p-4">
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleContactFieldDragEnd}
-                >
-                  <SortableContext
-                    items={contactFieldOrder}
-                  >
-                    <div className="flex justify-center gap-4 text-sm text-gray-600 flex-wrap items-center mb-4">
-                      {contactFieldOrder.map((fieldKey, index) => (
-                        <React.Fragment key={fieldKey}>
-                          {index > 0 && <span className="text-gray-400">•</span>}
-                          <SortableContactFieldItem
-                            fieldKey={fieldKey}
-                            data={data}
-                            onChange={onChange}
-                            customContactFields={customContactFields}
-                            removeCustomContactField={removeCustomContactField}
-                          />
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-                
-                {/* Add Contact Field Button */}
-                <button
-                  onClick={addCustomContactField}
-                  className="w-full mt-4 py-2 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:bg-blue-50 font-semibold transition-all flex items-center justify-center gap-2"
-                >
-                  <span className="text-xl">+</span>
-                  Add Contact Field
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Experience Layout Toggle */}
-
-          {/* Professional Summary Section - Collapsible */}
-          <div className="mb-6 border border-gray-200 rounded-lg">
-            <div 
-              className="flex items-center justify-between p-3 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors rounded-t-lg"
-              onClick={() => setIsSummarySectionOpen(!isSummarySectionOpen)}
-            >
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={(data as any).fieldsVisible?.summary !== false}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    const fieldsVisible = { ...(data as any).fieldsVisible, summary: e.target.checked }
-                    onChange({ ...data, fieldsVisible })
-                  }}
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                  title="Toggle summary visibility in preview"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <h3 className={`text-sm font-bold ${
-                  (data as any).fieldsVisible?.summary === false ? 'text-gray-400 line-through' : 'text-blue-900'
-                }`}>📝 Professional Summary</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    generateSummaryFromExperience();
-                  }}
-                  disabled={isSummaryGenerating || !data.sections.length}
-                  className="px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-1"
-                  title="AI will analyze your work experience and create an ATS-optimized summary"
-                >
-                  {isSummaryGenerating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      🤖 Generate
-                    </>
-                  )}
-                </button>
-                <svg 
-                  className={`w-5 h-5 text-gray-500 transition-transform ${isSummarySectionOpen ? 'rotate-180' : ''}`}
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-            {isSummarySectionOpen && (
-              <div className="p-4 bg-blue-50">
-                <div 
+                <div
                   contentEditable
                   suppressContentEditableWarning
                   data-editable-type="field"
-                  data-field="summary"
-                  onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
-                  className="text-sm text-gray-700 leading-relaxed bg-white border border-blue-100 min-h-[80px] px-3 py-2 rounded outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text"
+                  data-field="title"
+                  onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
+                  className={`text-center text-lg outline-none hover:bg-blue-50 focus:bg-blue-50 px-3 py-2 rounded transition-colors cursor-text ${
+                    (data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                  }`}
                 >
-                  {data.summary || 'Click to edit or generate summary from your work experience above ↑'}
+                  {data.title || 'Click to edit title'}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Page Layout Indicator - After Summary */}
-          <hr className="page-layout-indicator" />
-
-          {/* Sections */}
-          <div className="space-y-4">
-            {data.sections.map((section) => {
-              const isSectionOpen = openSections.has(section.id);
-              const bulletCount = section.bullets?.length || 0;
-              
-              return (
-                <div
-                  key={section.id}
-                  className={`group relative border border-gray-200 rounded-lg transition-all ${
-                    draggedSection === section.id ? 'opacity-50' : ''
-                  } hover:ring-2 hover:ring-blue-300`}
-                >
-                  {/* Section Header - Collapsible */}
-                  <div 
-                    className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors rounded-t-lg"
-                    onClick={() => toggleSection(section.id)}
-                    draggable
-                    onDragStart={(e) => {
-                      e.stopPropagation();
-                      handleSectionDragStart(section.id);
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleSectionDragOver(e, section.id);
-                    }}
-                    onDragEnd={(e) => {
-                      e.stopPropagation();
-                      handleSectionDragEnd();
-                    }}
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      {/* Section Controls - Visible on hover */}
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                        <button
-                          className="w-6 h-6 bg-blue-500 text-white rounded flex items-center justify-center text-xs hover:bg-blue-600"
-                          title="Drag to reorder"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Drag is handled by parent
+                
+                {/* Custom Title Fields */}
+                {customTitleFields.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
+                    {customTitleFields.map((customField) => (
+                      <div key={customField.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group">
+                        <input
+                          type="checkbox"
+                          checked={(data as any).fieldsVisible?.[customField.field] !== false}
+                          onChange={(e) => {
+                            const fieldsVisible = { ...(data as any).fieldsVisible, [customField.field]: e.target.checked }
+                            onChange({ ...data, fieldsVisible })
                           }}
-                        >
-                          ⠿
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            insertSectionAfter(section.id);
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div
+                          contentEditable
+                          suppressContentEditableWarning
+                          data-editable-type="field"
+                          data-field={customField.field}
+                          onBlur={(e) => {
+                            const value = e.currentTarget.textContent || '';
+                            onChange({ ...data, [customField.field]: value });
                           }}
-                          className="w-6 h-6 bg-green-500 text-white rounded flex items-center justify-center text-xs hover:bg-green-600"
-                          title="Insert section below"
+                          className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                            (data as any).fieldsVisible?.[customField.field] === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                          }`}
                         >
-                          +
-                        </button>
+                          {(data as any)[customField.field] || 'Click to edit custom title'}
+                        </div>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeSection(section.id);
-                          }}
-                          className="w-6 h-6 bg-red-500 text-white rounded flex items-center justify-center text-xs hover:bg-red-600"
-                          title="Delete section"
+                          onClick={() => removeCustomTitleField(customField.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity"
+                          title="Remove this field"
                         >
-                          ✕
+                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
                         </button>
                       </div>
-                      
-                      <input
-                        type="checkbox"
-                        checked={section.params?.visible !== false}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          const sections = data.sections.map(s =>
-                            s.id === section.id
-                              ? { ...s, params: { ...s.params, visible: e.target.checked } }
-                              : s
-                          )
-                          onChange({ ...data, sections })
-                        }}
-                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                        title="Toggle section visibility in preview"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <div
-                        contentEditable
-                        suppressContentEditableWarning
-                        data-editable-type="section-title"
-                        data-section-id={section.id}
-                        onBlur={(e) => updateSection(section.id, { title: e.currentTarget.textContent || '' })}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`text-lg font-bold uppercase tracking-wide outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text flex-1 ${
-                          section.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
-                        }`}
-                      >
-                        {section.title}
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        ({bulletCount} item{bulletCount !== 1 ? 's' : ''})
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {roomId && onAddComment && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowComments(showComments === section.id ? null : section.id);
-                          }}
-                          className="flex items-center gap-1 px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 transition-colors"
-                        >
-                          💬
-                        </button>
-                      )}
-                      <svg 
-                        className={`w-5 h-5 text-gray-500 transition-transform ${isSectionOpen ? 'rotate-180' : ''}`}
-                        fill="none" 
-                        viewBox="0 0 24 24" 
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* Section Content - Collapsible */}
-                  {isSectionOpen && (
-                    <div className="p-4">
-                      <div className="border-b-2 border-gray-300 mb-3"></div>
-
-                {/* Comments Section */}
-                {showComments === section.id && roomId && onAddComment && onResolveComment && onDeleteComment && (
-                  <div className="mb-4">
-                    <Comments
-                      roomId={roomId}
-                      targetType="section"
-                      targetId={section.id}
-                      onAddComment={onAddComment}
-                      onResolveComment={onResolveComment}
-                      onDeleteComment={onDeleteComment}
-                    />
+                    ))}
                   </div>
                 )}
+                
+                {/* Add Title Field Button */}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500 hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer mt-3">
+                  <button
+                    onClick={addCustomTitleField}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    + Add Title Field
+                  </button>
+                </div>
+                      </div>
+                    </SortableSectionCard>
+                  )
+                  }
+
+                  // Contact Section
+                  if (sectionId === 'contact') {
+                    return (
+                      <SortableSectionCard
+                        key="contact"
+                        id="contact"
+                        title="Contact Information"
+                        icon="📞"
+                        isEnabled={true}
+                        fieldCount={contactFieldOrder.length + customContactFields.length}
+                        showGenerate={false}
+                      >
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleContactFieldDragEnd}
+              >
+                <SortableContext
+                  items={contactFieldOrder}
+                >
+                  <div className="space-y-3">
+                    {contactFieldOrder.map((fieldKey) => {
+                      const fieldIcons: Record<string, string> = {
+                        email: '📧',
+                        phone: '📱',
+                        location: '📍',
+                        linkedin: '💼',
+                        website: '🌐',
+                        github: '💻',
+                        twitter: '🐦',
+                      }
+                      const fieldLabels: Record<string, string> = {
+                        email: 'Email',
+                        phone: 'Phone',
+                        location: 'Location',
+                        linkedin: 'LinkedIn',
+                        website: 'Website',
+                        github: 'GitHub',
+                        twitter: 'Twitter',
+                      }
+                      const icon = fieldIcons[fieldKey] || '📧'
+                      const label = fieldLabels[fieldKey] || fieldKey
+                      const value = (data as any)[fieldKey] || ''
+                      
+                      return (
+                        <ModernContactField
+                          key={fieldKey}
+                          icon={icon}
+                          label={label}
+                          value={value}
+                          fieldKey={fieldKey}
+                          data={data}
+                          onChange={onChange}
+                        />
+                      )
+                    })}
+                    
+                    {/* Custom Contact Fields */}
+                    {customContactFields.map((customField) => (
+                      <ModernContactField
+                        key={customField.id}
+                        icon="📧"
+                        label={customField.label}
+                        value={(data as any)[customField.field] || ''}
+                        fieldKey={customField.field}
+                        data={data}
+                        onChange={onChange}
+                        onRemove={() => removeCustomContactField(customField.id)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+              
+              {/* Add Contact Field Button */}
+              <div className="mt-4 border-2 border-dashed border-gray-300 rounded-lg p-3 text-center text-gray-500 hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer">
+                <button
+                  onClick={addCustomContactField}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                >
+                  + Add Contact Field
+                </button>
+                        </div>
+                      </SortableSectionCard>
+                    )
+                  }
+
+                  // Summary Section
+                  if (sectionId === 'summary') {
+                    return (
+                      <SortableSectionCard
+                        key="summary"
+                        id="summary"
+                        title="Professional Summary"
+                        icon="📝"
+                        isEnabled={(data as any).fieldsVisible?.summary !== false}
+                      >
+                        <div className="prose max-w-none">
+                          <div 
+                            contentEditable
+                            suppressContentEditableWarning
+                            data-editable-type="field"
+                            data-field="summary"
+                            onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
+                            className="text-sm text-gray-700 leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200"
+                          >
+                            {data.summary || 'Write a compelling professional summary that highlights your key skills and experience...'}
+                          </div>
+                          <button
+                            onClick={generateSummaryFromExperience}
+                            disabled={isSummaryGenerating || !data.sections.length}
+                            className="mt-3 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                            title="AI will analyze your work experience and create an ATS-optimized summary"
+                          >
+                            {isSummaryGenerating ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                🤖 Generate Summary
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </SortableSectionCard>
+                    )
+                  }
+
+                  // Dynamic Sections
+                  const section = data.sections.find(s => s.id === sectionId)
+                  if (section) {
+                    const isSectionOpen = openSections.has(section.id);
+                    const bulletCount = (section.bullets || []).length;
+                    const sectionIcons: Record<string, string> = {
+                      'Work Experience': '💼',
+                      'Education': '🎓',
+                      'Skills': '🛠️',
+                      'Projects': '🚀',
+                      'Certifications': '🏆',
+                      'Languages': '🌐',
+                      'Awards': '⭐',
+                    }
+                    const icon = sectionIcons[section.title] || '📄'
+                    
+                    return (
+                      <SortableSectionCard
+                        key={section.id}
+                        id={section.id}
+                        title={section.title}
+                        icon={icon}
+                        isEnabled={section.params?.visible !== false}
+                        fieldCount={bulletCount}
+                      >
+                        <div className="space-y-4">
+                          {/* Comments Section */}
+                          {showComments === section.id && roomId && onAddComment && onResolveComment && onDeleteComment && (
+                            <div className="mb-4">
+                              <Comments
+                                roomId={roomId}
+                                targetType="section"
+                                targetId={section.id}
+                                onAddComment={onAddComment}
+                                onResolveComment={onResolveComment}
+                                onDeleteComment={onDeleteComment}
+                              />
+                            </div>
+                          )}
 
                 {/* Modern Experience Layout - All Sections */}
                   <div className="space-y-6">
@@ -2305,7 +2252,7 @@ export default function VisualResumeEditor({
                       </div>
                     ) : (
                       /* Simple Bullet Points for other non-work experience sections */
-                      section.bullets.map((bullet, idx) => {
+                      (section.bullets || []).map((bullet, idx) => {
                         // Show bullets that start with • or don't start with ** (simple bullet points)
                         if (bullet.text?.startsWith('**')) return null
                         
@@ -2471,13 +2418,17 @@ export default function VisualResumeEditor({
                         )
                       })
                     )}
-                  </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                        </div>
+                      </div>
+                      </SortableSectionCard>
+                    )
+                  }
+
+                  return null
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           {/* AI Improve Modal with Missing Keywords */}
           {showAIImproveModal && aiImproveContext && (
@@ -2784,14 +2735,15 @@ export default function VisualResumeEditor({
           )}
 
           {/* Add Section Buttons */}
-          <div className="mt-6 space-y-3">
-          <button
-            onClick={addSection}
-              className="w-full py-3 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:bg-blue-50 hover:border-blue-500 font-semibold transition-all flex items-center justify-center gap-2"
-          >
-            <span className="text-xl">+</span>
-            Add New Section
-          </button>
+          <div className="mt-6">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500 hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer">
+              <button
+                onClick={addSection}
+                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                + Add New Section
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2871,6 +2823,205 @@ export default function VisualResumeEditor({
         />
       )}
       </div>
+    </div>
+  )
+}
+
+// Sortable Section Card Component
+function SortableSectionCard({
+  id,
+  title,
+  icon,
+  isEnabled,
+  fieldCount,
+  showGenerate = true,
+  children,
+}: {
+  id: string
+  title: string
+  icon: string
+  isEnabled: boolean
+  fieldCount?: number
+  showGenerate?: boolean
+  children: React.ReactNode
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-white rounded-xl border transition-all ${
+        isDragging
+          ? 'border-blue-400 shadow-lg z-50'
+          : 'border-gray-200 shadow-sm hover:shadow-md'
+      }`}
+    >
+      {/* Section Header */}
+      <div className="flex items-center justify-between p-3 border-b border-gray-100">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+            title="Drag to reorder"
+          >
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+            </svg>
+          </div>
+          <input 
+            type="checkbox" 
+            checked={isEnabled} 
+            onChange={() => {}} 
+            className="w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0" 
+          />
+          <span className="text-lg flex-shrink-0">{icon}</span>
+          <h3 className="text-base font-semibold text-gray-900 truncate">{title}</h3>
+          {fieldCount !== undefined && (
+            <span className="text-xs text-gray-500 flex-shrink-0">({fieldCount} {fieldCount === 1 ? 'item' : 'items'})</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {showGenerate && (
+            <button
+              className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
+            >
+              Generate
+            </button>
+          )}
+          <button className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Section Content */}
+      <div className="p-3">{children}</div>
+    </div>
+  )
+}
+
+// Modern Section Card Component (non-sortable fallback)
+function ModernSectionCard({
+  id,
+  title,
+  icon,
+  isEnabled,
+  fieldCount,
+  showGenerate = true,
+  children,
+}: {
+  id: string
+  title: string
+  icon: string
+  isEnabled: boolean
+  fieldCount?: number
+  showGenerate?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+      {/* Section Header */}
+      <div className="flex items-center justify-between p-3 border-b border-gray-100">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <input 
+            type="checkbox" 
+            checked={isEnabled} 
+            onChange={() => {}} 
+            className="w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0" 
+          />
+          <span className="text-lg flex-shrink-0">{icon}</span>
+          <h3 className="text-base font-semibold text-gray-900 truncate">{title}</h3>
+          {fieldCount !== undefined && (
+            <span className="text-xs text-gray-500 flex-shrink-0">({fieldCount} {fieldCount === 1 ? 'item' : 'items'})</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {showGenerate && (
+            <button
+              className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
+            >
+              Generate
+            </button>
+          )}
+          <button className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Section Content */}
+      <div className="p-3">{children}</div>
+    </div>
+  )
+}
+
+// Modern Contact Field Component
+function ModernContactField({
+  icon,
+  label,
+  value,
+  fieldKey,
+  data,
+  onChange,
+  onRemove,
+}: {
+  icon: string
+  label: string
+  value: string
+  fieldKey: string
+  data: ResumeData
+  onChange: (data: ResumeData) => void
+  onRemove?: () => void
+}) {
+  return (
+    <div className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg group border border-gray-100">
+      <span className="text-lg flex-shrink-0">{icon}</span>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</div>
+        <div
+          contentEditable
+          suppressContentEditableWarning
+          data-editable-type="field"
+          data-field={fieldKey}
+          onBlur={(e) => {
+            const newValue = e.currentTarget.textContent || ''
+            onChange({ ...data, [fieldKey]: newValue })
+          }}
+          className="text-sm text-gray-900 font-medium outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
+        >
+          {value || `Enter ${label.toLowerCase()}`}
+        </div>
+      </div>
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity flex-shrink-0"
+          title="Remove field"
+        >
+          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
