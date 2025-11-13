@@ -131,13 +131,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const reply = (payload: Record<string, unknown>) => {
         try {
-          event.source?.postMessage(
+          const target = event.source
+          if (!target || typeof (target as Window).postMessage !== 'function') return
+          ;(target as Window).postMessage(
             {
               type: TOKEN_RESPONSE,
               source: MESSAGE_SOURCE,
               ...payload
             },
-            event.origin
+            { targetOrigin: event.origin }
           )
         } catch (err) {
           console.error('Failed to postMessage back to extension:', err)
