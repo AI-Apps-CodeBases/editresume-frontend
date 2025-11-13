@@ -17,12 +17,14 @@ from app.core.db import (  # noqa: F401
 )
 from app.models import (  # noqa: F401
     ExportAnalytics,
+    Job,
     JobCoverLetter,
     JobDescription,
     JobMatch,
     JobResumeVersion,
     MatchSession,
     Resume,
+    ResumeGeneration,
     ResumeVersion,
     ResumeView,
     SharedResume,
@@ -50,4 +52,6 @@ __all__ = [
     "SharedResumeComment",
     "JobMatch",
     "MatchSession",
+    "Job",
+    "ResumeGeneration",
 ]

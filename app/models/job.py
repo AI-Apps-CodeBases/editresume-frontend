@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from app.core.db import Base
@@ -122,9 +131,47 @@ class MatchSession(Base):
     job_description = relationship("JobDescription", back_populates="match_sessions")
 
 
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    company = Column(String(255))
+    description = Column(Text, nullable=False)
+    url = Column(Text)
+    skills = Column(JSON, default=list)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="jobs")
+    resume_generations = relationship(
+        "ResumeGeneration",
+        back_populates="job",
+        cascade="all, delete-orphan",
+    )
+
+
+class ResumeGeneration(Base):
+    __tablename__ = "resume_generations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    source_resume_ids = Column(JSON, default=list)
+    generated_resume_id = Column(Integer, ForeignKey("resumes.id"))
+    ats_score = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    job = relationship("Job", back_populates="resume_generations")
+    user = relationship("User", back_populates="resume_generations")
+    generated_resume = relationship("Resume")
+
+
 __all__ = [
     "JobDescription",
     "JobResumeVersion",
     "JobCoverLetter",
     "MatchSession",
+    "Job",
+    "ResumeGeneration",
 ]

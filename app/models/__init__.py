@@ -2,10 +2,12 @@
 
 from app.models.analytics import ExportAnalytics
 from app.models.job import (
+    Job,
     JobCoverLetter,
     JobDescription,
     JobResumeVersion,
     MatchSession,
+    ResumeGeneration,
 )
 from app.models.match import JobMatch
 from app.models.resume import Resume, ResumeVersion
@@ -25,4 +27,6 @@ __all__ = [
     "SharedResumeComment",
     "JobMatch",
     "MatchSession",
+    "Job",
+    "ResumeGeneration",
 ]

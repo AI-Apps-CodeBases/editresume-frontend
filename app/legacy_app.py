@@ -47,6 +47,8 @@ from sqlalchemy import text, or_
 from version_control import VersionControlService
 
 from app.api.firebase_auth import router as firebase_auth_router
+from app.api.jobs import router as jobs_router
+from app.api.resumes import router as resumes_router
 from app.api.stripe import router as stripe_router
 from app.core.config import settings
 from app.middleware.firebase_auth import FirebaseAuthMiddleware
@@ -148,6 +150,8 @@ app.add_middleware(
 )
 
 app.include_router(firebase_auth_router)
+app.include_router(jobs_router)
+app.include_router(resumes_router)
 app.include_router(stripe_router)
 
 

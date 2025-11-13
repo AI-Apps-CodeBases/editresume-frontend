@@ -25,6 +25,10 @@ class User(Base):
     export_analytics = relationship("ExportAnalytics", back_populates="user")
     job_matches = relationship("JobMatch", back_populates="user")
     shared_resumes = relationship("SharedResume", back_populates="user")
+    jobs = relationship("Job", back_populates="user", cascade="all, delete-orphan")
+    resume_generations = relationship(
+        "ResumeGeneration", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 __all__ = ["User"]
