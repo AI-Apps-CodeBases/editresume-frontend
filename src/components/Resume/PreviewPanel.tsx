@@ -151,6 +151,11 @@ export default function PreviewPanel({
   const bulletSpacing = spacing.bullet || 8
 
   const renderBullets = (bullets: any[], sectionTitle: string) => {
+    // Safety check: ensure bullets is an array
+    if (!bullets || !Array.isArray(bullets)) {
+      return <div className="text-gray-500 text-sm">No content available</div>
+    }
+
     const isWorkExperience = sectionTitle.toLowerCase().includes('experience') || 
                              sectionTitle.toLowerCase().includes('work') || 
                              sectionTitle.toLowerCase().includes('employment')
@@ -468,9 +473,11 @@ export default function PreviewPanel({
               {/* Page Layout Indicator - After Summary */}
               {data.summary && <hr className="page-layout-indicator" />}
 
-              {data.sections.filter((s) => 
-                leftSectionIds.includes(s.id) && s.params?.visible !== false
-              ).map((section) => (
+              {(data.sections || []).filter((s) => {
+                // Filter out sections that are already rendered separately (summary, contact, title)
+                const excludedTitles = ['Professional Summary', 'Summary', 'Contact Information', 'Contact', 'Title Section', 'Title']
+                return leftSectionIds.includes(s.id) && s.params?.visible !== false && !excludedTitles.includes(s.title)
+              }).map((section) => (
                 <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
                   <h2 
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
@@ -484,15 +491,17 @@ export default function PreviewPanel({
                   >
                     {applyReplacements(section.title)}
                   </h2>
-                  {renderBullets(section.bullets, section.title)}
+                  {renderBullets(section.bullets || [], section.title)}
                 </div>
               ))}
             </div>
             
             <div className="space-y-6">
-              {data.sections.filter((s) => 
-                rightSectionIds.includes(s.id) && s.params?.visible !== false
-              ).map((section) => (
+              {(data.sections || []).filter((s) => {
+                // Filter out sections that are already rendered separately (summary, contact, title)
+                const excludedTitles = ['Professional Summary', 'Summary', 'Contact Information', 'Contact', 'Title Section', 'Title']
+                return rightSectionIds.includes(s.id) && s.params?.visible !== false && !excludedTitles.includes(s.title)
+              }).map((section) => (
                 <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
                   <h2 
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
@@ -506,7 +515,7 @@ export default function PreviewPanel({
                   >
                     {applyReplacements(section.title)}
                   </h2>
-                  {renderBullets(section.bullets, section.title)}
+                  {renderBullets(section.bullets || [], section.title)}
                 </div>
               ))}
             </div>
@@ -540,7 +549,11 @@ export default function PreviewPanel({
               </div>
             )}
 
-            {data.sections.filter((s) => s.params?.visible !== false).map((section) => (
+            {(data.sections || []).filter((s) => {
+              // Filter out sections that are already rendered separately (summary, contact, title)
+              const excludedTitles = ['Professional Summary', 'Summary', 'Contact Information', 'Contact', 'Title Section', 'Title']
+              return s.params?.visible !== false && !excludedTitles.includes(s.title)
+            }).map((section) => (
               <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
                 <h2 
                   className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
@@ -561,9 +574,9 @@ export default function PreviewPanel({
         )}
 
         {/* Page Layout Indicator - After Sections for Single Column */}
-        {!isTwoColumn && data.sections.length > 0 && <hr className="page-layout-indicator" />}
+        {!isTwoColumn && (data.sections || []).length > 0 && <hr className="page-layout-indicator" />}
 
-        {!data.name && !data.title && data.sections.length === 0 && (
+        {!data.name && !data.title && (data.sections || []).length === 0 && (
           <div className="text-center py-12 text-gray-400">
             <p>Start editing to see your resume preview</p>
           </div>
