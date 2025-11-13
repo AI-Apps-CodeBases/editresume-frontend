@@ -7,4 +7,4 @@ that keeps framework glue separated from feature-specific logic while
 remaining backwards compatible with existing entry points.
 """
 
-from .main import create_app, app  # noqa: F401
+from .main import app  # noqa: F401

@@ -1,7 +1,7 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-pydantic==2.9.1
-pydantic-settings==2.5.2
+fastapi==0.110.0
+uvicorn[standard]==0.27.0
+pydantic==2.7.0
+pydantic-settings==2.2.0
 psycopg2-binary==2.9.9
 SQLAlchemy==2.0.35
 python-multipart==0.0.9
@@ -15,9 +15,9 @@ textstat==0.7.3
 # Industry-standard resume parsing libraries
 PyMuPDF==1.23.8
 docx2txt==0.8
-# ATS Checker dependencies - temporarily removed for deployment
-# scikit-learn==1.2.2
-# spacy==3.6.1
+# ATS Checker dependencies - TF-IDF enabled for industry-standard scoring
+scikit-learn==1.3.2
+# spacy==3.6.1  # Optional: Advanced NLP features (has fallback if not installed)
 nltk==3.8.1
 # Optional dependencies with fallback support
 language-tool-python==2.7.1

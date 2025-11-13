@@ -793,6 +793,228 @@ class EnhancedATSChecker:
 
         return improvements
 
+    def calculate_tfidf_cosine_score(
+        self, resume_text: str, job_description: str = None
+    ) -> Dict[str, Any]:
+        """
+        Industry-standard TF-IDF + Cosine Similarity scoring method.
+        Based on information retrieval best practices used by most ATS systems.
+        
+        Formula: Cosine Similarity = (A · B) / (||A|| × ||B||)
+        Where A and B are TF-IDF vectors of resume and job description.
+        """
+        if not job_description or not resume_text.strip():
+            return {
+                "score": 0,
+                "method": "tfidf_cosine",
+                "cosine_similarity": 0.0,
+                "tfidf_score": 0.0,
+                "matching_keywords": [],
+                "missing_keywords": [],
+            }
+
+        if not SKLEARN_AVAILABLE:
+            # Fallback to simple keyword matching if sklearn not available
+            return self._fallback_keyword_match(resume_text, job_description)
+
+        try:
+            # Create TF-IDF vectorizer with industry-standard parameters
+            vectorizer = TfidfVectorizer(
+                max_features=1000,  # Limit vocabulary size
+                stop_words="english",  # Remove common words
+                ngram_range=(1, 2),  # Include unigrams and bigrams
+                min_df=1,  # Term must appear at least once
+                max_df=0.95,  # Ignore terms that appear in >95% of documents
+                lowercase=True,
+                strip_accents="unicode",
+            )
+
+            # Fit and transform resume and job description
+            tfidf_matrix = vectorizer.fit_transform([resume_text, job_description])
+
+            # Calculate cosine similarity (industry-standard method)
+            cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+
+            # Convert to percentage score (0-100)
+            cosine_score = cosine_sim * 100
+
+            # Extract feature names (keywords) and their TF-IDF scores
+            feature_names = vectorizer.get_feature_names_out()
+            resume_tfidf = tfidf_matrix[0].toarray()[0]
+            job_tfidf = tfidf_matrix[1].toarray()[0]
+
+            # Find matching keywords (present in both with significant weight)
+            matching_keywords = []
+            missing_keywords = []
+            threshold = 0.01  # Minimum TF-IDF score to consider
+
+            for i, keyword in enumerate(feature_names):
+                job_weight = job_tfidf[i]
+                resume_weight = resume_tfidf[i]
+
+                if job_weight > threshold:
+                    if resume_weight > threshold:
+                        matching_keywords.append(
+                            {
+                                "keyword": keyword,
+                                "job_weight": round(float(job_weight), 4),
+                                "resume_weight": round(float(resume_weight), 4),
+                            }
+                        )
+                    else:
+                        missing_keywords.append(
+                            {"keyword": keyword, "weight": round(float(job_weight), 4)}
+                        )
+
+            # Sort by weight (most important first)
+            matching_keywords.sort(key=lambda x: x["job_weight"], reverse=True)
+            missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
+
+            # Calculate keyword match percentage
+            total_job_keywords = len([w for w in job_tfidf if w > threshold])
+            match_percentage = (
+                (len(matching_keywords) / total_job_keywords * 100)
+                if total_job_keywords > 0
+                else 0
+            )
+
+            return {
+                "score": round(cosine_score, 2),
+                "method": "tfidf_cosine",
+                "cosine_similarity": round(float(cosine_sim), 4),
+                "tfidf_score": round(cosine_score, 2),
+                "keyword_match_percentage": round(match_percentage, 2),
+                "matching_keywords": matching_keywords[:20],  # Top 20 matches
+                "missing_keywords": missing_keywords[:20],  # Top 20 missing
+                "total_job_keywords": total_job_keywords,
+                "matched_keywords_count": len(matching_keywords),
+            }
+
+        except Exception as e:
+            # Fallback to simple matching on error
+            return self._fallback_keyword_match(resume_text, job_description)
+
+    def _fallback_keyword_match(
+        self, resume_text: str, job_description: str
+    ) -> Dict[str, Any]:
+        """Fallback keyword matching when TF-IDF is not available"""
+        resume_words = set(resume_text.lower().split())
+        job_words = set(job_description.lower().split())
+
+        matching = resume_words & job_words
+        missing = job_words - resume_words
+
+        match_percentage = (
+            (len(matching) / len(job_words) * 100) if job_words else 0
+        )
+
+        return {
+            "score": round(match_percentage, 2),
+            "method": "simple_keyword_match",
+            "cosine_similarity": 0.0,
+            "tfidf_score": 0.0,
+            "keyword_match_percentage": round(match_percentage, 2),
+            "matching_keywords": list(matching)[:20],
+            "missing_keywords": list(missing)[:20],
+            "total_job_keywords": len(job_words),
+            "matched_keywords_count": len(matching),
+        }
+
+    def calculate_industry_standard_score(
+        self, resume_data: Dict, job_description: str = None
+    ) -> Dict[str, Any]:
+        """
+        Industry-standard ATS score using TF-IDF + Cosine Similarity.
+        Based on information retrieval best practices.
+        
+        Formula:
+        Overall Score = (TF-IDF Cosine Score × 0.40) + 
+                       (Keyword Match Score × 0.30) +
+                       (Section Score × 0.15) +
+                       (Formatting Score × 0.10) +
+                       (Content Quality × 0.05)
+        """
+        resume_text = self.extract_text_from_resume(resume_data)
+
+        # 1. TF-IDF + Cosine Similarity (40% weight) - Industry standard
+        tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description)
+        tfidf_score = tfidf_analysis.get("score", 0)
+
+        # 2. Keyword Match Percentage (30% weight)
+        keyword_match_score = tfidf_analysis.get("keyword_match_percentage", 0)
+
+        # 3. Section Completeness (15% weight)
+        structure_analysis = self.analyze_resume_structure(resume_data)
+        section_score = structure_analysis["section_score"]
+
+        # 4. Formatting Compatibility (10% weight)
+        formatting_analysis = self.check_formatting_compatibility(resume_data)
+        formatting_score = formatting_analysis["score"]
+
+        # 5. Content Quality (5% weight)
+        quality_analysis = self.analyze_content_quality(resume_data)
+        quality_score = quality_analysis["score"]
+
+        # Calculate weighted overall score (industry-standard weights)
+        overall_score = (
+            tfidf_score * 0.40
+            + keyword_match_score * 0.30
+            + section_score * 0.15
+            + formatting_score * 0.10
+            + quality_score * 0.05
+        )
+
+        # Generate improvements
+        improvements = self.generate_ai_improvements(resume_data, job_description)
+
+        # Compile suggestions
+        all_suggestions = []
+        all_suggestions.extend(quality_analysis.get("suggestions", []))
+        all_suggestions.extend(formatting_analysis.get("suggestions", []))
+
+        if structure_analysis["missing_sections"]:
+            all_suggestions.append(
+                f"Add missing sections: {', '.join(structure_analysis['missing_sections'])}"
+            )
+
+        # Add TF-IDF specific suggestions
+        missing_keywords = tfidf_analysis.get("missing_keywords", [])
+        if missing_keywords:
+            top_missing = [kw["keyword"] for kw in missing_keywords[:5]]
+            all_suggestions.append(
+                f"Add these important keywords from job description: {', '.join(top_missing)}"
+            )
+
+        return {
+            "overall_score": min(100, max(0, int(overall_score))),
+            "method": "industry_standard_tfidf",
+            "tfidf_analysis": tfidf_analysis,
+            "structure_analysis": structure_analysis,
+            "formatting_analysis": formatting_analysis,
+            "quality_analysis": quality_analysis,
+            "score_breakdown": {
+                "tfidf_cosine_score": round(tfidf_score, 2),
+                "keyword_match_score": round(keyword_match_score, 2),
+                "section_score": section_score,
+                "formatting_score": formatting_score,
+                "quality_score": quality_score,
+            },
+            "ai_improvements": [
+                {
+                    "category": imp.category,
+                    "title": imp.title,
+                    "description": imp.description,
+                    "priority": imp.priority,
+                    "impact_score": imp.impact_score,
+                    "action_type": imp.action_type,
+                    "specific_suggestion": imp.specific_suggestion,
+                    "example": imp.example,
+                }
+                for imp in improvements
+            ],
+            "suggestions": list(set(all_suggestions)),
+        }
+
     def calculate_comprehensive_score(
         self, resume_data: Dict, job_description: str = None
     ) -> Dict[str, Any]:
@@ -852,17 +1074,37 @@ class EnhancedATSChecker:
         }
 
     def get_enhanced_ats_score(
-        self, resume_data: Dict, job_description: str = None
+        self,
+        resume_data: Dict,
+        job_description: str = None,
+        use_industry_standard: bool = False,
     ) -> Dict[str, Any]:
-        """Main method to get enhanced ATS compatibility score and AI improvements"""
+        """
+        Main method to get enhanced ATS compatibility score and AI improvements.
+        
+        Args:
+            resume_data: Resume data dictionary
+            job_description: Optional job description for matching
+            use_industry_standard: If True, uses TF-IDF + Cosine Similarity (industry standard).
+                                  If False, uses custom comprehensive scoring (default).
+        """
         try:
-            result = self.calculate_comprehensive_score(resume_data, job_description)
+            if use_industry_standard and job_description:
+                # Use industry-standard TF-IDF + Cosine Similarity method
+                result = self.calculate_industry_standard_score(
+                    resume_data, job_description
+                )
+            else:
+                # Use custom comprehensive scoring (original method)
+                result = self.calculate_comprehensive_score(resume_data, job_description)
+
             return {
                 "success": True,
                 "score": result["overall_score"],
                 "details": result,
                 "suggestions": result["suggestions"],
-                "ai_improvements": result["ai_improvements"],
+                "ai_improvements": result.get("ai_improvements", []),
+                "method": result.get("method", "comprehensive"),
             }
         except Exception as e:
             return {
@@ -871,4 +1113,5 @@ class EnhancedATSChecker:
                 "score": 0,
                 "suggestions": ["Unable to analyze resume. Please check your content."],
                 "ai_improvements": [],
+                "method": "error",
             }
