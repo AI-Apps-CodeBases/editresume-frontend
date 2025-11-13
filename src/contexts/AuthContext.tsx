@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               source: MESSAGE_SOURCE,
               ...payload
             },
-            { targetOrigin: event.origin }
+            event.origin
           )
         } catch (err) {
           console.error('Failed to postMessage back to extension:', err)
