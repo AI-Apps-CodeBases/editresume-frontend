@@ -3489,6 +3489,12 @@ async def upload_resume(file: UploadFile = File(...)):
         logger.info("Using AI-powered parsing for better resume organization...")
         parsed_data = parse_resume_with_ai(text)
 
+        logger.info(
+            "AI parsing successful: text_length=%s, sections=%s, summary_len=%s",
+            len(text),
+            len(parsed_data.get("sections", [])) if isinstance(parsed_data, dict) else "n/a",
+            len(parsed_data.get("summary", "")) if isinstance(parsed_data, dict) else "n/a",
+        )
         return {
             "success": True,
             "data": parsed_data,
@@ -3528,7 +3534,7 @@ Return a JSON object with this exact structure:
   "email": "email@example.com",
   "phone": "+1-234-567-8900",
   "location": "City, State/Country",
-  "summary": "Professional summary or objective (2-3 sentences)",
+  "summary": "Professional summary or objective copied verbatim from the resume",
   "sections": [
     {{
       "title": "Work Experience",
@@ -3593,10 +3599,11 @@ OTHER RULES:
 6. Identify ALL sections (Education, Skills, Projects, Certifications, Awards, etc.)
 7. Preserve important details (dates, technologies, metrics, achievements)
 8. If something is missing (like phone or email), leave it as empty string
-9. Professional summary should be concise (2-3 sentences max)
-10. Return ONLY valid JSON, no markdown code blocks
-11. This may be a MULTI-PAGE resume - extract ALL information from ALL pages
-12. Include everything: all work experience, education, skills, projects, certifications
+9. Professional summary MUST be an exact copy of the resume's Professional Summary section without rewording
+10. Every skill listed in the resume must appear in the JSON output exactly as written (split into multiple bullets if needed)
+11. Return ONLY valid JSON, no markdown code blocks
+12. This may be a MULTI-PAGE resume - extract ALL information from ALL pages
+13. Include everything: all work experience, education, skills, projects, certifications
 
 Resume Text (Full Content):
 {text[:12000]}
@@ -3662,23 +3669,125 @@ Resume Text (Full Content):
                 logger.error(f"JSON cleanup failed: {e2}")
                 raise e2
 
-        for i, section in enumerate(parsed_data.get("sections", [])):
-            section["id"] = str(i)
-            for j, bullet in enumerate(section.get("bullets", [])):
-                if isinstance(bullet, str):
-                    if "bullets" not in section:
-                        section["bullets"] = []
-                    section["bullets"][j] = {
-                        "id": f"{i}-{j}",
-                        "text": bullet,
-                        "params": {},
+        sections_raw = parsed_data.get("sections") or []
+        normalized_sections: List[Dict[str, Any]] = []
+        summary_section_text = ""
+        summary_titles = {
+            "professional summary",
+            "summary",
+            "executive summary",
+            "profile",
+            "about me",
+        }
+
+        for raw_section in sections_raw:
+            section_title = ""
+            section_params: Dict[str, Any] = {}
+            bullets_source: List[Any] = []
+
+            if isinstance(raw_section, dict):
+                section_title = str(raw_section.get("title", "")).strip()
+                section_params = raw_section.get("params") or {}
+                bullets_source = raw_section.get("bullets", []) or []
+            else:
+                section_title = str(raw_section).strip()
+                bullets_source = []
+
+            bullet_entries: List[Dict[str, Any]] = []
+            for bullet in bullets_source:
+                if isinstance(bullet, dict):
+                    bullet_entries.append(
+                        {
+                            "text": str(bullet.get("text", "")),
+                            "params": bullet.get("params") or {},
+                        }
+                    )
+                else:
+                    bullet_entries.append({"text": str(bullet), "params": {}})
+
+            title_lower = section_title.lower()
+            if title_lower in summary_titles and bullet_entries and not summary_section_text:
+                combined_summary = " ".join(
+                    entry["text"].strip() for entry in bullet_entries if entry["text"].strip()
+                ).strip()
+                if combined_summary:
+                    summary_section_text = combined_summary
+                # Skip adding this section; the content will populate parsed_data["summary"]
+                continue
+
+            normalized_sections.append(
+                {
+                    "title": section_title,
+                    "params": section_params,
+                    "bullets": bullet_entries,
+                }
+            )
+
+        existing_summary = (parsed_data.get("summary") or "").strip()
+        if summary_section_text:
+            if not existing_summary or existing_summary != summary_section_text:
+                parsed_data["summary"] = summary_section_text
+
+        skills_section = next(
+            (section for section in normalized_sections if "skill" in (section.get("title") or "").lower()),
+            None,
+        )
+        skills_bullets_present = bool(
+            skills_section
+            and any(entry.get("text", "").strip() for entry in skills_section.get("bullets", []))
+        )
+        if not skills_bullets_present:
+            extracted_skills = _extract_skills_from_text(text)
+            if extracted_skills:
+                fallback_bullets = [{"text": skill, "params": {}} for skill in extracted_skills]
+                if skills_section:
+                    skills_section["bullets"] = fallback_bullets
+                else:
+                    normalized_sections.append(
+                        {
+                            "title": "Skills",
+                            "params": {},
+                            "bullets": fallback_bullets,
+                        }
+                    )
+
+        final_sections: List[Dict[str, Any]] = []
+        for idx, section in enumerate(normalized_sections):
+            bullets: List[Dict[str, Any]] = []
+            for bullet_idx, entry in enumerate(section.get("bullets", [])):
+                bullet_text = str(entry.get("text", ""))
+                bullet_params = entry.get("params") or {}
+                bullets.append(
+                    {
+                        "id": f"{idx}-{bullet_idx}",
+                        "text": bullet_text,
+                        "params": bullet_params,
                     }
+                )
+
+            final_sections.append(
+                {
+                    "id": str(idx),
+                    "title": section.get("title") or f"Section {idx + 1}",
+                    "bullets": bullets,
+                    "params": section.get("params") or {},
+                }
+            )
+
+        parsed_data["sections"] = final_sections
 
         parsed_data.setdefault("detected_variables", {})
 
         logger.info(
             f"AI parsing successful: {len(parsed_data.get('sections', []))} sections extracted"
         )
+        try:
+            logger.debug(
+                "Parsed resume data preview: %s",
+                json.dumps(parsed_data)[:2000],
+            )
+        except Exception as log_error:
+            logger.debug("Failed to serialize parsed resume data for logging: %s", log_error)
         return parsed_data
 
     except json.JSONDecodeError as e:
@@ -3689,6 +3798,76 @@ Resume Text (Full Content):
         logger.error(f"AI parsing failed: {str(e)}")
         logger.info("Falling back to basic text parsing")
         return parse_resume_text(text)
+
+
+def _extract_skills_from_text(raw_text: str) -> List[str]:
+    if not raw_text:
+        return []
+
+    skill_headings = [
+        "skills",
+        "technical skills",
+        "technical skills & tools",
+        "core competencies",
+        "core skills",
+        "technologies",
+        "tools & technologies",
+        "tech stack",
+    ]
+    heading_prefixes = tuple(skill.lower() for skill in skill_headings)
+
+    lines = raw_text.splitlines()
+    captured_lines: List[str] = []
+    capturing = False
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            if capturing and captured_lines:
+                break
+            continue
+
+        lower_line = stripped.lower()
+        if not capturing and lower_line.startswith(heading_prefixes):
+            capturing = True
+            if ":" in stripped:
+                after_colon = stripped.split(":", 1)[1].strip()
+                if after_colon:
+                    captured_lines.append(after_colon)
+            continue
+
+        if capturing:
+            if stripped == stripped.upper() and len(stripped.split()) <= 6:
+                break
+            if re.match(r"^[A-Z][A-Za-z0-9/&\-\s]{2,40}:$", stripped):
+                break
+            if lower_line.startswith(heading_prefixes):
+                continue
+            captured_lines.append(stripped)
+
+    if not captured_lines:
+        return []
+
+    skills: List[str] = []
+    for entry in captured_lines:
+        cleaned = entry.strip("•·▪∙●○-–— ")
+        if not cleaned:
+            continue
+        if "," in cleaned:
+            parts = [part.strip() for part in cleaned.split(",") if part.strip()]
+            skills.extend(parts)
+        else:
+            skills.append(cleaned)
+
+    deduped: List[str] = []
+    seen = set()
+    for skill in skills:
+        lowered = skill.lower()
+        if lowered not in seen:
+            seen.add(lowered)
+            deduped.append(skill)
+
+    return deduped
 
 
 def parse_resume_text(text: str) -> Dict:
