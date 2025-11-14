@@ -1642,99 +1642,78 @@ export default function VisualResumeEditor({
                         isEnabled={true}
                         fieldCount={1 + customTitleFields.length}
                       >
-              <div className="space-y-3">
-                {/* Default Title */}
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <span className="text-lg font-semibold text-gray-700">
-                    {data.title || 'Your Title'}
-                  </span>
-                  <button 
-                    className="p-1 hover:bg-gray-100 rounded transition-colors"
-                    onClick={() => {
-                      const titleElement = document.querySelector('[data-field="title"]') as HTMLElement
-                      if (titleElement) {
-                        titleElement.focus()
-                        const range = document.createRange()
-                        range.selectNodeContents(titleElement)
-                        const sel = window.getSelection()
-                        sel?.removeAllRanges()
-                        sel?.addRange(range)
-                      }
+              <div className="space-y-2">
+                {/* Default Title with Checkbox */}
+                <div className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group">
+                  <input
+                    type="checkbox"
+                    checked={(data as any).fieldsVisible?.title !== false}
+                    onChange={(e) => {
+                      const fieldsVisible = { ...(data as any).fieldsVisible, title: e.target.checked }
+                      onChange({ ...data, fieldsVisible })
                     }}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                  />
+                  <div
+                    contentEditable
+                    suppressContentEditableWarning
+                    data-editable-type="field"
+                    data-field="title"
+                    onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
+                    className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                      (data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                    }`}
                   >
-                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-editable-type="field"
-                  data-field="title"
-                  onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
-                  className={`text-center text-lg outline-none hover:bg-blue-50 focus:bg-blue-50 px-3 py-2 rounded transition-colors cursor-text ${
-                    (data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                  }`}
-                >
-                  {data.title || 'Click to edit title'}
+                    {data.title || 'Click to edit title'}
+                  </div>
                 </div>
                 
                 {/* Custom Title Fields */}
-                {customTitleFields.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-gray-100">
-                    {customTitleFields.map((customField) => (
-                      <div key={customField.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group">
-                        <input
-                          type="checkbox"
-                          checked={(data as any).fieldsVisible?.[customField.field] !== false}
-                          onChange={(e) => {
-                            const fieldsVisible = { ...(data as any).fieldsVisible, [customField.field]: e.target.checked }
-                            onChange({ ...data, fieldsVisible })
-                          }}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                        />
-                        <div
-                          contentEditable
-                          suppressContentEditableWarning
-                          data-editable-type="field"
-                          data-field={customField.field}
-                          onBlur={(e) => {
-                            const value = e.currentTarget.textContent || '';
-                            onChange({ ...data, [customField.field]: value });
-                          }}
-                          className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                            (data as any).fieldsVisible?.[customField.field] === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                          }`}
-                        >
-                          {(data as any)[customField.field] || 'Click to edit custom title'}
-                        </div>
-                        <button
-                          onClick={() => removeCustomTitleField(customField.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity"
-                          title="Remove this field"
-                        >
-                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
+                {customTitleFields.map((customField) => (
+                  <div key={customField.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group">
+                    <input
+                      type="checkbox"
+                      checked={(data as any).fieldsVisible?.[customField.field] !== false}
+                      onChange={(e) => {
+                        const fieldsVisible = { ...(data as any).fieldsVisible, [customField.field]: e.target.checked }
+                        onChange({ ...data, fieldsVisible })
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                    />
+                    <div
+                      contentEditable
+                      suppressContentEditableWarning
+                      data-editable-type="field"
+                      data-field={customField.field}
+                      onBlur={(e) => {
+                        const value = e.currentTarget.textContent || '';
+                        onChange({ ...data, [customField.field]: value });
+                      }}
+                      className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                        (data as any).fieldsVisible?.[customField.field] === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                      }`}
+                    >
+                      {(data as any)[customField.field] || 'Click to edit custom title'}
+                    </div>
+                    <button
+                      onClick={() => removeCustomTitleField(customField.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity flex-shrink-0"
+                      title="Remove this field"
+                    >
+                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
-                )}
+                ))}
                 
                 {/* Add Title Field Button */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500 hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer mt-3">
-                  <button
-                    onClick={addCustomTitleField}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                  >
-                    + Add Title Field
-                  </button>
-                </div>
+                <button
+                  onClick={addCustomTitleField}
+                  className="w-full mt-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                >
+                  + Add Title Field
+                </button>
                       </div>
                     </SortableSectionCard>
                   )
@@ -1759,7 +1738,7 @@ export default function VisualResumeEditor({
                 <SortableContext
                   items={contactFieldOrder}
                 >
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
                     {contactFieldOrder.map((fieldKey) => {
                       const fieldIcons: Record<string, string> = {
                         email: '📧',
@@ -1814,14 +1793,12 @@ export default function VisualResumeEditor({
               </DndContext>
               
               {/* Add Contact Field Button */}
-              <div className="mt-4 border-2 border-dashed border-gray-300 rounded-lg p-3 text-center text-gray-500 hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer">
-                <button
-                  onClick={addCustomContactField}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                >
-                  + Add Contact Field
-                </button>
-                        </div>
+              <button
+                onClick={addCustomContactField}
+                className="w-full mt-3 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+              >
+                + Add Contact Field
+              </button>
                       </SortableSectionCard>
                     )
                   }
@@ -3197,24 +3174,34 @@ function ModernContactField({
   onChange: (data: ResumeData) => void
   onRemove?: () => void
 }) {
+  const isVisible = (data as any).fieldsVisible?.[fieldKey] !== false
   return (
-    <div className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg group border border-gray-100">
-      <span className="text-lg flex-shrink-0">{icon}</span>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</div>
-        <div
-          contentEditable
-          suppressContentEditableWarning
-          data-editable-type="field"
-          data-field={fieldKey}
-          onBlur={(e) => {
-            const newValue = e.currentTarget.textContent || ''
-            onChange({ ...data, [fieldKey]: newValue })
-          }}
-          className="text-sm text-gray-900 font-medium outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
-        >
-          {value || `Enter ${label.toLowerCase()}`}
-        </div>
+    <div className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group border border-gray-100">
+      <input
+        type="checkbox"
+        checked={isVisible}
+        onChange={(e) => {
+          const fieldsVisible = { ...(data as any).fieldsVisible, [fieldKey]: e.target.checked }
+          onChange({ ...data, fieldsVisible })
+        }}
+        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
+      />
+      <span className="text-sm flex-shrink-0">{icon}</span>
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        data-editable-type="field"
+        data-field={fieldKey}
+        onBlur={(e) => {
+          const newValue = e.currentTarget.textContent || ''
+          onChange({ ...data, [fieldKey]: newValue })
+        }}
+        className={`flex-1 text-xs outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+          !isVisible ? 'text-gray-400 line-through' : 'text-gray-700'
+        }`}
+        title={label}
+      >
+        {value || label}
       </div>
       {onRemove && (
         <button
@@ -3222,7 +3209,7 @@ function ModernContactField({
           className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity flex-shrink-0"
           title="Remove field"
         >
-          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3 h-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>

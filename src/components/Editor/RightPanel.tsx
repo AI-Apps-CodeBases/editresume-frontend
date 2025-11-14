@@ -29,6 +29,8 @@ interface RightPanelProps {
     }>
   }
   template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
+  deepLinkedJD?: string | null
+  activeJobDescriptionId?: number | null
 }
 
 export default function RightPanel({ 
@@ -38,7 +40,9 @@ export default function RightPanel({
   onResumeUpdate,
   onAIImprove,
   resumeData,
-  template = 'clean'
+  template = 'clean',
+  deepLinkedJD,
+  activeJobDescriptionId
 }: RightPanelProps) {
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [aiImprovements, setAiImprovements] = useState<number>(0)
@@ -460,6 +464,8 @@ export default function RightPanel({
               resumeData={resumeData}
               onResumeUpdate={onResumeUpdate}
               standalone={false}
+              initialJobDescription={deepLinkedJD || undefined}
+              currentJobDescriptionId={activeJobDescriptionId || undefined}
             />
           </div>
         )}
@@ -490,6 +496,7 @@ export default function RightPanel({
                 <div className="flex-1 flex items-start justify-center p-3 overflow-y-auto custom-scrollbar">
                   <PreviewPanel
                     data={{
+                      ...resumeData,
                       name: resumeData.name || '',
                       title: resumeData.title || '',
                       email: resumeData.email || '',
@@ -500,6 +507,7 @@ export default function RightPanel({
                         ...section,
                         bullets: section.bullets || [],
                       })),
+                      fieldsVisible: (resumeData as any).fieldsVisible || {},
                     }}
                     replacements={{}}
                     template={template}

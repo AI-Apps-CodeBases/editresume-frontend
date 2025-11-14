@@ -53,6 +53,8 @@ interface ModernEditorLayoutProps {
   isAuthenticated?: boolean
   onLogout?: () => void
   onSignIn?: () => void
+  deepLinkedJD?: string | null
+  activeJobDescriptionId?: number | null
 }
 
 export default function ModernEditorLayout({
@@ -83,9 +85,18 @@ export default function ModernEditorLayout({
   isAuthenticated,
   onLogout,
   onSignIn,
+  deepLinkedJD,
+  activeJobDescriptionId,
 }: ModernEditorLayoutProps) {
   const [activeRightTab, setActiveRightTab] = useState<'live' | 'match' | 'analysis' | 'grammar' | 'comments'>('live')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
+
+  // Switch to match tab when job description is available
+  useEffect(() => {
+    if (deepLinkedJD && activeRightTab !== 'match') {
+      setActiveRightTab('match')
+    }
+  }, [deepLinkedJD])
 
   // Hide navbar and footer when mounted
   useEffect(() => {
@@ -169,6 +180,8 @@ export default function ModernEditorLayout({
               onAIImprove={onAIImprove}
               resumeData={resumeData}
               template={template}
+              deepLinkedJD={deepLinkedJD}
+              activeJobDescriptionId={activeJobDescriptionId}
             />
           </div>
         )}

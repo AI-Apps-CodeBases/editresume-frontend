@@ -222,32 +222,96 @@ export default function PreviewPanel({
       )
     }
     
-    return (
-      <ul className="space-y-2">
-        {validBullets.map((bullet, index) => {
-          const isHeader = bullet.text.startsWith('**') && bullet.text.endsWith('**')
-          const isBulletPoint = bullet.text.startsWith('•')
-          
-          if (isHeader) {
-            return (
-              <li 
-                key={bullet.id} 
-                className="font-bold text-base mb-2 mt-4 first:mt-0"
-                style={{ 
-                  fontFamily: headingFont,
-                  fontSize: `${headingSize}px`,
-                  color: primaryColor,
-                  marginBottom: `${bulletSpacing * 2}px`,
-                  marginTop: `${bulletSpacing * 2}px`
-                }}
-              >
-                <span dangerouslySetInnerHTML={{ 
-                  __html: applyReplacements(bullet.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-                }} />
-              </li>
+    // Group bullets by company headers for proper rendering
+    const renderBullets = () => {
+      const elements: JSX.Element[] = []
+      let currentList: JSX.Element[] = []
+      
+      validBullets.forEach((bullet, index) => {
+        const isHeader = bullet.text.startsWith('**') && bullet.text.includes('**', 2)
+        
+        if (isHeader) {
+          // Close previous list if exists
+          if (currentList.length > 0) {
+            elements.push(
+              <ul key={`list-${index}`} className="space-y-2">
+                {currentList}
+              </ul>
             )
-          } else {
-            // Remove existing bullet point if present to avoid double bullets
+            currentList = []
+          }
+          
+          // Add company header
+          const headerText = bullet.text.replace(/\*\*/g, '').trim()
+          elements.push(
+            <div 
+              key={bullet.id} 
+              className="font-bold mb-3 mt-5 first:mt-0"
+              style={{ 
+                fontFamily: headingFont,
+                fontSize: `${headingSize * 1.15}px`,
+                color: primaryColor,
+                marginBottom: `${bulletSpacing * 2}px`,
+                marginTop: index === 0 ? 0 : `${bulletSpacing * 2}px`,
+                fontWeight: 'bold'
+              }}
+            >
+              {applyReplacements(headerText)}
+            </div>
+          )
+        } else {
+          // Add bullet to current list
+          let cleanText = bullet.text
+          if (cleanText.startsWith('• ')) {
+            cleanText = cleanText.substring(2)
+          } else if (cleanText.startsWith('•')) {
+            cleanText = cleanText.substring(1)
+          } else if (cleanText.startsWith('- ')) {
+            cleanText = cleanText.substring(2)
+          } else if (cleanText.startsWith('* ')) {
+            cleanText = cleanText.substring(2)
+          }
+          
+          currentList.push(
+            <li 
+              key={bullet.id} 
+              className="text-sm leading-relaxed flex"
+              style={{ 
+                fontFamily: bodyFont,
+                fontSize: `${bodySize}px`,
+                color: textColor,
+                marginBottom: `${bulletSpacing}px`
+              }}
+            >
+              <span 
+                className="mr-2"
+                style={{ color: primaryColor }}
+              >
+                •
+              </span>
+              <span 
+                className="flex-1" 
+                dangerouslySetInnerHTML={{ 
+                  __html: applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                }} 
+              />
+            </li>
+          )
+        }
+      })
+      
+      // Close final list if exists
+      if (currentList.length > 0) {
+        elements.push(
+          <ul key="list-final" className="space-y-2">
+            {currentList}
+          </ul>
+        )
+      }
+      
+      return elements.length > 0 ? elements : (
+        <ul className="space-y-2">
+          {validBullets.map((bullet) => {
             let cleanText = bullet.text
             if (cleanText.startsWith('• ')) {
               cleanText = cleanText.substring(2)
@@ -283,9 +347,15 @@ export default function PreviewPanel({
                 />
               </li>
             )
-          }
-        })}
-      </ul>
+          })}
+        </ul>
+      )
+    }
+    
+    return (
+      <div className="space-y-2">
+        {renderBullets()}
+      </div>
     )
   }
 

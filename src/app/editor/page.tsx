@@ -21,6 +21,7 @@ import JobMatchAnalyticsDashboard from '@/components/AI/JobMatchAnalyticsDashboa
 import ShareResumeModal from '@/components/Resume/ShareResumeModal'
 import JobsView from '@/components/Editor/JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
+import NewResumeWizard from '@/components/Editor/NewResumeWizard'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 import { shouldPromptAuthentication } from '@/lib/guestAuth'
@@ -247,34 +248,39 @@ const EditorPageContent = () => {
         lastLoadedRef.current = { resumeId: resumeId ?? null, versionId: resumeVersionId }
         lastQueryParamsRef.current = { resumeIdParam, resumeVersionIdParam }
         
+        // Handle JD ID after resume is loaded to ensure match mode activates
         const jdIdParam = searchParams.get('jdId')
         if (jdIdParam && !cancelled) {
           const jobId = Number(jdIdParam)
-          setActiveJobDescriptionId(jobId)
-          const savedJD = localStorage.getItem('deepLinkedJD')
-          if (savedJD) {
-            setDeepLinkedJD(savedJD)
-            setPreviewMode('match')
-          } else {
-            Promise.all([
-              fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null),
-              fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
-            ]).then(([newJob, legacyJob]) => {
-              if (!cancelled) {
-                const jobData = newJob || legacyJob
-                if (jobData) {
-                  const description = newJob?.description || legacyJob?.content || ''
-                  if (description) {
-                    setDeepLinkedJD(description)
-                    setPreviewMode('match')
-                    if (typeof window !== 'undefined') {
-                      localStorage.setItem('deepLinkedJD', description)
-                      localStorage.setItem('activeJobDescriptionId', String(jobId))
+          if (!isNaN(jobId)) {
+            setActiveJobDescriptionId(jobId)
+            const savedJD = localStorage.getItem('deepLinkedJD')
+            if (savedJD) {
+              setDeepLinkedJD(savedJD)
+              setPreviewMode('match')
+            } else {
+              Promise.all([
+                fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null),
+                fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
+              ]).then(([newJob, legacyJob]) => {
+                if (!cancelled) {
+                  const jobData = newJob || legacyJob
+                  if (jobData) {
+                    const description = newJob?.description || legacyJob?.content || ''
+                    if (description) {
+                      setDeepLinkedJD(description)
+                      setPreviewMode('match')
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('deepLinkedJD', description)
+                        localStorage.setItem('activeJobDescriptionId', String(jobId))
+                      }
                     }
                   }
                 }
-              }
-            }).catch(() => {})
+              }).catch((error) => {
+                console.error('Failed to load job description:', error)
+              })
+            }
           }
         }
       } catch (error) {
@@ -1141,6 +1147,94 @@ const EditorPageContent = () => {
     }
   }
 
+  const handleSaveResume = useCallback(async () => {
+    if (!resumeData.name && !resumeData.sections?.length) {
+      alert('Please add some content to your resume before saving')
+      return
+    }
+
+    if (!user?.email) {
+      alert('Unable to determine your account email. Please sign in again.')
+      return
+    }
+
+    // Prompt for display name (for the app only - doesn't appear in resume)
+    const displayName = prompt(
+      'Enter a display name for this resume (shown in your resume list, not on the resume):',
+      resumeData.name || 'My Resume'
+    )
+    if (!displayName) {
+      return
+    }
+
+    // Document name is what appears in the actual resume - always use resumeData.name
+    const documentName = resumeData.name || ''
+
+    try {
+      const cleanedSections = resumeData.sections.map((section: any) => ({
+        id: section.id,
+        title: section.title,
+        bullets: section.bullets.map((bullet: any) => ({
+          id: bullet.id,
+          text: bullet.text,
+          params: {},
+        })),
+      }))
+
+      const response = await fetch(
+        `${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: displayName, // Display name for the app
+            document_name: documentName, // Name that appears in the resume document
+            title: resumeData.title || '',
+            email: resumeData.email || '',
+            phone: resumeData.phone || '',
+            location: resumeData.location || '',
+            summary: resumeData.summary || '',
+            sections: cleanedSections,
+            template: selectedTemplate,
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.message || 'Save failed')
+      }
+
+      setCurrentResumeId(result.resume_id)
+
+      if (typeof document !== 'undefined') {
+        const notification = document.createElement('div')
+        notification.className =
+          'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md'
+        notification.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="text-2xl">✅</div>
+            <div>
+              <div class="font-bold text-lg">Resume Saved!</div>
+              <div class="text-sm mt-1">${displayName}</div>
+              <div class="text-xs mt-1 text-green-100">Saved to Master Resumes</div>
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
+          </div>
+        `
+        document.body.appendChild(notification)
+        setTimeout(() => notification.remove(), 5000)
+      }
+    } catch (error) {
+      console.error('Failed to save resume:', error)
+      alert(`Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }, [resumeData, selectedTemplate, setCurrentResumeId, user])
+
   // Version Control Handlers (Save functionality moved to JobDescriptionMatcher)
 
   const handleVersionLoad = (versionData: any) => {
@@ -1512,9 +1606,29 @@ const EditorPageContent = () => {
     }
   }
 
-  return (
-    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
-      {mounted && (
+  // Handler for Upload Resume button
+  const handleUploadResume = () => {
+    router.push('/upload')
+  }
+
+  // Handler for New Resume button
+  const handleNewResume = () => {
+    setShowWizard(true)
+  }
+
+  // Handler for AI Content Wizard from sidebar
+  const handleAIContentWizard = (contentType: 'job' | 'project' | 'skill' | 'education') => {
+    setAiWizardContentType(contentType)
+    setAiWizardContext({ type: contentType })
+    setShowAIWizard(true)
+  }
+
+  // Handler for Export (convert handleExportOption to match expected format)
+  const handleExportForLayout = async (format: 'pdf' | 'docx' | 'cover-letter') => {
+    await handleExportOption(format)
+  }
+
+  const headerElement = mounted ? (
         <header className="sticky top-0 z-30 border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)] backdrop-blur">
           <div className="mx-auto w-full max-w-7xl px-4 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3 mobile-header">
@@ -1569,72 +1683,7 @@ const EditorPageContent = () => {
                 )}
                 {isAuthenticated && user && (
                   <button
-                    onClick={async () => {
-                      if (!resumeData.name && !resumeData.sections?.length) {
-                        alert('Please add some content to your resume before saving');
-                        return;
-                      }
-                      const resumeName = prompt('Enter a name for this resume:', resumeData.name || 'My Resume');
-                      if (!resumeName) return;
-                      
-                      try {
-                        const cleanedSections = resumeData.sections.map((section: any) => ({
-                          id: section.id,
-                          title: section.title,
-                          bullets: section.bullets.map((bullet: any) => ({
-                            id: bullet.id,
-                            text: bullet.text,
-                            params: {}
-                          }))
-                        }));
-                        
-                        const response = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            name: resumeName,
-                            title: resumeData.title || '',
-                            email: resumeData.email || '',
-                            phone: resumeData.phone || '',
-                            location: resumeData.location || '',
-                            summary: resumeData.summary || '',
-                            sections: cleanedSections,
-                            template: selectedTemplate
-                          })
-                        });
-                        
-                        if (response.ok) {
-                          const result = await response.json();
-                          if (result.success) {
-                            setCurrentResumeId(result.resume_id);
-                            
-                            // Show toast notification instead of navigating
-                            const notification = document.createElement('div');
-                            notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
-                            notification.innerHTML = `
-                              <div class="flex items-center gap-3">
-                                <div class="text-2xl">✅</div>
-                                <div>
-                                  <div class="font-bold text-lg">Resume Saved!</div>
-                                  <div class="text-sm mt-1">${resumeName}</div>
-                                  <div class="text-xs mt-1 text-green-100">Saved to Master Resumes</div>
-                                </div>
-                                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
-                              </div>
-                            `;
-                            document.body.appendChild(notification);
-                            setTimeout(() => notification.remove(), 5000);
-                          } else {
-                            throw new Error(result.message || 'Save failed');
-                          }
-                        } else {
-                          throw new Error(`HTTP ${response.status}`);
-                        }
-                      } catch (error) {
-                        console.error('Failed to save resume:', error);
-                        alert(`Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                      }
-                    }}
+                    onClick={handleSaveResume}
                     className="rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px]"
                   >
                     💾 Save Resume
@@ -1726,49 +1775,16 @@ const EditorPageContent = () => {
                   )}
                 </div>
               </div>
-                {autoGeneratedSummary && (
-                  <div className="mt-6 space-y-4">
-                    <ATSScoreCard score={autoGeneratedSummary.ats_score} />
-                    <OptimizationSuggestions result={autoGeneratedSummary} />
-                  </div>
-                )}
+              {autoGeneratedSummary && (
+                <div className="mt-6 space-y-4">
+                  <ATSScoreCard score={autoGeneratedSummary.ats_score} />
+                  <OptimizationSuggestions result={autoGeneratedSummary} />
+                </div>
+              )}
             </div>
-          `;
-          document.body.appendChild(notification);
-          setTimeout(() => notification.remove(), 5000);
-        } else {
-          throw new Error(result.message || 'Save failed');
-        }
-      } else {
-        throw new Error(`HTTP ${response.status}`);
-      }
-    } catch (error) {
-      console.error('Failed to save resume:', error);
-      alert(`Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  // Handler for Upload Resume button
-  const handleUploadResume = () => {
-    router.push('/upload');
-  };
-
-  // Handler for New Resume button
-  const handleNewResume = () => {
-    setShowWizard(true);
-  };
-
-  // Handler for AI Content Wizard from sidebar
-  const handleAIContentWizard = (contentType: 'job' | 'project' | 'skill' | 'education') => {
-    setAiWizardContentType(contentType)
-    setAiWizardContext({ type: contentType })
-    setShowAIWizard(true)
-  }
-
-  // Handler for Export (convert handleExportOption to match expected format)
-  const handleExportForLayout = async (format: 'pdf' | 'docx' | 'cover-letter') => {
-    await handleExportOption(format);
-  };
+          </div>
+        </header>
+      ) : null
 
   if (!mounted) {
     return (
@@ -1793,7 +1809,9 @@ const EditorPageContent = () => {
   }
 
   return (
-    <div className="fixed inset-0 overflow-hidden">
+    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
+      {headerElement}
+      <div className="fixed inset-0 overflow-hidden">
       <ModernEditorLayout
         resumeData={resumeData}
         onResumeUpdate={handleResumeDataChange}
@@ -1810,6 +1828,8 @@ const EditorPageContent = () => {
         onLeaveRoom={handleLeaveRoom}
         isConnected={collaboration.isConnected}
         activeUsers={collaboration.activeUsers}
+        deepLinkedJD={deepLinkedJD}
+        activeJobDescriptionId={activeJobDescriptionId}
         onAIImprove={async (text: string) => {
           try {
             console.log('AI Improve requested for:', text)
@@ -1982,12 +2002,13 @@ const EditorPageContent = () => {
         />
       )}
 
-      {showJobMatchAnalytics && (
-        <JobMatchAnalyticsDashboard
-          isOpen={showJobMatchAnalytics}
-          onClose={() => setShowJobMatchAnalytics(false)}
-        />
-      )}
+        {showJobMatchAnalytics && (
+          <JobMatchAnalyticsDashboard
+            isOpen={showJobMatchAnalytics}
+            onClose={() => setShowJobMatchAnalytics(false)}
+          />
+        )}
+      </div>
     </div>
   )
 }

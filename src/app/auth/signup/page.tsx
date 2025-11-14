@@ -13,6 +13,8 @@ const getErrorMessage = (error: unknown) => {
         return 'That email is already registered.'
       case 'auth/weak-password':
         return 'Password must be at least 6 characters.'
+      case 'auth/operation-not-allowed':
+        return 'Email/password sign-up is not enabled. Please contact support.'
       default:
         return error.message
     }

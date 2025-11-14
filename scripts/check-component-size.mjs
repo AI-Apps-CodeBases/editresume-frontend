@@ -20,9 +20,12 @@ const ALLOWLIST = new Set([
   'components/Editor/DesignPanel.tsx',
   'components/Editor/JobDetailView.tsx',
   'components/Editor/JobsView.tsx',
+  'components/Editor/LeftSidebar.tsx',
+  'components/Editor/RightPanel.tsx',
   'components/Resume/PreviewPanel.tsx',
   'components/Resume/VersionControlPanel.tsx',
-  'components/SettingsPanel.tsx'
+  'components/SettingsPanel.tsx',
+  'features/resume-automation/components/ResumeAutomationFlow.tsx'
 ])
 
 function walk(dir, results = []) {

@@ -753,9 +753,45 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [selectedJobMetadata, setSelectedJobMetadata] = useState<JobMetadata | null>(null);
   const [currentJDInfo, setCurrentJDInfo] = useState<{company?: string, title?: string, easy_apply_url?: string} | null>(null);
+  
+  // Load job description from localStorage if not provided via prop
   useEffect(() => {
-    if (initialJobDescription) setJobDescription(initialJobDescription);
+    if (initialJobDescription) {
+      setJobDescription(initialJobDescription);
+    } else if (typeof window !== 'undefined' && !jobDescription.trim()) {
+      const savedJD = localStorage.getItem('deepLinkedJD');
+      if (savedJD) {
+        setJobDescription(savedJD);
+      }
+    }
   }, [initialJobDescription]);
+  
+  // Also check localStorage when component mounts or when currentJobDescriptionId changes
+  useEffect(() => {
+    if (currentJobDescriptionId && typeof window !== 'undefined' && !jobDescription.trim()) {
+      const savedJD = localStorage.getItem('deepLinkedJD');
+      if (savedJD) {
+        setJobDescription(savedJD);
+      } else {
+        // Try to fetch from API if not in localStorage
+        Promise.all([
+          fetch(`${config.apiBase}/api/jobs/${currentJobDescriptionId}`).then(res => res.ok ? res.json() : null).catch(() => null),
+          fetch(`${config.apiBase}/api/job-descriptions/${currentJobDescriptionId}`).then(res => res.ok ? res.json() : null).catch(() => null)
+        ]).then(([newJob, legacyJob]) => {
+          const jobData = newJob || legacyJob;
+          if (jobData) {
+            const description = newJob?.description || legacyJob?.content || '';
+            if (description) {
+              setJobDescription(description);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('deepLinkedJD', description);
+              }
+            }
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [currentJobDescriptionId, jobDescription]);
   useEffect(() => {
     if (!jobDescription?.trim()) return;
     const extracted = deriveJobMetadataFromText(jobDescription);
@@ -1758,6 +1794,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       return saveGuestJobDescriptionLocally();
     }
 
+    // Extract accurate title from JD if not already analyzed
+    // This ensures we always use the title extracted from the JD, even if user saves without analyzing first
+    let accurateTitle = selectedJobMetadata?.title;
+    if (!accurateTitle && jobDescription) {
+      const metadataFromJD = deriveJobMetadataFromText(jobDescription);
+      accurateTitle = metadataFromJD?.title;
+    }
+    // Fallback to currentJDInfo title or default
+    accurateTitle = accurateTitle || currentJDInfo?.title || 'Untitled Job';
+    
     try {
       const apiBase = config.apiBase || 'http://localhost:8000';
       
@@ -1783,11 +1829,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         saveButton.disabled = true;
         saveButton.textContent = 'Saving...';
       }
-
+      
       // Build payload - always include id if we have currentJobDescriptionId
       const payload: any = {
         user_email: user.email,
-        title: selectedJobMetadata?.title || currentJDInfo?.title || 'Untitled Job',
+        title: accurateTitle, // Use accurate title from JD analysis
         company: jdMetadata.company || '',
         content: jobDescription || '',
         easy_apply_url: jdMetadata.easy_apply_url || null,
@@ -1852,8 +1898,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }));
       }
 
-      // Show success notification immediately
-      const jobTitle = selectedJobMetadata?.title || currentJDInfo?.title || 'Job Description';
+      // Show success notification immediately - use the accurate title that was saved
+      const jobTitle = accurateTitle;
       const companyName = jdMetadata.company ? ` - ${jdMetadata.company}` : '';
       const atsScore = currentATSScore !== null ? currentATSScore : (matchResult?.match_analysis?.similarity_score || null);
       const scoreText = atsScore ? ` (ATS: ${Math.round(atsScore)}%)` : '';
