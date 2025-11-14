@@ -66,13 +66,42 @@ class GrammarStyleChecker:
         # Initialize LanguageTool if available
         if LANGUAGETOOL_AVAILABLE:
             try:
-                self.language_tool = LanguageTool("en-US")
-                logger.info("LanguageTool initialized successfully")
+                # Check if Java is available before initializing LanguageTool
+                import subprocess
+                import shutil
+                import os
+                java_path = shutil.which("java")
+                if not java_path:
+                    logger.debug("Java not found, LanguageTool will not be available. Using fallback grammar checking.")
+                    self.language_tool = None
+                else:
+                    # Try to verify Java works (suppress stderr to avoid noisy output)
+                    try:
+                        # Suppress stderr to avoid "Command returned non-zero exit status" messages
+                        with open(os.devnull, 'w') as devnull:
+                            result = subprocess.run(
+                                ["java", "-version"],
+                                stdout=devnull,
+                                stderr=devnull,
+                                timeout=2
+                            )
+                        if result.returncode != 0:
+                            logger.debug("Java check failed, LanguageTool will not be available. Using fallback grammar checking.")
+                            self.language_tool = None
+                        else:
+                            # Java is available, try to initialize LanguageTool
+                            self.language_tool = LanguageTool("en-US")
+                            logger.info("LanguageTool initialized successfully")
+                    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+                        # Java check failed or Java not working properly
+                        logger.debug("Java verification failed, LanguageTool will not be available. Using fallback grammar checking.")
+                        self.language_tool = None
             except Exception as e:
-                logger.warning(f"LanguageTool initialization failed: {e}")
+                # Suppress noisy error messages - LanguageTool requires Java which may not be installed
+                logger.debug(f"LanguageTool initialization failed (Java may not be installed): {type(e).__name__}")
                 self.language_tool = None
         else:
-            logger.info("LanguageTool not available, using fallback grammar checking")
+            logger.debug("LanguageTool package not available, using fallback grammar checking")
             self.language_tool = None
 
         # Initialize spaCy if available
