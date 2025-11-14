@@ -47,7 +47,7 @@ const transitionStepState = (
   steps: GenerationStatusStep[],
   stepId: string,
   nextState: GenerationStatusStep['state']
-) =>
+): GenerationStatusStep[] =>
   steps.map((step) =>
     step.id === stepId
       ? {
@@ -57,7 +57,7 @@ const transitionStepState = (
       : step
   )
 
-const completePreviousSteps = (steps: GenerationStatusStep[], upto: string) => {
+const completePreviousSteps = (steps: GenerationStatusStep[], upto: string): GenerationStatusStep[] => {
   const idx = steps.findIndex((step) => step.id === upto)
   if (idx === -1) return steps
   return steps.map((step, index) =>

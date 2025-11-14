@@ -11,7 +11,7 @@ import type {
 
 const baseUrl = config.apiBase
 
-const getAuthHeaders = () => {
+const getAuthHeaders = (): Record<string, string> => {
   if (typeof window === 'undefined') return {}
   const token = localStorage.getItem('authToken')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -24,7 +24,7 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       const body = await response.json()
       if (body?.detail) {
         message = Array.isArray(body.detail)
-          ? body.detail.map((item) => item.msg || item).join(', ')
+          ? body.detail.map((item: any) => item.msg || item).join(', ')
           : body.detail
       }
     } catch {
@@ -38,12 +38,14 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 export async function autoGenerateResume(
   payload: AutoGenerateRequest
 ): Promise<AutoGenerateResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  Object.assign(headers, getAuthHeaders())
+
   const response = await fetch(`${baseUrl}/api/resumes/auto-generate`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
+    headers,
     credentials: 'include',
     body: JSON.stringify({
       job_id: payload.jobId,
@@ -78,11 +80,13 @@ export async function fetchUserResumes(): Promise<ResumeListItem[]> {
   const url = new URL('/api/resumes', baseUrl)
   url.searchParams.set('user_email', parsed.email)
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  Object.assign(headers, getAuthHeaders())
+
   const response = await fetch(url.toString(), {
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
+    headers,
     credentials: 'include',
   })
 

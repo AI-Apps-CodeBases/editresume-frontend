@@ -50,6 +50,19 @@ export function useSavedJobs() {
     void loadJobs()
   }, [loadJobs])
 
+  // Listen for job saved events to refresh the list automatically
+  useEffect(() => {
+    const handleJobSaved = () => {
+      void loadJobs()
+    }
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('jobSaved', handleJobSaved)
+      return () => {
+        window.removeEventListener('jobSaved', handleJobSaved)
+      }
+    }
+  }, [loadJobs])
   const addJob = useCallback(async (payload: CreateJobPayload) => {
     setLoading(true)
     setError(null)

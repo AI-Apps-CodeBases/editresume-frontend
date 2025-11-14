@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import config from '@/lib/config';
 import InlineGrammarChecker from '@/components/AI/InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
@@ -150,6 +150,7 @@ export default function VisualResumeEditor({
   const [generatedBulletOptions, setGeneratedBulletOptions] = useState<string[]>([]);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
   const [selectedBullets, setSelectedBullets] = useState<Set<number>>(new Set());
+  const hasCleanedDataRef = useRef(false); // Track if we've cleaned old HTML data
   
   // Collapsible sections state
   const [isTitleSectionOpen, setIsTitleSectionOpen] = useState(true);
@@ -343,6 +344,19 @@ export default function VisualResumeEditor({
     }
   };
   
+  // Clean HTML from text content (for old data that might have HTML stored)
+  const cleanTextContent = useCallback((text: string | undefined | null): string => {
+    if (!text) return '';
+    // Remove HTML tags but preserve text content
+    if (typeof document !== 'undefined') {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = text;
+      return tempDiv.textContent || tempDiv.innerText || '';
+    }
+    // Fallback: simple regex to remove HTML tags
+    return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+  }, []);
+
   // Load JD keywords from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -353,6 +367,20 @@ export default function VisualResumeEditor({
         }
       } catch (e) {
         console.error('Failed to load JD keywords:', e);
+      }
+    }
+    
+    // Clean any HTML from resume data on mount (for old data compatibility)
+    // This prevents hydration errors from old data that might have HTML stored
+    // Only run once on initial mount, not on every data change
+    if (!hasCleanedDataRef.current && data.summary && (data.summary.includes('<') || data.summary.includes('&'))) {
+      const cleanedSummary = cleanTextContent(data.summary);
+      if (cleanedSummary !== data.summary) {
+        hasCleanedDataRef.current = true;
+        // Update only if different to avoid infinite loops
+        setTimeout(() => {
+          updateField('summary', cleanedSummary);
+        }, 100);
       }
     }
     
@@ -379,7 +407,7 @@ export default function VisualResumeEditor({
   }, []);
   
   // Check if bullet text contains JD matching keywords and count occurrences
-  const checkBulletMatches = (bulletText: string, sectionTitle?: string): { matches: boolean; matchedKeywords: string[], keywordCounts: Record<string, number> } => {
+  const checkBulletMatches = (bulletText: string, sectionTitle?: string, generatedKeywords?: string[]): { matches: boolean; matchedKeywords: string[], keywordCounts: Record<string, number> } => {
     if (!jdKeywords || !bulletText) return { matches: false, matchedKeywords: [], keywordCounts: {} };
     
     // Exclude certifications from keyword matching
@@ -394,13 +422,33 @@ export default function VisualResumeEditor({
     const matched: string[] = [];
     const keywordCounts: Record<string, number> = {};
     
-    // Filter out single letter keywords and very short keywords
-    const validKeywords = [
-      ...jdKeywords.matching.filter(kw => kw && kw.length > 1 && kw.trim().length > 1),
-      ...jdKeywords.priority.filter(kw => kw && kw.length > 1 && kw.trim().length > 1)
-    ];
+    // Collect all keywords to check (JD keywords + generated keywords)
+    const keywordsToCheck = new Set<string>();
     
-    validKeywords.forEach(keyword => {
+    // Add JD matching keywords
+    jdKeywords.matching.forEach(kw => {
+      if (kw && kw.length > 1 && kw.trim().length > 1) {
+        keywordsToCheck.add(kw);
+      }
+    });
+    
+    // Add priority keywords
+    jdKeywords.priority.forEach(kw => {
+      if (kw && kw.length > 1 && kw.trim().length > 1) {
+        keywordsToCheck.add(kw);
+      }
+    });
+    
+    // Add generated keywords (keywords used to generate this bullet)
+    if (generatedKeywords && Array.isArray(generatedKeywords)) {
+      generatedKeywords.forEach(kw => {
+        if (kw && typeof kw === 'string' && kw.length > 1) {
+          keywordsToCheck.add(kw);
+        }
+      });
+    }
+    
+    keywordsToCheck.forEach(keyword => {
       const keywordLower = keyword.toLowerCase().trim();
       // Skip single letters and very short keywords
       if (keywordLower.length <= 1) return;
@@ -409,6 +457,7 @@ export default function VisualResumeEditor({
       const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
       const matches = lowerText.match(regex);
       if (matches && matches.length > 0) {
+        // Preserve original keyword case
         if (!matched.includes(keyword)) {
           matched.push(keyword);
         }
@@ -419,12 +468,11 @@ export default function VisualResumeEditor({
     return { matches: matched.length > 0, matchedKeywords: matched, keywordCounts };
   };
   
-  // Highlight keywords in text with counts
+  // Highlight keywords in text with counts (for display)
   const highlightKeywordsInText = (text: string, matchedKeywords: string[], keywordCounts: Record<string, number>): React.ReactNode => {
     if (!matchedKeywords.length || !text) return text;
     
     const parts: Array<React.ReactNode> = [];
-    let processedText = text;
     let lastIndex = 0;
     
     // Sort keywords by length (longest first) to avoid partial matches
@@ -432,17 +480,26 @@ export default function VisualResumeEditor({
     const matches: Array<{keyword: string, index: number, length: number, count: number}> = [];
     
     sortedKeywords.forEach(keyword => {
-      const keywordLower = keyword.toLowerCase();
-      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-      let match;
+      if (!keyword || typeof keyword !== 'string') return;
+      const keywordLower = keyword.toLowerCase().trim();
+      if (keywordLower.length <= 1) return;
       
-      while ((match = regex.exec(text)) !== null) {
-        matches.push({
-          keyword,
-          index: match.index,
-          length: match[0].length,
-          count: keywordCounts[keyword] || 1
-        });
+      try {
+        const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        const textMatches = text.matchAll(regex);
+        
+        for (const match of textMatches) {
+          if (match.index !== undefined && match[0]) {
+            matches.push({
+              keyword,
+              index: match.index,
+              length: match[0].length,
+              count: keywordCounts[keyword] || 1
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Error matching keyword:', keyword, e);
       }
     });
     
@@ -463,29 +520,167 @@ export default function VisualResumeEditor({
     
     // Build result with highlighted keywords
     nonOverlapping.forEach((match, idx) => {
+      if (match.index === undefined || match.length === undefined) return;
+      
       // Add text before match
       if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index));
+        const beforeText = text.substring(lastIndex, match.index);
+        if (beforeText) parts.push(beforeText);
       }
       // Add highlighted keyword with count
       const keywordText = text.substring(match.index, match.index + match.length);
-      parts.push(
-        <span key={`kw-${idx}-${match.index}`} className="bg-yellow-200 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
-          {keywordText}
-          {match.count > 1 && <sup className="text-xs text-gray-600 ml-0.5">{match.count}</sup>}
-        </span>
-      );
+      if (keywordText) {
+        parts.push(
+          <span key={`kw-${idx}-${match.index}`} className="bg-yellow-200 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
+            {keywordText}
+            {match.count > 1 && <sup className="text-xs text-gray-600 ml-0.5">{match.count}</sup>}
+          </span>
+        );
+      }
       lastIndex = match.index + match.length;
     });
     
     // Add remaining text
     if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
+      const remainingText = text.substring(lastIndex);
+      if (remainingText) parts.push(remainingText);
     }
     
-    return parts.length > 0 ? <>{parts}</> : text;
+    if (parts.length === 0) return text;
+    if (parts.length === 1 && typeof parts[0] === 'string') return parts[0];
+    return <>{parts}</>;
+  };
+
+  // Highlight keywords in HTML string for contentEditable (returns HTML string)
+  const highlightKeywordsInHTML = (text: string, matchedKeywords: string[]): string => {
+    if (!matchedKeywords.length || !text || typeof text !== 'string') return text || '';
+    
+    let highlightedText = text;
+    const sortedKeywords = [...matchedKeywords]
+      .filter(kw => kw && typeof kw === 'string' && kw.trim().length > 1)
+      .sort((a, b) => b.length - a.length);
+    
+    if (sortedKeywords.length === 0) return text;
+    
+    sortedKeywords.forEach(keyword => {
+      try {
+        const keywordLower = keyword.toLowerCase().trim();
+        if (keywordLower.length <= 1) return;
+        
+        const regex = new RegExp(`\\b(${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+        highlightedText = highlightedText.replace(regex, (match) => {
+          if (!match) return match;
+          const escapedKeyword = keyword.replace(/"/g, '&quot;');
+          return `<mark class="bg-yellow-200 font-semibold underline" title="JD Keyword: ${escapedKeyword}">${match}</mark>`;
+        });
+      } catch (e) {
+        console.warn('Error highlighting keyword in HTML:', keyword, e);
+      }
+    });
+    
+    return highlightedText;
+  };
+
+  // Check if text contains matching keywords
+  const getTextMatches = (text: string): { matchedKeywords: string[], keywordCounts: Record<string, number> } => {
+    if (!jdKeywords?.matching?.length || !text) {
+      return { matchedKeywords: [], keywordCounts: {} };
+    }
+    
+    const textLower = text.toLowerCase();
+    const matchedKeywords: string[] = [];
+    const keywordCounts: Record<string, number> = {};
+    
+    jdKeywords.matching.forEach(keyword => {
+      const keywordLower = keyword.toLowerCase();
+      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      const matches = textLower.match(regex);
+      if (matches && matches.length > 0) {
+        matchedKeywords.push(keyword);
+        keywordCounts[keyword] = matches.length;
+      }
+    });
+    
+    return { matchedKeywords, keywordCounts };
   };
   
+  // Track if component is mounted to avoid hydration errors
+  const [isMounted, setIsMounted] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+    // Wait for React hydration to complete
+    const hydrationTimer = setTimeout(() => {
+      setIsHydrated(true);
+    }, 300);
+    return () => clearTimeout(hydrationTimer);
+  }, []);
+  
+  // Update highlighting when keywords change (client-side only to avoid hydration errors)
+  useEffect(() => {
+    if (!isHydrated) return; // Wait for hydration to complete
+    if (typeof window === 'undefined') return; // Skip on server
+    if (!jdKeywords?.matching?.length) return;
+    
+    // Use requestAnimationFrame to ensure DOM is fully ready
+    const frameId = requestAnimationFrame(() => {
+      // Update summary highlighting
+      const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
+      if (summaryField && data.summary && !summaryField.matches(':focus')) {
+        try {
+          const summaryMatches = getTextMatches(data.summary);
+          if (summaryMatches.matchedKeywords.length > 0) {
+            const currentText = summaryField.textContent || '';
+            const normalizedCurrent = currentText.trim();
+            const normalizedData = data.summary.trim();
+            // Only update if text matches exactly (avoid overwriting user edits or hydration mismatches)
+            if (normalizedCurrent === normalizedData || !normalizedCurrent) {
+              summaryField.innerHTML = highlightKeywordsInHTML(data.summary, summaryMatches.matchedKeywords);
+            }
+          }
+        } catch (e) {
+          console.warn('Error highlighting summary:', e);
+        }
+      }
+      
+      // Update bullet highlighting
+      document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
+        const bulletEl = el as HTMLElement;
+        if (bulletEl.matches(':focus')) return; // Skip if editing
+        
+        const sectionId = bulletEl.getAttribute('data-section-id');
+        const bulletId = bulletEl.getAttribute('data-bullet-id');
+        if (!sectionId || !bulletId) return;
+        
+        try {
+          const section = data.sections.find(s => s.id === sectionId);
+          if (!section) return;
+          
+          const bullet = section.bullets.find(b => b.id === bulletId);
+          if (!bullet?.text) return;
+          
+          const generatedKeywords = bullet.params?.generatedKeywords as string[] | undefined;
+          const bulletMatch = checkBulletMatches(bullet.text, section.title, generatedKeywords);
+          if (bulletMatch.matchedKeywords.length > 0) {
+            const bulletText = bullet.text.replace(/^•\s*/, '').trim();
+            const currentText = (bulletEl.textContent || '').replace(/^•\s*/, '').trim();
+            // Only update if text matches exactly (avoid overwriting user edits or hydration mismatches)
+            if (currentText === bulletText || !currentText) {
+              bulletEl.innerHTML = highlightKeywordsInHTML(bulletText, bulletMatch.matchedKeywords);
+            }
+          }
+        } catch (e) {
+          console.warn(`Error highlighting bullet ${bulletId}:`, e);
+        }
+      });
+    });
+    
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [isHydrated, jdKeywords, data.summary, data.sections]);
+
   // Add page break styles
   useEffect(() => {
     const style = document.createElement('style')
@@ -493,6 +688,14 @@ export default function VisualResumeEditor({
       .resume-container {
         position: relative;
         page-break-inside: avoid;
+      }
+      
+      mark.bg-yellow-200 {
+        background-color: #fef08a !important;
+        font-weight: 600;
+        text-decoration: underline;
+        padding: 1px 2px;
+        border-radius: 2px;
       }
       
       .page-layout-indicator {
@@ -1226,12 +1429,20 @@ export default function VisualResumeEditor({
       const result = await response.json()
       console.log('API result:', result)
       
-      if (result.success && result.bullet_text) {
-        console.log('Adding bullet:', result.bullet_text)
-        // Add the new bullet to the section
+      if (result.success && (result.bullet_text || (result.bullet_options && result.bullet_options.length > 0))) {
+        const bulletText = result.bullet_text || result.bullet_options[0]
+        const keywordsUsed = result.keywords_used || []
+        console.log('Adding bullet:', bulletText, 'with keywords:', keywordsUsed)
+        // Add the new bullet to the section with keywords metadata
         const sections = data.sections.map(s => {
           if (s.id === sectionId) {
-            const newBullets = [...s.bullets, { id: Date.now().toString(), text: `• ${result.bullet_text}`, params: {} }]
+            const newBullets = [...s.bullets, { 
+              id: Date.now().toString(), 
+              text: `• ${bulletText}`, 
+              params: {
+                generatedKeywords: keywordsUsed // Store keywords used for highlighting
+              }
+            }]
             console.log('New bullets for section:', newBullets)
             return {
               ...s,
@@ -1618,16 +1829,46 @@ export default function VisualResumeEditor({
             </div>
             {isSummarySectionOpen && (
               <div className="p-4 bg-blue-50">
-                <div 
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-editable-type="field"
-                  data-field="summary"
-                  onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
-                  className="text-sm text-gray-700 leading-relaxed bg-white border border-blue-100 min-h-[80px] px-3 py-2 rounded outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text"
-                >
-                  {data.summary || 'Click to edit or generate summary from your work experience above ↑'}
-                </div>
+                {(() => {
+                  const summaryMatches = getTextMatches(data.summary || '');
+                  const hasMatches = summaryMatches.matchedKeywords.length > 0;
+                  return (
+                    <>
+                      {hasMatches && (
+                        <div className="mb-2 text-xs text-gray-600">
+                          <span className="font-semibold">✓ Found {summaryMatches.matchedKeywords.length} JD keyword{summaryMatches.matchedKeywords.length > 1 ? 's' : ''}:</span>
+                          <span className="ml-2">
+                            {summaryMatches.matchedKeywords.slice(0, 5).map((kw, idx) => (
+                              <span key={idx} className="inline-block px-1.5 py-0.5 bg-yellow-200 text-yellow-800 rounded text-xs mr-1 font-semibold">
+                                {kw}
+                              </span>
+                            ))}
+                            {summaryMatches.matchedKeywords.length > 5 && (
+                              <span className="text-gray-500">+{summaryMatches.matchedKeywords.length - 5} more</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      <div 
+                        contentEditable
+                        suppressContentEditableWarning
+                        data-editable-type="field"
+                        data-field="summary"
+                        onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
+                        onFocus={(e) => {
+                          // Clear highlighting when editing
+                          if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
+                            e.currentTarget.textContent = e.currentTarget.textContent || '';
+                          }
+                        }}
+                        className="text-sm text-gray-700 leading-relaxed bg-white border border-blue-100 min-h-[80px] px-3 py-2 rounded outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text"
+                        suppressHydrationWarning
+                      >
+                        {data.summary || 'Click to edit or generate summary from your work experience above ↑'}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -2047,7 +2288,8 @@ export default function VisualResumeEditor({
                                     return null
                                   }
 
-                                  const bulletMatch = checkBulletMatches(companyBullet.text, section.title)
+                                  const generatedKeywords = companyBullet.params?.generatedKeywords as string[] | undefined;
+                                  const bulletMatch = checkBulletMatches(companyBullet.text, section.title, generatedKeywords)
                                   const hasMatch = bulletMatch.matches
                                   const hasNoMatch = jdKeywords && !hasMatch && companyBullet.text.trim().length > 0
                                   const isDisabled = companyBullet.params?.visible === false
@@ -2137,7 +2379,7 @@ export default function VisualResumeEditor({
                                                 companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                               }`}
                                             >
-                                              {highlightKeywordsInText(companyBullet.text.replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                              {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                             </div>
                                           )}
                                           <div
@@ -2340,7 +2582,10 @@ export default function VisualResumeEditor({
                         
                         const bulletMatch = isCertificationSection 
                           ? { matches: false, matchedKeywords: [], keywordCounts: {} }
-                          : checkBulletMatches(bullet.text, section.title);
+                          : (() => {
+                              const generatedKeywords = bullet.params?.generatedKeywords as string[] | undefined;
+                              return checkBulletMatches(bullet.text, section.title, generatedKeywords);
+                            })();
                         const hasMatch = bulletMatch.matches;
                         const hasNoMatch = !isCertificationSection && jdKeywords && !hasMatch && bullet.text.trim().length > 0;
                         
@@ -2408,12 +2653,18 @@ export default function VisualResumeEditor({
                                 )}
                                 <div className="relative">
                                   {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
-                                    <div 
-                                      className={`text-sm px-2 py-1 rounded pointer-events-none ${
-                                        bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
-                                      }`}
-                                    >
-                                      {highlightKeywordsInText(bullet.text.replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                    <div className="mb-1 text-xs text-gray-600">
+                                      <span className="font-semibold">✓ JD keywords:</span>
+                                      <span className="ml-2">
+                                        {bulletMatch.matchedKeywords.slice(0, 3).map((kw, idx) => (
+                                          <span key={idx} className="inline-block px-1.5 py-0.5 bg-yellow-200 text-yellow-800 rounded text-xs mr-1 font-semibold">
+                                            {kw}
+                                          </span>
+                                        ))}
+                                        {bulletMatch.matchedKeywords.length > 3 && (
+                                          <span className="text-gray-500">+{bulletMatch.matchedKeywords.length - 3}</span>
+                                        )}
+                                      </span>
                                     </div>
                                   )}
                                 <div 
@@ -2422,6 +2673,16 @@ export default function VisualResumeEditor({
                                   data-editable-type="bullet"
                                   data-section-id={section.id}
                                   data-bullet-id={bullet.id}
+                                  onFocus={(e) => {
+                                    // Clear highlighting when editing
+                                    if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
+                                      e.currentTarget.textContent = e.currentTarget.textContent || '';
+                                    }
+                                  }}
+                                  suppressHydrationWarning
+                                  className={`text-sm text-gray-700 leading-relaxed min-h-[24px] px-2 py-1 rounded outline-none hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-300 transition-colors cursor-text ${
+                                    bullet.params?.visible === false ? 'text-gray-400 line-through' : ''
+                                  }`}
                                     onBlur={(e) => {
                                       updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
                                       if (typeof window !== 'undefined') {
@@ -2434,15 +2695,9 @@ export default function VisualResumeEditor({
                                         }));
                                       }
                                     }}
-                                  className={`text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                      hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0' : ''
-                                    } ${
-                                      bullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch ? 'text-gray-800 font-medium' : 'text-gray-700'
-                                  }`}
-                                    style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : {}}
                                 >
                                   {bullet.text.replace(/^•\s*/, '')}
-                                  </div>
+                                </div>
                                 </div>
                               </div>
                               
