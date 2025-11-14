@@ -16,6 +16,7 @@ from app.utils.resume_formatting import (
     apply_replacements,
     format_regular_bullets,
     format_work_experience_bullets,
+    strip_bullet_markers,
 )
 from app.utils.resume_templates import TEMPLATES
 
@@ -100,14 +101,31 @@ async def export_pdf(
                             {bullets_html}
                         </div>"""
                     else:
-                        bullets_html = format_regular_bullets(s.bullets, replacements)
-                        section_html = f"""
-                        <div class="section">
-                            <h2>{apply_replacements(s.title, replacements)}</h2>
-                            <ul>
+                        bullets_html = format_regular_bullets(s.bullets, replacements, s.title)
+                        section_title = apply_replacements(s.title, replacements)
+                        section_lower = s.title.lower()
+                        is_skill_section = (
+                            "skill" in section_lower
+                            or "technical" in section_lower
+                            or "technology" in section_lower
+                            or "competencies" in section_lower
+                            or "expertise" in section_lower
+                            or "proficiencies" in section_lower
+                        )
+                        if is_skill_section:
+                            section_html = f"""
+                            <div class="section">
+                                <h2>{section_title}</h2>
                                 {bullets_html}
-                            </ul>
-                        </div>"""
+                            </div>"""
+                        else:
+                            section_html = f"""
+                            <div class="section">
+                                <h2>{section_title}</h2>
+                                <ul>
+                                    {bullets_html}
+                                </ul>
+                            </div>"""
 
                     if i % 2 == 0:
                         left_sections_html += section_html
@@ -133,14 +151,31 @@ async def export_pdf(
                             {bullets_html}
                         </div>"""
                     else:
-                        bullets_html = format_regular_bullets(s.bullets, replacements)
-                        section_html = f"""
-                        <div class="section">
-                            <h2>{apply_replacements(s.title, replacements)}</h2>
-                            <ul>
+                        bullets_html = format_regular_bullets(s.bullets, replacements, s.title)
+                        section_title = apply_replacements(s.title, replacements)
+                        section_lower = s.title.lower()
+                        is_skill_section = (
+                            "skill" in section_lower
+                            or "technical" in section_lower
+                            or "technology" in section_lower
+                            or "competencies" in section_lower
+                            or "expertise" in section_lower
+                            or "proficiencies" in section_lower
+                        )
+                        if is_skill_section:
+                            section_html = f"""
+                            <div class="section">
+                                <h2>{section_title}</h2>
                                 {bullets_html}
-                            </ul>
-                        </div>"""
+                            </div>"""
+                        else:
+                            section_html = f"""
+                            <div class="section">
+                                <h2>{section_title}</h2>
+                                <ul>
+                                    {bullets_html}
+                                </ul>
+                            </div>"""
 
                     if s.id and s.id in left_section_ids:
                         left_sections_html += section_html
@@ -189,14 +224,31 @@ async def export_pdf(
                         {bullets_html}
                     </div>"""
                 else:
-                    bullets_html = format_regular_bullets(s.bullets, replacements)
-                    sections_html += f"""
-                    <div class="section">
-                        <h2>{apply_replacements(s.title, replacements)}</h2>
-                        <ul>
+                    bullets_html = format_regular_bullets(s.bullets, replacements, s.title)
+                    section_title = apply_replacements(s.title, replacements)
+                    section_lower = s.title.lower()
+                    is_skill_section = (
+                        "skill" in section_lower
+                        or "technical" in section_lower
+                        or "technology" in section_lower
+                        or "competencies" in section_lower
+                        or "expertise" in section_lower
+                        or "proficiencies" in section_lower
+                    )
+                    if is_skill_section:
+                        sections_html += f"""
+                        <div class="section">
+                            <h2>{section_title}</h2>
                             {bullets_html}
-                        </ul>
-                    </div>"""
+                        </div>"""
+                    else:
+                        sections_html += f"""
+                        <div class="section">
+                            <h2>{section_title}</h2>
+                            <ul>
+                                {bullets_html}
+                            </ul>
+                        </div>"""
             content_html = cover_letter_html + summary_html + sections_html
 
         html_content = f"""<!DOCTYPE html>
@@ -218,7 +270,12 @@ async def export_pdf(
         .section li {{ margin-bottom: 6px; font-size: 10pt; color: #000000; position: relative; padding-left: 14px; }}
         .section li::before {{ content: "•"; font-weight: bold; color: #000000; position: absolute; left: 0; top: 0; }}
         .job-entry {{ margin-bottom: 20px; }}
-        .company-name {{ font-weight: bold; font-size: 1.1em; color: #000000; margin-bottom: 5px; margin-left: 0; }}
+        .company-header {{ margin-bottom: 8px; }}
+        .company-name-line {{ font-weight: bold; font-size: 1.1em; color: #000000; margin-bottom: 3px; }}
+        .company-title-line {{ display: flex; justify-content: space-between; align-items: center; font-size: 10pt; }}
+        .job-title {{ font-weight: 500; color: #000000; }}
+        .job-date {{ color: #666666; font-size: 9pt; }}
+        .skills-section {{ font-size: 10pt; color: #000000; line-height: 1.6; }}
         .job-separator {{ height: 10px; }}
         .two-column {{ width: 100%; }}
         .column {{ float: left; }}
@@ -493,31 +550,90 @@ async def export_docx(
                     else "Georgia"
                 )
 
-                # Create a proper bullet list for this section
-                if s.bullets:
-                    # Add bullets as a proper list
-                    for b in s.bullets:
-                        if not b.text.strip():  # Skip empty bullets
-                            continue
-                        bullet_text = apply_replacements(b.text, replacements)
-                        bullet_para = left_cell.add_paragraph()
-                        bullet_para.style = "List Bullet"
+                # Check section type
+                section_lower = s.title.lower()
+                is_work_experience = (
+                    "experience" in section_lower
+                    or "work" in section_lower
+                    or "employment" in section_lower
+                )
+                is_skill_section = (
+                    "skill" in section_lower
+                    or "technical" in section_lower
+                    or "technology" in section_lower
+                    or "competencies" in section_lower
+                    or "expertise" in section_lower
+                    or "proficiencies" in section_lower
+                )
 
-                        # Handle bold text formatting
-                        if "**" in bullet_text:
-                            parts = bullet_text.split("**")
-                            for i, part in enumerate(parts):
-                                if i % 2 == 0:  # Regular text
-                                    if part.strip():
-                                        run = bullet_para.add_run(part)
-                                        run.font.size = Pt(10)
-                                else:  # Bold text
-                                    run = bullet_para.add_run(part)
+                # Create content for this section
+                if s.bullets:
+                    if is_work_experience:
+                        # Work experience - handle company headers
+                        for b in s.bullets:
+                            if not b.text.strip():
+                                continue
+                            bullet_text = apply_replacements(b.text, replacements)
+                            
+                            # Check if company header
+                            if bullet_text.startswith("**") and "**" in bullet_text[2:]:
+                                header_text = bullet_text.replace("**", "").strip()
+                                parts = header_text.split(' / ')
+                                company_name = parts[0] if parts else ''
+                                location = parts[1] if len(parts) >= 4 else ''
+                                title = parts[2] if len(parts) >= 4 else (parts[1] if len(parts) >= 2 else '')
+                                date_range = parts[3] if len(parts) >= 4 else (parts[2] if len(parts) >= 3 else '')
+                                
+                                # Company header - Line 1
+                                company_para = left_cell.add_paragraph()
+                                company_line = company_name
+                                if location:
+                                    company_line += f' / {location}'
+                                company_run = company_para.add_run(company_line)
+                                company_run.font.size = Pt(11)
+                                company_run.font.bold = True
+                                
+                                # Company header - Line 2
+                                title_para = left_cell.add_paragraph()
+                                title_run = title_para.add_run(title)
+                                title_run.font.size = Pt(10)
+                                title_run.font.bold = True
+                                date_run = title_para.add_run(f'\t{date_range}')
+                                date_run.font.size = Pt(9)
+                                date_run.font.italic = True
+                            else:
+                                # Regular bullet - strip all bullet markers
+                                clean_text = strip_bullet_markers(bullet_text)
+                                if clean_text:
+                                    bullet_para = left_cell.add_paragraph()
+                                    bullet_para.style = "List Bullet"
+                                    run = bullet_para.add_run(clean_text)
                                     run.font.size = Pt(10)
-                                    run.font.bold = True
-                        else:
-                            run = bullet_para.add_run(bullet_text)
-                            run.font.size = Pt(10)
+                    elif is_skill_section:
+                        # Skills section - comma-separated, no bullets
+                        skill_items = []
+                        for b in s.bullets:
+                            if b.text.strip():
+                                bullet_text = apply_replacements(b.text, replacements)
+                                clean_text = strip_bullet_markers(bullet_text)
+                                if clean_text:
+                                    skill_items.append(clean_text)
+                        if skill_items:
+                            skills_para = left_cell.add_paragraph(", ".join(skill_items))
+                            skills_para.runs[0].font.size = Pt(10)
+                    else:
+                        # Regular section with bullets
+                        for b in s.bullets:
+                            if not b.text.strip():
+                                continue
+                            bullet_text = apply_replacements(b.text, replacements)
+                            # Strip all bullet markers
+                            clean_text = strip_bullet_markers(bullet_text)
+                            if clean_text:
+                                bullet_para = left_cell.add_paragraph()
+                                bullet_para.style = "List Bullet"
+                                run = bullet_para.add_run(clean_text)
+                                run.font.size = Pt(10)
 
                 left_cell.add_paragraph()
 
@@ -537,31 +653,93 @@ async def export_docx(
                     else "Georgia"
                 )
 
-                # Create a proper bullet list for this section
-                if s.bullets:
-                    # Add bullets as a proper list
-                    for b in s.bullets:
-                        if not b.text.strip():  # Skip empty bullets
-                            continue
-                        bullet_text = apply_replacements(b.text, replacements)
-                        bullet_para = right_cell.add_paragraph()
-                        bullet_para.style = "List Bullet"
+                # Check section type
+                section_lower = s.title.lower()
+                is_work_experience = (
+                    "experience" in section_lower
+                    or "work" in section_lower
+                    or "employment" in section_lower
+                )
+                is_skill_section = (
+                    "skill" in section_lower
+                    or "technical" in section_lower
+                    or "technology" in section_lower
+                    or "competencies" in section_lower
+                    or "expertise" in section_lower
+                    or "proficiencies" in section_lower
+                )
 
-                        # Handle bold text formatting
-                        if "**" in bullet_text:
-                            parts = bullet_text.split("**")
-                            for i, part in enumerate(parts):
-                                if i % 2 == 0:  # Regular text
-                                    if part.strip():
-                                        run = bullet_para.add_run(part)
-                                        run.font.size = Pt(10)
-                                else:  # Bold text
-                                    run = bullet_para.add_run(part)
+                # Create content for this section
+                if s.bullets:
+                    if is_work_experience:
+                        # Work experience - handle company headers
+                        for b in s.bullets:
+                            if not b.text.strip():
+                                continue
+                            bullet_text = apply_replacements(b.text, replacements)
+                            
+                            # Check if company header
+                            if bullet_text.startswith("**") and "**" in bullet_text[2:]:
+                                header_text = bullet_text.replace("**", "").strip()
+                                parts = header_text.split(' / ')
+                                company_name = parts[0] if parts else ''
+                                location = parts[1] if len(parts) >= 4 else ''
+                                title = parts[2] if len(parts) >= 4 else (parts[1] if len(parts) >= 2 else '')
+                                date_range = parts[3] if len(parts) >= 4 else (parts[2] if len(parts) >= 3 else '')
+                                
+                                # Company header - Line 1
+                                company_para = right_cell.add_paragraph()
+                                company_line = company_name
+                                if location:
+                                    company_line += f' / {location}'
+                                company_run = company_para.add_run(company_line)
+                                company_run.font.size = Pt(11)
+                                company_run.font.bold = True
+                                
+                                # Company header - Line 2
+                                title_para = right_cell.add_paragraph()
+                                title_run = title_para.add_run(title)
+                                title_run.font.size = Pt(10)
+                                title_run.font.bold = True
+                                date_run = title_para.add_run(f'\t{date_range}')
+                                date_run.font.size = Pt(9)
+                                date_run.font.italic = True
+                            else:
+                                # Regular bullet - strip existing bullets
+                                clean_text = bullet_text.replace("•", "").replace("*", "").replace("-", "").strip()
+                                clean_text = clean_text.lstrip('•*- ').strip()
+                                if clean_text:
+                                    bullet_para = right_cell.add_paragraph()
+                                    bullet_para.style = "List Bullet"
+                                    run = bullet_para.add_run(clean_text)
                                     run.font.size = Pt(10)
-                                    run.font.bold = True
-                        else:
-                            run = bullet_para.add_run(bullet_text)
-                            run.font.size = Pt(10)
+                    elif is_skill_section:
+                        # Skills section - comma-separated, no bullets
+                        skill_items = []
+                        for b in s.bullets:
+                            if b.text.strip():
+                                bullet_text = apply_replacements(b.text, replacements)
+                                clean_text = bullet_text.replace("•", "").replace("*", "").replace("-", "").strip()
+                                clean_text = clean_text.lstrip('•*- ').strip()
+                                if clean_text:
+                                    skill_items.append(clean_text)
+                        if skill_items:
+                            skills_para = right_cell.add_paragraph(", ".join(skill_items))
+                            skills_para.runs[0].font.size = Pt(10)
+                    else:
+                        # Regular section with bullets
+                        for b in s.bullets:
+                            if not b.text.strip():
+                                continue
+                            bullet_text = apply_replacements(b.text, replacements)
+                            # Strip existing bullets
+                            clean_text = bullet_text.replace("•", "").replace("*", "").replace("-", "").strip()
+                            clean_text = clean_text.lstrip('•*- ').strip()
+                            if clean_text:
+                                bullet_para = right_cell.add_paragraph()
+                                bullet_para.style = "List Bullet"
+                                run = bullet_para.add_run(clean_text)
+                                run.font.size = Pt(10)
 
                 right_cell.add_paragraph()
         else:
@@ -588,31 +766,93 @@ async def export_docx(
                     else "Georgia"
                 )
 
-                # Create a proper bullet list for this section
-                if s.bullets:
-                    # Add bullets as a proper list
-                    for b in s.bullets:
-                        if not b.text.strip():  # Skip empty bullets
-                            continue
-                        bullet_text = apply_replacements(b.text, replacements)
-                        bullet_para = doc.add_paragraph()
-                        bullet_para.style = "List Bullet"
+                # Check section type
+                section_lower = s.title.lower()
+                is_work_experience = (
+                    "experience" in section_lower
+                    or "work" in section_lower
+                    or "employment" in section_lower
+                )
+                is_skill_section = (
+                    "skill" in section_lower
+                    or "technical" in section_lower
+                    or "technology" in section_lower
+                    or "competencies" in section_lower
+                    or "expertise" in section_lower
+                    or "proficiencies" in section_lower
+                )
 
-                        # Handle bold text formatting
-                        if "**" in bullet_text:
-                            parts = bullet_text.split("**")
-                            for i, part in enumerate(parts):
-                                if i % 2 == 0:  # Regular text
-                                    if part.strip():
-                                        run = bullet_para.add_run(part)
-                                        run.font.size = Pt(10)
-                                else:  # Bold text
-                                    run = bullet_para.add_run(part)
+                # Create content for this section
+                if s.bullets:
+                    if is_work_experience:
+                        # Work experience - handle company headers
+                        for b in s.bullets:
+                            if not b.text.strip():
+                                continue
+                            bullet_text = apply_replacements(b.text, replacements)
+                            
+                            # Check if company header
+                            if bullet_text.startswith("**") and "**" in bullet_text[2:]:
+                                header_text = bullet_text.replace("**", "").strip()
+                                parts = header_text.split(' / ')
+                                company_name = parts[0] if parts else ''
+                                location = parts[1] if len(parts) >= 4 else ''
+                                title = parts[2] if len(parts) >= 4 else (parts[1] if len(parts) >= 2 else '')
+                                date_range = parts[3] if len(parts) >= 4 else (parts[2] if len(parts) >= 3 else '')
+                                
+                                # Company header - Line 1
+                                company_para = doc.add_paragraph()
+                                company_line = company_name
+                                if location:
+                                    company_line += f' / {location}'
+                                company_run = company_para.add_run(company_line)
+                                company_run.font.size = Pt(11)
+                                company_run.font.bold = True
+                                
+                                # Company header - Line 2
+                                title_para = doc.add_paragraph()
+                                title_run = title_para.add_run(title)
+                                title_run.font.size = Pt(10)
+                                title_run.font.bold = True
+                                date_run = title_para.add_run(f'\t{date_range}')
+                                date_run.font.size = Pt(9)
+                                date_run.font.italic = True
+                            else:
+                                # Regular bullet - strip existing bullets
+                                clean_text = bullet_text.replace("•", "").replace("*", "").replace("-", "").strip()
+                                clean_text = clean_text.lstrip('•*- ').strip()
+                                if clean_text:
+                                    bullet_para = doc.add_paragraph()
+                                    bullet_para.style = "List Bullet"
+                                    run = bullet_para.add_run(clean_text)
                                     run.font.size = Pt(10)
-                                    run.font.bold = True
-                        else:
-                            run = bullet_para.add_run(bullet_text)
-                            run.font.size = Pt(10)
+                    elif is_skill_section:
+                        # Skills section - comma-separated, no bullets
+                        skill_items = []
+                        for b in s.bullets:
+                            if b.text.strip():
+                                bullet_text = apply_replacements(b.text, replacements)
+                                clean_text = bullet_text.replace("•", "").replace("*", "").replace("-", "").strip()
+                                clean_text = clean_text.lstrip('•*- ').strip()
+                                if clean_text:
+                                    skill_items.append(clean_text)
+                        if skill_items:
+                            skills_para = doc.add_paragraph(", ".join(skill_items))
+                            skills_para.runs[0].font.size = Pt(10)
+                    else:
+                        # Regular section with bullets
+                        for b in s.bullets:
+                            if not b.text.strip():
+                                continue
+                            bullet_text = apply_replacements(b.text, replacements)
+                            # Strip existing bullets
+                            clean_text = bullet_text.replace("•", "").replace("*", "").replace("-", "").strip()
+                            clean_text = clean_text.lstrip('•*- ').strip()
+                            if clean_text:
+                                bullet_para = doc.add_paragraph()
+                                bullet_para.style = "List Bullet"
+                                run = bullet_para.add_run(clean_text)
+                                run.font.size = Pt(10)
 
                 doc.add_paragraph()
 

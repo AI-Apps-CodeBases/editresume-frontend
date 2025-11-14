@@ -3019,51 +3019,16 @@ def format_bold_text(text: str) -> str:
 
 def format_work_experience_bullets(bullets, replacements):
     """Format work experience bullets with proper company headers and tasks"""
-    html_parts = []
-    current_company = None
-
-    for bullet in bullets:
-        if not bullet.text.strip():
-            # Empty separator - add spacing
-            html_parts.append('<div class="job-separator"></div>')
-            continue
-
-        bullet_text = apply_replacements(bullet.text, replacements)
-
-        # Check if this is a company header (starts with **)
-        if bullet_text.startswith("**") and "**" in bullet_text[2:]:
-            # Company header - extract company name and format
-            company_text = bullet_text.replace("**", "").strip()
-            html_parts.append(
-                f'<div class="job-entry"><div class="company-name">{company_text}</div>'
-            )
-            current_company = company_text
-        else:
-            # Regular task bullet - remove any existing bullet points
-            task_text = bullet_text.replace("•", "").replace("*", "").strip()
-            if task_text:
-                html_parts.append(f"<li>{task_text}</li>")
-
-    # Close the last job entry if needed
-    if current_company:
-        html_parts.append("</div>")
-
-    return "\n".join(html_parts)
+    from app.utils.resume_formatting import format_work_experience_bullets as format_work_exp
+    return format_work_exp(bullets, replacements)
 
 
 def format_regular_bullets(bullets, replacements):
     """Format regular section bullets"""
-    html_parts = []
-
-    for bullet in bullets:
-        if bullet.text.strip():
-            bullet_text = apply_replacements(bullet.text, replacements)
-            # Remove any existing bullet points and format
-            clean_text = bullet_text.replace("•", "").replace("*", "").strip()
-            if clean_text:
-                html_parts.append(f"<li>{format_bold_text(clean_text)}</li>")
-
-    return "\n".join(html_parts)
+    from app.utils.resume_formatting import format_regular_bullets as format_regular
+    # Note: legacy_app doesn't have section title, so we pass empty string
+    # This will work for non-skills sections
+    return format_regular(bullets, replacements, "")
 
 
 @app.post("/api/resume/export/pdf")
@@ -3146,14 +3111,32 @@ async def export_pdf(
                             {bullets_html}
                         </div>"""
                     else:
-                        bullets_html = format_regular_bullets(s.bullets, replacements)
-                        section_html = f"""
-                        <div class="section">
-                            <h2>{apply_replacements(s.title, replacements)}</h2>
-                            <ul>
+                        from app.utils.resume_formatting import format_regular_bullets as format_regular
+                        bullets_html = format_regular(s.bullets, replacements, s.title)
+                        section_title = apply_replacements(s.title, replacements)
+                        section_lower = s.title.lower()
+                        is_skill_section = (
+                            "skill" in section_lower
+                            or "technical" in section_lower
+                            or "technology" in section_lower
+                            or "competencies" in section_lower
+                            or "expertise" in section_lower
+                            or "proficiencies" in section_lower
+                        )
+                        if is_skill_section:
+                            section_html = f"""
+                            <div class="section">
+                                <h2>{section_title}</h2>
                                 {bullets_html}
-                            </ul>
-                        </div>"""
+                            </div>"""
+                        else:
+                            section_html = f"""
+                            <div class="section">
+                                <h2>{section_title}</h2>
+                                <ul>
+                                    {bullets_html}
+                                </ul>
+                            </div>"""
 
                     if i % 2 == 0:
                         left_sections_html += section_html
@@ -3179,14 +3162,32 @@ async def export_pdf(
                             {bullets_html}
                         </div>"""
                     else:
-                        bullets_html = format_regular_bullets(s.bullets, replacements)
-                        section_html = f"""
-                        <div class="section">
-                            <h2>{apply_replacements(s.title, replacements)}</h2>
-                            <ul>
+                        from app.utils.resume_formatting import format_regular_bullets as format_regular
+                        bullets_html = format_regular(s.bullets, replacements, s.title)
+                        section_title = apply_replacements(s.title, replacements)
+                        section_lower = s.title.lower()
+                        is_skill_section = (
+                            "skill" in section_lower
+                            or "technical" in section_lower
+                            or "technology" in section_lower
+                            or "competencies" in section_lower
+                            or "expertise" in section_lower
+                            or "proficiencies" in section_lower
+                        )
+                        if is_skill_section:
+                            section_html = f"""
+                            <div class="section">
+                                <h2>{section_title}</h2>
                                 {bullets_html}
-                            </ul>
-                        </div>"""
+                            </div>"""
+                        else:
+                            section_html = f"""
+                            <div class="section">
+                                <h2>{section_title}</h2>
+                                <ul>
+                                    {bullets_html}
+                                </ul>
+                            </div>"""
 
                     if s.id and s.id in left_section_ids:
                         left_sections_html += section_html
@@ -3264,7 +3265,12 @@ async def export_pdf(
         .section li {{ margin-bottom: 6px; font-size: 10pt; color: #000000; position: relative; padding-left: 14px; }}
         .section li::before {{ content: "•"; font-weight: bold; color: #000000; position: absolute; left: 0; top: 0; }}
         .job-entry {{ margin-bottom: 20px; }}
-        .company-name {{ font-weight: bold; font-size: 1.1em; color: #000000; margin-bottom: 5px; margin-left: 0; }}
+        .company-header {{ margin-bottom: 8px; }}
+        .company-name-line {{ font-weight: bold; font-size: 1.1em; color: #000000; margin-bottom: 3px; }}
+        .company-title-line {{ display: flex; justify-content: space-between; align-items: center; font-size: 10pt; }}
+        .job-title {{ font-weight: 500; color: #000000; }}
+        .job-date {{ color: #666666; font-size: 9pt; }}
+        .skills-section {{ font-size: 10pt; color: #000000; line-height: 1.6; }}
         .job-separator {{ height: 10px; }}
         .two-column {{ width: 100%; }}
         .column {{ float: left; }}
