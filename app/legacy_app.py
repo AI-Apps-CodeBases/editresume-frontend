@@ -393,7 +393,8 @@ class CompareVersionsPayload(BaseModel):
 
 
 class SaveResumePayload(BaseModel):
-    name: str
+    name: str  # Display name for the app (used in Resume.name)
+    document_name: Optional[str] = None  # Name that appears in the resume document (used in personalInfo.name)
     title: str
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -5672,9 +5673,12 @@ async def save_resume(
                     )
                     continue
 
+            # Use document_name if provided, otherwise fall back to name
+            document_name = payload.document_name if payload.document_name else payload.name
+            
             resume_data = {
                 "personalInfo": {
-                    "name": payload.name or "",
+                    "name": document_name or "",
                     "email": payload.email or "",
                     "phone": payload.phone or "",
                     "location": payload.location or "",
