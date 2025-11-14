@@ -43,59 +43,123 @@ export default function HeroSection() {
 
           <div className="relative z-10">
             <div className="animate-glow-pulse absolute inset-0 -z-10 rounded-[32px] bg-primary-200 blur-[100px]" />
-            <div className="relative overflow-hidden rounded-[32px] border border-border-subtle bg-white p-8 shadow-card">
-              <div className="flex items-center justify-between gap-6 border-b border-border-subtle pb-6">
+            <div className="relative overflow-hidden rounded-[32px] border border-border-subtle bg-white shadow-card">
+              {/* CV Header */}
+              <div className="border-b border-border-subtle bg-gradient-to-r from-primary-50 to-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary-600 mb-2">Try AI first</p>
+                    <h3 className="text-xl font-bold text-text-primary leading-tight">Sarah Chen</h3>
+                    <p className="mt-0.5 text-sm font-semibold text-text-secondary">Senior Product Designer</p>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-text-muted">
+                      <span>sarah.chen@email.com</span>
+                      <span>•</span>
+                      <span>+1 (555) 123-4567</span>
+                      <span>•</span>
+                      <span>San Francisco, CA</span>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-primary-50 px-3 py-0.5 text-[10px] font-semibold text-primary-700 whitespace-nowrap">
+                    Live preview
+                  </span>
+                </div>
+              </div>
+
+              {/* CV Content */}
+              <div className="p-4 space-y-4">
+                {/* Professional Summary */}
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary-600">Try AI first</p>
-                  <h3 className="mt-2 text-xl font-semibold text-text-primary">Senior Product Designer</h3>
-                  <p className="text-sm text-text-muted">Figma • Accessibility • Growth loops</p>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-text-primary mb-1.5 border-b border-border-subtle pb-0.5">
+                    Professional Summary
+                  </h4>
+                  <p className="text-[10px] leading-relaxed text-text-secondary mt-1.5">
+                    Product designer with 8+ years of experience creating user-centered digital experiences. 
+                    Specialized in accessibility, growth loops, and design systems. Led design initiatives 
+                    that increased user engagement by 40% and improved conversion rates.
+                  </p>
                 </div>
-                <span className="rounded-full bg-primary-50 px-4 py-1 text-xs font-semibold text-primary-700">
-                  Live preview
-                </span>
-              </div>
 
-              <div className="mt-6 space-y-4">
-                {aiHighlights.map((highlight) => (
-                  <div
-                    key={highlight}
-                    className="flex items-start gap-3 rounded-2xl border border-border-subtle bg-primary-50/60 px-4 py-3"
-                  >
-                    <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-xs font-semibold text-white">
-                      AI
-                    </span>
-                    <p className="text-sm text-text-secondary">{highlight}</p>
-                  </div>
-                ))}
-                <div className="rounded-2xl border border-dashed border-primary-200 bg-white p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-600">ATS score</p>
-                  <div className="mt-3 flex items-center justify-between text-sm font-semibold text-text-primary">
-                    <span>93 / 100</span>
-                    <span className="text-accent-teal text-xs font-medium uppercase tracking-[0.2em]">Ready to send</span>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-primary-100">
-                    <div className="h-2 w-[93%] rounded-full bg-gradient-to-r from-primary-600 via-primary-500 to-primary-400" />
+                {/* Experience */}
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-text-primary mb-2 border-b border-border-subtle pb-0.5">
+                    Experience
+                  </h4>
+                  <div className="space-y-3 mt-2">
+                    <div>
+                      <div className="flex items-start justify-between gap-3 mb-0.5">
+                        <div className="flex-1">
+                          <p className="text-[10px] font-semibold text-text-primary">Senior Product Designer</p>
+                          <p className="text-[10px] text-text-muted">TechCorp Inc. • San Francisco, CA</p>
+                        </div>
+                        <span className="text-[10px] text-text-muted whitespace-nowrap">2020 - Present</span>
+                      </div>
+                      <ul className="mt-1.5 space-y-0.5 ml-3">
+                        <li className="text-[10px] text-text-secondary flex items-start gap-1.5">
+                          <span className="text-primary-600 mt-0.5">•</span>
+                          <span>Designed and shipped 15+ features improving user engagement by 40%</span>
+                        </li>
+                        <li className="text-[10px] text-text-secondary flex items-start gap-1.5">
+                          <span className="text-primary-600 mt-0.5">•</span>
+                          <span>Led accessibility initiatives ensuring WCAG 2.1 AA compliance</span>
+                        </li>
+                        <li className="text-[10px] text-text-secondary flex items-start gap-1.5">
+                          <span className="text-primary-600 mt-0.5">•</span>
+                          <span>Built growth loops that increased conversion rates by 25%</span>
+                        </li>
+                      </ul>
+                    </div>
+                    <div>
+                      <div className="flex items-start justify-between gap-3 mb-0.5">
+                        <div className="flex-1">
+                          <p className="text-[10px] font-semibold text-text-primary">Product Designer</p>
+                          <p className="text-[10px] text-text-muted">StartupXYZ • San Francisco, CA</p>
+                        </div>
+                        <span className="text-[10px] text-text-muted whitespace-nowrap">2018 - 2020</span>
+                      </div>
+                      <ul className="mt-1.5 space-y-0.5 ml-3">
+                        <li className="text-[10px] text-text-secondary flex items-start gap-1.5">
+                          <span className="text-primary-600 mt-0.5">•</span>
+                          <span>Collaborated with cross-functional teams to launch 3 major products</span>
+                        </li>
+                        <li className="text-[10px] text-text-secondary flex items-start gap-1.5">
+                          <span className="text-primary-600 mt-0.5">•</span>
+                          <span>Established design system used across 5 product teams</span>
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-6 rounded-2xl border border-border-subtle bg-white p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-text-muted">Collaboration</p>
-                    <p className="mt-2 text-sm text-text-secondary">Clara & Dev are editing with you</p>
+                {/* Skills */}
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-text-primary mb-2 border-b border-border-subtle pb-0.5">
+                    Skills
+                  </h4>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {['Figma', 'Accessibility', 'Growth loops', 'Design Systems', 'User Research', 'Prototyping', 'HTML/CSS', 'JavaScript'].map((skill) => (
+                      <span
+                        key={skill}
+                        className="inline-flex items-center rounded border border-border-subtle bg-primary-50/50 px-2 py-0.5 text-[10px] font-medium text-primary-700"
+                      >
+                        {skill}
+                      </span>
+                    ))}
                   </div>
-                  <div className="flex -space-x-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-200 text-sm font-semibold text-primary-700">
-                      C
-                    </span>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-300 text-sm font-semibold text-primary-700">
-                      D
-                    </span>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border-subtle text-xs font-semibold text-text-muted">
-                      +3
-                    </span>
-                  </div>
+                </div>
+
+                {/* AI Enhancements */}
+                <div className="mt-4 space-y-2 pt-4 border-t border-border-subtle">
+                  {aiHighlights.map((highlight) => (
+                    <div
+                      key={highlight}
+                      className="flex items-start gap-2 rounded-lg border border-primary-200 bg-primary-50/40 px-2.5 py-1.5"
+                    >
+                      <span className="mt-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 text-[9px] font-semibold text-white">
+                        AI
+                      </span>
+                      <p className="text-[10px] text-text-secondary leading-relaxed">{highlight}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
