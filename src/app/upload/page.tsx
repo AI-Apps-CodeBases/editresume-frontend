@@ -2,8 +2,9 @@
 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useCallback } from 'react'
+import { useCallback, useState, useRef } from 'react'
 import UploadResume from '@/components/Editor/UploadResume'
+import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 
 const quickActions = [
   { icon: '⚡', title: 'AI Rewrite', description: 'Generate targeted improvements instantly.', href: '/editor?new=true&ai=1' },
@@ -13,6 +14,8 @@ const quickActions = [
 
 export default function UploadPage() {
   const router = useRouter()
+  const [automationOpenSignal, setAutomationOpenSignal] = useState(0)
+  const automationSignalRef = useRef(0)
 
   const handleUploadSuccess = useCallback(
     (data: any) => {
@@ -55,6 +58,7 @@ export default function UploadPage() {
 
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-4 py-16 sm:px-6 lg:px-8">
+        <ResumeAutomationFlow hideJobList hideHeader openSignal={automationOpenSignal} />
         <section className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <span className="badge-gradient">Upload + Diagnose</span>
@@ -87,6 +91,22 @@ export default function UploadPage() {
                   </div>
                 </Link>
               ))}
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  automationSignalRef.current += 1
+                  setAutomationOpenSignal(automationSignalRef.current)
+                }}
+                className="dashboard-card-tight hover-glow transition text-left"
+              >
+                <div className="flex items-center gap-3 text-text-primary">
+                  <span className="text-2xl">✨</span>
+                  <div>
+                    <div className="text-sm font-semibold uppercase tracking-[0.3em] text-text-muted">Generate Resume</div>
+                    <p className="mt-2 text-sm text-text-muted">Generate resume from job in minutes.</p>
+                  </div>
+                </div>
+              </button>
             </div>
           </div>
 

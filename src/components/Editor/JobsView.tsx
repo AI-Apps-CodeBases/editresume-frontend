@@ -88,6 +88,18 @@ export default function JobsView({ onBack }: Props) {
     fetchData()
   }, [isAuthenticated, user?.email])
 
+  // Listen for job saved events to refresh the list
+  useEffect(() => {
+    const handleJobSaved = () => {
+      fetchData()
+    }
+    
+    window.addEventListener('jobSaved', handleJobSaved)
+    return () => {
+      window.removeEventListener('jobSaved', handleJobSaved)
+    }
+  }, [])
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
