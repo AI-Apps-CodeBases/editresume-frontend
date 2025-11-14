@@ -151,6 +151,14 @@ export default function VisualResumeEditor({
     }
     return new Set();
   });
+  const [openCompanyGroups, setOpenCompanyGroups] = useState<Set<string>>(() => {
+    // Initialize all company groups as open by default
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('openCompanyGroups');
+      if (saved) return new Set(JSON.parse(saved));
+    }
+    return new Set();
+  });
   
   // Update localStorage when openSections changes
   useEffect(() => {
@@ -158,6 +166,13 @@ export default function VisualResumeEditor({
       localStorage.setItem('openSections', JSON.stringify(Array.from(openSections)));
     }
   }, [openSections]);
+  
+  // Update localStorage when openCompanyGroups changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('openCompanyGroups', JSON.stringify(Array.from(openCompanyGroups)));
+    }
+  }, [openCompanyGroups]);
   
   // Initialize sections as open when they're added
   useEffect(() => {
@@ -1054,6 +1069,7 @@ export default function VisualResumeEditor({
 
   const handleAIWorkExperienceUpdate = (updateData: {
     companyName: string
+    location?: string
     jobTitle: string
     dateRange: string
     bullets: string[]
@@ -1068,9 +1084,10 @@ export default function VisualResumeEditor({
         const updatedBullets = (section.bullets || []).map(bullet => {
           if (bullet.id === bulletId) {
             // Update the company header with new information
+            const location = updateData.location || 'Location'
             return {
               ...bullet,
-              text: `**${updateData.companyName} / ${updateData.jobTitle} / ${updateData.dateRange}**`
+              text: `**${updateData.companyName} / ${location} / ${updateData.jobTitle} / ${updateData.dateRange}**`
             }
           }
           return bullet
@@ -1641,6 +1658,8 @@ export default function VisualResumeEditor({
                         icon="📋"
                         isEnabled={true}
                         fieldCount={1 + customTitleFields.length}
+                        isCollapsed={!isTitleSectionOpen}
+                        onToggleCollapse={() => setIsTitleSectionOpen(!isTitleSectionOpen)}
                       >
               <div className="space-y-2">
                 {/* Default Title with Checkbox */}
@@ -1729,6 +1748,8 @@ export default function VisualResumeEditor({
                         icon="📞"
                         isEnabled={true}
                         fieldCount={contactFieldOrder.length + customContactFields.length}
+                        isCollapsed={!isContactSectionOpen}
+                        onToggleCollapse={() => setIsContactSectionOpen(!isContactSectionOpen)}
                       >
               <DndContext
                 sensors={sensors}
@@ -1862,6 +1883,7 @@ export default function VisualResumeEditor({
                     }
                     const icon = sectionIcons[section.title] || '📄'
                     
+                    const isSectionCollapsed = !openSections.has(section.id)
                     return (
                       <SortableSectionCard
                         key={section.id}
@@ -1870,6 +1892,18 @@ export default function VisualResumeEditor({
                         icon={icon}
                         isEnabled={section.params?.visible !== false}
                         fieldCount={bulletCount}
+                        isCollapsed={isSectionCollapsed}
+                        onToggleCollapse={() => {
+                          setOpenSections(prev => {
+                            const updated = new Set(prev)
+                            if (updated.has(section.id)) {
+                              updated.delete(section.id)
+                            } else {
+                              updated.add(section.id)
+                            }
+                            return updated
+                          })
+                        }}
                       >
                         <div className="space-y-4">
                           {/* Comments Section */}
@@ -1897,7 +1931,7 @@ export default function VisualResumeEditor({
                             // Add new company for work experience
                             const newItemBullet = {
                               id: `company-${Date.now()}`,
-                              text: '**New Company / New Role / Date Range**',
+                              text: '**New Company / Location / New Role / Date Range**',
                               params: {}
                             }
 
@@ -2022,20 +2056,51 @@ export default function VisualResumeEditor({
 
                         const headerText = headerBullet.text.replace(/\*\*/g, '').trim()
                         const parts = headerText.split(' / ')
+                        // Support both old format (3 parts) and new format (4 parts)
+                        // Old: Company Name / Job Title / Date Range
+                        // New: Company Name / Location / Title / Date Range
                         const companyName = parts[0]?.trim() || 'Unknown Company'
-                        const jobTitle = parts[1]?.trim() || 'Unknown Role'
-                        const dateRange = parts[2]?.trim() || 'Unknown Date'
+                        const location = parts.length >= 4 ? parts[1]?.trim() : ''
+                        const jobTitle = parts.length >= 4 ? parts[2]?.trim() : (parts[1]?.trim() || 'Unknown Role')
+                        const dateRange = parts.length >= 4 ? parts[3]?.trim() : (parts[2]?.trim() || 'Unknown Date')
 
                         const companyBullets: Bullet[] = group.slice(1)
                         const uncheckedBulletCount = companyBullets.filter(bullet => bullet.params?.visible === false).length
+                        const companyGroupId = `company-${headerBullet.id}`
+                        const isCompanyCollapsed = !openCompanyGroups.has(companyGroupId)
 
                         return (
                           <div
-                            key={`company-${headerBullet.id}`}
+                            key={companyGroupId}
                             className={`bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow ${uncheckedBulletCount > 0 ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200'} ${headerBullet.params?.visible === false ? 'opacity-60 grayscale' : ''}`}
                           >
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-3 flex-1">
+                                <button
+                                  onClick={() => {
+                                    setOpenCompanyGroups(prev => {
+                                      const updated = new Set(prev)
+                                      if (updated.has(companyGroupId)) {
+                                        updated.delete(companyGroupId)
+                                      } else {
+                                        updated.add(companyGroupId)
+                                      }
+                                      return updated
+                                    })
+                                  }}
+                                  className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+                                  title={isCompanyCollapsed ? 'Expand company' : 'Collapse company'}
+                                >
+                                  <svg 
+                                    className="w-4 h-4 text-gray-600 transition-transform" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                    style={{ transform: isCompanyCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
                                 <input
                                   type="checkbox"
                                   checked={headerBullet.params?.visible !== false}
@@ -2058,61 +2123,90 @@ export default function VisualResumeEditor({
                                 />
                                 <div className="w-3 h-3 bg-black rounded-full flex-shrink-0"></div>
                                 <div className="flex-1">
-                                  <div
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    data-editable-type="company-name"
-                                    data-section-id={section.id}
-                                    data-bullet-id={headerBullet.id}
-                                    onBlur={(e) => {
-                                      const newText = `**${e.currentTarget.textContent || 'Company Name'} / ${jobTitle} / ${dateRange}**`
-                                      updateBullet(section.id, headerBullet.id, newText)
-                                    }}
-                                    className={`text-lg font-bold outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                      headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
-                                    }`}
-                                  >
-                                    {companyName}
+                                  {/* Line 1: Company Name / Location */}
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <div
+                                      contentEditable
+                                      suppressContentEditableWarning
+                                      data-editable-type="company-name"
+                                      data-section-id={section.id}
+                                      data-bullet-id={headerBullet.id}
+                                      onBlur={(e) => {
+                                        const locationText = location || 'Location'
+                                        const newText = `**${e.currentTarget.textContent || 'Company Name'} / ${locationText} / ${jobTitle} / ${dateRange}**`
+                                        updateBullet(section.id, headerBullet.id, newText)
+                                      }}
+                                      className={`text-lg font-bold outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                                        headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
+                                      }`}
+                                    >
+                                      {companyName}
+                                    </div>
+                                    {location && (
+                                      <span className="text-gray-500">/</span>
+                                    )}
+                                    <div
+                                      contentEditable
+                                      suppressContentEditableWarning
+                                      data-editable-type="location"
+                                      data-section-id={section.id}
+                                      data-bullet-id={headerBullet.id}
+                                      onBlur={(e) => {
+                                        const newText = `**${companyName} / ${e.currentTarget.textContent || 'Location'} / ${jobTitle} / ${dateRange}**`
+                                        updateBullet(section.id, headerBullet.id, newText)
+                                      }}
+                                      className={`text-sm text-gray-600 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                                        headerBullet.params?.visible === false ? 'text-gray-400 line-through' : ''
+                                      }`}
+                                    >
+                                      {location || 'Location'}
+                                    </div>
                                   </div>
-                                  <div
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    data-editable-type="job-title"
-                                    data-section-id={section.id}
-                                    data-bullet-id={headerBullet.id}
-                                    onBlur={(e) => {
-                                      const newText = `**${companyName} / ${e.currentTarget.textContent || 'Job Title'} / ${dateRange}**`
-                                      updateBullet(section.id, headerBullet.id, newText)
-                                    }}
-                                    className={`text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                      headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-600'
-                                    }`}
-                                  >
-                                    {jobTitle}
+                                  {/* Line 2: Title (left) and Date Range (right) */}
+                                  <div className="flex items-center justify-between">
+                                    <div
+                                      contentEditable
+                                      suppressContentEditableWarning
+                                      data-editable-type="job-title"
+                                      data-section-id={section.id}
+                                      data-bullet-id={headerBullet.id}
+                                      onBlur={(e) => {
+                                        const locationText = location || 'Location'
+                                        const newText = `**${companyName} / ${locationText} / ${e.currentTarget.textContent || 'Job Title'} / ${dateRange}**`
+                                        updateBullet(section.id, headerBullet.id, newText)
+                                      }}
+                                      className={`text-sm font-medium outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
+                                        headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                      }`}
+                                    >
+                                      {jobTitle}
+                                    </div>
+                                    <div
+                                      contentEditable
+                                      suppressContentEditableWarning
+                                      data-editable-type="date-range"
+                                      data-section-id={section.id}
+                                      data-bullet-id={headerBullet.id}
+                                      onBlur={(e) => {
+                                        const locationText = location || 'Location'
+                                        const newText = `**${companyName} / ${locationText} / ${jobTitle} / ${e.currentTarget.textContent || 'Date Range'}**`
+                                        updateBullet(section.id, headerBullet.id, newText)
+                                      }}
+                                      className="text-sm text-gray-500 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
+                                    >
+                                      {dateRange}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
 
                               <div className="flex items-center gap-2">
-                                <div
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  data-editable-type="date-range"
-                                  data-section-id={section.id}
-                                  data-bullet-id={headerBullet.id}
-                                  onBlur={(e) => {
-                                    const newText = `**${companyName} / ${jobTitle} / ${e.currentTarget.textContent || 'Date Range'}**`
-                                    updateBullet(section.id, headerBullet.id, newText)
-                                  }}
-                                  className="text-sm text-gray-500 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
-                                >
-                                  {dateRange}
-                                </div>
 
                                 <button
                                   onClick={() => {
                                     setAiWorkExperienceContext({
                                       companyName,
+                                      location: location || '',
                                       jobTitle,
                                       dateRange,
                                       sectionId: section.id,
@@ -2146,8 +2240,9 @@ export default function VisualResumeEditor({
                               </div>
                             </div>
 
-                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                              <div className="space-y-3">
+                            {!isCompanyCollapsed && (
+                              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                <div className="space-y-3">
                                 {companyBullets.map(companyBullet => {
                                   const normalizedText = companyBullet.text?.trim() || ''
                                   const isHeaderLike = normalizedText.startsWith('**') || normalizedText.split(' / ').length >= 2
@@ -2364,6 +2459,7 @@ export default function VisualResumeEditor({
                                 </div>
                               </div>
                             </div>
+                            )}
                           </div>
                         )
                       })
@@ -2519,38 +2615,36 @@ export default function VisualResumeEditor({
                                     </span>
                                   </div>
                                 )}
-                                <div className="relative">
+                                <div className="relative flex-1">
                                   {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
-                                    <div className="mb-1 text-xs text-gray-600">
-                                      <span className="font-semibold">✓ JD keywords:</span>
-                                      <span className="ml-2">
-                                        {bulletMatch.matchedKeywords.slice(0, 3).map((kw, idx) => (
-                                          <span key={idx} className="inline-block px-1.5 py-0.5 bg-yellow-200 text-yellow-800 rounded text-xs mr-1 font-semibold">
-                                            {kw}
-                                          </span>
-                                        ))}
-                                        {bulletMatch.matchedKeywords.length > 3 && (
-                                          <span className="text-gray-500">+{bulletMatch.matchedKeywords.length - 3}</span>
-                                        )}
-                                      </span>
-                                    </div>
+                                    <div
+                                      className={`text-sm px-2 py-1 rounded pointer-events-none ${
+                                        bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                      }`}
+                                      dangerouslySetInnerHTML={{
+                                        __html: highlightKeywordsInHTML((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords)
+                                      }}
+                                    />
                                   )}
-                                <div 
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  data-editable-type="bullet"
-                                  data-section-id={section.id}
-                                  data-bullet-id={bullet.id}
-                                  onFocus={(e) => {
-                                    // Clear highlighting when editing
-                                    if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
-                                      e.currentTarget.textContent = e.currentTarget.textContent || '';
-                                    }
-                                  }}
-                                  suppressHydrationWarning
-                                  className={`text-sm text-gray-700 leading-relaxed min-h-[24px] px-2 py-1 rounded outline-none hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-300 transition-colors cursor-text ${
-                                    bullet.params?.visible === false ? 'text-gray-400 line-through' : ''
-                                  }`}
+                                  <div 
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    data-editable-type="bullet"
+                                    data-section-id={section.id}
+                                    data-bullet-id={bullet.id}
+                                    onFocus={(e) => {
+                                      // Clear highlighting when editing
+                                      if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
+                                        e.currentTarget.textContent = e.currentTarget.textContent || '';
+                                      }
+                                    }}
+                                    suppressHydrationWarning
+                                    className={`text-sm text-gray-700 leading-relaxed min-h-[24px] px-2 py-1 rounded outline-none hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-300 transition-colors cursor-text ${
+                                      hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0' : ''
+                                    } ${
+                                      bullet.params?.visible === false ? 'text-gray-400 line-through' : ''
+                                    }`}
+                                    style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : {}}
                                     onBlur={(e) => {
                                       updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
                                       if (typeof window !== 'undefined') {
@@ -2563,9 +2657,9 @@ export default function VisualResumeEditor({
                                         }));
                                       }
                                     }}
-                                >
-                                  {bullet.text.replace(/^•\s*/, '')}
-                                </div>
+                                  >
+                                    {bullet.text.replace(/^•\s*/, '')}
+                                  </div>
                                 </div>
                               </div>
                               
@@ -3035,6 +3129,8 @@ function SortableSectionCard({
   isEnabled,
   fieldCount,
   children,
+  isCollapsed,
+  onToggleCollapse,
 }: {
   id: string
   title: string
@@ -3042,6 +3138,8 @@ function SortableSectionCard({
   isEnabled: boolean
   fieldCount?: number
   children: React.ReactNode
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }) {
   const {
     attributes,
@@ -3081,6 +3179,23 @@ function SortableSectionCard({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
             </svg>
           </div>
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+              title={isCollapsed ? 'Expand section' : 'Collapse section'}
+            >
+              <svg 
+                className="w-4 h-4 text-gray-600 transition-transform" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+                style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
           <input 
             type="checkbox" 
             checked={isEnabled} 
@@ -3103,7 +3218,7 @@ function SortableSectionCard({
       </div>
 
       {/* Section Content */}
-      <div className="p-3">{children}</div>
+      {!isCollapsed && <div className="p-3">{children}</div>}
     </div>
   )
 }

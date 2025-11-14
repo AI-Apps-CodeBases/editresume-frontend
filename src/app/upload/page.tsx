@@ -58,7 +58,9 @@ export default function UploadPage() {
 
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-4 py-16 sm:px-6 lg:px-8">
-        <ResumeAutomationFlow hideJobList hideHeader openSignal={automationOpenSignal} />
+        {automationOpenSignal > 0 && (
+          <ResumeAutomationFlow hideJobList hideHeader openSignal={automationOpenSignal} />
+        )}
         <section className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <span className="badge-gradient">Upload + Diagnose</span>

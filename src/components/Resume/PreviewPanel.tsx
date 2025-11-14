@@ -241,22 +241,57 @@ export default function PreviewPanel({
             currentList = []
           }
           
-          // Add company header
+          // Add company header - new format: Company Name / Location / Title / Date Range
           const headerText = bullet.text.replace(/\*\*/g, '').trim()
+          const parts = headerText.split(' / ')
+          // Support both old format (3 parts) and new format (4 parts)
+          const companyName = parts[0]?.trim() || ''
+          const location = parts.length >= 4 ? parts[1]?.trim() : ''
+          const title = parts.length >= 4 ? parts[2]?.trim() : (parts[1]?.trim() || '')
+          const dateRange = parts.length >= 4 ? parts[3]?.trim() : (parts[2]?.trim() || '')
+          
           elements.push(
             <div 
               key={bullet.id} 
-              className="font-bold mb-3 mt-5 first:mt-0"
+              className="mb-3 mt-5 first:mt-0"
               style={{ 
                 fontFamily: headingFont,
-                fontSize: `${headingSize * 1.15}px`,
-                color: primaryColor,
                 marginBottom: `${bulletSpacing * 2}px`,
                 marginTop: index === 0 ? 0 : `${bulletSpacing * 2}px`,
-                fontWeight: 'bold'
               }}
             >
-              {applyReplacements(headerText)}
+              {/* Line 1: Company Name / Location */}
+              <div 
+                className="font-bold"
+                style={{ 
+                  fontSize: `${headingSize * 1.15}px`,
+                  color: primaryColor,
+                  fontWeight: 'bold'
+                }}
+              >
+                {applyReplacements(companyName)}
+                {location && (
+                  <>
+                    {' / '}
+                    <span style={{ fontWeight: 'normal', fontSize: `${headingSize}px` }}>
+                      {applyReplacements(location)}
+                    </span>
+                  </>
+                )}
+              </div>
+              {/* Line 2: Title (left) and Date Range (right) */}
+              <div 
+                className="flex items-center justify-between mt-1"
+                style={{ 
+                  fontSize: `${headingSize}px`,
+                  color: primaryColor,
+                }}
+              >
+                <span className="font-medium">{applyReplacements(title)}</span>
+                <span className="text-gray-600" style={{ fontSize: `${headingSize * 0.9}px` }}>
+                  {applyReplacements(dateRange)}
+                </span>
+              </div>
             </div>
           )
         } else {
