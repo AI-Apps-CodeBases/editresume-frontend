@@ -35,11 +35,16 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 }
 
 export async function fetchSavedJobs(): Promise<Job[]> {
+  const authHeaders = getAuthHeaders()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (authHeaders.Authorization) {
+    headers.Authorization = authHeaders.Authorization
+  }
+  
   const response = await fetch(`${baseUrl}/api/jobs`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
+    headers,
     credentials: 'include',
   })
   if (response.status === 404) {
@@ -49,12 +54,17 @@ export async function fetchSavedJobs(): Promise<Job[]> {
 }
 
 export async function createJob(payload: CreateJobPayload): Promise<Job> {
+  const authHeaders = getAuthHeaders()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (authHeaders.Authorization) {
+    headers.Authorization = authHeaders.Authorization
+  }
+  
   const response = await fetch(`${baseUrl}/api/jobs`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
+    headers,
     body: JSON.stringify({
       ...payload,
       skills: payload.skills ?? [],
@@ -65,22 +75,31 @@ export async function createJob(payload: CreateJobPayload): Promise<Job> {
 }
 
 export async function getJob(jobId: number): Promise<Job> {
+  const authHeaders = getAuthHeaders()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (authHeaders.Authorization) {
+    headers.Authorization = authHeaders.Authorization
+  }
+  
   const response = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
+    headers,
     credentials: 'include',
   })
   return handleResponse<Job>(response)
 }
 
 export async function deleteJob(jobId: number): Promise<void> {
+  const authHeaders = getAuthHeaders()
+  const headers: Record<string, string> = {}
+  if (authHeaders.Authorization) {
+    headers.Authorization = authHeaders.Authorization
+  }
+  
   const response = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
     method: 'DELETE',
-    headers: {
-      ...getAuthHeaders(),
-    },
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
     credentials: 'include',
   })
   await handleResponse<void>(response)
@@ -95,11 +114,16 @@ export async function fetchLegacyJobDescriptions(): Promise<Job[]> {
   const url = new URL('/api/job-descriptions', baseUrl)
   url.searchParams.set('user_email', email)
 
+  const authHeaders = getAuthHeaders()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (authHeaders.Authorization) {
+    headers.Authorization = authHeaders.Authorization
+  }
+  
   const response = await fetch(url.toString(), {
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
+    headers,
     credentials: 'include',
   })
 

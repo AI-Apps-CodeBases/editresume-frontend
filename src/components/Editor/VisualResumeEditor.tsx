@@ -473,7 +473,6 @@ export default function VisualResumeEditor({
     if (!matchedKeywords.length || !text) return text;
     
     const parts: Array<React.ReactNode> = [];
-    let processedText = text;
     let lastIndex = 0;
     
     // Sort keywords by length (longest first) to avoid partial matches
@@ -481,17 +480,26 @@ export default function VisualResumeEditor({
     const matches: Array<{keyword: string, index: number, length: number, count: number}> = [];
     
     sortedKeywords.forEach(keyword => {
-      const keywordLower = keyword.toLowerCase();
-      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-      let match;
+      if (!keyword || typeof keyword !== 'string') return;
+      const keywordLower = keyword.toLowerCase().trim();
+      if (keywordLower.length <= 1) return;
       
-      while ((match = regex.exec(text)) !== null) {
-        matches.push({
-          keyword,
-          index: match.index,
-          length: match[0].length,
-          count: keywordCounts[keyword] || 1
-        });
+      try {
+        const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        const textMatches = text.matchAll(regex);
+        
+        for (const match of textMatches) {
+          if (match.index !== undefined && match[0]) {
+            matches.push({
+              keyword,
+              index: match.index,
+              length: match[0].length,
+              count: keywordCounts[keyword] || 1
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Error matching keyword:', keyword, e);
       }
     });
     
@@ -512,42 +520,62 @@ export default function VisualResumeEditor({
     
     // Build result with highlighted keywords
     nonOverlapping.forEach((match, idx) => {
+      if (match.index === undefined || match.length === undefined) return;
+      
       // Add text before match
       if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index));
+        const beforeText = text.substring(lastIndex, match.index);
+        if (beforeText) parts.push(beforeText);
       }
       // Add highlighted keyword with count
       const keywordText = text.substring(match.index, match.index + match.length);
-      parts.push(
-        <span key={`kw-${idx}-${match.index}`} className="bg-yellow-200 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
-          {keywordText}
-          {match.count > 1 && <sup className="text-xs text-gray-600 ml-0.5">{match.count}</sup>}
-        </span>
-      );
+      if (keywordText) {
+        parts.push(
+          <span key={`kw-${idx}-${match.index}`} className="bg-yellow-200 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
+            {keywordText}
+            {match.count > 1 && <sup className="text-xs text-gray-600 ml-0.5">{match.count}</sup>}
+          </span>
+        );
+      }
       lastIndex = match.index + match.length;
     });
     
     // Add remaining text
     if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
+      const remainingText = text.substring(lastIndex);
+      if (remainingText) parts.push(remainingText);
     }
     
-    return parts.length > 0 ? <>{parts}</> : text;
+    if (parts.length === 0) return text;
+    if (parts.length === 1 && typeof parts[0] === 'string') return parts[0];
+    return <>{parts}</>;
   };
 
   // Highlight keywords in HTML string for contentEditable (returns HTML string)
   const highlightKeywordsInHTML = (text: string, matchedKeywords: string[]): string => {
-    if (!matchedKeywords.length || !text) return text;
+    if (!matchedKeywords.length || !text || typeof text !== 'string') return text || '';
     
     let highlightedText = text;
-    const sortedKeywords = [...matchedKeywords].sort((a, b) => b.length - a.length);
+    const sortedKeywords = [...matchedKeywords]
+      .filter(kw => kw && typeof kw === 'string' && kw.trim().length > 1)
+      .sort((a, b) => b.length - a.length);
+    
+    if (sortedKeywords.length === 0) return text;
     
     sortedKeywords.forEach(keyword => {
-      const keywordLower = keyword.toLowerCase();
-      const regex = new RegExp(`\\b(${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
-      highlightedText = highlightedText.replace(regex, (match) => {
-        return `<mark class="bg-yellow-200 font-semibold underline" title="JD Keyword: ${keyword}">${match}</mark>`;
-      });
+      try {
+        const keywordLower = keyword.toLowerCase().trim();
+        if (keywordLower.length <= 1) return;
+        
+        const regex = new RegExp(`\\b(${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+        highlightedText = highlightedText.replace(regex, (match) => {
+          if (!match) return match;
+          const escapedKeyword = keyword.replace(/"/g, '&quot;');
+          return `<mark class="bg-yellow-200 font-semibold underline" title="JD Keyword: ${escapedKeyword}">${match}</mark>`;
+        });
+      } catch (e) {
+        console.warn('Error highlighting keyword in HTML:', keyword, e);
+      }
     });
     
     return highlightedText;
@@ -627,7 +655,9 @@ export default function VisualResumeEditor({
         
         try {
           const section = data.sections.find(s => s.id === sectionId);
-          const bullet = section?.bullets.find(b => b.id === bulletId);
+          if (!section) return;
+          
+          const bullet = section.bullets.find(b => b.id === bulletId);
           if (!bullet?.text) return;
           
           const generatedKeywords = bullet.params?.generatedKeywords as string[] | undefined;
@@ -2349,7 +2379,7 @@ export default function VisualResumeEditor({
                                                 companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                               }`}
                                             >
-                                              {highlightKeywordsInText(companyBullet.text.replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                              {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                             </div>
                                           )}
                                           <div

@@ -193,10 +193,12 @@ export function ResumeAutomationFlow({
       const url = `/editor?${params.toString()}`
       console.log('Navigating to editor:', url)
       
-      router.push(url).catch((error) => {
+      try {
+        router.push(url)
+      } catch (error) {
         console.error('Router push failed, using window.location:', error)
         window.location.href = url
-      })
+      }
     } catch (error) {
       console.error('Error opening editor:', error)
       alert('Failed to open editor. Please try again.')
