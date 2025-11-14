@@ -7,7 +7,7 @@ import logging
 
 from fastapi import HTTPException
 
-from app.core.dependencies import OPENAI_MAX_TOKENS, openai_client
+from app.core.openai_client import OPENAI_MAX_TOKENS, openai_client
 from app.prompts.cover_letter_prompts import get_cover_letter_prompt
 
 logger = logging.getLogger(__name__)

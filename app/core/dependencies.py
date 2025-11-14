@@ -25,8 +25,9 @@ try:
     from app.agents.grammar_agent import GrammarAgent
     from app.agents.improvement_agent import ImprovementAgent
     from app.agents.job_matching_agent import JobMatchingAgent
+    logger.debug("All agent imports successful")
 except ImportError as e:
-    logger.warning(f"Failed to import agents: {e}")
+    logger.error(f"Failed to import agents: {e}", exc_info=True)
     ContentGenerationAgent = None
     CoverLetterAgent = None
     GrammarAgent = None
@@ -35,7 +36,7 @@ except ImportError as e:
 else:
     if not OPENAI_API_KEY:
         logger.warning("OpenAI API key not found. AI features will be disabled.")
-    else:
+    elif OPENAI_API_KEY == "sk-your-openai-api-key-here":
         logger.warning(
             "OpenAI API key is still the placeholder value. Please set a real API key."
         )
@@ -106,9 +107,13 @@ except Exception as e:
     grammar_agent = None
 
 try:
-    job_matching_agent = JobMatchingAgent()
-    logger.info("Job matching agent initialized successfully")
+    if JobMatchingAgent is None:
+        logger.warning("JobMatchingAgent class not available (import failed)")
+        job_matching_agent = None
+    else:
+        job_matching_agent = JobMatchingAgent()
+        logger.info("Job matching agent initialized successfully")
 except Exception as e:
-    logger.warning(f"Job matching agent not available: {e}")
+    logger.error(f"Job matching agent initialization failed: {e}", exc_info=True)
     job_matching_agent = None
 

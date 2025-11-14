@@ -43,6 +43,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 
+@router.get("/health")
+async def health_check():
+    """Check health status of AI services"""
+    return {
+        "job_matching_agent": job_matching_agent is not None,
+        "ats_checker": ats_checker is not None,
+        "enhanced_ats_checker": enhanced_ats_checker is not None,
+        "ai_improvement_engine": ai_improvement_engine is not None,
+        "content_generation_agent": content_generation_agent is not None,
+        "cover_letter_agent": cover_letter_agent is not None,
+        "improvement_agent": improvement_agent is not None,
+        "grammar_agent": grammar_agent is not None,
+    }
+
+
 # ATS Scoring Endpoints
 @router.post("/ats_score")
 async def get_ats_score(payload: ResumePayload):
@@ -437,10 +452,24 @@ async def match_job_description(
                 resume_text += f"• {bullet.text}\n"
             resume_text += "\n"
 
+        # Check if job matching agent is available
+        if job_matching_agent is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Job matching service is not available. Please check server configuration."
+            )
+
         # Use job matching agent
-        match_result = job_matching_agent.match_job_description(
-            job_description=payload.job_description, resume_text=resume_text
-        )
+        try:
+            match_result = job_matching_agent.match_job_description(
+                job_description=payload.job_description, resume_text=resume_text
+            )
+        except Exception as e:
+            logger.error(f"Error in job matching agent: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to analyze job match: {str(e)}"
+            )
 
         # Track job match analytics
         if user_email and db:
@@ -658,6 +687,13 @@ async def generate_work_experience(payload: WorkExperienceRequest):
 async def generate_bullet_from_keywords(payload: dict):
     """Generate bullet points from keywords and company context"""
     try:
+        # Check if content generation agent is available
+        if content_generation_agent is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Content generation service is not available. Please check server configuration."
+            )
+
         raw_keywords = payload.get("keywords", "")
         company_title = payload.get("company_title", "")
         job_title = payload.get("job_title", "")
@@ -745,7 +781,7 @@ async def generate_bullet_from_keywords(payload: dict):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"OpenAI generate bullet from keywords error: {str(e)}")
+        logger.error(f"OpenAI generate bullet from keywords error: {str(e)}", exc_info=True)
         error_message = "AI generation failed: " + str(e)
         raise HTTPException(status_code=500, detail=error_message)
 
@@ -754,6 +790,13 @@ async def generate_bullet_from_keywords(payload: dict):
 async def generate_bullets_from_keywords(payload: dict):
     """Generate multiple bullet points from selected keywords for a work experience entry"""
     try:
+        # Check if content generation agent is available
+        if content_generation_agent is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Content generation service is not available. Please check server configuration."
+            )
+
         keywords_list = payload.get("keywords", [])
         job_description = payload.get("job_description", "")
         company_title = payload.get("company_title", "")

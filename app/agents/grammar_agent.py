@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.core.dependencies import grammar_checker
+from app.services.grammar_service import GrammarStyleChecker
 
 logger = None
 try:
@@ -18,7 +18,12 @@ class GrammarAgent:
 
     def __init__(self):
         """Initialize the grammar agent."""
-        self.grammar_checker = grammar_checker
+        try:
+            self.grammar_checker = GrammarStyleChecker()
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to initialize GrammarStyleChecker: {e}")
+            self.grammar_checker = None
 
     def check_grammar_style(
         self, text: str, check_type: str = "all"

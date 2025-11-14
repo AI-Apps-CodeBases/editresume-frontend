@@ -177,11 +177,15 @@ class ContentGenerationAgent:
                 "Content-Type": "application/json",
             }
 
+            # Optimize max_tokens based on model - gpt-4o needs less tokens for bullets
+            model = self.openai_client["model"]
+            max_tokens = 400 if "gpt-4o" in model and "mini" not in model else 600
+            
             response = self.openai_client["requests"].post(
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
                 json={
-                    "model": self.openai_client["model"],
+                    "model": model,
                     "messages": [
                         {
                             "role": "system",
@@ -189,10 +193,10 @@ class ContentGenerationAgent:
                         },
                         {"role": "user", "content": prompt},
                     ],
-                    "max_tokens": 600,
+                    "max_tokens": max_tokens,
                     "temperature": 0.6,
                 },
-                timeout=60,
+                timeout=90,  # Increased timeout for gpt-4o
             )
 
             if response.status_code != 200:
@@ -265,11 +269,15 @@ class ContentGenerationAgent:
                 "Content-Type": "application/json",
             }
 
+            # Optimize max_tokens based on model
+            model = self.openai_client["model"]
+            max_tokens = 150 if "gpt-4o" in model and "mini" not in model else 200
+            
             response = self.openai_client["requests"].post(
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
                 json={
-                    "model": self.openai_client["model"],
+                    "model": model,
                     "messages": [
                         {
                             "role": "system",
@@ -277,10 +285,10 @@ class ContentGenerationAgent:
                         },
                         {"role": "user", "content": prompt},
                     ],
-                    "max_tokens": 200,
+                    "max_tokens": max_tokens,
                     "temperature": 0.6,
                 },
-                timeout=60,
+                timeout=90,  # Increased timeout for gpt-4o
             )
 
             if response.status_code != 200:

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from time import perf_counter
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -137,37 +138,56 @@ async def create_match_endpoint(payload: dict, db=Depends(get_db)):
 @app.get("/api/matches/{match_id}")
 async def get_match_endpoint(match_id: int, db=Depends(get_db)):
     """Get a match session by ID"""
-    return get_match(match_id, db)
+    try:
+        result = get_match(match_id, db)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 # Legacy match route (redirects to /api/matches/{match_id})
 @app.get("/matches/{match_id}")
 async def get_match_legacy(match_id: int, db=Depends(get_db)):
     """Legacy match route - redirects to /api/matches/{match_id}"""
-    return get_match(match_id, db)
+    try:
+        result = get_match(match_id, db)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 # Timing middleware
 @app.middleware("http")
 async def timing_middleware(request: Request, call_next):
     start_time = perf_counter()
-    response = await call_next(request)
-    duration = perf_counter() - start_time
-    response.headers["X-Process-Time"] = f"{duration:.3f}s"
-    if duration > 1.0 or request.url.path in {
-        "/api/resume/upload",
-        "/api/ai/match_job_description",
-    }:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.info(
-            "Request %s %s completed in %.3fs",
-            request.method,
-            request.url.path,
-            duration,
+    logger = logging.getLogger(__name__)
+    try:
+        response = await call_next(request)
+        duration = perf_counter() - start_time
+        if response:
+            response.headers["X-Process-Time"] = f"{duration:.3f}s"
+        if duration > 1.0 or request.url.path in {
+            "/api/resume/upload",
+            "/api/ai/match_job_description",
+        }:
+            logger.info(
+                "Request %s %s completed in %.3fs",
+                request.method,
+                request.url.path,
+                duration,
+            )
+        return response
+    except Exception as e:
+        duration = perf_counter() - start_time
+        logger.error(
+            f"Error in request {request.method} {request.url.path} after {duration:.3f}s: {e}",
+            exc_info=True
         )
-    return response
+        raise
 
 
 # CORS preflight handler

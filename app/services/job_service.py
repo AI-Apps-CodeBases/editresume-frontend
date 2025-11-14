@@ -28,17 +28,15 @@ def create_or_update_job_description(
 ) -> Dict[str, Any]:
     """Create or update a job description"""
     try:
-        from app.api.models import JobDescriptionCreate
-
-        # Convert dict to JobDescriptionCreate if needed
+        # Convert dict to object-like structure if needed
         if isinstance(payload, dict):
-            # Create a JobDescriptionCreate-like object
-            class JobDescriptionCreateWrapper:
+            # Create a simple wrapper object for attribute access
+            class PayloadWrapper:
                 def __init__(self, data: Dict):
                     for key, value in data.items():
                         setattr(self, key, value)
 
-            payload = JobDescriptionCreateWrapper(payload)
+            payload = PayloadWrapper(payload)
 
         user = None
         if hasattr(payload, "user_email") and payload.user_email:

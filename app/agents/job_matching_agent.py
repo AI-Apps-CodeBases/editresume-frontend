@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import logging
 
-from app.core.dependencies import keyword_extractor, openai_client
+from app.core.openai_client import openai_client
+from app.services.keyword_service import KeywordExtractor
 from app.prompts.job_matching_prompts import get_job_match_improvement_prompt
 
 logger = logging.getLogger(__name__)
@@ -16,8 +17,13 @@ class JobMatchingAgent:
 
     def __init__(self):
         """Initialize the job matching agent."""
-        self.keyword_extractor = keyword_extractor
-        self.openai_client = openai_client
+        try:
+            self.keyword_extractor = KeywordExtractor()
+            self.openai_client = openai_client
+            logger.debug(f"JobMatchingAgent initialized: keyword_extractor={self.keyword_extractor is not None}, openai_client={self.openai_client is not None}")
+        except Exception as e:
+            logger.error(f"Failed to initialize JobMatchingAgent dependencies: {e}", exc_info=True)
+            raise
 
     def match_job_description(
         self, job_description: str, resume_text: str
