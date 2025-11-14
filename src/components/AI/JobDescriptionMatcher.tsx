@@ -1423,6 +1423,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [bulletGeneratorCompany, setBulletGeneratorCompany] = useState<string>('');
   const [bulletGeneratorJobTitle, setBulletGeneratorJobTitle] = useState<string>('');
   const [generatedBullets, setGeneratedBullets] = useState<string[]>([]);
+  const [generatedKeywords, setGeneratedKeywords] = useState<string[]>([]); // Store keywords used to generate bullets
   const [showWorkExpSelector, setShowWorkExpSelector] = useState(false);
   const [workExpEntries, setWorkExpEntries] = useState<Array<{sectionId: string, bulletId: string, companyName: string, jobTitle: string, dateRange: string, sectionTitle: string, sectionType: 'work' | 'project'}>>([]);
   const [selectedBulletIndices, setSelectedBulletIndices] = useState<Set<number>>(new Set<number>());
@@ -1456,7 +1457,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   }, [resumeData, recalculateATSScore, computeResumeSignature]);
 
   const applyAssignmentsToResume = useCallback(
-    async (assignments: Map<number, string>) => {
+    async (assignments: Map<number, string>, keywordsUsed: string[] = []) => {
       if (!assignments.size) {
         setShowWorkExpSelector(false);
         return;
@@ -1530,11 +1531,24 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           return;
         }
 
-        const newBullets = normalizedTexts.map((text, idx) => ({
-          id: `bullet-${Date.now()}-${Math.random()}-${idx}`,
-          text: text.startsWith('•') ? text : `• ${text}`,
-          params: {},
-        }));
+        // Map keywords to bullets - distribute keywords across bullets for this entry
+        // Use keywords passed to function or from state
+        const keywordsArray = keywordsUsed.length > 0 ? keywordsUsed : (generatedKeywords.length > 0 ? generatedKeywords : []);
+        const newBullets = normalizedTexts.map((text, idx) => {
+          // Distribute keywords across bullets - each bullet gets some keywords
+          const keywordsPerBullet = keywordsArray.length > 0 ? Math.ceil(keywordsArray.length / normalizedTexts.length) : 0;
+          const startIdx = idx * keywordsPerBullet;
+          const endIdx = Math.min(startIdx + keywordsPerBullet, keywordsArray.length);
+          const bulletKeywords = keywordsArray.slice(startIdx, endIdx);
+          
+          return {
+            id: `bullet-${Date.now()}-${Math.random()}-${idx}`,
+            text: text.startsWith('•') ? text : `• ${text}`,
+            params: {
+              generatedKeywords: bulletKeywords // Store keywords used to generate this bullet
+            },
+          };
+        });
 
         selectedSection.bullets = [
           ...selectedSection.bullets.slice(0, insertIndex),
@@ -1607,6 +1621,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
 
       setGeneratedBullets([]);
+      setGeneratedKeywords([]); // Clear generated keywords after assignment
       setWorkExpEntries([]);
       setSelectedBulletIndices(new Set<number>());
       setBulletAssignments(new Map<number, string>());
@@ -1643,9 +1658,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     if (bulletAssignments.size === 0) return;
 
     (async () => {
-      await applyAssignmentsToResume(new Map(bulletAssignments));
+      await applyAssignmentsToResume(new Map(bulletAssignments), generatedKeywords);
     })();
-  }, [bulletAssignments, showWorkExpSelector, applyAssignmentsToResume]);
+  }, [bulletAssignments, showWorkExpSelector, applyAssignmentsToResume, generatedKeywords]);
 
   const addKeywordsToSkillsSection = useCallback(
     (keywords: string[]) => {
@@ -1769,26 +1784,33 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         saveButton.textContent = 'Saving...';
       }
 
+      // Build payload - always include id if we have currentJobDescriptionId
+      const payload: any = {
+        user_email: user.email,
+        title: selectedJobMetadata?.title || currentJDInfo?.title || 'Untitled Job',
+        company: jdMetadata.company || '',
+        content: jobDescription || '',
+        easy_apply_url: jdMetadata.easy_apply_url || null,
+        work_type: jdMetadata.work_type || null,
+        job_type: jdMetadata.job_type || null,
+        source: 'app',
+        url: null,
+        extracted_keywords: precomputed?.extractedKeywordsPayload,
+        priority_keywords: precomputed?.priorityKeywords,
+        soft_skills: precomputed?.softSkills,
+        high_frequency_keywords: precomputed?.highFrequencyKeywords,
+        ats_insights: atsInsightsPayload
+      };
+      
+      // Include id only if we have a currentJobDescriptionId (for updates)
+      if (currentJobDescriptionId) {
+        payload.id = currentJobDescriptionId;
+      }
+
       const response = await fetch(`${apiBase}/api/job-descriptions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: currentJobDescriptionId || undefined,
-          user_email: user.email,
-          title: selectedJobMetadata?.title || currentJDInfo?.title || 'Untitled Job',
-          company: jdMetadata.company || '',
-          content: jobDescription || '',
-          easy_apply_url: jdMetadata.easy_apply_url || null,
-          work_type: jdMetadata.work_type || null,
-          job_type: jdMetadata.job_type || null,
-          source: 'app',
-          url: null,
-          extracted_keywords: precomputed?.extractedKeywordsPayload,
-          priority_keywords: precomputed?.priorityKeywords,
-          soft_skills: precomputed?.softSkills,
-          high_frequency_keywords: precomputed?.highFrequencyKeywords,
-          ats_insights: atsInsightsPayload
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -1806,15 +1828,28 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       const result = await response.json();
       console.log('Job description saved successfully:', result);
 
-      // Update currentJobDescriptionId if it was a new save
-      if (result.id && !currentJobDescriptionId && onSelectJobDescriptionId) {
-        onSelectJobDescriptionId(result.id);
+      // Update currentJobDescriptionId if it was a new save or if we got a different ID back
+      const savedJobId = result.id || currentJobDescriptionId;
+      if (savedJobId && savedJobId !== currentJobDescriptionId && onSelectJobDescriptionId) {
+        onSelectJobDescriptionId(savedJobId);
+      }
+      
+      // Store the job ID in localStorage for persistence
+      if (typeof window !== 'undefined' && savedJobId) {
+        localStorage.setItem('activeJobDescriptionId', savedJobId.toString());
       }
 
       // Restore button state
       if (saveButton) {
         saveButton.disabled = false;
         saveButton.textContent = originalButtonText || 'Save to Jobs';
+      }
+
+      // Dispatch custom event to refresh jobs list everywhere
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('jobSaved', {
+          detail: { jobId: result.id || currentJobDescriptionId }
+        }));
       }
 
       // Show success notification immediately
@@ -2176,7 +2211,15 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const rawResult = await response.json() as JobMatchResult;
@@ -3594,6 +3637,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       
                       if (result.success && result.bullets && result.bullets.length > 0) {
                         generatedBulletsList = result.bullets;
+                        // Store keywords used for generation
+                        setGeneratedKeywords(Array.from(keywordsToGenerate));
                       }
                     }
                     
@@ -3692,11 +3737,23 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             return;
                           }
 
-                          const newBullets = sanitizedBullets.map((text) => ({
-                            id: `bullet-${Date.now()}-${Math.random()}`,
-                            text: text.startsWith('•') ? text : `• ${text}`,
-                            params: {}
-                          }));
+                          // Store keywords used for each bullet (distribute keywords across bullets)
+                          const keywordsArray = Array.from(keywordsToGenerate);
+                          const newBullets = sanitizedBullets.map((text, idx) => {
+                            // Distribute keywords across bullets - each bullet gets some keywords
+                            const keywordsPerBullet = Math.ceil(keywordsArray.length / sanitizedBullets.length);
+                            const startIdx = idx * keywordsPerBullet;
+                            const endIdx = Math.min(startIdx + keywordsPerBullet, keywordsArray.length);
+                            const bulletKeywords = keywordsArray.slice(startIdx, endIdx);
+                            
+                            return {
+                              id: `bullet-${Date.now()}-${Math.random()}`,
+                              text: text.startsWith('•') ? text : `• ${text}`,
+                              params: {
+                                generatedKeywords: bulletKeywords // Store keywords used to generate this bullet
+                              }
+                            };
+                          });
 
                           const updatedSections = resumeData.sections.map((s: any) => {
                             if (s.id === selectedWorkExpSection) {

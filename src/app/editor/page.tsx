@@ -6,7 +6,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GlobalReplacements from '@/components/AI/GlobalReplacements'
 import TemplateSelector from '@/components/Resume/TemplateSelector'
-import NewResumeWizard from '@/components/Editor/NewResumeWizard'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
 import VisualResumeEditor from '@/components/Editor/VisualResumeEditor'
 import AIWizard from '@/components/AI/AIWizard'
@@ -32,7 +31,7 @@ const EditorPageContent = () => {
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [showWizard, setShowWizard] = useState(true) // Always start with true to match server render
+  const [showWizard, setShowWizard] = useState(false) // Wizard removed - always show editor directly
   const [showAIWizard, setShowAIWizard] = useState(false)
   const [aiWizardContext, setAiWizardContext] = useState<any>(null)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
@@ -337,13 +336,20 @@ const EditorPageContent = () => {
   useEffect(() => {
     const id = searchParams.get('jdId')
     if (id) {
-      fetch(`${config.apiBase}/api/job-descriptions/${id}`)
+      const jobId = Number(id)
+      setActiveJobDescriptionId(jobId)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('activeJobDescriptionId', jobId.toString())
+      }
+      fetch(`${config.apiBase}/api/job-descriptions/${jobId}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data && data.content) {
             setDeepLinkedJD(data.content)
             setPreviewMode('match')
-            setActiveJobDescriptionId(Number(id))
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('deepLinkedJD', data.content)
+            }
           }
         })
         .catch(() => {})
@@ -480,7 +486,7 @@ const EditorPageContent = () => {
         summary: '',
         sections: []
       })
-      setShowWizard(true)
+      router.push('/upload')
       return
     }
     
@@ -559,20 +565,8 @@ const EditorPageContent = () => {
       }
     }
 
-    // If no saved data, handle wizard display
-    if (!savedResumeData) {
-      // Only show wizard if user explicitly wants new resume or has no data
-      const wantsNew = searchParams.get('new') === 'true'
-      if (wantsNew) {
-        setShowWizard(true)
-      } else if (!isAuthenticated) {
-        // For non-authenticated users with no saved data, show wizard
-        setShowWizard(true)
-      }
-    } else {
-      // If we have saved data, ensure wizard is hidden
-      setShowWizard(false)
-    }
+    // Wizard removed - always show editor directly
+    setShowWizard(false)
   }, [searchParams, userName, isAuthenticated]) // Intentionally exclude resumeData to avoid loops
 
   // Save resume data to localStorage whenever it changes (with debouncing)
@@ -1379,7 +1373,7 @@ const EditorPageContent = () => {
 
   return (
     <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
-      {mounted && !showWizard && (
+      {mounted && (
         <header className="sticky top-0 z-30 border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)] backdrop-blur">
           <div className="mx-auto w-full max-w-7xl px-4 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3 mobile-header">
@@ -1514,7 +1508,7 @@ const EditorPageContent = () => {
                 <button
                   onClick={() => {
                     console.log('New Resume button clicked')
-                    setShowWizard(true)
+                    router.push('/upload')
                   }}
                   className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
                 >
@@ -1597,12 +1591,7 @@ const EditorPageContent = () => {
       )}
 
       <div className="w-full px-4 py-4">
-        {!mounted || showWizard ? (
-          <NewResumeWizard
-            onComplete={handleWizardComplete}
-            onCancel={() => setShowWizard(false)}
-          />
-        ) : currentView === 'jobs' ? (
+        {currentView === 'jobs' ? (
           <JobsView onBack={() => setCurrentView('editor')} />
         ) : currentView === 'resumes' ? (
           <ResumesView onBack={() => setCurrentView('editor')} />
@@ -1810,16 +1799,15 @@ const EditorPageContent = () => {
                             initialJobDescription={deepLinkedJD || undefined}
                             onSelectJobDescriptionId={(id) => {
                               setActiveJobDescriptionId(id);
-                              // Also fetch and save the JD content
-                              if (id) {
+                              if (id && typeof window !== 'undefined') {
+                                localStorage.setItem('activeJobDescriptionId', id.toString());
+                                // Also fetch and save the JD content
                                 fetch(`${config.apiBase}/api/job-descriptions/${id}`)
                                   .then(res => res.ok ? res.json() : null)
                                   .then(data => {
                                     if (data && data.content) {
                                       setDeepLinkedJD(data.content);
-                                      if (typeof window !== 'undefined') {
-                                        localStorage.setItem('deepLinkedJD', data.content);
-                                      }
+                                      localStorage.setItem('deepLinkedJD', data.content);
                                     }
                                   })
                                   .catch(() => {})

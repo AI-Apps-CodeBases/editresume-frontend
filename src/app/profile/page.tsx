@@ -199,20 +199,17 @@ function ProfilePageContent() {
     }
   }, [isAuthenticated, user?.email])
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!isAuthenticated || !user?.email) return
-      
-      await fetchSavedResumes()
-
-      try {
-        // Fetch job descriptions
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
-        if (res.ok) {
-          const data = await res.json()
-          const jds = Array.isArray(data) ? data : data.results || []
-          
-          // For each JD, fetch all match sessions to show all matched versions
+  const fetchJobDescriptions = useCallback(async () => {
+    if (!isAuthenticated || !user?.email) return
+    
+    try {
+      // Fetch job descriptions
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
+      if (res.ok) {
+        const data = await res.json()
+        const jds = Array.isArray(data) ? data : data.results || []
+        
+        // For each JD, fetch all match sessions to show all matched versions
         const jdsWithMatches = await Promise.all(jds.map(async (jd: any) => {
           try {
             const matchesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}/matches`)
@@ -230,15 +227,35 @@ function ProfilePageContent() {
         }))
         
         setSavedJDs(jdsWithMatches)
-        }
-      } catch (e) {
-        console.error('Failed to load job descriptions', e)
       }
+    } catch (e) {
+      console.error('Failed to load job descriptions', e)
+    }
+  }, [isAuthenticated, user?.email])
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!isAuthenticated || !user?.email) return
+      
+      await fetchSavedResumes()
+      await fetchJobDescriptions()
     }
     if (isAuthenticated && user?.email) {
       fetchData()
     }
-  }, [isAuthenticated, user, activeTab])
+  }, [isAuthenticated, user, activeTab, fetchJobDescriptions])
+
+  // Listen for job saved events to refresh the list automatically
+  useEffect(() => {
+    const handleJobSaved = () => {
+      fetchJobDescriptions()
+    }
+    
+    window.addEventListener('jobSaved', handleJobSaved)
+    return () => {
+      window.removeEventListener('jobSaved', handleJobSaved)
+    }
+  }, [fetchJobDescriptions])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -855,18 +872,7 @@ function ProfilePageContent() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold text-gray-900">Saved Job Descriptions</h2>
                   <button
-                    onClick={async () => {
-                        if (!user?.email) return
-                        try {
-                          const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
-                          if (res.ok) {
-                            const data = await res.json()
-                            setSavedJDs(Array.isArray(data) ? data : data.results || [])
-                          }
-                        } catch (e) {
-                          console.error('Failed to refresh job descriptions:', e)
-                        }
-                    }}
+                    onClick={() => fetchJobDescriptions()}
                     className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                   >
                     Refresh
