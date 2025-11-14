@@ -6,9 +6,10 @@ interface ModernLeftSidebarProps {
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
   currentView?: 'editor' | 'jobs' | 'resumes'
   onCollapseChange?: (collapsed: boolean) => void
+  onAIContentWizard?: (contentType: 'job' | 'project' | 'skill' | 'education') => void
 }
 
-export default function ModernLeftSidebar({ onViewChange, currentView = 'editor', onCollapseChange }: ModernLeftSidebarProps) {
+export default function ModernLeftSidebar({ onViewChange, currentView = 'editor', onCollapseChange, onAIContentWizard }: ModernLeftSidebarProps) {
   const { isAuthenticated } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -49,6 +50,37 @@ export default function ModernLeftSidebar({ onViewChange, currentView = 'editor'
     },
   ]
 
+  const aiTools = [
+    {
+      id: 'ai-work-experience',
+      title: 'Work Experience',
+      icon: '💼',
+      description: 'Add a new job or position',
+      contentType: 'job' as const,
+    },
+    {
+      id: 'ai-project',
+      title: 'Project',
+      icon: '🚀',
+      description: 'Add a project or achievement',
+      contentType: 'project' as const,
+    },
+    {
+      id: 'ai-skills',
+      title: 'Skills',
+      icon: '🛠️',
+      description: 'Add technical or soft skills',
+      contentType: 'skill' as const,
+    },
+    {
+      id: 'ai-education',
+      title: 'Education',
+      icon: '🎓',
+      description: 'Add education or certification',
+      contentType: 'education' as const,
+    },
+  ]
+
   const secondaryItems = [
     { id: 'templates', title: 'Templates', icon: '🎨' },
     { id: 'design', title: 'Design', icon: '✨' },
@@ -60,6 +92,12 @@ export default function ModernLeftSidebar({ onViewChange, currentView = 'editor'
       onViewChange?.('editor')
     } else if (itemId === 'jobs' || itemId === 'resumes') {
       onViewChange?.(itemId as 'jobs' | 'resumes')
+    } else if (itemId.startsWith('ai-')) {
+      // Handle AI Content Wizard tools
+      const aiTool = aiTools.find(tool => tool.id === itemId)
+      if (aiTool && onAIContentWizard) {
+        onAIContentWizard(aiTool.contentType)
+      }
     }
   }
 
@@ -83,6 +121,16 @@ export default function ModernLeftSidebar({ onViewChange, currentView = 'editor'
             title={item.title}
           >
             <span className="text-xl">{item.icon}</span>
+          </button>
+        ))}
+        {aiTools.map((tool) => (
+          <button
+            key={tool.id}
+            onClick={() => handleItemClick(tool.id)}
+            className="p-2 hover:bg-gray-50 rounded-lg transition-colors"
+            title={tool.title}
+          >
+            <span className="text-xl">{tool.icon}</span>
           </button>
         ))}
       </div>
@@ -134,6 +182,28 @@ export default function ModernLeftSidebar({ onViewChange, currentView = 'editor'
               </button>
             )
           })}
+        </div>
+
+        {/* AI Content Wizard Tools */}
+        <div className="mt-6 px-3">
+          <div className="px-3 mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI Content</p>
+          </div>
+          <div className="space-y-1">
+            {aiTools.map((tool) => (
+              <button
+                key={tool.id}
+                onClick={() => handleItemClick(tool.id)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+              >
+                <span className="text-base">{tool.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{tool.title}</div>
+                  <div className="text-xs text-gray-500">{tool.description}</div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Secondary Section */}

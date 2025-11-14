@@ -29,6 +29,7 @@ interface ModernEditorLayoutProps {
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
   currentView?: 'editor' | 'jobs' | 'resumes'
   template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
+  onAIContentWizard?: (contentType: 'job' | 'project' | 'skill' | 'education') => void
   // VisualResumeEditor props
   onAddContent?: (content: any) => void
   roomId?: string | null
@@ -71,6 +72,7 @@ export default function ModernEditorLayout({
   isConnected = false,
   activeUsers = [],
   onAIImprove,
+  onAIContentWizard,
   onNewResume,
   onSaveResume,
   onUploadResume,
@@ -123,6 +125,7 @@ export default function ModernEditorLayout({
           onViewChange={onViewChange} 
           currentView={currentView}
           onCollapseChange={setLeftSidebarCollapsed}
+          onAIContentWizard={onAIContentWizard}
         />
 
         {/* Center: Resume Editor Canvas - 60% width */}

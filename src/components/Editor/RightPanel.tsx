@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GrammarStylePanel from '@/components/AI/GrammarStylePanel'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
@@ -40,9 +40,103 @@ export default function RightPanel({
   resumeData,
   template = 'clean'
 }: RightPanelProps) {
-  const [atsScore] = useState(68)
-  const [aiImprovements] = useState(2)
+  const [atsScore, setAtsScore] = useState<number | null>(null)
+  const [aiImprovements, setAiImprovements] = useState<number>(0)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isApplyingImprovement, setIsApplyingImprovement] = useState<string | null>(null)
+  const [atsSuggestions, setAtsSuggestions] = useState<any[]>([])
+  const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Calculate ATS score when resumeData changes
+  const calculateATSScore = useCallback(async () => {
+    if (!resumeData || !resumeData.name && !resumeData.sections?.length) {
+      setAtsScore(null)
+      setAiImprovements(0)
+      setAtsSuggestions([])
+      return
+    }
+
+    setIsAnalyzing(true)
+    try {
+      const cleanedResumeData = {
+        name: resumeData.name || '',
+        title: resumeData.title || '',
+        email: resumeData.email || '',
+        phone: resumeData.phone || '',
+        location: resumeData.location || '',
+        summary: resumeData.summary || '',
+        sections: (resumeData.sections || []).map((section: any) => ({
+          id: section.id,
+          title: section.title,
+          bullets: (section.bullets || []).map((bullet: any) => ({
+            id: bullet.id,
+            text: bullet.text,
+            params: {}
+          }))
+        }))
+      }
+
+      const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resume_data: cleanedResumeData,
+          job_description: '', // Optional
+          target_role: '', // Optional
+          industry: '' // Optional
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          setAtsScore(result.score || 0)
+          setAiImprovements(result.ai_improvements?.length || 0)
+          setAtsSuggestions(result.suggestions || [])
+        } else {
+          console.error('ATS score calculation failed:', result.error)
+          setAtsScore(null)
+          setAiImprovements(0)
+        }
+      } else {
+        console.error('Failed to fetch ATS score:', response.statusText)
+        setAtsScore(null)
+        setAiImprovements(0)
+      }
+    } catch (error) {
+      console.error('Error calculating ATS score:', error)
+      setAtsScore(null)
+      setAiImprovements(0)
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }, [resumeData])
+
+  // Debounced effect to recalculate score when resumeData changes
+  useEffect(() => {
+    // Clear previous timeout
+    if (analyzeTimeoutRef.current) {
+      clearTimeout(analyzeTimeoutRef.current)
+    }
+
+    // Set new timeout for debounced analysis
+    analyzeTimeoutRef.current = setTimeout(() => {
+      calculateATSScore()
+    }, 1000) // Wait 1 second after last change
+
+    return () => {
+      if (analyzeTimeoutRef.current) {
+        clearTimeout(analyzeTimeoutRef.current)
+      }
+    }
+  }, [calculateATSScore])
+
+  // Initial calculation when component mounts
+  useEffect(() => {
+    calculateATSScore()
+  }, [calculateATSScore]) // Recalculate when calculateATSScore changes
 
   const tabs = [
     { id: 'live' as const, label: 'Live', icon: '⚡' },
@@ -164,6 +258,11 @@ export default function RightPanel({
           }
         )
         
+        // Recalculate ATS score after improvement
+        setTimeout(() => {
+          calculateATSScore()
+        }, 500)
+        
         // Note: The API returns improved_content as text, not a structured resume object
         // The user can manually apply the suggestions or we could enhance this to auto-apply
         // For now, we just show the improved content in the alert
@@ -208,22 +307,47 @@ export default function RightPanel({
           <div className="p-4 space-y-4">
             {/* ATS Score Card */}
             <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200 p-6">
-              <div className="text-center mb-4">
-                <div className="text-5xl font-bold text-gray-900 mb-2">{atsScore}</div>
-                <div className="text-sm text-gray-600">out of 100</div>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Enhanced ATS Analysis & AI Improvements
-              </h3>
-              <p className="text-sm text-gray-700 mb-4">
-                Good ATS compatibility with room for improvement.
-              </p>
-              {aiImprovements > 0 && (
-                <div className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-200 rounded-full">
-                  <span>🚀</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {aiImprovements} AI improvements available to boost your score!
-                  </span>
+              {isAnalyzing ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                  <p className="text-sm text-gray-600">Analyzing resume...</p>
+                </div>
+              ) : atsScore !== null ? (
+                <>
+                  <div className="text-center mb-4">
+                    <div className="text-5xl font-bold text-gray-900 mb-2">{atsScore}</div>
+                    <div className="text-sm text-gray-600">out of 100</div>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Enhanced ATS Analysis & AI Improvements
+                  </h3>
+                  <p className="text-sm text-gray-700 mb-4">
+                    {atsScore >= 80 
+                      ? 'Excellent ATS compatibility! Your resume is well-optimized.'
+                      : atsScore >= 60
+                      ? 'Good ATS compatibility with room for improvement.'
+                      : 'Your resume needs optimization for better ATS compatibility.'
+                    }
+                  </p>
+                  {aiImprovements > 0 && (
+                    <div className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-200 rounded-full">
+                      <span>🚀</span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        {aiImprovements} AI improvement{aiImprovements > 1 ? 's' : ''} available to boost your score!
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => calculateATSScore()}
+                    className="mt-4 w-full px-3 py-2 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 rounded-lg border border-gray-300 transition-colors"
+                  >
+                    🔄 Refresh Analysis
+                  </button>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-600 mb-4">No resume data to analyze</p>
+                  <p className="text-xs text-gray-500">Start editing your resume to see ATS score</p>
                 </div>
               )}
             </div>

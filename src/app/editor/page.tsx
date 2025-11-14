@@ -35,6 +35,7 @@ const EditorPageContent = () => {
   const [showWizard, setShowWizard] = useState(true) // Always start with true to match server render
   const [showAIWizard, setShowAIWizard] = useState(false)
   const [aiWizardContext, setAiWizardContext] = useState<any>(null)
+  const [aiWizardContentType, setAiWizardContentType] = useState<'job' | 'project' | 'skill' | 'education' | null>(null)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
   const [showATSScore, setShowATSScore] = useState(false)
   const [showEnhancedATS, setShowEnhancedATS] = useState(false)
@@ -1460,6 +1461,13 @@ const EditorPageContent = () => {
     setShowWizard(true);
   };
 
+  // Handler for AI Content Wizard from sidebar
+  const handleAIContentWizard = (contentType: 'job' | 'project' | 'skill' | 'education') => {
+    setAiWizardContentType(contentType)
+    setAiWizardContext({ type: contentType })
+    setShowAIWizard(true)
+  }
+
   // Handler for Export (convert handleExportOption to match expected format)
   const handleExportForLayout = async (format: 'pdf' | 'docx' | 'cover-letter') => {
     await handleExportOption(format);
@@ -1542,6 +1550,7 @@ const EditorPageContent = () => {
         isAuthenticated={isAuthenticated}
         onLogout={logout}
         onSignIn={() => setShowAuthModal(true)}
+        onAIContentWizard={handleAIContentWizard}
       />
 
       {/* Modals */}
@@ -1574,6 +1583,7 @@ const EditorPageContent = () => {
                 onClose={() => {
                   setShowAIWizard(false)
                   setAiWizardContext(null)
+                  setAiWizardContentType(null)
                 }}
                 context={aiWizardContext}
                 onAddContent={handleAddContent}

@@ -49,6 +49,13 @@ export default function AIWizard({ resumeData, onAddContent, onClose, context }:
 
   // Auto-setup for work experience context
   React.useEffect(() => {
+    // Handle direct contentType from context (from sidebar tools)
+    if (context?.type === 'job' || context?.type === 'project' || context?.type === 'skill' || context?.type === 'education') {
+      setContentType(context.type)
+      setStep(2) // Skip to requirements step
+      return
+    }
+    
     if (context?.type === 'work-experience' || context?.type === 'work-experience-bullet') {
       setContentType('job')
       setStep(2) // Skip to requirements step
