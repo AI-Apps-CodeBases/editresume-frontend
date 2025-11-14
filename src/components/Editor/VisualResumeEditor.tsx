@@ -1430,7 +1430,6 @@ export default function VisualResumeEditor({
                         icon="📋"
                         isEnabled={true}
                         fieldCount={1 + customTitleFields.length}
-                        showGenerate={false}
                       >
               <div className="space-y-3">
                 {/* Default Title */}
@@ -1540,7 +1539,6 @@ export default function VisualResumeEditor({
                         icon="📞"
                         isEnabled={true}
                         fieldCount={contactFieldOrder.length + customContactFields.length}
-                        showGenerate={false}
                       >
               <DndContext
                 sensors={sensors}
@@ -2834,7 +2832,6 @@ function SortableSectionCard({
   icon,
   isEnabled,
   fieldCount,
-  showGenerate = true,
   children,
 }: {
   id: string
@@ -2842,7 +2839,6 @@ function SortableSectionCard({
   icon: string
   isEnabled: boolean
   fieldCount?: number
-  showGenerate?: boolean
   children: React.ReactNode
 }) {
   const {
@@ -2896,13 +2892,6 @@ function SortableSectionCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {showGenerate && (
-            <button
-              className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
-            >
-              Generate
-            </button>
-          )}
           <button className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -2924,7 +2913,6 @@ function ModernSectionCard({
   icon,
   isEnabled,
   fieldCount,
-  showGenerate = true,
   children,
 }: {
   id: string
@@ -2932,7 +2920,6 @@ function ModernSectionCard({
   icon: string
   isEnabled: boolean
   fieldCount?: number
-  showGenerate?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -2953,13 +2940,6 @@ function ModernSectionCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {showGenerate && (
-            <button
-              className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
-            >
-              Generate
-            </button>
-          )}
           <button className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
