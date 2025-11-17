@@ -21,21 +21,21 @@ def get_improve_bullet_prompt(
 
     # Generate diverse improvement prompts to avoid repetitive language
     improvement_templates = [
-        f"""Transform this resume bullet point into a powerful, achievement-focused statement that will impress recruiters and pass ATS systems.
+        f"""Improve this resume bullet point:
 
-Current bullet: "{bullet}"
+Current: "{bullet}"
 
 {context_text}
 
 Requirements:
-- Add specific metrics and quantifiable results
+- Add metrics/numbers
 - Use strong action verbs
-- Make it achievement-focused
-- Keep it concise but impactful
+- Achievement-focused
+- Concise and impactful
 - {tone_instruction}
-- ATS-friendly format
+- ATS-friendly
 
-Return ONLY the improved bullet point, no explanations.""",
+Return ONLY the improved bullet point.""",
         f"""Elevate this resume bullet point to showcase your professional impact and expertise.
 
 Current bullet: "{bullet}"

@@ -716,8 +716,9 @@ async def generate_bullet_from_keywords(payload: dict):
             raise HTTPException(status_code=400, detail="Keywords are required")
 
         keywords_str = ", ".join(keywords_list)
-        jd_excerpt = job_description[:800] if job_description else ""
-        resume_excerpt = resume_context[:800] if resume_context else ""
+        # Limit context size to prevent slow API calls
+        jd_excerpt = job_description[:500] if job_description else ""  # Reduced from 800
+        resume_excerpt = resume_context[:500] if resume_context else ""  # Reduced from 800
         count = max(
             1, min(int(requested_count) if isinstance(requested_count, int) else 3, 5)
         )

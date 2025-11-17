@@ -50,11 +50,16 @@ class ContentGenerationAgent:
                 "Content-Type": "application/json",
             }
 
+            # Optimize for speed: reduce max_tokens for bullet generation (only need 3-5 bullets)
+            # Use lower temperature for faster, more deterministic responses
+            model = self.openai_client["model"]
+            max_tokens_for_bullets = min(300, OPENAI_MAX_TOKENS)  # Bullets are short, 300 tokens is plenty
+            
             data = {
-                "model": self.openai_client["model"],
+                "model": model,
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": OPENAI_MAX_TOKENS,
-                "temperature": 0.7,
+                "max_tokens": max_tokens_for_bullets,
+                "temperature": 0.5,  # Lower temperature = faster, more deterministic
             }
 
             # Use async httpx client for better performance
@@ -64,7 +69,7 @@ class ContentGenerationAgent:
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
                     json=data,
-                    timeout=30.0,
+                    timeout=20.0,  # Reduced timeout for faster failure detection
                 )
             else:
                 # Fallback to thread pool if httpx not available
@@ -153,7 +158,7 @@ class ContentGenerationAgent:
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
                     json=data,
-                    timeout=30.0,
+                    timeout=20.0,  # Reduced timeout for faster failure detection
                 )
             else:
                 # Fallback to thread pool if httpx not available
@@ -467,7 +472,7 @@ class ContentGenerationAgent:
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
                     json=data,
-                    timeout=30.0,
+                    timeout=20.0,  # Reduced timeout for faster failure detection
                 )
             else:
                 # Fallback to thread pool if httpx not available
@@ -563,7 +568,7 @@ class ContentGenerationAgent:
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
                     json=data,
-                    timeout=30.0,
+                    timeout=20.0,  # Reduced timeout for faster failure detection
                 )
             else:
                 # Fallback to thread pool if httpx not available
@@ -669,7 +674,7 @@ class ContentGenerationAgent:
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
                     json=data,
-                    timeout=30.0,
+                    timeout=20.0,  # Reduced timeout for faster failure detection
                 )
             else:
                 # Fallback to thread pool if httpx not available

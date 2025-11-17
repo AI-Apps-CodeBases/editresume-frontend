@@ -44,11 +44,13 @@ class ImprovementAgent:
                 "Content-Type": "application/json",
             }
 
+            # Optimize for speed: reduce max_tokens and temperature for faster responses
+            model = self.openai_client["model"]
             data = {
-                "model": self.openai_client["model"],
+                "model": model,
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 200,
-                "temperature": 0.7,
+                "max_tokens": 150,  # Reduced from 200 - improved bullets are typically shorter
+                "temperature": 0.5,  # Lower temperature = faster, more deterministic
             }
 
             # Use async httpx client for better performance
@@ -58,7 +60,7 @@ class ImprovementAgent:
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
                     json=data,
-                    timeout=30.0,
+                    timeout=20.0,  # Reduced timeout for faster failure detection
                 )
             else:
                 # Fallback to thread pool if httpx not available

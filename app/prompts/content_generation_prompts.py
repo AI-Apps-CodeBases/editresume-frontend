@@ -16,22 +16,21 @@ def get_bullet_points_prompt(
 
     tone_instruction = tone_instructions.get(tone, tone_instructions["professional"])
 
-    return f"""Generate {count} professional resume bullet points for this role:
+    return f"""Generate {count} resume bullet points:
 
 Role: {role}
 Company: {company}
 Skills: {skills}
 
 Requirements:
-- Include specific metrics/numbers where possible (use realistic examples)
+- Include metrics/numbers
 - Use strong action verbs
-- Focus on achievements and impact
-- Each bullet should be 1-2 lines
+- Focus on achievements
+- 1-2 lines each
 - {tone_instruction}
-- ATS-friendly format
-- Make them diverse and cover different aspects of the role
+- ATS-friendly
 
-Return ONLY the bullet points, one per line, no numbering or explanations."""
+Return ONLY bullet points, one per line."""
 
 
 def get_summary_prompt(
