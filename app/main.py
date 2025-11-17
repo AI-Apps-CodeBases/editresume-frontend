@@ -18,6 +18,7 @@ from app.api import (
     collaboration,
     firebase_auth,
     job,
+    jobs,
     resume,
     stripe,
     user,
@@ -99,6 +100,7 @@ app.include_router(ai.router)
 app.include_router(user.router)
 app.include_router(resume.router)
 app.include_router(job.router)
+app.include_router(jobs.router)
 app.include_router(collaboration.router)
 app.include_router(analytics.router)
 
