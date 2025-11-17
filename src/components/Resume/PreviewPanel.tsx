@@ -151,11 +151,11 @@ export default function PreviewPanel({
     
     // Apply section order if available
     if (templateConfig?.layout?.sectionOrder && templateConfig.layout.sectionOrder.length > 0) {
-      const sectionOrder = templateConfig.layout.sectionOrder
+      const sectionOrder = templateConfig.layout.sectionOrder as string[]
       // Filter out summary ID from section order (it's handled separately)
-      const sectionOrderWithoutSummary = sectionOrder.filter(id => id !== '__summary__')
+      const sectionOrderWithoutSummary = sectionOrder.filter((id: string) => id !== '__summary__')
       const orderedSections = sectionOrderWithoutSummary
-        .map(id => filtered.find(s => s.id === id))
+        .map((id: string) => filtered.find(s => s.id === id))
         .filter(Boolean) as typeof filtered
       const unorderedSections = filtered.filter(s => !sectionOrderWithoutSummary.includes(s.id))
       return [...orderedSections, ...unorderedSections]
@@ -173,7 +173,7 @@ export default function PreviewPanel({
     if (summaryIndex === -1) return 'before' // Not in order, default to before
     
     // Check if summary should be before or after sections
-    const firstSectionIndex = templateConfig.layout.sectionOrder.findIndex(id => 
+    const firstSectionIndex = (templateConfig.layout.sectionOrder as string[]).findIndex((id: string) => 
       id !== '__summary__' && (data.sections || []).some(s => s.id === id)
     )
     
