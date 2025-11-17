@@ -48,13 +48,13 @@ export function TemplatePreview({ template, resumeData, scale = 0.3 }: Props) {
   }
 
   return (
-    <div className="relative w-full" style={{ height: '200px', overflow: 'hidden' }}>
+    <div className="relative w-full" style={{ height: '120px', overflow: 'hidden' }}>
       <div
         className="absolute top-0 left-0 origin-top-left bg-white"
         style={{
           transform: `scale(${scale})`,
           width: `${100 / scale}%`,
-          minHeight: `${200 / scale}px`,
+          minHeight: `${120 / scale}px`,
         }}
       >
         <Suspense fallback={<div className="p-4 text-center text-gray-400 text-xs">Loading...</div>}>

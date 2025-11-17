@@ -134,7 +134,7 @@ export default function ModernEditorLayout({
       />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden mt-14">
+      <div className="flex flex-1 overflow-hidden mt-[120px]">
         {/* Left Sidebar */}
         <ModernLeftSidebar 
           onViewChange={onViewChange} 
@@ -142,6 +142,10 @@ export default function ModernEditorLayout({
           onCollapseChange={setLeftSidebarCollapsed}
           onAIContentWizard={onAIContentWizard}
           onTemplatesClick={onTemplatesClick}
+          userName={userName}
+          isAuthenticated={isAuthenticated}
+          onLogout={onLogout}
+          onSignIn={onSignIn}
         />
 
         {/* Center: Resume Editor Canvas - 60% width */}

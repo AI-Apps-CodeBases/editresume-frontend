@@ -5,10 +5,12 @@ import { useParams } from 'next/navigation'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import SharedResumeComments from '@/components/Resume/SharedResumeComments'
 import { sharedResumeService, SharedResumeData } from '@/lib/services/sharedResume'
+import AutoHideNavbar from '@/components/layout/AutoHideNavbar'
 
 function LoadingView({ message }: { message: string }) {
   return (
-    <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
+    <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary pt-4">
+      <AutoHideNavbar />
       <div className="flex flex-1 items-center justify-center px-4">
         <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
           <div className="mb-4 text-4xl animate-pulse">📄</div>
@@ -144,25 +146,6 @@ export default function SharedResumePage() {
 
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
-      <header className="border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-semibold text-text-primary">{sharedInfo.resume.name}</h1>
-              <span className="badge">Shared</span>
-            </div>
-            <p className="mt-2 text-sm text-text-muted">
-              Template · {sharedInfo.resume.template} • Shared on{' '}
-              {new Date(sharedInfo.shared_info.created_at).toLocaleDateString()}
-            </p>
-          </div>
-          {sharedInfo.shared_info.expires_at && (
-            <span className="surface-pill text-xs text-text-secondary">
-              Expires on {new Date(sharedInfo.shared_info.expires_at).toLocaleDateString()}
-            </span>
-          )}
-        </div>
-      </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">

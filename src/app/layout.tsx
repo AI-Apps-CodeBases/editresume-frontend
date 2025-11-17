@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { ModalProvider } from '@/contexts/ModalContext'
-import Navbar from '@/components/layout/Navbar'
+import AutoHideNavbar from '@/components/layout/AutoHideNavbar'
 import Footer from '@/components/layout/Footer'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 
@@ -29,8 +29,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <SettingsProvider>
             <ModalProvider>
+              <AutoHideNavbar />
               <div className="flex min-h-screen flex-col">
-                <Navbar />
                 <main className="flex-1">{children}</main>
                 <Footer />
               </div>

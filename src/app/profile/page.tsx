@@ -361,29 +361,9 @@ function ProfilePageContent() {
   ]
 
   return (
-    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
+    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary pt-4">
 
-      <header className="border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4">
-          <div className="text-sm text-text-secondary">
-            Personal workspace
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <a
-              href="/editor"
-              className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-            >
-              ← Back to Editor
-            </a>
-            <button
-              onClick={logout}
-              className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
+
 
       <div className="mx-auto w-full max-w-7xl px-4 py-16 space-y-10">
         <div className="dashboard-card space-y-8">

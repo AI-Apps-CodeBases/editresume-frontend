@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 
 const primaryNav = [
@@ -13,9 +13,10 @@ const primaryNav = [
   { href: '/#resources', label: 'Resources' },
 ] as const
 
-export default function Navbar() {
+function AutoHideNavbar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
 
   const isActive = (href: string) => {
     if (href === '/#resources') return pathname === '/'
@@ -23,17 +24,59 @@ export default function Navbar() {
     return pathname.startsWith(href)
   }
 
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | undefined
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Show navbar when mouse is in top 50px of screen
+      if (e.clientY <= 50) {
+        setIsVisible(true)
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = undefined
+        }
+      } else if (e.clientY > 80 && isVisible && !open) {
+        // Hide navbar after 1 second when mouse leaves top area
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
+        timeoutId = setTimeout(() => {
+          setIsVisible(false)
+        }, 1000)
+      }
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [isVisible, open])
+
   return (
-    <header className="sticky top-0 z-50 bg-white shadow-[0_12px_20px_rgba(15,23,42,0.06)]">
+    <header 
+      className={`fixed top-0 left-0 right-0 z-[100] bg-white shadow-[0_12px_20px_rgba(15,23,42,0.06)] transition-transform duration-300 ${
+        isVisible ? 'translate-y-0' : '-translate-y-full'
+      }`}
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => {
+        if (!open) {
+          setTimeout(() => setIsVisible(false), 1500)
+        }
+      }}
+    >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-4">
+        <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center">
             <Image 
               src="/logo.jpg" 
               alt="editresume.io" 
-              width={480} 
-              height={240}
-              className="h-24 w-auto"
+              width={400} 
+              height={200}
+              className="h-16 w-auto"
               priority
             />
           </Link>
@@ -54,7 +97,6 @@ export default function Navbar() {
               </Link>
             ))}
           </nav>
-
 
           <button
             type="button"
@@ -98,4 +140,4 @@ export default function Navbar() {
   )
 }
 
-
+export default AutoHideNavbar

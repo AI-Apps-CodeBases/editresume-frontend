@@ -1,5 +1,6 @@
 'use client'
 import React, { useState } from 'react'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface TopNavigationBarProps {
@@ -36,13 +37,18 @@ export default function TopNavigationBar({
   
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    <div className="fixed top-16 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       <div className="flex items-center justify-between h-14 px-6">
         {/* Left: Logo */}
         <div className="flex items-center gap-3">
-          <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            editresume
-          </div>
+          <Image 
+            src="/logo.jpg" 
+            alt="editresume.io" 
+            width={180} 
+            height={60}
+            className="h-14 w-auto"
+            priority
+          />
         </div>
 
         {/* Right: Actions */}

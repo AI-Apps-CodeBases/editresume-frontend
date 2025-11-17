@@ -14,7 +14,7 @@ const quickActions = [
 
 export default function UploadPage() {
   const router = useRouter()
-  const [automationOpenSignal, setAutomationOpenSignal] = useState(0)
+  const [automationOpenSignal, setAutomationOpenSignal] = useState<number | undefined>(undefined)
   const automationSignalRef = useRef(0)
 
   const handleUploadSuccess = useCallback(

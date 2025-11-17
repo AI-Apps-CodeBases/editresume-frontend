@@ -30,6 +30,7 @@ import { shouldPromptAuthentication } from '@/lib/guestAuth'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { ATSScoreCard } from '@/features/resume-automation/components/ATSScoreCard'
 import { OptimizationSuggestions } from '@/features/resume-automation/components/OptimizationSuggestions'
+import AutoHideNavbar from '@/components/layout/AutoHideNavbar'
 import type {
   AutoGenerateResponse,
   ATSScore as AutomationATSScore,
@@ -1737,167 +1738,7 @@ const EditorPageContent = () => {
     await handleExportOption(format)
   }
 
-  const headerElement = mounted ? (
-        <header className="sticky top-0 z-30 border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)] backdrop-blur">
-          <div className="mx-auto w-full max-w-7xl px-4 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 mobile-header">
-              <a href="/" className="flex items-center transition hover:opacity-80">
-                <Image 
-                  src="/logo.jpg" 
-                  alt="editresume.io" 
-                  width={300} 
-                  height={150}
-                  className="h-20 w-auto"
-                  priority
-                />
-              </a>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mobile-header-buttons">
-                {isAuthenticated ? (
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <a
-                      href="/profile"
-                      className="inline-flex items-center gap-2 rounded-pill border border-border-subtle bg-white px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-primary-200 hover:text-text-primary"
-                    >
-                      👋 {user?.name}
-                      {user?.isPremium && (
-                        <span className="rounded-pill bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-700">
-                          PRO
-                        </span>
-                      )}
-                    </a>
-                    <button
-                      onClick={logout}
-                      className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowAuthModal(true)}
-                    className="button-primary text-xs sm:text-sm"
-                  >
-                    🔐 Sign In
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowCoverLetterGenerator(true)}
-                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                >
-                  📝 Cover Letter
-                </button>
-                {isAuthenticated && currentResumeId && (
-                  <button
-                    onClick={() => setShowShareResume(true)}
-                    className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                  >
-                    🔗 Share
-                  </button>
-                )}
-                {isAuthenticated && user && (
-                  <button
-                    onClick={handleSaveResume}
-                    className="rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px]"
-                  >
-                    💾 Save Resume
-                  </button>
-                )}
-                <button
-                  onClick={() => router.push('/upload')}
-                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                >
-                  📤 Upload Resume
-                </button>
-                <button
-                  onClick={() => {
-                    console.log('New Resume button clicked')
-                    router.push('/upload')
-                  }}
-                  className="rounded-pill border border-border-subtle px-4 py-2 text-xs font-semibold text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                >
-                  ✨ New Resume
-                </button>
-                
-                {!resumeData.name && (
-                  <span className="text-[11px] italic text-text-muted">
-                    Enter your name to enable export →
-                  </span>
-                )}
-
-                <div className="relative" ref={exportMenuRef}>
-                  <button
-                    onClick={() => setExportMenuOpen((prev) => !prev)}
-                    className="inline-flex items-center gap-2 rounded-pill bg-gradient-to-r from-accent-gradientStart via-primary to-accent-gradientEnd px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:translate-y-[-2px]"
-                    disabled={isExporting}
-                    aria-haspopup="menu"
-                    aria-expanded={exportMenuOpen}
-                  >
-                    {isExporting ? '⏳ Exporting...' : '📤 Export'}
-                    <span className="text-[10px]">▾</span>
-                  </button>
-                  {exportMenuOpen && (
-                    <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-border-subtle bg-white p-2 shadow-lg">
-                      <button
-                        className={`w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                          (!resumeData.name || isExporting)
-                            ? 'cursor-not-allowed text-text-muted opacity-50'
-                            : 'text-text-primary hover:bg-primary-50'
-                        }`}
-                        onClick={() => {
-                          setExportMenuOpen(false)
-                          handleExportOption('pdf')
-                        }}
-                        disabled={!resumeData.name || isExporting}
-                      >
-                        📥 Export PDF
-                      </button>
-                      <button
-                        className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                          (!resumeData.name || isExporting)
-                            ? 'cursor-not-allowed text-text-muted opacity-50'
-                            : 'text-text-primary hover:bg-primary-50'
-                        }`}
-                        onClick={() => {
-                          setExportMenuOpen(false)
-                          handleExportOption('docx')
-                        }}
-                        disabled={!resumeData.name || isExporting}
-                      >
-                        📝 Export DOCX
-                      </button>
-                      <button
-                        className={`mt-1 w-full rounded-lg px-4 py-2 text-left text-sm font-medium transition ${
-                          (!latestCoverLetter || isExporting)
-                            ? 'cursor-not-allowed text-text-muted opacity-50'
-                            : 'text-text-primary hover:bg-primary-50'
-                        }`}
-                        onClick={() => {
-                          setExportMenuOpen(false)
-                          handleExportOption('cover-letter')
-                        }}
-                        disabled={!latestCoverLetter || isExporting}
-                      >
-                        ✉️ Export Cover Letter (PDF)
-                      </button>
-                      {!latestCoverLetter && (
-                        <p className="mt-2 px-3 text-[11px] text-text-muted">
-                          Generate a cover letter to enable this option.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-              {autoGeneratedSummary && (
-                <div className="mt-6 space-y-4">
-                  <ATSScoreCard score={autoGeneratedSummary.ats_score} />
-                  <OptimizationSuggestions result={autoGeneratedSummary} />
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-      ) : null
+  const headerElement = null
 
   if (!mounted) {
     return (
@@ -1935,9 +1776,11 @@ const EditorPageContent = () => {
   }
 
   return (
-    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
-      {headerElement}
-      <div className="fixed inset-0 overflow-hidden">
+    <>
+      <AutoHideNavbar />
+      <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
+        {headerElement}
+        <div className="fixed inset-0 overflow-hidden">
       <ModernEditorLayout
         resumeData={resumeData}
         onResumeUpdate={handleResumeDataChange}
@@ -2160,8 +2003,9 @@ const EditorPageContent = () => {
             onClose={() => setShowJobMatchAnalytics(false)}
           />
         )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

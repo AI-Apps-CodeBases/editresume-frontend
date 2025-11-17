@@ -84,7 +84,7 @@ export default function TemplateDesignPage({
   const config = localConfig || templateRegistry.find((t) => t.id === currentTemplate)?.defaultConfig
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col">
+    <div className="fixed inset-0 z-[110] bg-gray-50 flex flex-col">
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button

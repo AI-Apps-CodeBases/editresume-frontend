@@ -14,6 +14,7 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
   const [isScanning, setIsScanning] = useState(false)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
   const [scanProgress, setScanProgress] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
