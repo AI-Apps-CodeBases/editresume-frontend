@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense, useRef, useMemo } from 'react'
+import Image from 'next/image'
 import config from '@/lib/config'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -1740,11 +1741,15 @@ const EditorPageContent = () => {
         <header className="sticky top-0 z-30 border-b border-border-subtle bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)] backdrop-blur">
           <div className="mx-auto w-full max-w-7xl px-4 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3 mobile-header">
-              <a href="/" className="flex items-center gap-3 text-sm font-semibold text-text-primary transition hover:opacity-80">
-                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary-50 text-base font-semibold text-primary-600 shadow-[0_14px_26px_rgba(15,23,42,0.12)]">
-                  ER
-                </span>
-                <span className="hidden text-base sm:inline">editresume.io</span>
+              <a href="/" className="flex items-center transition hover:opacity-80">
+                <Image 
+                  src="/logo.jpg" 
+                  alt="editresume.io" 
+                  width={300} 
+                  height={150}
+                  className="h-20 w-auto"
+                  priority
+                />
               </a>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mobile-header-buttons">
                 {isAuthenticated ? (
