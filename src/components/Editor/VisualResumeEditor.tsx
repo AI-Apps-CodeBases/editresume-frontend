@@ -1528,55 +1528,77 @@ export default function VisualResumeEditor({
       }
       console.log('Sending request:', requestBody)
 
-      const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      })
+      // Add timeout and limit context size
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout
       
-      console.log('Response status:', response.status)
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('API error response:', errorText)
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const result = await response.json()
-      console.log('API result:', result)
-      
-      if (result.success && (result.bullet_text || (result.bullet_options && result.bullet_options.length > 0))) {
-        const bulletText = result.bullet_text || result.bullet_options[0]
-        const keywordsUsed = result.keywords_used || []
-        console.log('Adding bullet:', bulletText, 'with keywords:', keywordsUsed)
-        // Add the new bullet to the section with keywords metadata
-        const sections = data.sections.map(s => {
-          if (s.id === sectionId) {
-            const newBullets = [...s.bullets, { 
-              id: Date.now().toString(), 
-              text: `• ${bulletText}`, 
-              params: {
-                generatedKeywords: keywordsUsed // Store keywords used for highlighting
-              }
-            }]
-            console.log('New bullets for section:', newBullets)
-            return {
-              ...s,
-              bullets: newBullets
-            }
-          }
-          return s
+      try {
+        const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
         })
-        console.log('Updating data with new sections:', sections)
-        onChange({ ...data, sections })
-        console.log('Bullet added successfully!')
-      } else {
-        console.error('API returned failure:', result)
-        alert('Failed to generate bullet point: ' + (result.error || 'Unknown error'))
+        
+        clearTimeout(timeoutId)
+        
+        console.log('Response status:', response.status)
+        
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error')
+          console.error('API error response:', errorText)
+          throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
+        }
+        
+        const result = await response.json()
+        console.log('API result:', result)
+        
+        if (result.success && (result.bullet_text || (result.bullet_options && result.bullet_options.length > 0))) {
+          const bulletText = result.bullet_text || result.bullet_options[0]
+          const keywordsUsed = result.keywords_used || []
+          console.log('Adding bullet:', bulletText, 'with keywords:', keywordsUsed)
+          // Add the new bullet to the section with keywords metadata
+          const sections = data.sections.map(s => {
+            if (s.id === sectionId) {
+              const newBullets = [...s.bullets, { 
+                id: Date.now().toString(), 
+                text: `• ${bulletText}`, 
+                params: {
+                  generatedKeywords: keywordsUsed // Store keywords used for highlighting
+                }
+              }]
+              console.log('New bullets for section:', newBullets)
+              return {
+                ...s,
+                bullets: newBullets
+              }
+            }
+            return s
+          })
+          console.log('Updating data with new sections:', sections)
+          onChange({ ...data, sections })
+          console.log('Bullet added successfully!')
+        } else {
+          console.error('API returned failure:', result)
+          alert('Failed to generate bullet point: ' + (result.error || 'Unknown error'))
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Request timed out after 45 seconds. Please try again.')
+        }
+        throw fetchError
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Bullet generation failed:', error)
-      alert('Bullet generation failed: ' + (error as Error).message)
+      const errorMessage = error?.message || 'Unknown error occurred'
+      if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
+        alert('Request timed out. The AI service may be slow right now. Please try again in a moment.')
+      } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
+        alert('AI service is temporarily unavailable. Please try again in a moment.')
+      } else {
+        alert('Bullet generation failed: ' + errorMessage)
+      }
     } finally {
       setIsGeneratingBullet(false)
     }
@@ -2907,33 +2929,43 @@ export default function VisualResumeEditor({
                               data.summary || '',
                               sectionContext
                             ].filter(Boolean)
-                            const resumeContext = resumeContextParts.join('\n')
+                            // Limit context size to prevent slow API calls
+                            const resumeContext = resumeContextParts.join('\n').substring(0, 500)
 
-                        const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                keywords: keywordsArray,
-                            current_bullet: aiImproveContext.currentText,
-                                mode: aiImproveContext.mode === 'new' ? 'create' : 'improve',
-                                job_description: jobDescriptionText,
-                                resume_context: resumeContext,
-                                company_title: targetSection?.title || data.name,
-                                job_title: data.title,
-                                count: aiImproveContext.mode === 'new' ? 3 : 1
+                            // Create AbortController for timeout
+                            const controller = new AbortController()
+                            const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout
+
+                            try {
+                              const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  keywords: keywordsArray,
+                                  current_bullet: aiImproveContext.currentText,
+                                  mode: aiImproveContext.mode === 'new' ? 'create' : 'improve',
+                                  job_description: jobDescriptionText.substring(0, 1000), // Limit JD size
+                                  resume_context: resumeContext,
+                                  company_title: targetSection?.title || data.name,
+                                  job_title: data.title,
+                                  count: aiImproveContext.mode === 'new' ? 3 : 1
+                                }),
+                                signal: controller.signal
                               })
-                            })
+                              
+                              clearTimeout(timeoutId)
 
-                            if (!response.ok) {
-                              throw new Error(`HTTP error! status: ${response.status}`)
-                            }
+                              if (!response.ok) {
+                                const errorText = await response.text().catch(() => 'Unknown error')
+                                throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
+                              }
 
-                            const result = await response.json()
-                            console.log('AI bullet response:', result)
+                              const result = await response.json()
+                              console.log('AI bullet response:', result)
 
-                            if (!result.success) {
-                              throw new Error(result.error || 'AI request failed')
-                            }
+                              if (!result.success) {
+                                throw new Error(result.error || 'AI request failed')
+                              }
 
                             const parseBulletOptions = (raw: unknown): string[] => {
                               if (!raw) return []
@@ -3005,25 +3037,47 @@ export default function VisualResumeEditor({
                               setGeneratedBulletOptions(options)
                               setSelectedBullets(new Set([0]))
                             }
-                          } catch (error) {
+                            } catch (fetchError: any) {
+                              clearTimeout(timeoutId)
+                              if (fetchError.name === 'AbortError') {
+                                throw new Error('Request timed out after 45 seconds. Please try again with fewer keywords or shorter context.')
+                              }
+                              throw fetchError
+                            }
+                          } catch (error: any) {
                             console.error('Failed to generate AI bullet:', error)
-                            alert(`Failed to generate bullet: ${(error as Error).message}`)
+                            const errorMessage = error?.message || 'Unknown error occurred'
+                            if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
+                              alert('Request timed out. The AI service may be slow right now. Please try again in a moment or reduce the number of keywords.')
+                            } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
+                              alert('AI service is temporarily unavailable. Please try again in a moment.')
+                            } else {
+                              alert(`Failed to generate bullet: ${errorMessage}`)
+                            }
                           } finally {
-                        setIsGeneratingBullets(false)
-                      }
+                            setIsGeneratingBullets(false)
+                          }
                     }}
-                    className={`w-full py-3 rounded-xl font-semibold text-white shadow-lg transition-all ${
+                    className={`w-full py-3 rounded-xl font-semibold text-white shadow-lg transition-all relative overflow-hidden ${
                       isGeneratingBullets
                         ? 'bg-gray-400 cursor-not-allowed'
                         : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
                     }`}
                     disabled={isGeneratingBullets}
                   >
-                        {isGeneratingBullets
-                          ? 'Generating...'
-                          : aiImproveContext.mode === 'new'
+                        {isGeneratingBullets ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Generating... (this may take 10-30 seconds)</span>
+                          </div>
+                        ) : (
+                          aiImproveContext.mode === 'new'
                             ? 'Generate bullet ideas'
-                            : 'Enhance bullet with keywords'}
+                            : 'Enhance bullet with keywords'
+                        )}
                           </button>
 
                       {generatedBulletOptions.length > 0 && (
@@ -3034,6 +3088,79 @@ export default function VisualResumeEditor({
                           <div className="space-y-3">
                             {generatedBulletOptions.map((option, idx) => {
                               const isSelected = selectedBullets.has(idx)
+                              
+                              // Find which keywords are used in this bullet
+                              const usedKeywords = Array.from(selectedMissingKeywords).filter(keyword => {
+                                const keywordLower = keyword.toLowerCase()
+                                const optionLower = option.toLowerCase()
+                                // Check for whole word match (case-insensitive)
+                                const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+                                return regex.test(optionLower)
+                              })
+                              
+                              // Highlight keywords in the bullet text
+                              const highlightKeywords = (text: string, keywords: string[]): React.ReactNode[] => {
+                                if (keywords.length === 0) return [text]
+                                
+                                const parts: React.ReactNode[] = []
+                                let lastIndex = 0
+                                const textLower = text.toLowerCase()
+                                
+                                // Find all keyword matches with their positions
+                                const matches: Array<{ start: number; end: number; keyword: string }> = []
+                                keywords.forEach(keyword => {
+                                  const keywordLower = keyword.toLowerCase()
+                                  const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
+                                  let match
+                                  while ((match = regex.exec(text)) !== null) {
+                                    matches.push({
+                                      start: match.index,
+                                      end: match.index + match[0].length,
+                                      keyword: match[0]
+                                    })
+                                  }
+                                })
+                                
+                                // Sort matches by start position
+                                matches.sort((a, b) => a.start - b.start)
+                                
+                                // Remove overlapping matches (keep first)
+                                const nonOverlapping: Array<{ start: number; end: number; keyword: string }> = []
+                                matches.forEach(match => {
+                                  const overlaps = nonOverlapping.some(existing => 
+                                    match.start < existing.end && match.end > existing.start
+                                  )
+                                  if (!overlaps) {
+                                    nonOverlapping.push(match)
+                                  }
+                                })
+                                
+                                // Build the highlighted text
+                                nonOverlapping.forEach((match, matchIdx) => {
+                                  // Add text before match
+                                  if (match.start > lastIndex) {
+                                    parts.push(text.substring(lastIndex, match.start))
+                                  }
+                                  // Add highlighted keyword
+                                  parts.push(
+                                    <span
+                                      key={`highlight-${matchIdx}`}
+                                      className="bg-yellow-200 text-yellow-900 font-semibold px-1 rounded"
+                                    >
+                                      {text.substring(match.start, match.end)}
+                                    </span>
+                                  )
+                                  lastIndex = match.end
+                                })
+                                
+                                // Add remaining text
+                                if (lastIndex < text.length) {
+                                  parts.push(text.substring(lastIndex))
+                                }
+                                
+                                return parts.length > 0 ? parts : [text]
+                              }
+                              
                               return (
                                 <button
                                   key={idx}
@@ -3055,8 +3182,25 @@ export default function VisualResumeEditor({
                                         isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
                                       }`}
                                     />
-                                    <p className="text-sm text-gray-800 leading-relaxed">{option}</p>
-                </div>
+                                    <div className="flex-1">
+                                      <p className="text-sm text-gray-800 leading-relaxed">
+                                        {highlightKeywords(option, usedKeywords)}
+                                      </p>
+                                      {usedKeywords.length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                          <span className="text-xs text-gray-500">Used keywords:</span>
+                                          {usedKeywords.map((keyword, kwIdx) => (
+                                            <span
+                                              key={kwIdx}
+                                              className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium"
+                                            >
+                                              {keyword}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
                                 </button>
                               )
                             })}

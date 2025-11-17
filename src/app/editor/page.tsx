@@ -1955,27 +1955,51 @@ const EditorPageContent = () => {
         onAIImprove={async (text: string) => {
           try {
             console.log('AI Improve requested for:', text)
-            const response = await fetch(`${config.apiBase}/api/openai/improve-bullet`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ bullet: text, tone: 'professional' })
-            })
             
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`)
+            // Add timeout for bullet improvement
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout for single bullet
+            
+            try {
+              const response = await fetch(`${config.apiBase}/api/openai/improve-bullet`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bullet: text, tone: 'professional' }),
+                signal: controller.signal
+              })
+              
+              clearTimeout(timeoutId)
+              
+              if (!response.ok) {
+                const errorText = await response.text().catch(() => 'Unknown error')
+                throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
+              }
+              
+              const data = await response.json()
+              console.log('AI Improve response:', data)
+              
+              let improved = data.improved || data.improved_bullet || text
+              improved = improved.replace(/^["']|["']$/g, '')
+              
+              console.log('Final improved text:', improved)
+              return improved
+            } catch (fetchError: any) {
+              clearTimeout(timeoutId)
+              if (fetchError.name === 'AbortError') {
+                throw new Error('Request timed out after 30 seconds. Please try again.')
+              }
+              throw fetchError
             }
-            
-            const data = await response.json()
-            console.log('AI Improve response:', data)
-            
-            let improved = data.improved || data.improved_bullet || text
-            improved = improved.replace(/^["']|["']$/g, '')
-            
-            console.log('Final improved text:', improved)
-            return improved
-          } catch (error) {
+          } catch (error: any) {
             console.error('AI improvement failed:', error)
-            alert('AI improvement failed: ' + (error as Error).message)
+            const errorMessage = error?.message || 'Unknown error occurred'
+            if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
+              alert('Request timed out. The AI service may be slow right now. Please try again in a moment.')
+            } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
+              alert('AI service is temporarily unavailable. Please try again in a moment.')
+            } else {
+              alert('AI improvement failed: ' + errorMessage)
+            }
             return text
           }
         }}
