@@ -54,115 +54,178 @@ export default function UploadPage() {
   )
 
   return (
-    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/40">
+      {/* Background decorative elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary-200/20 to-purple-200/20 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-200/20 to-primary-200/20 rounded-full blur-3xl"></div>
+      </div>
 
-
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-4 py-16 sm:px-6 lg:px-8">
+      <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-20 px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
         <ResumeAutomationFlow hideJobList hideHeader openSignal={automationOpenSignal} />
-        <section className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-6">
-            <span className="badge-gradient">Upload + Diagnose</span>
-            <h1 className="text-display text-text-primary">Drop in your resume. We’ll prep it for edits in seconds.</h1>
-            <p className="max-w-xl text-lg text-text-muted">
-              Import from PDF or DOCX, keep every structured section, and unlock ATS-aware diagnostics the moment it
-              lands in the editor.
+        
+        {/* Hero Section */}
+        <section className="relative">
+          <div className="text-center space-y-6 mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-primary-100 to-purple-100 border border-primary-200/50">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-600"></span>
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-700">Upload + Diagnose</span>
+            </div>
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-primary-700 to-purple-700 leading-tight">
+              Drop in your resume.<br />
+              <span className="text-primary-600">We'll prep it in seconds.</span>
+            </h1>
+            <p className="max-w-2xl mx-auto text-xl text-slate-600 leading-relaxed">
+              Import from PDF or DOCX, keep every structured section, and unlock <span className="font-semibold text-primary-700">ATS-aware diagnostics</span> the moment it lands in the editor.
             </p>
-            <div className="flex flex-wrap items-center gap-4">
-              <Link href="/editor?new=true" className="button-secondary text-sm">
+            <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
+              <Link href="/editor?new=true" className="px-6 py-3 rounded-xl bg-white border-2 border-slate-200 text-slate-700 font-semibold hover:border-primary-300 hover:bg-primary-50 transition-all shadow-sm hover:shadow-md">
                 Start from scratch
               </Link>
-              <Link href="/auth/signup" className="button-ghost text-sm">
+              <Link href="/auth/signup" className="px-6 py-3 rounded-xl text-slate-600 font-semibold hover:text-primary-700 transition-colors">
                 Need an account? →
               </Link>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {quickActions.map((item) => (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  className="dashboard-card-tight hover-glow transition"
-                >
-                  <div className="flex items-center gap-3 text-text-primary">
-                    <span className="text-2xl">{item.icon}</span>
-                    <div>
-                      <div className="text-sm font-semibold uppercase tracking-[0.3em] text-text-muted">{item.title}</div>
-                      <p className="mt-2 text-sm text-text-muted">{item.description}</p>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-              <button
-                onClick={(e) => {
-                  e.preventDefault()
-                  automationSignalRef.current += 1
-                  setAutomationOpenSignal(automationSignalRef.current)
-                }}
-                className="dashboard-card-tight hover-glow transition text-left"
-              >
-                <div className="flex items-center gap-3 text-text-primary">
-                  <span className="text-2xl">✨</span>
-                  <div>
-                    <div className="text-sm font-semibold uppercase tracking-[0.3em] text-text-muted">Generate Resume</div>
-                    <p className="mt-2 text-sm text-text-muted">Generate resume from job in minutes.</p>
-                  </div>
-                </div>
-              </button>
-            </div>
           </div>
 
-          <div className="rounded-[32px] border border-border-subtle bg-white p-8 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.4em] text-text-muted">Upload</p>
-                <h2 className="mt-2 text-heading text-text-primary">Bring your resume into edit mode</h2>
+          {/* Main Upload Area */}
+          <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:items-start">
+            {/* Left Side - Upload Component */}
+            <div className="order-2 lg:order-1">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-3xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+                <div className="relative rounded-3xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-8 shadow-2xl">
+                  <div className="mb-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-600 mb-2">Upload Resume</p>
+                      <h2 className="text-2xl font-bold text-slate-900">Bring your resume into edit mode</h2>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200">
+                      <span className="text-xs font-semibold text-primary-700">PDF</span>
+                      <span className="text-primary-300">·</span>
+                      <span className="text-xs font-semibold text-primary-700">DOCX</span>
+                    </div>
+                  </div>
+                  <UploadResume variant="modal" onUploadSuccess={handleUploadSuccess} />
+                  <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-purple-50/50 border border-blue-100">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      <span className="font-semibold text-slate-700">✨ Smart parsing:</span> We retain layouts, sections, and bullet hierarchy. No formatting nightmares—just a clean editor ready for collaboration.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <span className="surface-pill text-xs font-semibold text-text-muted">PDF · DOCX</span>
             </div>
-            <UploadResume variant="modal" onUploadSuccess={handleUploadSuccess} />
-            <div className="mt-6 text-xs text-text-muted">
-              We retain layouts, sections, and bullet hierarchy. No formatting nightmares—just a clean editor ready for
-              collaboration.
+
+            {/* Right Side - Quick Actions */}
+            <div className="order-1 lg:order-2 space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h3>
+                <div className="grid gap-4">
+                  {quickActions.map((item, index) => (
+                    <Link
+                      key={item.title}
+                      href={item.href}
+                      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-primary-50/0 via-purple-50/0 to-blue-50/0 group-hover:from-primary-50/50 group-hover:via-purple-50/50 group-hover:to-blue-50/50 transition-all duration-300"></div>
+                      <div className="relative flex items-start gap-4">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300">
+                          {item.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 mb-1">{item.title}</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
+                        </div>
+                        <div className="flex-shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors">
+                          →
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      automationSignalRef.current += 1
+                      setAutomationOpenSignal(automationSignalRef.current)
+                    }}
+                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 text-left w-full"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary-50/0 via-purple-50/0 to-blue-50/0 group-hover:from-primary-50/50 group-hover:via-purple-50/50 group-hover:to-blue-50/50 transition-all duration-300"></div>
+                    <div className="relative flex items-start gap-4">
+                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300">
+                        ✨
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 mb-1">Generate Resume</div>
+                        <p className="text-sm text-slate-600 leading-relaxed">Generate resume from job in minutes.</p>
+                      </div>
+                      <div className="flex-shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors">
+                        →
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="dashboard-card space-y-8">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <span className="badge">Playbooks</span>
-              <h2 className="mt-4 text-heading text-text-primary">What happens after import?</h2>
-            </div>
-            <Link href="/editor" className="button-secondary text-sm">
-              Go to editor
-            </Link>
-          </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                title: 'Parse & normalize',
-                description:
-                  'We map sections, experience, and bullet structure into the editor so you can start editing instantly.',
-              },
-              {
-                title: 'Flag risks automatically',
-                description:
-                  'ATS diagnostics highlight missing keywords, tense issues, and filler language you can rewrite fast.',
-              },
-              {
-                title: 'Version & share',
-                description:
-                  'Branch tailored versions, share via secure links, and see feedback without exporting a single PDF.',
-              },
-            ].map((item) => (
-              <div key={item.title} className="dashboard-card-tight space-y-3">
-                <h3 className="text-lg font-semibold text-text-primary">{item.title}</h3>
-                <p className="text-sm text-text-muted">{item.description}</p>
+        {/* What Happens After Import Section */}
+        <section className="relative">
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary-200/20 via-purple-200/20 to-blue-200/20 rounded-3xl blur-xl"></div>
+          <div className="relative rounded-3xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-8 lg:p-12 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-6 mb-10">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-100 border border-primary-200 mb-4">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-700">Playbooks</span>
+                </div>
+                <h2 className="text-3xl lg:text-4xl font-bold text-slate-900">What happens after import?</h2>
+                <p className="mt-3 text-lg text-slate-600">See how we transform your resume into an editable masterpiece</p>
               </div>
-            ))}
+              <Link href="/editor" className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold hover:from-primary-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl hover:scale-105">
+                Go to editor
+              </Link>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {[
+                {
+                  icon: '🔍',
+                  title: 'Parse & normalize',
+                  description:
+                    'We map sections, experience, and bullet structure into the editor so you can start editing instantly.',
+                  gradient: 'from-blue-50 to-cyan-50',
+                  borderColor: 'border-blue-200',
+                },
+                {
+                  icon: '⚠️',
+                  title: 'Flag risks automatically',
+                  description:
+                    'ATS diagnostics highlight missing keywords, tense issues, and filler language you can rewrite fast.',
+                  gradient: 'from-amber-50 to-orange-50',
+                  borderColor: 'border-amber-200',
+                },
+                {
+                  icon: '🚀',
+                  title: 'Version & share',
+                  description:
+                    'Branch tailored versions, share via secure links, and see feedback without exporting a single PDF.',
+                  gradient: 'from-purple-50 to-pink-50',
+                  borderColor: 'border-purple-200',
+                },
+              ].map((item) => (
+                <div key={item.title} className={`group rounded-2xl border-2 ${item.borderColor} bg-gradient-to-br ${item.gradient} p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}>
+                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">{item.icon}</div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-3">{item.title}</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       </main>
-
     </div>
   )
 }

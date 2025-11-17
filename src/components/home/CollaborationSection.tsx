@@ -54,9 +54,9 @@ export default function CollaborationSection() {
           </div>
 
           <div className="space-y-4">
-            {resources.map((resource) => (
+            {resources.map((resource, index) => (
               <Link
-                key={resource.href}
+                key={`${resource.title}-${index}`}
                 href={resource.href}
                 className="block rounded-3xl border border-border-subtle bg-white px-6 py-5 shadow-[0_18px_32px_rgba(15,23,42,0.05)] transition hover:-translate-y-1 hover:border-primary-200"
               >

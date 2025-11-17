@@ -1,7 +1,5 @@
 import Link from 'next/link'
 
-const logos = ['Amazon', 'Pinterest', 'Nike', 'Kaiser Permanente', 'Sephora'] as const
-
 const aiHighlights = [
   'Write polished bullet points in seconds.',
   'Pull keywords straight from any job post.',
@@ -163,23 +161,6 @@ export default function HeroSection() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="mt-16 flex flex-col gap-6">
-          <div className="flex flex-wrap items-center gap-4 text-sm text-text-muted">
-            <span className="font-semibold text-text-secondary">Our customers have been hired by:</span>
-            <div className="flex items-center gap-4">
-              <span className="rounded-full bg-primary-50 px-4 py-1 text-xs font-semibold text-primary-600">14,900+ reviews</span>
-              <span>Excellent on Trustpilot</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-10 rounded-3xl border border-border-subtle bg-white px-8 py-6 shadow-[0_18px_32px_rgba(15,23,42,0.05)]">
-            {logos.map((logo) => (
-              <span key={logo} className="text-sm font-semibold uppercase tracking-[0.2em] text-text-muted">
-                {logo}
-              </span>
-            ))}
           </div>
         </div>
       </div>

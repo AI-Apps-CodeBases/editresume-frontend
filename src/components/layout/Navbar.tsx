@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import Image from 'next/image'
 
 const primaryNav = [
   { href: '/editor', label: 'Builder' },
@@ -25,33 +26,30 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 bg-white shadow-[0_12px_20px_rgba(15,23,42,0.06)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary-400 text-lg font-semibold text-white shadow-[0_18px_30px_rgba(15,98,254,0.28)]">
-              ER
-            </div>
-            <div className="flex flex-col">
-              <Link href="/" className="text-lg font-semibold text-text-primary">
-                editresume.io
-              </Link>
-              <span className="text-xs font-medium uppercase tracking-[0.25em] text-text-muted">
-                Resume Workspace
-              </span>
-            </div>
-          </div>
+        <div className="flex items-center justify-between py-2">
+          <Link href="/" className="flex items-center">
+            <Image 
+              src="/logo.jpg" 
+              alt="editresume.io" 
+              width={400} 
+              height={200}
+              className="h-32 w-auto"
+              priority
+            />
+          </Link>
 
           <nav className="hidden items-center gap-6 lg:flex">
             {primaryNav.map((item) => (
               <Link
                 key={item.label}
                 href={item.href}
-                className={`relative text-sm font-semibold transition ${
+                className={`relative text-xs font-semibold transition ${
                   isActive(item.href) ? 'text-primary-700' : 'text-text-muted hover:text-text-primary'
                 }`}
               >
                 {item.label}
                 {isActive(item.href) && (
-                  <span className="absolute -bottom-2 left-0 right-0 h-0.5 rounded-full bg-primary-600" />
+                  <span className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-primary-600" />
                 )}
               </Link>
             ))}
