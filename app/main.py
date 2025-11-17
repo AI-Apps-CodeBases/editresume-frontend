@@ -173,6 +173,9 @@ async def timing_middleware(request: Request, call_next):
         if duration > 1.0 or request.url.path in {
             "/api/resume/upload",
             "/api/ai/match_job_description",
+            "/api/openai/improve-bullet",
+            "/api/ai/generate_bullet_points",
+            "/api/ai/generate_bullet_from_keywords",
         }:
             logger.info(
                 "Request %s %s completed in %.3fs",

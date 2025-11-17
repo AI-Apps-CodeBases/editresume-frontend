@@ -55,6 +55,8 @@ class ExportPayload(BaseModel):
     sections: List[Section] = []
     replacements: Optional[Dict[str, str]] = None
     template: Optional[str] = "tech"
+    templateConfig: Optional[Dict[str, Any]] = None  # Full template configuration
+    design: Optional[Dict[str, Any]] = None  # Legacy design object
     two_column_left: Optional[List[str]] = []
     two_column_right: Optional[List[str]] = []
     two_column_left_width: Optional[int] = 50

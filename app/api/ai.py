@@ -542,7 +542,7 @@ async def match_job_description(
 async def generate_bullet_points(payload: GenerateBulletPointsPayload):
     """Generate bullet points from scratch using AI"""
     try:
-        result = content_generation_agent.generate_bullet_points(
+        result = await content_generation_agent.generate_bullet_points(
             role=payload.role,
             company=payload.company,
             skills=payload.skills,
@@ -572,7 +572,7 @@ async def generate_bullet_points(payload: GenerateBulletPointsPayload):
 async def generate_summary(payload: GenerateSummaryPayload):
     """Generate professional resume summary using AI"""
     try:
-        result = content_generation_agent.generate_summary(
+        result = await content_generation_agent.generate_summary(
             role=payload.role,
             years_experience=payload.years_experience,
             skills=payload.skills,
@@ -594,7 +594,7 @@ async def generate_summary(payload: GenerateSummaryPayload):
 async def improve_bullet(payload: ImproveBulletPayload):
     """Improve a bullet point using AI"""
     try:
-        result = improvement_agent.improve_bullet(
+        result = await improvement_agent.improve_bullet(
             bullet=payload.bullet,
             context=payload.context,
             tone=payload.tone,
@@ -639,7 +639,7 @@ async def generate_work_experience(payload: WorkExperienceRequest):
             }
 
         # Use content generation agent
-        result = content_generation_agent.generate_work_experience(
+        result = await content_generation_agent.generate_work_experience(
             role=payload.currentJobTitle or "Software Engineer",
             company=payload.currentCompany or "Tech Company",
             date_range=payload.currentDateRange or "2020-2023",
@@ -724,7 +724,7 @@ async def generate_bullet_from_keywords(payload: dict):
 
         if mode in {"create", "new"} or not current_bullet:
             # Use content generation agent for create mode
-            result = content_generation_agent.generate_bullet_from_keywords(
+            result = await content_generation_agent.generate_bullet_from_keywords(
                 keywords_str=keywords_str,
                 company_title=company_title,
                 job_title=job_title,
@@ -755,7 +755,7 @@ async def generate_bullet_from_keywords(payload: dict):
             }
         else:
             # Use improvement agent for improve mode
-            result = content_generation_agent.generate_bullets_from_keywords(
+            result = await content_generation_agent.generate_bullets_from_keywords(
                 current_bullet=current_bullet,
                 keywords_str=keywords_str,
                 company_title=company_title,
@@ -808,7 +808,7 @@ async def generate_bullets_from_keywords(payload: dict):
         keywords_str = ", ".join(keywords_list)
 
         # Use content generation agent
-        result = content_generation_agent.generate_bullet_from_keywords(
+        result = await content_generation_agent.generate_bullet_from_keywords(
             keywords_str=keywords_str,
             company_title=company_title,
             job_title=job_title,
@@ -1276,7 +1276,7 @@ async def generate_resume_content(payload: dict):
         """
 
         # Use content generation agent
-        result = content_generation_agent.generate_resume_content(
+        result = await content_generation_agent.generate_resume_content(
             content_type=content_type,
             requirements=requirements,
             existing_context=existing_context,
@@ -1381,7 +1381,7 @@ async def improve_ats_score_bulk(payload: EnhancedATSPayload):
 
                 # Generate improvement using AI improvement agent
                 if openai_client:
-                    result = improvement_agent.apply_ats_improvement(
+                    result = await improvement_agent.apply_ats_improvement(
                         improvement_title=improvement.get("title", ""),
                         improvement_description=improvement.get("description", ""),
                         specific_suggestion=improvement.get("specific_suggestion", ""),

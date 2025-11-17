@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import json
 import logging
 import re
@@ -29,7 +31,7 @@ class ContentGenerationAgent:
         """Initialize the content generation agent."""
         self.openai_client = openai_client
 
-    def generate_bullet_points(
+    async def generate_bullet_points(
         self, role: str, company: str, skills: str, count: int, tone: str
     ) -> dict:
         """Generate bullet points from scratch."""
@@ -55,16 +57,39 @@ class ContentGenerationAgent:
                 "temperature": 0.7,
             }
 
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=60,
-            )
+            # Use async httpx client for better performance
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0,
+                )
+            else:
+                # Fallback to thread pool if httpx not available
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=30,
+                    )
+                )
 
             if response.status_code != 200:
-                raise Exception(f"OpenAI API error: {response.status_code}")
+                # Both httpx and requests have .text attribute
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
+                raise HTTPException(status_code=500, detail=f"OpenAI API error: {response.status_code}")
 
+            # Both httpx and requests have .json() method
             result = response.json()
             content = result["choices"][0]["message"]["content"].strip()
 
@@ -88,7 +113,7 @@ class ContentGenerationAgent:
             error_message = "Failed to generate bullet points: " + str(e)
             raise HTTPException(status_code=500, detail=error_message)
 
-    def generate_summary(
+    async def generate_summary(
         self,
         role: str,
         years_experience: int,
@@ -121,16 +146,39 @@ class ContentGenerationAgent:
                 "temperature": 0.7,
             }
 
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=60,
-            )
+            # Use async httpx client for better performance
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0,
+                )
+            else:
+                # Fallback to thread pool if httpx not available
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=30,
+                    )
+                )
 
             if response.status_code != 200:
-                raise Exception(f"OpenAI API error: {response.status_code}")
+                # Both httpx and requests have .text attribute
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
+                raise HTTPException(status_code=500, detail=f"OpenAI API error: {response.status_code}")
 
+            # Both httpx and requests have .json() method
             result = response.json()
             summary = result["choices"][0]["message"]["content"].strip()
 
@@ -147,7 +195,7 @@ class ContentGenerationAgent:
             error_message = "Failed to generate summary: " + str(e)
             raise HTTPException(status_code=500, detail=error_message)
 
-    def generate_bullet_from_keywords(
+    async def generate_bullet_from_keywords(
         self,
         keywords_str: str,
         company_title: str | None = None,
@@ -181,30 +229,60 @@ class ContentGenerationAgent:
             model = self.openai_client["model"]
             max_tokens = 400 if "gpt-4o" in model and "mini" not in model else 600
             
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json={
-                    "model": model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are a professional resume writer. Create compelling, keyword-optimized bullet points that highlight achievements.",
+            # Use async httpx client for better performance
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a professional resume writer. Create compelling, keyword-optimized bullet points that highlight achievements.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        "max_tokens": max_tokens,
+                        "temperature": 0.6,
+                    },
+                    timeout=30.0,
+                )
+            else:
+                # Fallback to thread pool if httpx not available
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json={
+                            "model": model,
+                            "messages": [
+                                {
+                                    "role": "system",
+                                    "content": "You are a professional resume writer. Create compelling, keyword-optimized bullet points that highlight achievements.",
+                                },
+                                {"role": "user", "content": prompt},
+                            ],
+                            "max_tokens": max_tokens,
+                            "temperature": 0.6,
                         },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "max_tokens": max_tokens,
-                    "temperature": 0.6,
-                },
-                timeout=90,  # Increased timeout for gpt-4o
-            )
+                        timeout=30,
+                    )
+                )
 
             if response.status_code != 200:
-                logger.error(
-                    f"OpenAI API error: {response.status_code} - {response.text}"
-                )
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
                 raise HTTPException(status_code=500, detail="AI service error")
 
+            # Both httpx and requests have .json() method
             result = response.json()
             raw_content = result["choices"][0]["message"]["content"].strip()
 
@@ -241,7 +319,7 @@ class ContentGenerationAgent:
             error_message = "AI generation failed: " + str(e)
             raise HTTPException(status_code=500, detail=error_message)
 
-    def generate_bullets_from_keywords(
+    async def generate_bullets_from_keywords(
         self,
         current_bullet: str,
         keywords_str: str,
@@ -273,27 +351,60 @@ class ContentGenerationAgent:
             model = self.openai_client["model"]
             max_tokens = 150 if "gpt-4o" in model and "mini" not in model else 200
             
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json={
-                    "model": model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are a professional resume writer specializing in keyword optimization and impactful bullet points.",
+            # Use async httpx client for better performance
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a professional resume writer specializing in keyword optimization and impactful bullet points.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        "max_tokens": max_tokens,
+                        "temperature": 0.6,
+                    },
+                    timeout=30.0,
+                )
+            else:
+                # Fallback to thread pool if httpx not available
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json={
+                            "model": model,
+                            "messages": [
+                                {
+                                    "role": "system",
+                                    "content": "You are a professional resume writer specializing in keyword optimization and impactful bullet points.",
+                                },
+                                {"role": "user", "content": prompt},
+                            ],
+                            "max_tokens": max_tokens,
+                            "temperature": 0.6,
                         },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "max_tokens": max_tokens,
-                    "temperature": 0.6,
-                },
-                timeout=90,  # Increased timeout for gpt-4o
-            )
+                        timeout=30,
+                    )
+                )
 
             if response.status_code != 200:
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
                 raise HTTPException(status_code=500, detail="AI service error")
 
+            # Both httpx and requests have .json() method
             result = response.json()
             improved_bullet = result["choices"][0]["message"]["content"].strip()
 
@@ -312,7 +423,7 @@ class ContentGenerationAgent:
             error_message = "AI generation failed: " + str(e)
             raise HTTPException(status_code=500, detail=error_message)
 
-    def generate_summary_from_experience(
+    async def generate_summary_from_experience(
         self,
         title: str | None,
         work_experience_text: str | None,
@@ -349,18 +460,39 @@ class ContentGenerationAgent:
                 "temperature": 0.7,
             }
 
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=60,
-            )
-
-            if response.status_code != 200:
-                raise Exception(
-                    f"OpenAI API error: {response.status_code} - {response.text}"
+            # Use async httpx client for better performance
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0,
+                )
+            else:
+                # Fallback to thread pool if httpx not available
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=30,
+                    )
                 )
 
+            if response.status_code != 200:
+                # Both httpx and requests have .text attribute
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
+                raise HTTPException(status_code=500, detail=f"OpenAI API error: {response.status_code}")
+
+            # Both httpx and requests have .json() method
             result = response.json()
             summary_text = result["choices"][0]["message"]["content"].strip()
             tokens_used = result.get("usage", {}).get("total_tokens", 0)
@@ -383,7 +515,7 @@ class ContentGenerationAgent:
             error_message = "Failed to generate summary: " + str(e)
             raise HTTPException(status_code=500, detail=error_message)
 
-    def generate_resume_content(
+    async def generate_resume_content(
         self,
         content_type: str,
         requirements: str,
@@ -424,16 +556,39 @@ class ContentGenerationAgent:
                 "temperature": 0.7,
             }
 
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=60,
-            )
+            # Use async httpx client for better performance
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0,
+                )
+            else:
+                # Fallback to thread pool if httpx not available
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=30,
+                    )
+                )
 
             if response.status_code != 200:
-                raise Exception(f"OpenAI API error: {response.status_code}")
+                # Both httpx and requests have .text attribute
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
+                raise HTTPException(status_code=500, detail=f"OpenAI API error: {response.status_code}")
 
+            # Both httpx and requests have .json() method
             result = response.json()
             content = result["choices"][0]["message"]["content"].strip()
 
@@ -470,7 +625,7 @@ class ContentGenerationAgent:
             error_message = "Failed to generate content: " + str(e)
             raise HTTPException(status_code=500, detail=error_message)
 
-    def generate_work_experience(
+    async def generate_work_experience(
         self,
         role: str,
         company: str,
@@ -507,16 +662,39 @@ class ContentGenerationAgent:
                 "temperature": 0.7,
             }
 
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=60,
-            )
+            # Use async httpx client for better performance
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0,
+                )
+            else:
+                # Fallback to thread pool if httpx not available
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=30,
+                    )
+                )
 
             if response.status_code != 200:
-                raise Exception(f"OpenAI API error: {response.status_code}")
+                # Both httpx and requests have .text attribute
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
+                raise HTTPException(status_code=500, detail=f"OpenAI API error: {response.status_code}")
 
+            # Both httpx and requests have .json() method
             result = response.json()
             content = result["choices"][0]["message"]["content"].strip()
 

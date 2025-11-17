@@ -35,22 +35,68 @@ async def export_pdf(
         replacements = payload.replacements or {}
         template_id = payload.template or "tech"
         template_style = TEMPLATES.get(template_id, TEMPLATES["tech"])
+        template_config = payload.templateConfig or {}
 
         logger.info(f"Exporting PDF with template: {template_id}")
-        logger.info(f"Template style: {template_style}")
+        logger.info(f"Template config provided: {bool(template_config)}")
         logger.info(
             f"Two-column settings: left={payload.two_column_left}, right={payload.two_column_right}, width={payload.two_column_left_width}"
         )
 
-        font_family = template_style["styles"]["font"]
-        header_align = template_style["styles"]["header_align"]
-        header_border = template_style["styles"]["header_border"]
-        section_uppercase = (
-            "text-transform: uppercase;"
-            if template_style["styles"]["section_uppercase"]
-            else ""
-        )
-        layout = template_style["styles"]["layout"]
+        # Use templateConfig if available, otherwise fall back to template lookup
+        if template_config:
+            # Typography
+            typography = template_config.get("typography", {})
+            font_family_heading = typography.get("fontFamily", {}).get("heading", "Arial")
+            font_family_body = typography.get("fontFamily", {}).get("body", "Arial")
+            font_family = f"{font_family_heading}, {font_family_body}, sans-serif"
+            
+            # Design
+            design = template_config.get("design", {})
+            header_style = design.get("headerStyle", "left-aligned")
+            header_align = "center" if header_style == "centered" else "left"
+            header_border = "2px solid #000" if design.get("dividers", True) else "none"
+            section_uppercase = "text-transform: uppercase;" if design.get("sectionUppercase", False) else ""
+            
+            # Layout
+            layout_config = template_config.get("layout", {})
+            layout_columns = layout_config.get("columns", "single")
+            layout = "two-column" if layout_columns in ["two-column", "asymmetric"] else "single"
+            
+            # Colors
+            colors = design.get("colors", {})
+            primary_color = colors.get("primary", "#000000")
+            text_color = colors.get("text", "#000000")
+            
+            # Spacing
+            spacing_config = template_config.get("spacing", {})
+            section_gap = spacing_config.get("sectionGap", 15)
+            item_gap = spacing_config.get("itemGap", 6)
+            
+            # Font sizes
+            h1_size = typography.get("fontSize", {}).get("h1", 24)
+            h2_size = typography.get("fontSize", {}).get("h2", 12)
+            body_size = typography.get("fontSize", {}).get("body", 11)
+            line_height = typography.get("lineHeight", 1.4)
+        else:
+            # Fallback to template lookup
+            font_family = template_style["styles"]["font"]
+            header_align = template_style["styles"]["header_align"]
+            header_border = template_style["styles"]["header_border"]
+            section_uppercase = (
+                "text-transform: uppercase;"
+                if template_style["styles"]["section_uppercase"]
+                else ""
+            )
+            layout = template_style["styles"]["layout"]
+            primary_color = "#000000"
+            text_color = "#000000"
+            section_gap = 15
+            item_gap = 6
+            h1_size = 24
+            h2_size = 12
+            body_size = 11
+            line_height = 1.4
 
         # Build HTML content sections
         contact_info = apply_replacements(payload.email or "", replacements)
@@ -72,18 +118,59 @@ async def export_pdf(
             </div>
             """
 
+        # Determine layout from templateConfig or fallback
+        is_two_column = layout == "two-column" or (
+            template_config and 
+            template_config.get("layout", {}).get("columns") in ["two-column", "asymmetric"]
+        )
+        
         # Build sections HTML
-        if layout == "two-column":
+        if is_two_column:
             left_sections_html = ""
             right_sections_html = ""
 
-            # Use localStorage configuration if provided, otherwise fallback to alternating
+            # Use localStorage configuration if provided, otherwise use smart default distribution
             left_section_ids = set(payload.two_column_left or [])
             right_section_ids = set(payload.two_column_right or [])
+            
+            # Check if summary should be in left or right column
+            summary_id = "__summary__"
+            summary_in_left = summary_id in left_section_ids
+            summary_in_right = summary_id in right_section_ids
+            
+            # Add summary to appropriate column if it exists and is assigned
+            if payload.summary and (summary_in_left or summary_in_right):
+                summary_html = f"""
+                <div class="section">
+                    <h2>Professional Summary</h2>
+                    <div class="summary">{apply_replacements(payload.summary, replacements)}</div>
+                </div>"""
+                if summary_in_left:
+                    left_sections_html += summary_html
+                elif summary_in_right:
+                    right_sections_html += summary_html
+            elif payload.summary and not left_section_ids and not right_section_ids:
+                # Default: add summary to left column if no configuration exists
+                summary_html = f"""
+                <div class="section">
+                    <h2>Professional Summary</h2>
+                    <div class="summary">{apply_replacements(payload.summary, replacements)}</div>
+                </div>"""
+                left_sections_html += summary_html
 
-            # If no configuration provided, use alternating logic
+            # If no configuration provided, use smart distribution: Skills, Certificates, Education on left
             if not left_section_ids and not right_section_ids:
-                for i, s in enumerate(payload.sections):
+                # Default distribution: Skills, Certificates, Education on left; everything else on right
+                left_column_keywords = ['skill', 'certificate', 'certification', 'education', 'academic', 'qualification', 'award', 'honor']
+                
+                for s in payload.sections:
+                    section_title_lower = s.title.lower()
+                    # Skip summary section as it's already added above
+                    if 'summary' in section_title_lower or 'professional summary' in section_title_lower:
+                        continue
+                    
+                    is_left_column = any(keyword in section_title_lower for keyword in left_column_keywords)
+                    
                     section_title = s.title.lower()
                     is_work_experience = (
                         "experience" in section_title
@@ -102,7 +189,7 @@ async def export_pdf(
                         </div>"""
                     else:
                         bullets_html = format_regular_bullets(s.bullets, replacements, s.title)
-                        section_title = apply_replacements(s.title, replacements)
+                        section_title_formatted = apply_replacements(s.title, replacements)
                         section_lower = s.title.lower()
                         is_skill_section = (
                             "skill" in section_lower
@@ -115,19 +202,19 @@ async def export_pdf(
                         if is_skill_section:
                             section_html = f"""
                             <div class="section">
-                                <h2>{section_title}</h2>
+                                <h2>{section_title_formatted}</h2>
                                 {bullets_html}
                             </div>"""
                         else:
                             section_html = f"""
                             <div class="section">
-                                <h2>{section_title}</h2>
+                                <h2>{section_title_formatted}</h2>
                                 <ul>
                                     {bullets_html}
                                 </ul>
                             </div>"""
 
-                    if i % 2 == 0:
+                    if is_left_column:
                         left_sections_html += section_html
                     else:
                         right_sections_html += section_html
@@ -135,6 +222,10 @@ async def export_pdf(
                 # Use provided configuration
                 for s in payload.sections:
                     section_title = s.title.lower()
+                    # Skip summary section as it's already added above
+                    if 'summary' in section_title or 'professional summary' in section_title:
+                        continue
+                    
                     is_work_experience = (
                         "experience" in section_title
                         or "work" in section_title
@@ -183,21 +274,19 @@ async def export_pdf(
                         right_sections_html += section_html
 
             # Calculate column widths with spacing
-            left_width = payload.two_column_left_width or 50
-            right_width = 100 - left_width
-
-            # Adjust for spacing between columns (2% gap)
-            gap = 2
-            left_width_adjusted = left_width - (gap / 2)
-            right_width_adjusted = right_width - (gap / 2)
+            left_width_percent = payload.two_column_left_width or 50
+            gap_percent = 2
+            # Adjust right width to account for gap
+            right_width_percent = 100 - left_width_percent - gap_percent
 
             content_html = f"""
             {cover_letter_html}
-            <div class="two-column">
-                <div class="column" style="width: {left_width_adjusted}%; margin-right: {gap}%;">{left_sections_html}</div>
-                <div class="column" style="width: {right_width_adjusted}%;">{right_sections_html}</div>
-                <div class="clearfix"></div>
-            </div>"""
+            <table class="two-column" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td class="column" style="width: {left_width_percent}%; padding-right: 1%; vertical-align: top;">{left_sections_html}</td>
+                    <td class="column" style="width: {right_width_percent}%; vertical-align: top;">{right_sections_html}</td>
+                </tr>
+            </table>"""
         else:
             # Single column layout
             summary_html = (
@@ -251,38 +340,52 @@ async def export_pdf(
                         </div>"""
             content_html = cover_letter_html + summary_html + sections_html
 
+        # Get page margin from templateConfig
+        page_margin = template_config.get("spacing", {}).get("pageMargin", 24) if template_config else 24
+        page_margin_cm = f"{page_margin / 10:.1f}cm"  # Convert from px to cm (assuming 1cm ≈ 10px)
+        
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <style>
-        @page {{ size: A4; margin: 2cm; }}
-        body {{ font-family: {font_family}; font-size: 11pt; line-height: 1.4; color: #000000; }}
-        .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: 15px; }}
-        .header h1 {{ margin: 0; font-size: 24pt; font-weight: bold; color: #000000; }}
-        .header .title {{ font-size: 14pt; margin: 5px 0; color: #000000; }}
-        .header .contact {{ font-size: 10pt; color: #000000; margin-top: 5px; }}
-        .summary {{ margin-bottom: 15px; font-size: 10pt; line-height: 1.5; color: #000000; }}
-        .section {{ margin-bottom: 15px; }}
-        .section h2 {{ font-size: 12pt; font-weight: bold; color: #000000; {section_uppercase}
-                       border-bottom: 1px solid #333; padding-bottom: 3px; margin-bottom: 8px; }}
+        @page {{ size: A4; margin: {page_margin_cm}; }}
+        body {{ font-family: {font_family}; font-size: {body_size}pt; line-height: {line_height}; color: {text_color}; }}
+        .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: {section_gap}px; }}
+        .header h1 {{ margin: 0; font-size: {h1_size}pt; font-weight: bold; color: {primary_color}; }}
+        .header .title {{ font-size: {h2_size + 2}pt; margin: 5px 0; color: {text_color}; }}
+        .header .contact {{ font-size: {body_size}pt; color: {text_color}; margin-top: 5px; }}
+        .summary {{ margin-bottom: {section_gap}px; font-size: {body_size}pt; line-height: {line_height}; color: {text_color}; }}
+        .section {{ margin-bottom: {section_gap}px; }}
+        .section h2 {{ font-size: {h2_size}pt; font-weight: bold; color: {primary_color}; {section_uppercase}
+                       border-bottom: 1px solid {primary_color}; padding-bottom: 3px; margin-bottom: 8px; }}
         .section ul {{ margin: 0; padding-left: 0; list-style: none; }}
-        .section li {{ margin-bottom: 6px; font-size: 10pt; color: #000000; position: relative; padding-left: 14px; }}
-        .section li::before {{ content: "•"; font-weight: bold; color: #000000; position: absolute; left: 0; top: 0; }}
+        .section li {{ margin-bottom: {item_gap}px; font-size: {body_size}pt; color: {text_color}; position: relative; padding-left: 14px; }}
+        .section li::before {{ content: "•"; font-weight: bold; color: {primary_color}; position: absolute; left: 0; top: 0; }}
         .job-entry {{ margin-bottom: 20px; }}
         .company-header {{ margin-bottom: 8px; }}
-        .company-name-line {{ font-weight: bold; font-size: 1.1em; color: #000000; margin-bottom: 3px; }}
-        .company-title-line {{ display: flex; justify-content: space-between; align-items: center; font-size: 10pt; }}
-        .job-title {{ font-weight: 500; color: #000000; }}
-        .job-date {{ color: #666666; font-size: 9pt; }}
-        .skills-section {{ font-size: 10pt; color: #000000; line-height: 1.6; }}
+        .company-name-line {{ font-weight: bold; font-size: 1.1em; color: {primary_color}; margin-bottom: 3px; }}
+        .company-title-line {{ display: flex; justify-content: space-between; align-items: center; font-size: {body_size}pt; }}
+        .job-title {{ font-weight: 500; color: {text_color}; }}
+        .job-date {{ color: #666666; font-size: {body_size - 1}pt; }}
+        .skills-section {{ font-size: {body_size}pt; color: {text_color}; line-height: {line_height}; }}
         .job-separator {{ height: 10px; }}
-        .two-column {{ width: 100%; }}
-        .column {{ float: left; }}
+        .two-column {{ 
+            width: 100%; 
+            border-collapse: collapse;
+            table-layout: fixed;
+        }}
+        .two-column td.column {{
+            vertical-align: top;
+            padding: 0;
+        }}
+        .two-column td.column:first-child {{
+            padding-right: 1%;
+        }}
         .clearfix {{ clear: both; }}
         .cover-letter-section {{ margin-bottom: 20px; page-break-after: always; }}
-        .cover-letter-section h2 {{ font-size: 14pt; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 5px; }}
-        .cover-letter-content {{ font-size: 11pt; line-height: 1.6; text-align: justify; }}
+        .cover-letter-section h2 {{ font-size: {h2_size + 2}pt; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid {primary_color}; padding-bottom: 5px; }}
+        .cover-letter-content {{ font-size: {body_size + 1}pt; line-height: {line_height}; text-align: justify; }}
     </style>
 </head>
 <body>
@@ -373,40 +476,65 @@ async def export_docx(
         replacements = payload.replacements or {}
         template_id = payload.template or "tech"
         template_style = TEMPLATES.get(template_id, TEMPLATES["tech"])
+        template_config = payload.templateConfig or {}
 
         logger.info(f"Exporting DOCX with template: {template_id}")
-        logger.info(f"Template layout: {template_style['styles']['layout']}")
+        logger.info(f"Template config provided: {bool(template_config)}")
         logger.info(
             f"Two-column settings: left={payload.two_column_left}, right={payload.two_column_right}, width={payload.two_column_left_width}"
         )
 
-        layout = template_style["styles"]["layout"]
+        # Use templateConfig if available, otherwise fall back to template lookup
+        if template_config:
+            layout_config = template_config.get("layout", {})
+            layout_columns = layout_config.get("columns", "single")
+            layout = "two-column" if layout_columns in ["two-column", "asymmetric"] else "single"
+            
+            typography = template_config.get("typography", {})
+            font_family_heading = typography.get("fontFamily", {}).get("heading", "Arial")
+            font_family_body = typography.get("fontFamily", {}).get("body", "Arial")
+            h1_size = typography.get("fontSize", {}).get("h1", 24)
+            h2_size = typography.get("fontSize", {}).get("h2", 12)
+            body_size = typography.get("fontSize", {}).get("body", 11)
+            
+            design = template_config.get("design", {})
+            header_style = design.get("headerStyle", "left-aligned")
+            header_align = "center" if header_style == "centered" else "left"
+            
+            spacing_config = template_config.get("spacing", {})
+            page_margin = spacing_config.get("pageMargin", 24)
+            page_margin_inches = Inches(page_margin / 96)  # Convert px to inches (assuming 96 DPI)
+        else:
+            layout = template_style["styles"]["layout"]
+            font_family_heading = "Arial" if "Arial" in template_style["styles"]["font"] else "Georgia"
+            font_family_body = font_family_heading
+            h1_size = 18
+            h2_size = 12
+            body_size = 11
+            header_align = template_style["styles"]["header_align"]
+            page_margin_inches = Inches(1)
 
         doc = Document()
 
         section = doc.sections[0]
-        section.top_margin = Inches(1)
-        section.bottom_margin = Inches(1)
-        section.left_margin = Inches(1)
-        section.right_margin = Inches(1)
+        section.top_margin = page_margin_inches
+        section.bottom_margin = page_margin_inches
+        section.left_margin = page_margin_inches
+        section.right_margin = page_margin_inches
 
         name_para = doc.add_paragraph()
         name_run = name_para.add_run(apply_replacements(payload.name, replacements))
-        name_run.font.size = Pt(18)
+        name_run.font.size = Pt(h1_size)
         name_run.font.bold = True
-        name_run.font.name = (
-            "Arial" if "Arial" in template_style["styles"]["font"] else "Georgia"
-        )
-        if template_style["styles"]["header_align"] == "center":
+        name_run.font.name = font_family_heading
+        if header_align == "center":
             name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         title_para = doc.add_paragraph()
         title_run = title_para.add_run(apply_replacements(payload.title, replacements))
-        title_run.font.size = Pt(12)
-        title_run.font.name = (
-            "Arial" if "Arial" in template_style["styles"]["font"] else "Georgia"
-        )
-        if template_style["styles"]["header_align"] == "center":
+        title_run.font.size = Pt(h2_size)
+        title_run.font.name = font_family_body
+        if header_align == "center":
             title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         contact_parts = []
@@ -419,8 +547,9 @@ async def export_docx(
 
         if contact_parts:
             contact_para = doc.add_paragraph(" • ".join(contact_parts))
-            contact_para.runs[0].font.size = Pt(10)
-            if template_style["styles"]["header_align"] == "center":
+            contact_para.runs[0].font.size = Pt(body_size)
+            contact_para.runs[0].font.name = font_family_body
+            if header_align == "center":
                 contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         doc.add_paragraph()
@@ -438,10 +567,16 @@ async def export_docx(
 
             doc.add_paragraph()  # Add spacing
 
-        logger.info(
-            f"Layout decision: layout='{layout}', is_two_column={layout == 'two-column'}"
+        # Determine layout from templateConfig or fallback
+        is_two_column = layout == "two-column" or (
+            template_config and 
+            template_config.get("layout", {}).get("columns") in ["two-column", "asymmetric"]
         )
-        if layout == "two-column":
+        
+        logger.info(
+            f"Layout decision: layout='{layout}', is_two_column={is_two_column}"
+        )
+        if is_two_column:
             logger.info("Creating two-column layout")
             from docx.oxml import OxmlElement
             from docx.oxml.ns import qn
@@ -507,15 +642,19 @@ async def export_docx(
             )
 
             if not left_section_ids and not right_section_ids:
-                # Use alternating logic if no configuration
+                # Use smart default distribution: Skills, Certificates, Education on left
                 logger.info(
-                    "Using alternating logic - no localStorage configuration provided"
+                    "Using smart default distribution - no localStorage configuration provided"
                 )
+                left_column_keywords = ['skill', 'certificate', 'certification', 'education', 'academic', 'qualification', 'award', 'honor']
+                
                 left_sections = [
-                    s for i, s in enumerate(payload.sections) if i % 2 == 0
+                    s for s in payload.sections 
+                    if any(keyword in s.title.lower() for keyword in left_column_keywords)
                 ]
                 right_sections = [
-                    s for i, s in enumerate(payload.sections) if i % 2 == 1
+                    s for s in payload.sections 
+                    if not any(keyword in s.title.lower() for keyword in left_column_keywords)
                 ]
             else:
                 # Use provided configuration
@@ -533,6 +672,48 @@ async def export_docx(
             logger.info(
                 f"Left sections count: {len(left_sections)}, Right sections count: {len(right_sections)}"
             )
+
+            # Add summary to appropriate column if assigned
+            summary_id = "__summary__"
+            summary_in_left = summary_id in left_section_ids
+            summary_in_right = summary_id in right_section_ids
+            
+            if payload.summary and (summary_in_left or summary_in_right):
+                summary_title = "Professional Summary"
+                if template_style.get("styles", {}).get("section_uppercase", False):
+                    summary_title = summary_title.upper()
+                
+                target_cell = left_cell if summary_in_left else right_cell
+                summary_para = target_cell.add_paragraph()
+                summary_heading = summary_para.add_run(summary_title)
+                summary_heading.font.size = Pt(h2_size)
+                summary_heading.font.bold = True
+                summary_heading.font.name = font_family_heading
+                
+                summary_content_para = target_cell.add_paragraph()
+                summary_content = summary_content_para.add_run(apply_replacements(payload.summary, replacements))
+                summary_content.font.size = Pt(body_size)
+                summary_content.font.name = font_family_body
+                
+                target_cell.add_paragraph()  # Add spacing
+            elif payload.summary and not left_section_ids and not right_section_ids:
+                # Default: add summary to left column
+                summary_title = "Professional Summary"
+                if template_style.get("styles", {}).get("section_uppercase", False):
+                    summary_title = summary_title.upper()
+                
+                summary_para = left_cell.add_paragraph()
+                summary_heading = summary_para.add_run(summary_title)
+                summary_heading.font.size = Pt(h2_size)
+                summary_heading.font.bold = True
+                summary_heading.font.name = font_family_heading
+                
+                summary_content_para = left_cell.add_paragraph()
+                summary_content = summary_content_para.add_run(apply_replacements(payload.summary, replacements))
+                summary_content.font.size = Pt(body_size)
+                summary_content.font.name = font_family_body
+                
+                left_cell.add_paragraph()  # Add spacing
 
             # Add sections to left column
             for s in left_sections:

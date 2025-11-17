@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import json
 import logging
 
@@ -23,7 +25,7 @@ class ImprovementAgent:
         """Initialize the improvement agent."""
         self.openai_client = openai_client
 
-    def improve_bullet(
+    async def improve_bullet(
         self, bullet: str, context: str | None = None, tone: str = "professional"
     ) -> dict:
         """Improve a bullet point."""
@@ -49,16 +51,39 @@ class ImprovementAgent:
                 "temperature": 0.7,
             }
 
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=60,
-            )
+            # Use async httpx client for better performance
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0,
+                )
+            else:
+                # Fallback to thread pool if httpx not available
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=30,
+                    )
+                )
 
             if response.status_code != 200:
-                raise Exception(f"OpenAI API error: {response.status_code}")
+                # Both httpx and requests have .text attribute
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
+                raise HTTPException(status_code=500, detail=f"OpenAI API error: {response.status_code}")
 
+            # Both httpx and requests have .json() method
             result = response.json()
             improved_bullet = result["choices"][0]["message"]["content"].strip()
 
@@ -75,7 +100,7 @@ class ImprovementAgent:
             error_message = "Failed to improve bullet: " + str(e)
             raise HTTPException(status_code=500, detail=error_message)
 
-    def apply_ats_improvement(
+    async def apply_ats_improvement(
         self,
         improvement_title: str,
         improvement_description: str,
@@ -98,27 +123,38 @@ class ImprovementAgent:
                 job_description=job_description,
             )
 
-            response = self.openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.openai_client['api_key']}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.openai_client["model"],
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert resume writer specializing in ATS optimization. Apply improvements while maintaining professional quality.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "max_tokens": 2000,
-                    "temperature": 0.6,
-                },
+            # Use asyncio to run blocking request in thread pool
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    self.openai_client["requests"].post,
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.openai_client['api_key']}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": self.openai_client["model"],
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are an expert resume writer specializing in ATS optimization. Apply improvements while maintaining professional quality.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        "max_tokens": 2000,
+                        "temperature": 0.6,
+                    },
+                    timeout=30,  # Reduced timeout from default to 30 seconds
+                )
             )
 
             if response.status_code == 200:
+                # Both httpx and requests have .json() method
                 result = response.json()
                 improved_content = result["choices"][0]["message"]["content"].strip()
 
