@@ -49,7 +49,8 @@ class GrammarAgent:
             strength_score, strength_issues = (
                 self.grammar_checker.check_action_verbs(text)
             )
-            style_score = self.grammar_checker.calculate_style_score(text)
+            style_score_obj = self.grammar_checker.calculate_style_score(text)
+            style_score_value = style_score_obj.overall_score if style_score_obj else 0
         else:
             passive_issues = []
             weak_verb_issues = []
@@ -57,7 +58,8 @@ class GrammarAgent:
             readability_issues = []
             strength_score = 0
             strength_issues = []
-            style_score = 0
+            style_score_obj = None
+            style_score_value = 0
 
         return {
             "success": True,
@@ -72,10 +74,10 @@ class GrammarAgent:
                 "score": strength_score,
                 "issues": strength_issues,
             },
-            "style_score": style_score,
+            "style_score": style_score_value,
             "overall_score": (
                 (100 - len(grammar_issues) * 5)
-                + style_score
+                + style_score_value
                 + readability_score
                 + strength_score
             )
