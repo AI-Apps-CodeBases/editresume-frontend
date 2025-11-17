@@ -7,9 +7,10 @@ interface ModernLeftSidebarProps {
   currentView?: 'editor' | 'jobs' | 'resumes'
   onCollapseChange?: (collapsed: boolean) => void
   onAIContentWizard?: (contentType: 'job' | 'project' | 'skill' | 'education') => void
+  onTemplatesClick?: () => void
 }
 
-export default function ModernLeftSidebar({ onViewChange, currentView = 'editor', onCollapseChange, onAIContentWizard }: ModernLeftSidebarProps) {
+export default function ModernLeftSidebar({ onViewChange, currentView = 'editor', onCollapseChange, onAIContentWizard, onTemplatesClick }: ModernLeftSidebarProps) {
   const { isAuthenticated } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -98,6 +99,8 @@ export default function ModernLeftSidebar({ onViewChange, currentView = 'editor'
       if (aiTool && onAIContentWizard) {
         onAIContentWizard(aiTool.contentType)
       }
+    } else if (itemId === 'templates') {
+      onTemplatesClick?.()
     }
   }
 
@@ -215,6 +218,7 @@ export default function ModernLeftSidebar({ onViewChange, currentView = 'editor'
             {secondaryItems.map((item) => (
               <button
                 key={item.id}
+                onClick={() => handleItemClick(item.id)}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
               >
                 <span className="text-base">{item.icon}</span>

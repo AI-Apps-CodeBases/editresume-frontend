@@ -29,6 +29,7 @@ interface RightPanelProps {
     }>
   }
   template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
+  templateConfig?: any
   deepLinkedJD?: string | null
   activeJobDescriptionId?: number | null
 }
@@ -41,6 +42,7 @@ export default function RightPanel({
   onAIImprove,
   resumeData,
   template = 'clean',
+  templateConfig,
   deepLinkedJD,
   activeJobDescriptionId
 }: RightPanelProps) {
@@ -495,6 +497,7 @@ export default function RightPanel({
                 </div>
                 <div className="flex-1 flex items-start justify-center p-3 overflow-y-auto custom-scrollbar">
                   <PreviewPanel
+                    key={`preview-${template}-${JSON.stringify(resumeData?.sections?.map(s => s.id))}`}
                     data={{
                       ...resumeData,
                       name: resumeData.name || '',
@@ -511,6 +514,7 @@ export default function RightPanel({
                     }}
                     replacements={{}}
                     template={template}
+                    templateConfig={templateConfig}
                   />
                 </div>
               </div>

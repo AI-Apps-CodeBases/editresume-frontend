@@ -346,6 +346,23 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
        return
      }
  
+     // Deduplicate sections by title (case-insensitive) - keep first occurrence
+     const sections = Array.isArray(data?.sections) ? data.sections : []
+     const seenTitles = new Map<string, number>() // Map to track first occurrence index
+     const deduplicatedSections = sections.filter((section: any, index: number) => {
+       if (!section || !section.title) return false
+       const titleLower = section.title.toLowerCase().trim()
+       if (seenTitles.has(titleLower)) {
+         const firstIndex = seenTitles.get(titleLower)!
+         console.warn(`⚠️ Removing duplicate section "${section.title}" during upload (job match) - keeping first occurrence at index ${firstIndex}`)
+         return false
+       }
+       seenTitles.set(titleLower, index)
+       return true
+     })
+     
+     console.log(`📋 Deduplicated sections during upload (job match): ${sections.length} → ${deduplicatedSections.length}`)
+ 
      const normalizedResume = {
        name: data?.name || '',
        title: data?.title || '',
@@ -353,7 +370,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
        phone: data?.phone || '',
        location: data?.location || '',
        summary: data?.summary || '',
-       sections: Array.isArray(data?.sections) ? data.sections : []
+       sections: deduplicatedSections
      }
  
      if (typeof window !== 'undefined') {
@@ -362,14 +379,19 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
          if (job.content) {
            window.localStorage.setItem('deepLinkedJD', job.content)
          }
+         // Clear ALL cached resume data before uploading
+         console.log('🧹 Clearing all cached resume data before upload (from job match)')
          window.localStorage.removeItem('currentResumeId')
          window.localStorage.removeItem('currentResumeVersionId')
+         window.localStorage.removeItem('resumeData') // Clear cached resume
+         window.localStorage.removeItem('selectedTemplate') // Clear cached template
 
-         const uploadToken = `upload-${Date.now()}`
+         const uploadToken = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
          const payload = {
            resume: normalizedResume,
            template: data?.template || 'tech'
          }
+         console.log('💾 Storing uploaded resume in sessionStorage:', uploadToken)
          window.sessionStorage.setItem(`uploadedResume:${uploadToken}`, JSON.stringify(payload))
 
          const redirectUrl = new URL('/editor', window.location.origin)

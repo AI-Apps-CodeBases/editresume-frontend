@@ -49,13 +49,15 @@ interface Props {
     }
   }
   replacements: Record<string, string>
-  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'modern-one' | 'classic-one' | 'minimal-one' | 'executive-one'
+  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'modern-one' | 'classic-one' | 'minimal-one' | 'executive-one' | 'classic' | 'creative' | 'ats-friendly' | 'executive'
+  templateConfig?: any
 }
 
 export default function PreviewPanel({ 
   data, 
   replacements, 
-  template = 'clean' as const
+  template = 'clean' as const,
+  templateConfig
 }: Props) {
   // Add page break styles
   useEffect(() => {
@@ -133,22 +135,77 @@ export default function PreviewPanel({
   const spacing = design.spacing || {}
   const layout = design.layout || {}
   
-  const headerAlign = template === 'clean' || template === 'two-column' || template === 'compact' ? 'center' : 'left'
-  const headerBorder = template === 'clean' ? 'border-b-2 border-black' : template === 'minimal' ? 'border-b border-gray-300' : 'border-b'
-  const sectionUppercase = template === 'clean' || template === 'compact'
-  const fontFamily = template === 'clean' ? 'font-serif' : 'font-sans'
-  const isTwoColumn = layout.columns === 2 || template === 'two-column'
+  // Use templateConfig if available, otherwise fall back to old template logic
+  const isTwoColumn = templateConfig?.layout?.columns === 'two-column' || 
+                      templateConfig?.layout?.columns === 'asymmetric' ||
+                      layout.columns === 2 || 
+                      template === 'two-column'
   
-  const headingFont = fonts.heading || (template === 'clean' ? 'serif' : 'sans-serif')
-  const bodyFont = fonts.body || (template === 'clean' ? 'serif' : 'sans-serif')
-  const headingSize = fonts.size?.heading || 18
-  const bodySize = fonts.size?.body || 12
-  const primaryColor = colors.primary || '#000000'
-  const secondaryColor = colors.secondary || '#000000'
-  const accentColor = colors.accent || '#000000'
-  const textColor = colors.text || '#000000'
-  const sectionSpacing = spacing.section || 16
-  const bulletSpacing = spacing.bullet || 8
+  const columnWidth = templateConfig?.layout?.columnWidth || layout.columnWidth || 50
+  
+  // Helper function to get ordered sections respecting sectionOrder from templateConfig
+  const getOrderedSections = (sections: typeof data.sections, excludeTitles: string[] = []) => {
+    const filtered = sections.filter((s) => {
+      return s.params?.visible !== false && !excludeTitles.includes(s.title)
+    })
+    
+    // Apply section order if available
+    if (templateConfig?.layout?.sectionOrder && templateConfig.layout.sectionOrder.length > 0) {
+      const sectionOrder = templateConfig.layout.sectionOrder
+      // Filter out summary ID from section order (it's handled separately)
+      const sectionOrderWithoutSummary = sectionOrder.filter(id => id !== '__summary__')
+      const orderedSections = sectionOrderWithoutSummary
+        .map(id => filtered.find(s => s.id === id))
+        .filter(Boolean) as typeof filtered
+      const unorderedSections = filtered.filter(s => !sectionOrderWithoutSummary.includes(s.id))
+      return [...orderedSections, ...unorderedSections]
+    }
+    
+    return filtered
+  }
+  
+  // Helper to get summary position in section order
+  const getSummaryPosition = () => {
+    if (!data.summary || (data as any).fieldsVisible?.summary === false) return null
+    if (!templateConfig?.layout?.sectionOrder || templateConfig.layout.sectionOrder.length === 0) return 'before' // Default: before sections
+    
+    const summaryIndex = templateConfig.layout.sectionOrder.indexOf('__summary__')
+    if (summaryIndex === -1) return 'before' // Not in order, default to before
+    
+    // Check if summary should be before or after sections
+    const firstSectionIndex = templateConfig.layout.sectionOrder.findIndex(id => 
+      id !== '__summary__' && (data.sections || []).some(s => s.id === id)
+    )
+    
+    if (firstSectionIndex === -1) return 'before' // No sections, summary first
+    return summaryIndex < firstSectionIndex ? 'before' : 'after'
+  }
+  
+  const headerAlign = templateConfig?.design?.headerStyle === 'centered' || 
+                      template === 'clean' || 
+                      template === 'two-column' || 
+                      template === 'compact' || 
+                      template === 'classic' 
+                      ? 'center' 
+                      : 'left'
+  const headerBorder = template === 'clean' || template === 'classic' ? 'border-b-2 border-black' : template === 'minimal' ? 'border-b border-gray-300' : 'border-b'
+  const sectionUppercase = template === 'clean' || template === 'compact' || template === 'classic'
+  const fontFamily = template === 'clean' || template === 'classic' ? 'font-serif' : 'font-sans'
+  
+  const headingFont = templateConfig?.typography?.fontFamily?.heading || 
+                      fonts.heading || 
+                      (template === 'clean' || template === 'classic' ? 'serif' : 'sans-serif')
+  const bodyFont = templateConfig?.typography?.fontFamily?.body || 
+                    fonts.body || 
+                    (template === 'clean' || template === 'classic' ? 'serif' : 'sans-serif')
+  const headingSize = templateConfig?.typography?.fontSize?.h1 || fonts.size?.heading || 18
+  const bodySize = templateConfig?.typography?.fontSize?.body || fonts.size?.body || 12
+  const primaryColor = templateConfig?.design?.colors?.primary || colors.primary || '#000000'
+  const secondaryColor = templateConfig?.design?.colors?.secondary || colors.secondary || '#000000'
+  const accentColor = templateConfig?.design?.colors?.accent || colors.accent || '#000000'
+  const textColor = templateConfig?.design?.colors?.text || colors.text || '#000000'
+  const sectionSpacing = templateConfig?.spacing?.sectionGap || spacing.section || 16
+  const bulletSpacing = templateConfig?.spacing?.itemGap || spacing.bullet || 8
 
   const renderBullets = (bullets: any[], sectionTitle: string) => {
     // Safety check: ensure bullets is an array
@@ -398,6 +455,7 @@ export default function PreviewPanel({
   const [leftSectionIds, setLeftSectionIds] = useState<string[]>([])
   const [rightSectionIds, setRightSectionIds] = useState<string[]>([])
   const [leftWidth, setLeftWidth] = useState(50)
+  const SUMMARY_ID = '__summary__'
 
   // Update layout configuration when localStorage changes
   useEffect(() => {
@@ -407,9 +465,60 @@ export default function PreviewPanel({
         const savedRight = localStorage.getItem('twoColumnRight')
         const savedWidth = localStorage.getItem('twoColumnLeftWidth')
         
-        setLeftSectionIds(savedLeft ? JSON.parse(savedLeft) : [])
-        setRightSectionIds(savedRight ? JSON.parse(savedRight) : [])
-        setLeftWidth(savedWidth ? Number(savedWidth) : 50)
+        let leftIds: string[] = savedLeft ? JSON.parse(savedLeft) : []
+        let rightIds: string[] = savedRight ? JSON.parse(savedRight) : []
+        
+        // If no configuration exists, use default distribution
+        if (leftIds.length === 0 && rightIds.length === 0) {
+          const allSections = (data.sections || [])
+            .filter(s => {
+              const excludedTitles = ['Contact Information', 'Contact', 'Title Section', 'Title']
+              return s.params?.visible !== false && !excludedTitles.includes(s.title)
+            })
+          
+          // Default distribution: Skills, Certificates, Education on left; everything else on right
+          const leftColumnKeywords = ['skill', 'certificate', 'certification', 'education', 'academic', 'qualification', 'award', 'honor']
+          
+          // Add summary to left by default if it exists
+          if (data.summary && !leftIds.includes(SUMMARY_ID) && !rightIds.includes(SUMMARY_ID)) {
+            leftIds.push(SUMMARY_ID)
+          }
+          
+          leftIds = [
+            ...leftIds.filter(id => id === SUMMARY_ID),
+            ...allSections
+              .filter(s => {
+                const titleLower = s.title.toLowerCase()
+                return leftColumnKeywords.some(keyword => titleLower.includes(keyword))
+              })
+              .map(s => s.id)
+          ]
+          
+          rightIds = allSections
+            .filter(s => {
+              const titleLower = s.title.toLowerCase()
+              return !leftColumnKeywords.some(keyword => titleLower.includes(keyword))
+            })
+            .map(s => s.id)
+          
+          // Save default distribution to localStorage so it persists
+          if (leftIds.length > 0 || rightIds.length > 0) {
+            localStorage.setItem('twoColumnLeft', JSON.stringify(leftIds))
+            localStorage.setItem('twoColumnRight', JSON.stringify(rightIds))
+          }
+        } else {
+          // Ensure summary is included if it exists and not already assigned
+          if (data.summary && !leftIds.includes(SUMMARY_ID) && !rightIds.includes(SUMMARY_ID)) {
+            leftIds.push(SUMMARY_ID)
+            localStorage.setItem('twoColumnLeft', JSON.stringify(leftIds))
+          }
+        }
+        
+        setLeftSectionIds(leftIds)
+        setRightSectionIds(rightIds)
+        // Use templateConfig columnWidth if available, otherwise localStorage, otherwise default
+        const finalWidth = templateConfig?.layout?.columnWidth || (savedWidth ? Number(savedWidth) : 50)
+        setLeftWidth(finalWidth)
       }
       
       // Initial load
@@ -431,8 +540,12 @@ export default function PreviewPanel({
         window.removeEventListener('storage', handleStorageChange)
         clearInterval(interval)
       }
+    } else {
+      // Reset when not two-column
+      setLeftSectionIds([])
+      setRightSectionIds([])
     }
-  }, [isTwoColumn])
+  }, [isTwoColumn, data.sections, template])
 
   return (
     <div 
@@ -529,9 +642,10 @@ export default function PreviewPanel({
 
 
         {isTwoColumn ? (
-          <div className="grid gap-8" style={{ gridTemplateColumns: `${leftWidth}% ${100 - leftWidth}%` }}>
+          <div className="grid gap-8" style={{ gridTemplateColumns: `${columnWidth}% ${100 - columnWidth}%` }}>
             <div className="space-y-6">
-              {data.summary && (data as any).fieldsVisible?.summary !== false && (
+              {/* Professional Summary - Show in left column if assigned */}
+              {data.summary && (data as any).fieldsVisible?.summary !== false && leftSectionIds.includes(SUMMARY_ID) && (
                 <div style={{ marginBottom: `${sectionSpacing}px` }}>
                   <h2 
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
@@ -558,14 +672,9 @@ export default function PreviewPanel({
                 </div>
               )}
 
-              {/* Page Layout Indicator - After Summary */}
-              {data.summary && <hr className="page-layout-indicator" />}
-
-              {(data.sections || []).filter((s) => {
-                // Filter out sections that are already rendered separately (summary, contact, title)
-                const excludedTitles = ['Professional Summary', 'Summary', 'Contact Information', 'Contact', 'Title Section', 'Title']
-                return leftSectionIds.includes(s.id) && s.params?.visible !== false && !excludedTitles.includes(s.title)
-              }).map((section) => (
+              {getOrderedSections(data.sections || [], ['Contact Information', 'Contact', 'Title Section', 'Title'])
+                .filter(s => leftSectionIds.includes(s.id))
+                .map((section) => (
                 <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
                   <h2 
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
@@ -585,11 +694,37 @@ export default function PreviewPanel({
             </div>
             
             <div className="space-y-6">
-              {(data.sections || []).filter((s) => {
-                // Filter out sections that are already rendered separately (summary, contact, title)
-                const excludedTitles = ['Professional Summary', 'Summary', 'Contact Information', 'Contact', 'Title Section', 'Title']
-                return rightSectionIds.includes(s.id) && s.params?.visible !== false && !excludedTitles.includes(s.title)
-              }).map((section) => (
+              {/* Professional Summary - Show in right column if assigned */}
+              {data.summary && (data as any).fieldsVisible?.summary !== false && rightSectionIds.includes(SUMMARY_ID) && (
+                <div style={{ marginBottom: `${sectionSpacing}px` }}>
+                  <h2 
+                    className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
+                    style={{ 
+                      fontFamily: headingFont,
+                      fontSize: `${headingSize}px`,
+                      color: primaryColor,
+                      borderColor: primaryColor,
+                      marginBottom: `${sectionSpacing}px`
+                    }}
+                  >
+                    Professional Summary
+                  </h2>
+                  <p 
+                    className="text-sm leading-relaxed"
+                    style={{ 
+                      fontFamily: bodyFont,
+                      fontSize: `${bodySize}px`,
+                      color: textColor
+                    }}
+                  >
+                    {applyReplacements(data.summary)}
+                  </p>
+                </div>
+              )}
+
+              {getOrderedSections(data.sections || [], ['Contact Information', 'Contact', 'Title Section', 'Title'])
+                .filter(s => rightSectionIds.includes(s.id))
+                .map((section) => (
                 <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
                   <h2 
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
@@ -610,54 +745,87 @@ export default function PreviewPanel({
           </div>
         ) : (
           <>
-            {data.summary && (data as any).fieldsVisible?.summary !== false && (
-              <div style={{ marginBottom: `${sectionSpacing}px` }}>
-                <h2 
-                  className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
-                  style={{ 
-                    fontFamily: headingFont,
-                    fontSize: `${headingSize}px`,
-                    color: primaryColor,
-                    borderColor: primaryColor,
-                    marginBottom: `${sectionSpacing}px`
-                  }}
-                >
-                  Professional Summary
-                </h2>
-                <p 
-                  className="text-sm leading-relaxed"
-                  style={{ 
-                    fontFamily: bodyFont,
-                    fontSize: `${bodySize}px`,
-                    color: textColor
-                  }}
-                >
-                  {applyReplacements(data.summary)}
-                </p>
-              </div>
-            )}
-
-            {(data.sections || []).filter((s) => {
-              // Filter out sections that are already rendered separately (summary, contact, title)
-              const excludedTitles = ['Professional Summary', 'Summary', 'Contact Information', 'Contact', 'Title Section', 'Title']
-              return s.params?.visible !== false && !excludedTitles.includes(s.title)
-            }).map((section) => (
-              <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
-                <h2 
-                  className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
-                  style={{ 
-                    fontFamily: headingFont,
-                    fontSize: `${headingSize}px`,
-                    color: primaryColor,
-                    borderColor: primaryColor,
-                    marginBottom: `${sectionSpacing}px`
-                  }}
-                >
-                  {applyReplacements(section.title)}
-                </h2>
-                {renderBullets(section.bullets, section.title)}
-              </div>
-            ))}
+            {(() => {
+              const summaryPosition = getSummaryPosition()
+              const orderedSections = getOrderedSections(data.sections || [], ['Professional Summary', 'Summary', 'Contact Information', 'Contact', 'Title Section', 'Title'])
+              const shouldShowSummaryBefore = summaryPosition === 'before' || summaryPosition === null
+              
+              return (
+                <>
+                  {shouldShowSummaryBefore && data.summary && (data as any).fieldsVisible?.summary !== false && (
+                    <div style={{ marginBottom: `${sectionSpacing}px` }}>
+                      <h2 
+                        className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
+                        style={{ 
+                          fontFamily: headingFont,
+                          fontSize: `${headingSize}px`,
+                          color: primaryColor,
+                          borderColor: primaryColor,
+                          marginBottom: `${sectionSpacing}px`
+                        }}
+                      >
+                        Professional Summary
+                      </h2>
+                      <p 
+                        className="text-sm leading-relaxed"
+                        style={{ 
+                          fontFamily: bodyFont,
+                          fontSize: `${bodySize}px`,
+                          color: textColor
+                        }}
+                      >
+                        {applyReplacements(data.summary)}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {orderedSections.map((section) => (
+                    <div key={section.id} style={{ marginBottom: `${sectionSpacing}px` }}>
+                      <h2 
+                        className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
+                        style={{ 
+                          fontFamily: headingFont,
+                          fontSize: `${headingSize}px`,
+                          color: primaryColor,
+                          borderColor: primaryColor,
+                          marginBottom: `${sectionSpacing}px`
+                        }}
+                      >
+                        {applyReplacements(section.title)}
+                      </h2>
+                      {renderBullets(section.bullets, section.title)}
+                    </div>
+                  ))}
+                  
+                  {summaryPosition === 'after' && data.summary && (data as any).fieldsVisible?.summary !== false && (
+                    <div style={{ marginBottom: `${sectionSpacing}px` }}>
+                      <h2 
+                        className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
+                        style={{ 
+                          fontFamily: headingFont,
+                          fontSize: `${headingSize}px`,
+                          color: primaryColor,
+                          borderColor: primaryColor,
+                          marginBottom: `${sectionSpacing}px`
+                        }}
+                      >
+                        Professional Summary
+                      </h2>
+                      <p 
+                        className="text-sm leading-relaxed"
+                        style={{ 
+                          fontFamily: bodyFont,
+                          fontSize: `${bodySize}px`,
+                          color: textColor
+                        }}
+                      >
+                        {applyReplacements(data.summary)}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </>
         )}
 

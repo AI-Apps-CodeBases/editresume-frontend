@@ -22,6 +22,7 @@ import ShareResumeModal from '@/components/Resume/ShareResumeModal'
 import JobsView from '@/components/Editor/JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 import NewResumeWizard from '@/components/Editor/NewResumeWizard'
+import TemplateDesignPage from '@/components/Editor/TemplateDesignPage'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 import { shouldPromptAuthentication } from '@/lib/guestAuth'
@@ -33,6 +34,20 @@ import type {
   ATSScore as AutomationATSScore,
   GenerationInsights,
 } from '@/features/resume-automation/types'
+import type { TemplateConfig } from '@/features/resume/templates/types'
+import { templateRegistry } from '@/features/resume/templates'
+
+const mapTemplateId = (oldId: string): string => {
+  const mapping: Record<string, string> = {
+    'clean': 'classic',
+    'tech': 'modern',
+    'modern': 'modern',
+    'two-column': 'two-column',
+    'compact': 'classic',
+    'minimal': 'modern',
+  }
+  return mapping[oldId] || oldId
+}
 
 const EditorPageContent = () => {
   const { user, isAuthenticated, logout, checkPremiumAccess } = useAuth()
@@ -53,6 +68,8 @@ const EditorPageContent = () => {
   const [showExportAnalytics, setShowExportAnalytics] = useState(false)
   const [showShareResume, setShowShareResume] = useState(false)
   const [showJobMatchAnalytics, setShowJobMatchAnalytics] = useState(false)
+  const [showTemplateDesignPage, setShowTemplateDesignPage] = useState(false)
+  const [templateConfig, setTemplateConfig] = useState<TemplateConfig | undefined>(undefined)
   const [currentResumeId, setCurrentResumeId] = useState<number | null>(null)
   const [grammarEnabled, setGrammarEnabled] = useState(false)
   const [commentsEnabled, setCommentsEnabled] = useState(false)
@@ -299,7 +316,17 @@ const EditorPageContent = () => {
   useEffect(() => {
     setMounted(true)
     
-    // Load resume data from localStorage after mount
+    // Check if this is an upload - if so, don't load from localStorage
+    const resumeUploadParam = searchParams.get('resumeUpload')
+    const uploadToken = searchParams.get('uploadToken')
+    
+    if (resumeUploadParam === '1' && uploadToken) {
+      // This is an upload - don't load from localStorage, let the upload handler do it
+      console.log('📤 Upload detected, skipping localStorage load')
+      return
+    }
+    
+    // Load resume data from localStorage after mount (only if not an upload)
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('resumeData')
@@ -328,7 +355,7 @@ const EditorPageContent = () => {
         console.error('Error loading resume from localStorage:', e)
       }
     }
-  }, []) // Only run once on mount
+  }, [searchParams]) // Include searchParams to check for upload
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -520,17 +547,49 @@ const EditorPageContent = () => {
      const resumeUploadParam = searchParams.get('resumeUpload')
      const uploadToken = searchParams.get('uploadToken')
      if (resumeUploadParam === '1') {
+       console.log('📤 Processing upload - clearing cached data')
        setCurrentResumeId(null)
        try {
+         // Clear ALL cached resume data to ensure fresh upload
          localStorage.removeItem('currentResumeId')
+         localStorage.removeItem('currentResumeVersionId')
+         localStorage.removeItem('resumeData') // Clear cached resume data
+         localStorage.removeItem('selectedTemplate') // Clear cached template
+         
          if (uploadToken) {
            const stored = window.sessionStorage.getItem(`uploadedResume:${uploadToken}`)
            if (stored) {
              try {
                const parsed = JSON.parse(stored)
+               console.log('📤 Loading uploaded resume from sessionStorage:', parsed)
                if (parsed?.resume) {
-                 setResumeData(parsed.resume)
-                 localStorage.setItem('resumeData', JSON.stringify(parsed.resume))
+                 // Deduplicate sections by title (case-insensitive) - keep first occurrence
+                 const seenTitles = new Map<string, number>() // Map to track first occurrence index
+                 const sections = parsed.resume.sections || []
+                 const deduplicatedSections = sections.filter((section: any, index: number) => {
+                   if (!section || !section.title) return false
+                   const titleLower = section.title.toLowerCase().trim()
+                   if (seenTitles.has(titleLower)) {
+                     const firstIndex = seenTitles.get(titleLower)!
+                     console.warn(`⚠️ Removing duplicate section "${section.title}" (keeping first occurrence at index ${firstIndex})`)
+                     return false
+                   }
+                   seenTitles.set(titleLower, index)
+                   return true
+                 })
+                 
+                 const cleanedResume = {
+                   ...parsed.resume,
+                   sections: deduplicatedSections
+                 }
+                 
+                 console.log(`📋 Deduplicated sections: ${parsed.resume.sections?.length || 0} → ${deduplicatedSections.length}`)
+                 
+                 // Set the uploaded resume data
+                 setResumeData(cleanedResume)
+                 // Save to localStorage for persistence
+                 localStorage.setItem('resumeData', JSON.stringify(cleanedResume))
+                 console.log('✅ Uploaded resume loaded successfully')
                }
                if (parsed?.template) {
                  setSelectedTemplate(parsed.template)
@@ -539,9 +598,14 @@ const EditorPageContent = () => {
              } catch (e) {
                console.error('Failed to apply uploaded resume payload', e)
              } finally {
+               // Clean up sessionStorage
                window.sessionStorage.removeItem(`uploadedResume:${uploadToken}`)
              }
+           } else {
+             console.warn('⚠️ No uploaded resume found in sessionStorage for token:', uploadToken)
            }
+         } else {
+           console.warn('⚠️ No uploadToken provided')
          }
        } catch (e) {
          console.warn('Failed to clear currentResumeId from localStorage', e)
@@ -843,6 +907,42 @@ const EditorPageContent = () => {
     window.history.pushState({}, '', '/editor')
   }
 
+  const handleTemplatesClick = () => {
+    const mappedTemplateId = mapTemplateId(selectedTemplate)
+    const template = templateRegistry.find(t => t.id === mappedTemplateId)
+    if (template) {
+      setTemplateConfig(template.defaultConfig)
+    }
+    setShowTemplateDesignPage(true)
+  }
+
+  const handleTemplateChange = (templateId: string) => {
+    const reverseMapping: Record<string, string> = {
+      'classic': 'clean',
+      'modern': 'tech',
+      'two-column': 'two-column',
+      'creative': 'modern',
+      'ats-friendly': 'clean',
+      'executive': 'clean',
+    }
+    const oldTemplateId = reverseMapping[templateId] || templateId
+    setSelectedTemplate(oldTemplateId as any)
+    
+    // Update template config when template changes
+    const template = templateRegistry.find(t => t.id === templateId)
+    if (template) {
+      setTemplateConfig(template.defaultConfig)
+    }
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedTemplate', oldTemplateId)
+    }
+  }
+
+  const handleTemplateConfigUpdate = (config: TemplateConfig) => {
+    setTemplateConfig(config)
+  }
+
   const saveToHistory = () => {
     if (!resumeData.name) return
     
@@ -931,6 +1031,10 @@ const EditorPageContent = () => {
         }))
       }))
       
+      // Get column width from templateConfig if available, otherwise from localStorage
+      const columnWidth = templateConfig?.layout?.columnWidth || 
+                         (localStorage.getItem('twoColumnLeftWidth') ? Number(localStorage.getItem('twoColumnLeftWidth')!) : 50)
+      
       const exportData = {
         cover_letter: isCoverLetterExport ? latestCoverLetter : undefined,
         name: resumeData.name,
@@ -942,17 +1046,18 @@ const EditorPageContent = () => {
         sections: isCoverLetterExport ? [] : cleanedSections,
         replacements,
         template: selectedTemplate,
+        templateConfig: templateConfig || undefined, // Send full templateConfig
         design: {
           colors: {
-            primary: '#000000',
-            secondary: '#000000',
-            accent: '#000000',
-            text: '#000000'
+            primary: templateConfig?.design?.colors?.primary || '#000000',
+            secondary: templateConfig?.design?.colors?.secondary || '#000000',
+            accent: templateConfig?.design?.colors?.accent || '#000000',
+            text: templateConfig?.design?.colors?.text || '#000000'
           }
         },
         two_column_left: localStorage.getItem('twoColumnLeft') ? JSON.parse(localStorage.getItem('twoColumnLeft')!) : [],
         two_column_right: localStorage.getItem('twoColumnRight') ? JSON.parse(localStorage.getItem('twoColumnRight')!) : [],
-        two_column_left_width: localStorage.getItem('twoColumnLeftWidth') ? Number(localStorage.getItem('twoColumnLeftWidth')!) : 50
+        two_column_left_width: columnWidth
       }
       
       console.log('Export data:', exportData)
@@ -1424,8 +1529,11 @@ const EditorPageContent = () => {
               title: 'Work Experience',
               bullets: []
             }
-            // Add the new section to the beginning of sections array
-            resumeData.sections.unshift(targetSection)
+            // Add the new section to the beginning of sections array (immutably)
+            const updatedSections = [targetSection, ...resumeData.sections]
+            setResumeData({ ...resumeData, sections: updatedSections })
+            // Update targetSection reference to the one in the new array
+            targetSection = updatedSections[0]
           }
           const content = newContent.content
           const bullets = content.bullets || []
@@ -1808,6 +1916,19 @@ const EditorPageContent = () => {
     );
   }
 
+  if (showTemplateDesignPage) {
+    return (
+      <TemplateDesignPage
+        resumeData={resumeData}
+        currentTemplate={mapTemplateId(selectedTemplate)}
+        templateConfig={templateConfig}
+        onTemplateChange={handleTemplateChange}
+        onTemplateConfigUpdate={handleTemplateConfigUpdate}
+        onClose={() => setShowTemplateDesignPage(false)}
+      />
+    )
+  }
+
   return (
     <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
       {headerElement}
@@ -1818,6 +1939,7 @@ const EditorPageContent = () => {
         onViewChange={setCurrentView}
         currentView={currentView}
         template={selectedTemplate}
+        templateConfig={templateConfig}
         onAddContent={handleAddContent}
         roomId={roomId}
         onAddComment={handleAddComment}
@@ -1868,6 +1990,7 @@ const EditorPageContent = () => {
         onLogout={logout}
         onSignIn={() => setShowAuthModal(true)}
         onAIContentWizard={handleAIContentWizard}
+        onTemplatesClick={handleTemplatesClick}
       />
 
       {/* Modals */}

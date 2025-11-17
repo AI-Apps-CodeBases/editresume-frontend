@@ -122,6 +122,17 @@ export default function DesignPanel({ data, onUpdate, template, onTemplateChange
   }
 
   const handleAddSection = (section: typeof SUGGESTED_SECTIONS[0]) => {
+    // Check if section with same title already exists (case-insensitive)
+    const titleLower = section.title.toLowerCase().trim()
+    const existingSection = data.sections.find(s => 
+      s.title.toLowerCase().trim() === titleLower
+    )
+    
+    if (existingSection) {
+      alert(`A section titled "${section.title}" already exists. Please use a different name or remove the existing section first.`)
+      return
+    }
+    
     const newSection = {
       id: `section-${Date.now()}`,
       title: section.title,

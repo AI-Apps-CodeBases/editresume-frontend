@@ -196,6 +196,41 @@ export default function VisualResumeEditor({
       });
     }
   }, [data.sections]);
+
+  // Deduplicate sections by title (case-insensitive) - keep first occurrence
+  const lastSectionsRef = useRef<string>('')
+  useEffect(() => {
+    if (!data.sections || data.sections.length === 0) return
+    
+    // Create a signature of current sections to detect actual changes
+    const sectionsSignature = JSON.stringify(data.sections.map(s => ({ id: s.id, title: s.title })))
+    if (lastSectionsRef.current === sectionsSignature) return // No change, skip
+    lastSectionsRef.current = sectionsSignature
+    
+    const seenTitles = new Map<string, { id: string, index: number }>()
+    const duplicates: string[] = []
+    
+    data.sections.forEach((section, index) => {
+      if (!section || !section.title) return
+      const titleLower = section.title.toLowerCase().trim()
+      
+      if (seenTitles.has(titleLower)) {
+        const first = seenTitles.get(titleLower)!
+        duplicates.push(section.id)
+        console.warn(`⚠️ Found duplicate section "${section.title}" (ID: ${section.id}) - keeping first occurrence (ID: ${first.id} at index ${first.index})`)
+      } else {
+        seenTitles.set(titleLower, { id: section.id, index })
+      }
+    })
+    
+    if (duplicates.length > 0) {
+      console.log(`🧹 Removing ${duplicates.length} duplicate section(s)`)
+      const deduplicatedSections = data.sections.filter(s => !duplicates.includes(s.id))
+      // Update the ref to prevent re-triggering
+      lastSectionsRef.current = JSON.stringify(deduplicatedSections.map(s => ({ id: s.id, title: s.title })))
+      onChange({ ...data, sections: deduplicatedSections })
+    }
+  }, [data.sections, data, onChange])
   
   const toggleSection = (sectionId: string) => {
     setOpenSections(prev => {
@@ -933,9 +968,18 @@ export default function VisualResumeEditor({
   }
 
   const addSection = () => {
+    // Check if "New Section" already exists
+    const existingNewSections = data.sections.filter(s => 
+      s.title.toLowerCase().trim() === 'new section'
+    )
+    
+    const sectionNumber = existingNewSections.length > 0 
+      ? ` ${existingNewSections.length + 1}` 
+      : ''
+    
     const newSection: Section = {
       id: Date.now().toString(),
-      title: 'New Section',
+      title: `New Section${sectionNumber}`,
       bullets: [{ id: Date.now().toString() + '-1', text: '', params: {} }]
     }
     onChange({ ...data, sections: [...data.sections, newSection] })
@@ -1011,10 +1055,24 @@ export default function VisualResumeEditor({
       }
     })
     
-    console.log('Created sections:', newSections)
+    // Deduplicate sections by title before adding
+    const seenTitles = new Map<string, number>()
+    const deduplicatedSections = newSections.filter((section, index) => {
+      if (!section || !section.title) return false
+      const titleLower = section.title.toLowerCase().trim()
+      if (seenTitles.has(titleLower)) {
+        const firstIndex = seenTitles.get(titleLower)!
+        console.warn(`⚠️ Removing duplicate section "${section.title}" from parsed resume (keeping first occurrence at index ${firstIndex})`)
+        return false
+      }
+      seenTitles.set(titleLower, index)
+      return true
+    })
+    
+    console.log(`📋 Deduplicated parsed sections: ${newSections.length} → ${deduplicatedSections.length}`)
     
     // Replace all existing sections with new ones
-    onChange({ ...data, sections: newSections })
+    onChange({ ...data, sections: deduplicatedSections })
     setShowAIParser(false)
   }
 
@@ -1833,6 +1891,14 @@ export default function VisualResumeEditor({
                         title="Professional Summary"
                         icon="📝"
                         isEnabled={(data as any).fieldsVisible?.summary !== false}
+                        onToggleVisibility={() => {
+                          const currentFieldsVisible = (data as any).fieldsVisible || {}
+                          const newFieldsVisible = {
+                            ...currentFieldsVisible,
+                            summary: currentFieldsVisible.summary === false ? undefined : false
+                          }
+                          onChange({ ...data, fieldsVisible: newFieldsVisible })
+                        }}
                       >
                         <div className="prose max-w-none">
                           <div 
@@ -1903,6 +1969,20 @@ export default function VisualResumeEditor({
                             }
                             return updated
                           })
+                        }}
+                        onToggleVisibility={() => {
+                          const updatedSections = data.sections.map(s =>
+                            s.id === section.id
+                              ? {
+                                  ...s,
+                                  params: {
+                                    ...s.params,
+                                    visible: s.params?.visible === false ? undefined : false
+                                  }
+                                }
+                              : s
+                          )
+                          onChange({ ...data, sections: updatedSections })
                         }}
                       >
                         <div className="space-y-4">
@@ -3131,6 +3211,7 @@ function SortableSectionCard({
   children,
   isCollapsed,
   onToggleCollapse,
+  onToggleVisibility,
 }: {
   id: string
   title: string
@@ -3140,6 +3221,7 @@ function SortableSectionCard({
   children: React.ReactNode
   isCollapsed?: boolean
   onToggleCollapse?: () => void
+  onToggleVisibility?: () => void
 }) {
   const {
     attributes,
@@ -3199,8 +3281,12 @@ function SortableSectionCard({
           <input 
             type="checkbox" 
             checked={isEnabled} 
-            onChange={() => {}} 
+            onChange={(e) => {
+              e.stopPropagation()
+              onToggleVisibility?.()
+            }} 
             className="w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0" 
+            title={isEnabled ? "Hide section in preview" : "Show section in preview"}
           />
           <span className="text-lg flex-shrink-0">{icon}</span>
           <h3 className="text-base font-semibold text-gray-900 truncate">{title}</h3>

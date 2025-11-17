@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import config from '@/lib/config'
 
 interface Props {
@@ -11,6 +11,7 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
@@ -53,12 +54,22 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
     }
 
     console.log('=== UPLOAD DEBUG START ===')
-    console.log('File selected:', file.name, file.size, file.type)
+    console.log('📤 File selected from LOCAL machine:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: new Date(file.lastModified).toISOString()
+    })
     console.log('API Base URL:', process.env.NEXT_PUBLIC_API_BASE)
     console.log('Current origin:', typeof window !== 'undefined' ? window.location.origin : 'server')
 
     setIsUploading(true)
     setError('')
+    
+    // Reset file input to allow selecting the same file again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
 
     try {
       const formData = new FormData()
@@ -80,7 +91,9 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
       console.log('Upload response:', result)
 
       if (result.success) {
-        console.log('Upload successful, calling onUploadSuccess with:', result.data)
+        console.log('✅ Upload successful! File processed:', file.name)
+        console.log('📋 Extracted data:', result.data)
+        console.log('📤 Calling onUploadSuccess with uploaded resume data')
         onUploadSuccess(result.data)
       } else {
         const errorMsg = result.error || 'Upload failed'
@@ -149,12 +162,14 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
 
         <div className="space-y-4">
           <input
+            ref={fileInputRef}
             type="file"
             onChange={handleFileInput}
             accept=".pdf,.docx,.doc"
             className="hidden"
             id="file-upload"
             disabled={isUploading}
+            key={`file-input-${isUploading ? 'uploading' : 'ready'}`} // Force reset on state change
           />
           <label
             htmlFor="file-upload"

@@ -29,6 +29,7 @@ interface ModernEditorLayoutProps {
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
   currentView?: 'editor' | 'jobs' | 'resumes'
   template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
+  templateConfig?: any
   onAIContentWizard?: (contentType: 'job' | 'project' | 'skill' | 'education') => void
   // VisualResumeEditor props
   onAddContent?: (content: any) => void
@@ -55,6 +56,7 @@ interface ModernEditorLayoutProps {
   onSignIn?: () => void
   deepLinkedJD?: string | null
   activeJobDescriptionId?: number | null
+  onTemplatesClick?: () => void
 }
 
 export default function ModernEditorLayout({
@@ -63,6 +65,7 @@ export default function ModernEditorLayout({
   onViewChange,
   currentView = 'editor',
   template = 'clean',
+  templateConfig,
   onAddContent,
   roomId,
   onAddComment,
@@ -87,6 +90,7 @@ export default function ModernEditorLayout({
   onSignIn,
   deepLinkedJD,
   activeJobDescriptionId,
+  onTemplatesClick,
 }: ModernEditorLayoutProps) {
   const [activeRightTab, setActiveRightTab] = useState<'live' | 'match' | 'analysis' | 'grammar' | 'comments'>('live')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
@@ -137,6 +141,7 @@ export default function ModernEditorLayout({
           currentView={currentView}
           onCollapseChange={setLeftSidebarCollapsed}
           onAIContentWizard={onAIContentWizard}
+          onTemplatesClick={onTemplatesClick}
         />
 
         {/* Center: Resume Editor Canvas - 60% width */}
@@ -180,6 +185,7 @@ export default function ModernEditorLayout({
               onAIImprove={onAIImprove}
               resumeData={resumeData}
               template={template}
+              templateConfig={templateConfig}
               deepLinkedJD={deepLinkedJD}
               activeJobDescriptionId={activeJobDescriptionId}
             />
