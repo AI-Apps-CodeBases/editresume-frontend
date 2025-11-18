@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import UploadResume from './UploadResume'
+import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 
 interface JobResumeSummary {
   id: number
@@ -99,6 +100,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const [editingLetterTitle, setEditingLetterTitle] = useState('')
   const [editingLetterContent, setEditingLetterContent] = useState('')
   const [showUploadResumeModal, setShowUploadResumeModal] = useState(false)
+  const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
+  const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<any>(null)
 
   useEffect(() => {
     if (jobId && isAuthenticated && user?.email) {
@@ -339,6 +342,88 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       console.error('Failed to delete cover letter:', e)
       alert('Failed to delete cover letter')
     }
+  }
+
+  const handleOpenCoverLetterGenerator = async () => {
+    if (!user?.email) return
+    
+    try {
+      const res = await fetch(`${config.apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+      if (res.ok) {
+        const data = await res.json()
+        const resumes = data.resumes || []
+        if (resumes.length > 0) {
+          const latestResume = resumes[0]
+          const resumeVersionRes = await fetch(`${config.apiBase}/api/resumes/${latestResume.id}/versions/latest`)
+          if (resumeVersionRes.ok) {
+            const versionData = await resumeVersionRes.json()
+            setResumeDataForCoverLetter(versionData.resume_data || {
+              name: '',
+              title: '',
+              email: '',
+              phone: '',
+              location: '',
+              summary: '',
+              sections: []
+            })
+            setShowCoverLetterGenerator(true)
+          } else {
+            setResumeDataForCoverLetter({
+              name: '',
+              title: '',
+              email: '',
+              phone: '',
+              location: '',
+              summary: '',
+              sections: []
+            })
+            setShowCoverLetterGenerator(true)
+          }
+        } else {
+          setResumeDataForCoverLetter({
+            name: '',
+            title: '',
+            email: '',
+            phone: '',
+            location: '',
+            summary: '',
+            sections: []
+          })
+          setShowCoverLetterGenerator(true)
+        }
+      } else {
+        setResumeDataForCoverLetter({
+          name: '',
+          title: '',
+          email: '',
+          phone: '',
+          location: '',
+          summary: '',
+          sections: []
+        })
+        setShowCoverLetterGenerator(true)
+      }
+    } catch (e) {
+      console.error('Failed to load resume data:', e)
+      setResumeDataForCoverLetter({
+        name: '',
+        title: '',
+        email: '',
+        phone: '',
+        location: '',
+        summary: '',
+        sections: []
+      })
+      setShowCoverLetterGenerator(true)
+    }
+  }
+
+  const handleCoverLetterGenerated = async (coverLetter: string | null) => {
+    if (!coverLetter) return
+    
+    setNewLetterContent(coverLetter)
+    setNewLetterTitle(`AI Generated Cover Letter v${coverLetters.length + 1}`)
+    setShowCoverLetterGenerator(false)
   }
 
   const handleUploadResumeForMatch = useCallback((data: any) => {
@@ -1221,6 +1306,15 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                     Draft and save tailored cover letters for this role. Each version stays linked to the job so you can download it later.
                   </p>
                 </div>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={handleOpenCoverLetterGenerator}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-colors"
+                  >
+                    <span>🤖</span>
+                    <span>Create with AI</span>
+                  </button>
+                </div>
                 <div className="grid gap-3">
                   <div className="flex flex-col">
                     <label className="text-sm font-semibold text-gray-600 mb-1">Title</label>
@@ -1387,6 +1481,38 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
             </div>
             <div className="px-6 py-6">
               <UploadResume variant="modal" onUploadSuccess={handleUploadResumeForMatch} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCoverLetterGenerator && resumeDataForCoverLetter && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10010] flex items-center justify-center p-4"
+          onClick={() => setShowCoverLetterGenerator(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-xl font-bold">AI Cover Letter Generator</h2>
+              <button
+                onClick={() => setShowCoverLetterGenerator(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <CoverLetterGenerator
+                resumeData={resumeDataForCoverLetter}
+                onClose={() => setShowCoverLetterGenerator(false)}
+                onCoverLetterChange={handleCoverLetterGenerated}
+                initialJobDescription={job?.content || ''}
+                initialCompanyName={job?.company || ''}
+                initialPositionTitle={job?.title || ''}
+              />
             </div>
           </div>
         </div>

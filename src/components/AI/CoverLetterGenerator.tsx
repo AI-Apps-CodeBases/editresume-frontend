@@ -33,12 +33,22 @@ interface Props {
   resumeData: ResumeData
   onClose: () => void
   onCoverLetterChange?: (letter: string | null) => void
+  initialCompanyName?: string
+  initialPositionTitle?: string
+  initialJobDescription?: string
 }
 
-export default function CoverLetterGenerator({ resumeData, onClose, onCoverLetterChange }: Props) {
-  const [companyName, setCompanyName] = useState('')
-  const [positionTitle, setPositionTitle] = useState('')
-  const [jobDescription, setJobDescription] = useState('')
+export default function CoverLetterGenerator({ 
+  resumeData, 
+  onClose, 
+  onCoverLetterChange,
+  initialCompanyName = '',
+  initialPositionTitle = '',
+  initialJobDescription = ''
+}: Props) {
+  const [companyName, setCompanyName] = useState(initialCompanyName)
+  const [positionTitle, setPositionTitle] = useState(initialPositionTitle)
+  const [jobDescription, setJobDescription] = useState(initialJobDescription)
   const [tone, setTone] = useState('professional')
   const [customRequirements, setCustomRequirements] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)

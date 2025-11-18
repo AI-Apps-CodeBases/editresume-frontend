@@ -1800,6 +1800,7 @@ const EditorPageContent = () => {
         activeUsers={collaboration.activeUsers}
         deepLinkedJD={deepLinkedJD}
         activeJobDescriptionId={activeJobDescriptionId}
+        onOpenCoverLetter={() => setShowCoverLetterGenerator(true)}
         onAIImprove={async (text: string) => {
           try {
             console.log('AI Improve requested for:', text)

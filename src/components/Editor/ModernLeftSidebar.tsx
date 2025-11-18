@@ -8,6 +8,7 @@ interface ModernLeftSidebarProps {
   currentView?: 'editor' | 'jobs' | 'resumes'
   onCollapseChange?: (collapsed: boolean) => void
   onAIContentWizard?: (contentType: 'job' | 'project' | 'skill' | 'education') => void
+  onOpenCoverLetter?: () => void
   onTemplatesClick?: () => void
   userName?: string
   isAuthenticated?: boolean
@@ -20,6 +21,7 @@ export default function ModernLeftSidebar({
   currentView = 'editor', 
   onCollapseChange, 
   onAIContentWizard, 
+  onOpenCoverLetter,
   onTemplatesClick,
   userName,
   isAuthenticated: isAuthenticatedProp,
@@ -114,6 +116,13 @@ export default function ModernLeftSidebar({
       description: 'Add education or certification',
       contentType: 'education' as const,
     },
+    {
+      id: 'ai-cover-letter',
+      title: 'Cover Letter',
+      icon: '✉️',
+      description: 'Create cover letter with AI',
+      isCoverLetter: true,
+    },
   ]
 
   const secondaryItems = [
@@ -130,8 +139,12 @@ export default function ModernLeftSidebar({
     } else if (itemId.startsWith('ai-')) {
       // Handle AI Content Wizard tools
       const aiTool = aiTools.find(tool => tool.id === itemId)
-      if (aiTool && onAIContentWizard) {
-        onAIContentWizard(aiTool.contentType)
+      if (aiTool) {
+        if (aiTool.isCoverLetter && onOpenCoverLetter) {
+          onOpenCoverLetter()
+        } else if (aiTool.contentType && onAIContentWizard) {
+          onAIContentWizard(aiTool.contentType)
+        }
       }
     } else if (itemId === 'templates') {
       onTemplatesClick?.()
