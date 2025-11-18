@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config'
 import UploadResume from './UploadResume'
 import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
@@ -84,6 +85,7 @@ const EMOJI_OPTIONS = ['⭐', '🔥', '💎', '🚀', '💼', '🎯', '✨', '�
 
 export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const { user, isAuthenticated } = useAuth()
+  const { showAlert, showConfirm } = useModal()
   const [job, setJob] = useState<JobDescription | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'notes' | 'resume' | 'analysis' | 'coverLetters'>('overview')
@@ -93,15 +95,13 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const [selectedResumeId, setSelectedResumeId] = useState<number | ''>('')
   const [loadingResumes, setLoadingResumes] = useState(false)
   const [coverLetters, setCoverLetters] = useState<JobCoverLetter[]>([])
-  const [newLetterTitle, setNewLetterTitle] = useState('')
-  const [newLetterContent, setNewLetterContent] = useState('')
-  const [savingCoverLetter, setSavingCoverLetter] = useState(false)
   const [editingLetterId, setEditingLetterId] = useState<number | null>(null)
   const [editingLetterTitle, setEditingLetterTitle] = useState('')
   const [editingLetterContent, setEditingLetterContent] = useState('')
   const [showUploadResumeModal, setShowUploadResumeModal] = useState(false)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
   const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<any>(null)
+  const [selectedCoverLetterId, setSelectedCoverLetterId] = useState<number | null>(null)
 
   useEffect(() => {
     if (jobId && isAuthenticated && user?.email) {
@@ -128,7 +128,29 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         if (data.notes) {
           setNotes(data.notes)
         }
-        setCoverLetters(data.cover_letters || [])
+        
+        // Always fetch cover letters directly from the dedicated endpoint
+        let letters: JobCoverLetter[] = []
+        try {
+          const coverLetterRes = await fetch(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters`)
+          if (coverLetterRes.ok) {
+            const coverLetterData = await coverLetterRes.json()
+            if (coverLetterData && Array.isArray(coverLetterData)) {
+              letters = coverLetterData.filter((l: any) => l && l.id)
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch cover letters:', e)
+        }
+        
+        // Fallback to data.cover_letters if direct fetch failed
+        if (letters.length === 0 && data.cover_letters && Array.isArray(data.cover_letters)) {
+          letters = data.cover_letters.filter((l: any) => l && l.id)
+        }
+        
+        // Always update cover letters from fetch (only called on initial load or explicit refresh)
+        setCoverLetters(letters)
+        
         if (!selectedResumeId && data.best_resume_version?.resume_id) {
           setSelectedResumeId(data.best_resume_version.resume_id)
         }
@@ -243,11 +265,19 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         if (onUpdate) onUpdate()
       } else {
         const error = await res.json().catch(() => ({ detail: 'Failed to update' }))
-        alert(`Failed to update: ${error.detail || 'Unknown error'}`)
+        await showAlert({
+          title: 'Update Failed',
+          message: `Failed to update: ${error.detail || 'Unknown error'}`,
+          type: 'error'
+        })
       }
     } catch (e) {
       console.error('Failed to update job:', e)
-      alert('Failed to update job')
+      await showAlert({
+        title: 'Update Failed',
+        message: 'Failed to update job',
+        type: 'error'
+      })
     } finally {
       setSaving(false)
     }
@@ -257,44 +287,14 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     await updateJobField('notes', notes)
   }
 
-  const handleCreateCoverLetter = async () => {
-    if (!newLetterContent.trim()) {
-      alert('Please enter cover letter content before saving.')
-      return
-    }
-    setSavingCoverLetter(true)
-    try {
-      const res = await fetch(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newLetterTitle.trim() || `Cover Letter v${coverLetters.length + 1}`,
-          content: newLetterContent.trim()
-        })
-      })
-      if (res.ok) {
-        const created = await res.json()
-        setCoverLetters((prev) => [created, ...prev])
-        setNewLetterTitle('')
-        setNewLetterContent('')
-        if (onUpdate) onUpdate()
-        fetchJobDetails()
-      } else {
-        const error = await res.json().catch(() => ({ detail: 'Failed to create cover letter' }))
-        alert(error.detail || 'Failed to create cover letter')
-      }
-    } catch (e) {
-      console.error('Failed to create cover letter:', e)
-      alert('Failed to create cover letter')
-    } finally {
-      setSavingCoverLetter(false)
-    }
-  }
-
   const handleUpdateCoverLetter = async () => {
     if (!editingLetterId) return
     if (!editingLetterContent.trim()) {
-      alert('Cover letter content cannot be empty.')
+      await showAlert({
+        title: 'Invalid Content',
+        message: 'Cover letter content cannot be empty.',
+        type: 'warning'
+      })
       return
     }
     try {
@@ -308,39 +308,73 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       })
       if (res.ok) {
         const updated = await res.json()
+        console.log('Cover letter updated:', updated)
+        
+        // Update state directly to avoid race condition
         setCoverLetters((prev) => prev.map((cl) => (cl.id === updated.id ? updated : cl)))
+        
+        // If this was the selected cover letter, update localStorage
+        if (selectedCoverLetterId === updated.id) {
+          handleSelectCoverLetter(updated)
+        }
+        
         setEditingLetterId(null)
         setEditingLetterTitle('')
         setEditingLetterContent('')
         if (onUpdate) onUpdate()
-        fetchJobDetails()
       } else {
         const error = await res.json().catch(() => ({ detail: 'Failed to update cover letter' }))
-        alert(error.detail || 'Failed to update cover letter')
+        await showAlert({
+          title: 'Update Failed',
+          message: error.detail || 'Failed to update cover letter',
+          type: 'error'
+        })
       }
     } catch (e) {
       console.error('Failed to update cover letter:', e)
-      alert('Failed to update cover letter')
+      await showAlert({
+        title: 'Update Failed',
+        message: 'Failed to update cover letter',
+        type: 'error'
+      })
     }
   }
 
   const handleDeleteCoverLetter = async (letterId: number) => {
-    if (!confirm('Delete this cover letter? This cannot be undone.')) return
     try {
       const res = await fetch(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters/${letterId}`, {
         method: 'DELETE'
       })
       if (res.ok) {
+        console.log('Cover letter deleted successfully:', letterId)
+        
+        // Update state directly to avoid race condition
         setCoverLetters((prev) => prev.filter((cl) => cl.id !== letterId))
+        
+        // Clear selection if deleted letter was selected
+        if (selectedCoverLetterId === letterId) {
+          setSelectedCoverLetterId(null)
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('selectedCoverLetter')
+          }
+        }
+        
         if (onUpdate) onUpdate()
-        fetchJobDetails()
       } else {
         const error = await res.json().catch(() => ({ detail: 'Failed to delete cover letter' }))
-        alert(error.detail || 'Failed to delete cover letter')
+        await showAlert({
+          title: 'Delete Failed',
+          message: error.detail || 'Failed to delete cover letter',
+          type: 'error'
+        })
       }
     } catch (e) {
       console.error('Failed to delete cover letter:', e)
-      alert('Failed to delete cover letter')
+      await showAlert({
+        title: 'Delete Failed',
+        message: 'Failed to delete cover letter',
+        type: 'error'
+      })
     }
   }
 
@@ -419,11 +453,113 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   }
 
   const handleCoverLetterGenerated = async (coverLetter: string | null) => {
-    if (!coverLetter) return
+    // This is called when cover letter is generated in the modal
+    // No action needed here as save success callback handles the state update
+  }
+
+  const handleSelectCoverLetter = (letter: JobCoverLetter) => {
+    setSelectedCoverLetterId(letter.id)
     
-    setNewLetterContent(coverLetter)
-    setNewLetterTitle(`AI Generated Cover Letter v${coverLetters.length + 1}`)
-    setShowCoverLetterGenerator(false)
+    // Store in localStorage so editor can access it for export
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedCoverLetter', JSON.stringify({
+        id: letter.id,
+        content: letter.content,
+        title: letter.title,
+        jobId: jobId
+      }))
+      
+      // Dispatch event to notify editor page
+      window.dispatchEvent(new CustomEvent('coverLetterSelected', {
+        detail: { content: letter.content, title: letter.title }
+      }))
+    }
+  }
+
+  const handleExportCoverLetter = async (letter: JobCoverLetter, format: 'pdf' | 'docx' = 'pdf') => {
+    if (!user?.email) {
+      await showAlert({
+        title: 'Sign In Required',
+        message: 'Please sign in to export cover letters',
+        type: 'warning'
+      })
+      return
+    }
+
+    try {
+      const res = await fetch(`${config.apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+      if (!res.ok) {
+        throw new Error('Failed to load resume data')
+      }
+
+      const data = await res.json()
+      const resumes = data.resumes || []
+      
+      let resumeData = {
+        name: '',
+        title: '',
+        email: '',
+        phone: '',
+        location: '',
+        summary: '',
+        sections: []
+      }
+
+      if (resumes.length > 0) {
+        const latestResume = resumes[0]
+        const resumeVersionRes = await fetch(`${config.apiBase}/api/resumes/${latestResume.id}/versions/latest`)
+        if (resumeVersionRes.ok) {
+          const versionData = await resumeVersionRes.json()
+          resumeData = versionData.resume_data || resumeData
+        }
+      }
+
+      const response = await fetch(`${config.apiBase}/api/resume/export/${format}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: '',
+          title: '',
+          email: '',
+          phone: '',
+          location: '',
+          summary: '',
+          sections: [],
+          cover_letter: letter.content,
+          company_name: job?.company || '',
+          template: 'tech',
+          two_column_left: [],
+          two_column_right: [],
+          two_column_left_width: 50
+        })
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        const fileName = `${job?.company || 'Company'}_${letter.title.replace(/[^a-z0-9]/gi, '_')}.${format}`
+        a.download = fileName
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        await showAlert({
+          title: 'Export Failed',
+          message: 'Export failed. Please try again.',
+          type: 'error'
+        })
+      }
+    } catch (error) {
+      console.error('Failed to export cover letter:', error)
+      await showAlert({
+        title: 'Export Failed',
+        message: 'Export failed. Make sure backend is running.',
+        type: 'error'
+      })
+    }
   }
 
   const handleUploadResumeForMatch = useCallback((data: any) => {
@@ -1026,9 +1162,13 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                     </select>
                   </div>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (!selectedResumeId) {
-                        alert('Please select a resume to continue.')
+                        await showAlert({
+                          title: 'Selection Required',
+                          message: 'Please select a resume to continue.',
+                          type: 'warning'
+                        })
                         return
                       }
                       window.location.href = `/editor?resumeId=${selectedResumeId}&jdId=${job.id}`
@@ -1299,94 +1439,116 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
           {activeTab === 'coverLetters' && (
             <div className="space-y-6">
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+                <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Create a Cover Letter</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Draft and save tailored cover letters for this role. Each version stays linked to the job so you can download it later.
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">✉️ Cover Letters</h2>
+                    <p className="text-gray-600">
+                      Generate cover letters using AI or manage your saved versions. Each version is saved separately and can be exported.
                   </p>
                 </div>
-                <div className="flex gap-2 mb-3">
                   <button
                     onClick={handleOpenCoverLetterGenerator}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-colors"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-colors shadow-lg text-lg"
                   >
                     <span>🤖</span>
-                    <span>Create with AI</span>
+                    <span>Generate Cover Letter with AI</span>
                   </button>
                 </div>
-                <div className="grid gap-3">
-                  <div className="flex flex-col">
-                    <label className="text-sm font-semibold text-gray-600 mb-1">Title</label>
-                    <input
-                      value={newLetterTitle}
-                      onChange={(e) => setNewLetterTitle(e.target.value)}
-                      placeholder="e.g. Cover Letter v1"
-                      className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
                   </div>
-                  <div className="flex flex-col">
-                    <label className="text-sm font-semibold text-gray-600 mb-1">Content</label>
-                    <textarea
-                      value={newLetterContent}
-                      onChange={(e) => setNewLetterContent(e.target.value)}
-                      placeholder="Paste or write your cover letter here..."
-                      className="px-3 py-2 border rounded-lg min-h-[160px] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+
+              <div className="bg-white border-2 border-gray-300 rounded-xl p-6 shadow-lg" style={{ minHeight: '200px' }}>
+                <div className="flex items-center justify-between border-b-2 border-gray-300 pb-4 mb-4">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                      <span>📋</span>
+                      <span>Saved Cover Letters</span>
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">Click on any cover letter to select it for export</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleCreateCoverLetter}
-                      disabled={savingCoverLetter || !newLetterContent.trim()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {savingCoverLetter ? 'Saving...' : 'Save Cover Letter'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setNewLetterTitle('')
-                        setNewLetterContent('')
-                      }}
-                      className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300"
-                    >
-                      Clear
-                    </button>
-                  </div>
+                  <div className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg font-bold text-lg">
+                    {coverLetters.length} {coverLetters.length === 1 ? 'Version' : 'Versions'}
                 </div>
               </div>
 
+                {/* Cover Letters List */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900">Saved Cover Letters</h3>
-                  <span className="text-xs text-gray-500">{coverLetters.length} saved</span>
-                </div>
-                {coverLetters.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-xl text-gray-500">
-                    No cover letters saved yet. Create your first draft above.
+                  {!coverLetters || !Array.isArray(coverLetters) || coverLetters.length === 0 ? (
+                    <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300">
+                      <div className="text-6xl mb-4">📝</div>
+                      <p className="text-gray-600 font-semibold text-lg mb-1">No cover letters saved yet</p>
+                      <p className="text-sm text-gray-500 mt-1">Click "Generate Cover Letter with AI" above to create your first cover letter</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {coverLetters.map((letter) => (
-                      <div key={letter.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                    coverLetters.map((letter, index) => {
+                      if (!letter || !letter.id) {
+                        return null
+                      }
+                      return (
+                      <div 
+                        key={`cover-letter-${letter.id}-${index}`}
+                        onClick={() => handleSelectCoverLetter(letter)}
+                        className={`border-2 rounded-xl p-5 space-y-3 cursor-pointer transition-all bg-white ${
+                          selectedCoverLetterId === letter.id 
+                            ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200' 
+                            : 'border-gray-300 hover:border-gray-400 hover:shadow-md'
+                        }`}
+                        style={{ 
+                          display: 'block', 
+                          visibility: 'visible', 
+                          opacity: 1, 
+                          minHeight: '150px',
+                          marginBottom: '16px',
+                          width: '100%',
+                          position: 'relative',
+                          zIndex: 1
+                        }}
+                      >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
+                          <div className="flex-1">
                             <div className="flex items-center gap-2 text-sm text-gray-600">
                               <span className="font-semibold text-gray-900">{letter.title}</span>
                               <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">v{letter.version_number}</span>
+                              {selectedCoverLetterId === letter.id && (
+                                <span className="px-2 py-0.5 bg-blue-500 text-white rounded text-xs font-semibold">Selected</span>
+                              )}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
                               Updated {letter.updated_at ? new Date(letter.updated_at).toLocaleString() : letter.created_at ? new Date(letter.created_at).toLocaleString() : ''}
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
-                              onClick={() => {
+                              onClick={() => handleExportCoverLetter(letter, 'pdf')}
+                              className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 font-semibold"
+                              title="Export as PDF"
+                            >
+                              📄 PDF
+                            </button>
+                            <button
+                              onClick={async () => {
                                 if (navigator?.clipboard?.writeText) {
-                                  navigator.clipboard.writeText(letter.content || '')
-                                    .then(() => alert('Cover letter copied to clipboard'))
-                                    .catch(() => alert('Failed to copy cover letter'))
+                                  try {
+                                    await navigator.clipboard.writeText(letter.content || '')
+                                    await showAlert({
+                                      title: 'Success',
+                                      message: 'Cover letter copied to clipboard',
+                                      type: 'success',
+                                      icon: '✅'
+                                    })
+                                  } catch {
+                                    await showAlert({
+                                      title: 'Error',
+                                      message: 'Failed to copy cover letter',
+                                      type: 'error'
+                                    })
+                                  }
                                 } else {
-                                  alert('Clipboard access is not available in this browser.')
+                                  await showAlert({
+                                    title: 'Not Available',
+                                    message: 'Clipboard access is not available in this browser.',
+                                    type: 'warning'
+                                  })
                                 }
                               }}
                               className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
@@ -1404,25 +1566,41 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteCoverLetter(letter.id)}
-                              className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                const confirmed = await showConfirm({
+                                  title: 'Delete Cover Letter',
+                                  message: `Are you sure you want to delete "${letter.title}"? This action cannot be undone.`,
+                                  confirmText: 'Delete',
+                                  cancelText: 'Cancel',
+                                  type: 'danger',
+                                  icon: '🗑️'
+                                })
+                                if (confirmed) {
+                                  handleDeleteCoverLetter(letter.id)
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600 font-semibold shadow-sm"
+                              title="Delete this cover letter"
                             >
-                              Delete
+                              🗑️ Delete
                             </button>
                           </div>
                         </div>
 
-                        {editingLetterId === letter.id ? (
-                          <div className="space-y-2 border-t border-gray-200 pt-3">
+                        {editingLetterId === letter.id && (
+                          <div className="space-y-2 border-t border-gray-200 pt-3 mt-3">
                             <input
                               value={editingLetterTitle}
                               onChange={(e) => setEditingLetterTitle(e.target.value)}
                               className="px-3 py-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Cover letter title"
                             />
                             <textarea
                               value={editingLetterContent}
                               onChange={(e) => setEditingLetterContent(e.target.value)}
                               className="px-3 py-2 border rounded-lg min-h-[140px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Cover letter content"
                             />
                             <div className="flex gap-2">
                               <button
@@ -1443,15 +1621,12 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                               </button>
                             </div>
                           </div>
-                        ) : (
-                          <div className="text-sm text-gray-700 whitespace-pre-wrap border-t border-gray-200 pt-3">
-                            {letter.content}
-                          </div>
                         )}
                       </div>
-                    ))}
-                  </div>
+                      )
+                    })
                 )}
+                </div>
               </div>
             </div>
           )}
@@ -1512,6 +1687,35 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 initialJobDescription={job?.content || ''}
                 initialCompanyName={job?.company || ''}
                 initialPositionTitle={job?.title || ''}
+                jobId={jobId}
+                onSaveSuccess={(savedLetter) => {
+                  console.log('Cover letter saved successfully:', savedLetter)
+                  // Close modal
+                  setShowCoverLetterGenerator(false)
+                  
+                  // Update state directly instead of refetching to avoid race condition
+                  if (savedLetter && savedLetter.id) {
+                    setCoverLetters((prev) => {
+                      // Check if letter already exists (update) or add new
+                      const exists = prev.find(cl => cl.id === savedLetter.id)
+                      if (exists) {
+                        return prev.map(cl => cl.id === savedLetter.id ? savedLetter : cl)
+                      } else {
+                        return [savedLetter, ...prev]
+                      }
+                    })
+                    
+                    // Auto-select the newly saved letter
+                    handleSelectCoverLetter(savedLetter)
+                  } else {
+                    // If no savedLetter provided, refresh after a delay
+                    setTimeout(() => {
+                  fetchJobDetails()
+                    }, 500)
+                  }
+                  
+                  if (onUpdate) onUpdate()
+                }}
               />
             </div>
           </div>

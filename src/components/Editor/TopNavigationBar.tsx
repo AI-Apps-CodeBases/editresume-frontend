@@ -94,7 +94,7 @@ export default function TopNavigationBar({
                 {isExporting ? '⏳ Exporting...' : '📤 Export'}
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                   <button
                     onClick={() => {
                       setShowExportMenu(false)
@@ -103,17 +103,7 @@ export default function TopNavigationBar({
                     disabled={!hasResumeName || isExporting}
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    📥 Export PDF
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowExportMenu(false)
-                      onExport('docx')
-                    }}
-                    disabled={!hasResumeName || isExporting}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    📝 Export DOCX
+                    📄 Export Resume PDF
                   </button>
                   <button
                     onClick={() => {
@@ -123,7 +113,7 @@ export default function TopNavigationBar({
                     disabled={!hasCoverLetter || isExporting}
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    ✉️ Export Cover Letter
+                    📄 Export Cover Letter PDF
                   </button>
                 </div>
               )}

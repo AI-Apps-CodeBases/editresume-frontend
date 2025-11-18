@@ -95,3 +95,5 @@ export default function AtsFriendlyTemplate({ data, config, replacements }: Temp
 }
 
 
+
+

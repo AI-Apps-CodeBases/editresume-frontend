@@ -4,6 +4,7 @@ import Image from 'next/image'
 import config from '@/lib/config'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { deduplicateSections } from '@/utils/sectionDeduplication'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GlobalReplacements from '@/components/AI/GlobalReplacements'
 import TemplateSelector from '@/components/Resume/TemplateSelector'
@@ -82,6 +83,39 @@ const EditorPageContent = () => {
   const [previewKey, setPreviewKey] = useState(0)
   const [currentView, setCurrentView] = useState<'editor' | 'jobs' | 'resumes'>('editor')
   const [latestCoverLetter, setLatestCoverLetter] = useState<string | null>(null)
+
+  // Listen for cover letter selection from job detail view
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleCoverLetterSelected = (event: CustomEvent) => {
+      if (event.detail?.content) {
+        setLatestCoverLetter(event.detail.content)
+      }
+    }
+
+    // Check localStorage for selected cover letter
+    const checkSelectedCoverLetter = () => {
+      try {
+        const stored = localStorage.getItem('selectedCoverLetter')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed.content) {
+            setLatestCoverLetter(parsed.content)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to read selected cover letter from localStorage:', e)
+      }
+    }
+
+    checkSelectedCoverLetter()
+    window.addEventListener('coverLetterSelected', handleCoverLetterSelected as EventListener)
+    
+    return () => {
+      window.removeEventListener('coverLetterSelected', handleCoverLetterSelected as EventListener)
+    }
+  }, [])
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [fullscreenExportMenuOpen, setFullscreenExportMenuOpen] = useState(false)
   const [userName, setUserName] = useState(() => {
@@ -232,7 +266,7 @@ const EditorPageContent = () => {
           phone: personalInfo.phone || '',
           location: personalInfo.location || '',
           summary: typeof versionPayload.summary === 'string' ? versionPayload.summary : '',
-          sections
+          sections: deduplicateSections(sections)
         }
 
         if (cancelled) return
@@ -553,10 +587,25 @@ const EditorPageContent = () => {
        setCurrentResumeId(null)
        try {
          // Clear ALL cached resume data to ensure fresh upload
-         localStorage.removeItem('currentResumeId')
-         localStorage.removeItem('currentResumeVersionId')
-         localStorage.removeItem('resumeData') // Clear cached resume data
-         localStorage.removeItem('selectedTemplate') // Clear cached template
+         const keysToRemove = [
+           'currentResumeId',
+           'currentResumeVersionId',
+           'resumeData',
+           'selectedTemplate',
+           'resumeHistory',
+           'twoColumnLeft',
+           'twoColumnRight',
+           'twoColumnLeftWidth'
+         ]
+         keysToRemove.forEach(key => localStorage.removeItem(key))
+         
+         // Clear ALL old sessionStorage upload entries (except current one)
+         Object.keys(window.sessionStorage).forEach(key => {
+           if (key.startsWith('uploadedResume:') && key !== `uploadedResume:${uploadToken}`) {
+             console.log(`🗑️ Removing old sessionStorage entry: ${key}`)
+             window.sessionStorage.removeItem(key)
+           }
+         })
          
          if (uploadToken) {
            const stored = window.sessionStorage.getItem(`uploadedResume:${uploadToken}`)
@@ -565,31 +614,23 @@ const EditorPageContent = () => {
                const parsed = JSON.parse(stored)
                console.log('📤 Loading uploaded resume from sessionStorage:', parsed)
                if (parsed?.resume) {
-                 // Deduplicate sections by title (case-insensitive) - keep first occurrence
-                 const seenTitles = new Map<string, number>() // Map to track first occurrence index
+                 // Apply deduplication directly (already deduplicated in upload page, but do it again for safety)
                  const sections = parsed.resume.sections || []
-                 const deduplicatedSections = sections.filter((section: any, index: number) => {
-                   if (!section || !section.title) return false
-                   const titleLower = section.title.toLowerCase().trim()
-                   if (seenTitles.has(titleLower)) {
-                     const firstIndex = seenTitles.get(titleLower)!
-                     console.warn(`⚠️ Removing duplicate section "${section.title}" (keeping first occurrence at index ${firstIndex})`)
-                     return false
-                   }
-                   seenTitles.set(titleLower, index)
-                   return true
-                 })
+                 const finalSections = deduplicateSections(sections)
                  
                  const cleanedResume = {
                    ...parsed.resume,
-                   sections: deduplicatedSections
+                   sections: finalSections
                  }
                  
-                 console.log(`📋 Deduplicated sections: ${parsed.resume.sections?.length || 0} → ${deduplicatedSections.length}`)
+                 console.log(`📋 Final sections after deduplication: ${sections.length} → ${finalSections.length}`)
+                 console.log('📝 Uploaded resume sections:', finalSections.map(s => ({ title: s.title, bullets: s.bullets.length })))
                  
-                 // Set the uploaded resume data
+                 // Set the uploaded resume data - this replaces any existing data
                  setResumeData(cleanedResume)
-                 // Save to localStorage for persistence
+                 
+                 // Force clear localStorage and save fresh data
+                 localStorage.removeItem('resumeData')
                  localStorage.setItem('resumeData', JSON.stringify(cleanedResume))
                  console.log('✅ Uploaded resume loaded successfully')
                }
@@ -649,7 +690,7 @@ const EditorPageContent = () => {
       phone: data.phone || '',
       location: data.location || '',
       summary: data.summary || '',
-      sections: data.sections || []
+      sections: deduplicateSections(data.sections || [])
     }
     
     setResumeData(newResumeData)
@@ -758,6 +799,15 @@ const EditorPageContent = () => {
       return
     }
     
+    // Check if we just processed an upload - if so, don't load from localStorage
+    // This prevents loading stale cached data after an upload
+    const resumeUploadParam = searchParams.get('resumeUpload')
+    const uploadToken = searchParams.get('uploadToken')
+    if (resumeUploadParam === '1' && uploadToken) {
+      console.log('📤 Upload in progress, skipping localStorage load in this useEffect')
+      return
+    }
+    
     // Load cached resume data (works for both authenticated and non-authenticated users)
     // This runs on mount and when navigating back to ensure resume loads
     const savedResumeData = localStorage.getItem('resumeData')
@@ -767,9 +817,14 @@ const EditorPageContent = () => {
         // Only load if there's meaningful content
         if (existingData && (existingData.name || existingData.sections?.length > 0)) {
           console.log('📂 Loading existing resume data from localStorage (useEffect):', existingData)
+          // Deduplicate sections before loading
+          const cleanedData = {
+            ...existingData,
+            sections: deduplicateSections(existingData.sections || [])
+          }
           // Always update to ensure we have the latest from localStorage
           // This ensures resume persists when navigating back from profile
-          setResumeData(existingData)
+          setResumeData(cleanedData)
           setShowWizard(false)
           return
         }
@@ -848,7 +903,12 @@ const EditorPageContent = () => {
       
       collaboration.onRemoteUpdate((data, remoteUserName) => {
         console.log(`Update from ${remoteUserName}:`, data)
-        setResumeData(data)
+        // Deduplicate sections in remote updates
+        const cleanedData = {
+          ...data,
+          sections: deduplicateSections(data.sections || [])
+        }
+        setResumeData(cleanedData)
       })
     }
     
@@ -863,14 +923,22 @@ const EditorPageContent = () => {
     console.log('=== handleResumeDataChange called ===')
     console.log('Previous resume data:', resumeData)
     console.log('New resume data:', newData)
+    
+    // Deduplicate sections before setting data
+    const cleanedData = {
+      ...newData,
+      sections: deduplicateSections(newData.sections || [])
+    }
+    
+    console.log('Cleaned data (after deduplication):', cleanedData)
     console.log('Setting new resume data...')
     
-    setResumeData(newData)
+    setResumeData(cleanedData)
     setPreviewKey(prev => prev + 1) // Force preview re-render
     
     if (roomId && collaboration.isConnected) {
       console.log('Sending collaboration update...')
-      collaboration.sendUpdate(newData)
+      collaboration.sendUpdate(cleanedData)
     }
     
     console.log('handleResumeDataChange completed')
@@ -988,9 +1056,26 @@ const EditorPageContent = () => {
     }
 
     const isCoverLetterExport = format === 'cover-letter-pdf'
-    if (isCoverLetterExport && !latestCoverLetter) {
-      alert('Generate a cover letter first, then try exporting again.')
-      setShowCoverLetterGenerator(true)
+    
+    // Check localStorage for selected cover letter if latestCoverLetter is not set
+    let coverLetterToExport = latestCoverLetter
+    if (isCoverLetterExport && !coverLetterToExport) {
+      try {
+        const stored = localStorage.getItem('selectedCoverLetter')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed.content) {
+            coverLetterToExport = parsed.content
+            setLatestCoverLetter(parsed.content)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to read selected cover letter:', e)
+      }
+    }
+    
+    if (isCoverLetterExport && !coverLetterToExport) {
+      alert('Please select a cover letter from the jobs page first, or generate a new one.')
       return
     }
 
@@ -1037,8 +1122,24 @@ const EditorPageContent = () => {
       const columnWidth = templateConfig?.layout?.columnWidth || 
                          (localStorage.getItem('twoColumnLeftWidth') ? Number(localStorage.getItem('twoColumnLeftWidth')!) : 50)
       
+      // Get cover letter content - use latestCoverLetter or from localStorage
+      const coverLetterContent = isCoverLetterExport 
+        ? (latestCoverLetter || (() => {
+            try {
+              const stored = localStorage.getItem('selectedCoverLetter')
+              if (stored) {
+                const parsed = JSON.parse(stored)
+                return parsed.content
+              }
+            } catch (e) {
+              console.error('Failed to read cover letter from localStorage:', e)
+            }
+            return null
+          })())
+        : undefined
+
       const exportData = {
-        cover_letter: isCoverLetterExport ? latestCoverLetter : undefined,
+        cover_letter: coverLetterContent,
         name: resumeData.name,
         title: resumeData.title,
         email: resumeData.email,

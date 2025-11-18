@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useCallback, useState, useRef } from 'react'
 import UploadResume from '@/components/Editor/UploadResume'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
+import { deduplicateSections } from '@/utils/sectionDeduplication'
 
 const quickActions = [
   { icon: '⚡', title: 'AI Rewrite', description: 'Generate targeted improvements instantly.', href: '/editor?new=true&ai=1' },
@@ -19,22 +20,9 @@ export default function UploadPage() {
 
   const handleUploadSuccess = useCallback(
     (data: any) => {
-      // Deduplicate sections by title (case-insensitive) - keep first occurrence
+      // Use professional deduplication utility
       const sections = Array.isArray(data?.sections) ? data.sections : []
-      const seenTitles = new Map<string, number>() // Map to track first occurrence index
-      const deduplicatedSections = sections.filter((section: any, index: number) => {
-        if (!section || !section.title) return false
-        const titleLower = section.title.toLowerCase().trim()
-        if (seenTitles.has(titleLower)) {
-          const firstIndex = seenTitles.get(titleLower)!
-          console.warn(`⚠️ Removing duplicate section "${section.title}" during upload (keeping first occurrence at index ${firstIndex})`)
-          return false
-        }
-        seenTitles.set(titleLower, index)
-        return true
-      })
-      
-      console.log(`📋 Deduplicated sections during upload: ${sections.length} → ${deduplicatedSections.length}`)
+      const deduplicatedSections = deduplicateSections(sections)
       
       const normalizedResume = {
         name: data?.name || '',
@@ -50,10 +38,27 @@ export default function UploadPage() {
         try {
           // Clear ALL cached resume data before uploading
           console.log('🧹 Clearing all cached resume data before upload')
-          window.localStorage.removeItem('currentResumeId')
-          window.localStorage.removeItem('currentResumeVersionId')
-          window.localStorage.removeItem('resumeData') // Clear cached resume
-          window.localStorage.removeItem('selectedTemplate') // Clear cached template
+          
+          // Clear ALL localStorage resume-related keys
+          const keysToRemove = [
+            'currentResumeId',
+            'currentResumeVersionId',
+            'resumeData',
+            'selectedTemplate',
+            'resumeHistory',
+            'twoColumnLeft',
+            'twoColumnRight',
+            'twoColumnLeftWidth'
+          ]
+          keysToRemove.forEach(key => window.localStorage.removeItem(key))
+          
+          // Clear ALL old sessionStorage upload entries
+          Object.keys(window.sessionStorage).forEach(key => {
+            if (key.startsWith('uploadedResume:')) {
+              console.log(`🗑️ Removing old sessionStorage entry: ${key}`)
+              window.sessionStorage.removeItem(key)
+            }
+          })
           
           // Generate unique upload token
           const uploadToken = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
