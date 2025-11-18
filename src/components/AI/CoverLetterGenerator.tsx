@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-
+import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config';
 interface ResumeData {
   name: string

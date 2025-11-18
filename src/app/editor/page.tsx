@@ -52,6 +52,21 @@ const mapTemplateId = (oldId: string): string => {
   return mapping[oldId] || oldId
 }
 
+const normalizeSectionsForState = (sections: any[]) => {
+  const deduplicated = deduplicateSections(sections)
+  return deduplicated.map(section => ({
+    id: section.id,
+    title: section.title,
+    bullets: section.bullets.map(bullet => ({
+      id: bullet.id,
+      text: bullet.text,
+      params: bullet.params ? Object.fromEntries(
+        Object.entries(bullet.params).map(([k, v]) => [k, String(v)])
+      ) : {}
+    }))
+  }))
+}
+
 const EditorPageContent = () => {
   const { user, isAuthenticated, logout, checkPremiumAccess } = useAuth()
   const router = useRouter()
@@ -266,7 +281,7 @@ const EditorPageContent = () => {
           phone: personalInfo.phone || '',
           location: personalInfo.location || '',
           summary: typeof versionPayload.summary === 'string' ? versionPayload.summary : '',
-          sections: deduplicateSections(sections)
+          sections: normalizeSectionsForState(sections)
         }
 
         if (cancelled) return
@@ -614,17 +629,15 @@ const EditorPageContent = () => {
                const parsed = JSON.parse(stored)
                console.log('📤 Loading uploaded resume from sessionStorage:', parsed)
                if (parsed?.resume) {
-                 // Apply deduplication directly (already deduplicated in upload page, but do it again for safety)
                  const sections = parsed.resume.sections || []
-                 const finalSections = deduplicateSections(sections)
-                 
+                 const normalizedSections = normalizeSectionsForState(sections)
                  const cleanedResume = {
                    ...parsed.resume,
-                   sections: finalSections
+                   sections: normalizedSections
                  }
                  
-                 console.log(`📋 Final sections after deduplication: ${sections.length} → ${finalSections.length}`)
-                 console.log('📝 Uploaded resume sections:', finalSections.map(s => ({ title: s.title, bullets: s.bullets.length })))
+                 console.log(`📋 Final sections after deduplication: ${sections.length} → ${normalizedSections.length}`)
+                 console.log('📝 Uploaded resume sections:', normalizedSections.map(s => ({ title: s.title, bullets: s.bullets.length })))
                  
                  // Set the uploaded resume data - this replaces any existing data
                  setResumeData(cleanedResume)
@@ -690,7 +703,7 @@ const EditorPageContent = () => {
       phone: data.phone || '',
       location: data.location || '',
       summary: data.summary || '',
-      sections: deduplicateSections(data.sections || [])
+      sections: normalizeSectionsForState(data.sections || [])
     }
     
     setResumeData(newResumeData)
@@ -817,10 +830,9 @@ const EditorPageContent = () => {
         // Only load if there's meaningful content
         if (existingData && (existingData.name || existingData.sections?.length > 0)) {
           console.log('📂 Loading existing resume data from localStorage (useEffect):', existingData)
-          // Deduplicate sections before loading
           const cleanedData = {
             ...existingData,
-            sections: deduplicateSections(existingData.sections || [])
+            sections: normalizeSectionsForState(existingData.sections || [])
           }
           // Always update to ensure we have the latest from localStorage
           // This ensures resume persists when navigating back from profile
@@ -906,7 +918,7 @@ const EditorPageContent = () => {
         // Deduplicate sections in remote updates
         const cleanedData = {
           ...data,
-          sections: deduplicateSections(data.sections || [])
+          sections: normalizeSectionsForState(data.sections || [])
         }
         setResumeData(cleanedData)
       })
@@ -924,10 +936,9 @@ const EditorPageContent = () => {
     console.log('Previous resume data:', resumeData)
     console.log('New resume data:', newData)
     
-    // Deduplicate sections before setting data
     const cleanedData = {
       ...newData,
-      sections: deduplicateSections(newData.sections || [])
+      sections: normalizeSectionsForState(newData.sections || [])
     }
     
     console.log('Cleaned data (after deduplication):', cleanedData)

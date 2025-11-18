@@ -82,7 +82,7 @@ export function deduplicateSections(sections: Section[]): Section[] {
     if (!section || !section.title) continue
     
     const normalizedTitle = normalizeSectionTitle(section.title)
-    const bullets = Array.isArray(section.bullets) ? section.bullets : []
+    const bullets: Array<string | { text?: string; params?: any }> = Array.isArray(section.bullets) ? section.bullets : []
     
     if (sectionMap.has(normalizedTitle)) {
       // Merge into existing section
@@ -114,9 +114,12 @@ export function deduplicateSections(sections: Section[]): Section[] {
       // Merge bullets, removing duplicates (exact and near-duplicates)
       let bulletIndex = existingSection.bullets.length
       for (const bullet of bullets) {
-        const bulletText = typeof bullet === 'string' 
-          ? bullet.trim() 
-          : (bullet.text || '').trim()
+        let bulletText = ''
+        if (typeof bullet === 'string') {
+          bulletText = bullet.trim()
+        } else if (typeof bullet === 'object' && bullet !== null && 'text' in bullet) {
+          bulletText = String((bullet as any).text || '').trim()
+        }
         const bulletLower = bulletText.toLowerCase()
         
         // Skip empty bullets and exact duplicates (case-insensitive)
@@ -137,7 +140,9 @@ export function deduplicateSections(sections: Section[]): Section[] {
             existingSection.bullets.push({
               id: `${existingSection.id}-${bulletIndex}`,
               text: bulletText,
-              params: bullet.params || {}
+              params: (typeof bullet === 'object' && bullet !== null && 'params' in bullet
+                ? bullet.params
+                : undefined) || {}
             })
             bulletIndex++
           }
@@ -151,8 +156,14 @@ export function deduplicateSections(sections: Section[]): Section[] {
         title: section.title,
         bullets: bullets.map((bullet, idx) => ({
           id: `${section.id || `section-${sectionMap.size}`}-${idx}`,
-          text: typeof bullet === 'string' ? bullet : (bullet.text || ''),
-          params: bullet.params || {}
+          text: typeof bullet === 'string' 
+            ? bullet 
+            : (typeof bullet === 'object' && bullet !== null && 'text' in bullet
+                ? String(bullet.text || '')
+                : ''),
+          params: (typeof bullet === 'object' && bullet !== null && 'params' in bullet
+            ? bullet.params
+            : undefined) || {}
         }))
       }
       sectionMap.set(normalizedTitle, normalizedSection)
