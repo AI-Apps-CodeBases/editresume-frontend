@@ -670,6 +670,19 @@ def get_job_description_detail(
     elif priority_kw is None:
         priority_kw = []
 
+    # Load cover letters for this job
+    cover_letters = []
+    try:
+        letters = (
+            db.query(JobCoverLetter)
+            .filter(JobCoverLetter.job_description_id == jd_id)
+            .order_by(JobCoverLetter.created_at.desc())
+            .all()
+        )
+        cover_letters = [_cover_letter_to_dict(letter) for letter in letters]
+    except Exception as e:
+        logger.warning(f"Failed to load cover letters for job {jd_id}: {e}")
+
     return {
         "id": jd.id,
         "title": jd.title or "",
@@ -692,5 +705,6 @@ def get_job_description_detail(
         "follow_up_date": getattr(jd, "follow_up_date", None),
         "important_emoji": getattr(jd, "important_emoji", None),
         "notes": getattr(jd, "notes", None),
+        "cover_letters": cover_letters,
     }
 

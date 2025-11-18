@@ -223,6 +223,7 @@ def parse_resume_with_regex(text: str) -> dict:
 
     # Extract sections
     sections = []
+    section_dict = {}  # Track sections by normalized title to merge duplicates
     current_section = None
     current_bullets = []
 
@@ -237,58 +238,219 @@ def parse_resume_with_regex(text: str) -> dict:
         "certifications",
     ]
 
-    for line in lines:
-        line_lower = line.lower()
+    def normalize_section_title(title: str) -> str:
+        """Normalize section title for comparison (case-insensitive, trimmed, semantic grouping)"""
+        normalized = title.lower().strip()
+        
+        # Map semantic variations to canonical names
+        semantic_map = {
+            "work experience": "work experience",
+            "professional experience": "work experience",
+            "employment": "work experience",
+            "employment history": "work experience",
+            "career history": "work experience",
+            "professional history": "work experience",
+            "work history": "work experience",
+            "experience": "work experience",  # If "experience" appears alone, treat as work experience
+            "academic projects": "projects",
+            "project experience": "projects",
+            "project": "projects",
+            "technical skills": "skills",
+            "core competencies": "skills",
+            "competencies": "skills",
+            "expertise": "skills",
+            "skill": "skills",
+            "education & training": "education",
+            "academic background": "education",
+            "educational background": "education",
+            "certification": "certifications",
+            "certificate": "certifications",
+            "award": "awards",
+            "honor": "awards",
+            "honors": "awards",
+        }
+        
+        # Check if any semantic mapping applies
+        for variant, canonical in semantic_map.items():
+            if variant in normalized:
+                return canonical
+        
+        # Return normalized title if no semantic mapping found
+        return normalized
 
-        # Check if this is a section header
-        is_section = any(keyword in line_lower for keyword in section_keywords)
+    def save_section(section_title: str, bullets: list):
+        """Save or merge section with existing one if duplicate"""
+        if not section_title:
+            return
+        
+        # Filter out empty bullets
+        filtered_bullets = [b for b in bullets if b and str(b).strip()]
+        if not filtered_bullets:
+            return
+        
+        normalized_title = normalize_section_title(section_title)
+        
+        # Check if section with same normalized title already exists
+        if normalized_title in section_dict:
+            # Merge bullets into existing section
+            existing_section = section_dict[normalized_title]
+            existing_bullets = [b["text"] for b in existing_section["bullets"]]
+            
+            # Use the most descriptive title (prefer longer, more specific titles)
+            if len(section_title) > len(existing_section["title"]):
+                existing_section["title"] = section_title
+            
+            # Add separator if needed (empty string for work experience sections)
+            is_work_exp = normalized_title == "work experience"
+            if is_work_exp and existing_bullets and existing_bullets[-1] != "":
+                existing_bullets.append("")
+            
+            # Add new bullets, removing any duplicates (exact match and near-duplicates)
+            existing_bullet_texts = {b.strip().lower() for b in existing_bullets if b.strip()}
+            new_bullets_to_add = []
+            for bullet in filtered_bullets:
+                bullet_text = bullet.strip() if isinstance(bullet, str) else str(bullet).strip()
+                bullet_lower = bullet_text.lower()
+                
+                # Skip empty bullets and exact duplicates (case-insensitive)
+                if bullet_text and bullet_lower not in existing_bullet_texts:
+                    # Check for near-duplicates (similarity > 90%)
+                    is_duplicate = False
+                    for existing_text in existing_bullet_texts:
+                        # Simple similarity check - if one contains the other or vice versa with high overlap
+                        if (bullet_lower in existing_text or existing_text in bullet_lower) and \
+                           abs(len(bullet_lower) - len(existing_text)) < max(len(bullet_lower), len(existing_text)) * 0.2:
+                            is_duplicate = True
+                            break
+                    
+                    if not is_duplicate:
+                        existing_bullet_texts.add(bullet_lower)
+                        new_bullets_to_add.append(bullet)
+            
+            if new_bullets_to_add:
+                existing_bullets.extend(new_bullets_to_add)
+            
+            # Update section with merged bullets
+            existing_section["bullets"] = [
+                {
+                    "id": f"{existing_section['id']}-{i}",
+                    "text": bullet,
+                    "params": {},
+                }
+                for i, bullet in enumerate(existing_bullets)
+            ]
+            logger.info(f"Merged duplicate section '{section_title}' (normalized: '{normalized_title}') with {len(new_bullets_to_add)} new bullets into existing section '{existing_section['title']}'")
+        else:
+            # Create new section - remove duplicates within the bullets list itself
+            unique_bullets = []
+            seen_bullet_texts = set()
+            for bullet in filtered_bullets:
+                bullet_text = bullet.strip() if isinstance(bullet, str) else str(bullet).strip()
+                bullet_lower = bullet_text.lower()
+                if bullet_text and bullet_lower not in seen_bullet_texts:
+                    seen_bullet_texts.add(bullet_lower)
+                    unique_bullets.append(bullet)
+            
+            if unique_bullets:
+                new_section = {
+                    "title": section_title,
+                    "bullets": [
+                        {
+                            "id": f"{len(sections)}-{i}",
+                            "text": bullet,
+                            "params": {},
+                        }
+                        for i, bullet in enumerate(unique_bullets)
+                    ],
+                    "id": str(len(sections)),
+                }
+                section_dict[normalized_title] = new_section
+                sections.append(new_section)
 
+    for i, line in enumerate(lines):
+        line_lower = line.lower().strip()
+        line_original = line.strip()
+        
+        # More strict section header detection
+        # A section header should:
+        # 1. Be relatively short (section titles are usually < 50 chars)
+        # 2. Not contain bullet points
+        # 3. Match a section keyword at word boundaries
+        # 4. Either be all caps, title case, or standalone
+        # 5. Not be part of a longer sentence
+        
+        is_section = False
+        # Strict section header detection - must be a standalone header line
+        if (len(line_original) < 50 and 
+            not line_original.startswith(("•", "-", "*", "·")) and
+            not any(char.isdigit() for char in line_original[:10]) and  # Not a date
+            " / " not in line_original):  # Not a job entry
+            
+            # Check if line matches section keywords at word boundaries
+            for keyword in section_keywords:
+                # Use word boundary matching to avoid false positives
+                pattern = r'\b' + re.escape(keyword) + r'\b'
+                if re.search(pattern, line_lower):
+                    # Additional checks to ensure it's a header, not content
+                    words = line_lower.split()
+                    keyword_words = keyword.split()
+                    
+                    # Must start with keyword or be mostly the keyword
+                    starts_with_keyword = line_lower.startswith(keyword)
+                    is_mostly_keyword = (
+                        len(words) <= len(keyword_words) + 2 and  # Max 2 extra words
+                        all(w in keyword_words or len(w) < 5 for w in words)  # Short words only
+                    )
+                    
+                    if starts_with_keyword or is_mostly_keyword:
+                        # Check if next line exists and is not empty (content should follow)
+                        # Also check previous line - if it was content, this is likely a new section
+                        prev_was_content = (
+                            i > 0 and 
+                            current_section and 
+                            current_bullets and
+                            len(current_bullets) > 0
+                        )
+                        has_next_content = i + 1 < len(lines) and lines[i + 1].strip()
+                        
+                        if (has_next_content or prev_was_content):
+                            is_section = True
+                            break
+        
         if is_section:
-            # Save previous section
+            # Save previous section before starting new one
             if current_section and current_bullets:
-                sections.append(
-                    {
-                        "title": current_section,
-                        "bullets": [
-                            {
-                                "id": f"{len(sections)}-{i}",
-                                "text": bullet,
-                                "params": {},
-                            }
-                            for i, bullet in enumerate(current_bullets)
-                        ],
-                        "id": str(len(sections)),
-                    }
-                )
+                save_section(current_section, current_bullets)
 
-            # Start new section
-            current_section = line
+            # Start new section - use original line but normalize title
+            current_section = line_original
             current_bullets = []
 
-        elif current_section and line:
+        elif current_section and line_original:
             # This is content for current section
-            if line.startswith(("•", "-", "*")):
-                bullet_text = line[1:].strip()
-                if bullet_text:
-                    current_bullets.append(f"• {bullet_text}")
-            elif " / " in line and any(char.isdigit() for char in line):
-                # Job entry
-                current_bullets.append(f"**{line}**")
-            else:
-                current_bullets.append(line)
+            # Skip lines that look like section headers (to prevent false section starts)
+            line_lower_check = line_lower
+            looks_like_header = (
+                len(line_original) < 50 and
+                not line_original.startswith(("•", "-", "*", "·")) and
+                any(keyword in line_lower_check for keyword in section_keywords) and
+                i + 1 < len(lines) and lines[i + 1].strip()  # Has content after
+            )
+            
+            if not looks_like_header:
+                if line_original.startswith(("•", "-", "*", "·")):
+                    bullet_text = line_original[1:].strip()
+                    if bullet_text:
+                        current_bullets.append(f"• {bullet_text}")
+                elif " / " in line_original and any(char.isdigit() for char in line_original):
+                    # Job entry
+                    current_bullets.append(f"**{line_original}**")
+                else:
+                    current_bullets.append(line_original)
 
     # Save last section
     if current_section and current_bullets:
-        sections.append(
-            {
-                "title": current_section,
-                "bullets": [
-                    {"id": f"{len(sections)}-{i}", "text": bullet, "params": {}}
-                    for i, bullet in enumerate(current_bullets)
-                ],
-                "id": str(len(sections)),
-            }
-        )
+        save_section(current_section, current_bullets)
 
     return {
         "name": name,

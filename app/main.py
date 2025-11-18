@@ -107,9 +107,10 @@ app.include_router(analytics.router)
 # Additional routes that need different prefixes
 # These are registered here because they don't fit the standard router prefix pattern
 from app.api.collaboration import websocket_collab
-from app.api.resume import list_user_resumes
+from app.api.resume import list_user_resumes, delete_resume
 
 app.get("/api/resumes")(list_user_resumes)
+app.delete("/api/resumes/{resume_id}")(delete_resume)
 app.websocket("/ws/collab/{room_id}")(websocket_collab)
 
 # OpenAI status endpoint (legacy route compatibility)

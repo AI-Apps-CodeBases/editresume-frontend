@@ -61,6 +61,7 @@ class ExportPayload(BaseModel):
     two_column_right: Optional[List[str]] = []
     two_column_left_width: Optional[int] = 50
     cover_letter: Optional[str] = None
+    company_name: Optional[str] = None  # Company name for cover letter title
 
 
 class LoginPayload(BaseModel):
@@ -107,6 +108,11 @@ class CoverLetterPayload(BaseModel):
     position_title: str
     tone: str = "professional"
     custom_requirements: Optional[str] = None
+    selected_sentences: Optional[List[str]] = None  # Selected JD sentences to use
+
+
+class ExtractSentencesPayload(BaseModel):
+    job_description: str
 
 
 class GrammarCheckPayload(BaseModel):

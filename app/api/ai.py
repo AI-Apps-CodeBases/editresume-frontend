@@ -13,6 +13,7 @@ from app.api.models import (
     AIImprovementPayload,
     CoverLetterPayload,
     EnhancedATSPayload,
+    ExtractSentencesPayload,
     GenerateBulletPointsPayload,
     GenerateSummaryPayload,
     GrammarCheckPayload,
@@ -305,6 +306,89 @@ async def get_ai_improvement_suggestions(payload: AIImprovementPayload):
 
 
 # Cover Letter Generation
+@router.post("/extract_jd_sentences")
+async def extract_jd_sentences(payload: ExtractSentencesPayload):
+    """Extract important sentences from job description"""
+    try:
+        import re
+        from typing import List
+        
+        if not payload.job_description:
+            return {"sentences": []}
+        
+        # Split by sentences (period, exclamation, question mark followed by space or newline)
+        sentences = re.split(r'(?<=[.!?])\s+', payload.job_description)
+        
+        # Clean sentences
+        cleaned_sentences = []
+        for sentence in sentences:
+            sentence = sentence.strip()
+            # Filter out very short sentences (< 10 chars) and empty ones
+            if len(sentence) > 10 and not sentence.startswith(('http://', 'https://', 'www.')):
+                cleaned_sentences.append(sentence)
+        
+        # If we have many sentences, use AI to identify most important ones
+        if len(cleaned_sentences) > 15 and openai_client:
+            try:
+                sentences_text = "\n".join([f"{i+1}. {s}" for i, s in enumerate(cleaned_sentences[:50])])
+                prompt = f"""Extract the most important sentences from this job description. These should be key requirements, qualifications, responsibilities, or company values that would be valuable to reference in a cover letter.
+
+Return a JSON array of the sentence numbers (as integers) that are most important, prioritized by relevance. Return 10-15 most important sentences.
+
+Job Description Sentences:
+{sentences_text}
+
+Return ONLY a JSON array of numbers like [1, 3, 5, 7, ...], no other text."""
+
+                headers = {
+                    "Authorization": f"Bearer {openai_client['api_key']}",
+                    "Content-Type": "application/json",
+                }
+                
+                data = {
+                    "model": openai_client["model"],
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 200,
+                    "temperature": 0.3,
+                }
+                
+                response = openai_client["requests"].post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=30,
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    content = result["choices"][0]["message"]["content"].strip()
+                    # Parse JSON array
+                    import json
+                    try:
+                        # Remove markdown code blocks if present
+                        content = content.replace("```json", "").replace("```", "").strip()
+                        selected_indices = json.loads(content)
+                        # Convert to 0-based indices and filter valid ones
+                        selected_indices = [i-1 for i in selected_indices if 1 <= i <= len(cleaned_sentences)]
+                        important_sentences = [cleaned_sentences[i] for i in selected_indices if 0 <= i < len(cleaned_sentences)]
+                        if important_sentences:
+                            return {"sentences": important_sentences}
+                    except:
+                        pass
+            except Exception as e:
+                logger.warning(f"Failed to use AI for sentence extraction: {e}")
+        
+        # Fallback: return first 20 sentences or all if less
+        return {"sentences": cleaned_sentences[:20]}
+        
+    except Exception as e:
+        logger.error(f"Sentence extraction error: {str(e)}")
+        # Fallback: simple sentence split
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+', payload.job_description)
+        return {"sentences": [s.strip() for s in sentences if len(s.strip()) > 10][:20]}
+
+
 @router.post("/cover_letter")
 async def generate_cover_letter(payload: CoverLetterPayload):
     """Generate a tailored cover letter using AI"""
@@ -320,14 +404,20 @@ async def generate_cover_letter(payload: CoverLetterPayload):
                 resume_text += f"• {bullet.text}\n"
             resume_text += "\n"
 
+        # Use selected sentences if provided, otherwise use full JD
+        job_description_text = payload.job_description
+        if payload.selected_sentences and len(payload.selected_sentences) > 0:
+            job_description_text = "\n".join(payload.selected_sentences)
+        
         # Use cover letter agent
         result = cover_letter_agent.generate_cover_letter(
             company_name=payload.company_name,
             position_title=payload.position_title,
-            job_description=payload.job_description,
+            job_description=job_description_text,
             resume_text=resume_text,
             tone=payload.tone,
             custom_requirements=payload.custom_requirements,
+            selected_sentences=payload.selected_sentences,
         )
 
         return result

@@ -17,9 +17,12 @@ from app.api.models import ExportPayload, ResumePayload, SaveResumePayload
 from app.core.db import get_db
 from app.models import (
     ExportAnalytics,
+    JobMatch,
+    JobResumeVersion,
+    MatchSession,
     Resume,
+    ResumeGeneration,
     ResumeVersion,
-    ResumeView,
     SharedResume,
     SharedResumeComment,
     User,
@@ -211,6 +214,34 @@ async def upload_resume(file: UploadFile = File(...)):
     return await upload_and_parse_resume(
         contents, file.filename or "unknown", file.content_type
     )
+
+
+@router.post("/export/html-to-pdf")
+async def export_html_to_pdf(payload: dict):
+    """Export HTML content to PDF"""
+    try:
+        from weasyprint import HTML
+
+        html_content = payload.get("html", "")
+        filename = payload.get("filename", "resume.pdf")
+
+        if not html_content:
+            raise HTTPException(status_code=400, detail="HTML content is required")
+
+        logger.info(f"Converting HTML to PDF: {len(html_content)} characters")
+
+        pdf_bytes = HTML(string=html_content).write_pdf()
+
+        logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes")
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        logger.error(f"HTML to PDF export error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Version Control Endpoints
@@ -991,7 +1022,6 @@ async def list_user_resumes(
         raise HTTPException(status_code=500, detail="Failed to list resumes")
 
 
-@router.delete("/resumes/{resume_id}")
 async def delete_resume(
     resume_id: int,
     user_email: str = Query(..., description="User email for authentication"),
@@ -1011,19 +1041,77 @@ async def delete_resume(
             logger.error(f"delete_resume: User not found for email {user_email}")
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Find the resume and verify ownership
-        resume = (
-            db.query(Resume)
-            .filter(Resume.id == resume_id, Resume.user_id == user.id)
-            .first()
-        )
+        # First check if resume exists
+        resume = db.query(Resume).filter(Resume.id == resume_id).first()
         if not resume:
+            logger.warning(f"delete_resume: Resume {resume_id} not found")
             raise HTTPException(status_code=404, detail="Resume not found")
 
-        # Delete associated versions
-        db.query(ResumeVersion).filter(ResumeVersion.resume_id == resume_id).delete()
+        # Verify ownership (allow if user_id is None or matches)
+        if resume.user_id is not None and resume.user_id != user.id:
+            logger.warning(
+                f"delete_resume: Resume {resume_id} belongs to user {resume.user_id}, not {user.id}"
+            )
+            raise HTTPException(
+                status_code=403, detail="You do not have permission to delete this resume"
+            )
 
-        # Delete the resume
+        # Delete all associated data explicitly
+        # Delete shared resume comments first (foreign key constraint)
+        shared_resumes = db.query(SharedResume).filter(
+            SharedResume.resume_id == resume_id
+        ).all()
+        for sr in shared_resumes:
+            db.query(SharedResumeComment).filter(
+                SharedResumeComment.shared_resume_id == sr.id
+            ).delete()
+        logger.info(f"delete_resume: Deleted comments for {len(shared_resumes)} shared resumes")
+
+        # Delete shared resumes
+        deleted_shared = db.query(SharedResume).filter(
+            SharedResume.resume_id == resume_id
+        ).delete()
+        logger.info(f"delete_resume: Deleted {deleted_shared} shared resume records")
+
+        # Delete match sessions
+        deleted_matches = db.query(MatchSession).filter(
+            MatchSession.resume_id == resume_id
+        ).delete()
+        logger.info(f"delete_resume: Deleted {deleted_matches} match sessions")
+
+        # Delete job matches
+        deleted_job_matches = db.query(JobMatch).filter(
+            JobMatch.resume_id == resume_id
+        ).delete()
+        logger.info(f"delete_resume: Deleted {deleted_job_matches} job matches")
+
+        # Delete job resume versions
+        deleted_job_resume_versions = db.query(JobResumeVersion).filter(
+            JobResumeVersion.resume_id == resume_id
+        ).delete()
+        logger.info(f"delete_resume: Deleted {deleted_job_resume_versions} job resume versions")
+
+        # Delete export analytics
+        deleted_exports = db.query(ExportAnalytics).filter(
+            ExportAnalytics.resume_id == resume_id
+        ).delete()
+        logger.info(f"delete_resume: Deleted {deleted_exports} export analytics records")
+
+        # ResumeView is deleted automatically via cascade when SharedResume is deleted
+        
+        # Delete resume generations
+        deleted_generations = db.query(ResumeGeneration).filter(
+            ResumeGeneration.generated_resume_id == resume_id
+        ).delete()
+        logger.info(f"delete_resume: Deleted {deleted_generations} resume generations")
+
+        # Delete resume versions
+        deleted_versions = db.query(ResumeVersion).filter(
+            ResumeVersion.resume_id == resume_id
+        ).delete()
+        logger.info(f"delete_resume: Deleted {deleted_versions} resume versions")
+
+        # Finally, delete the resume itself
         db.delete(resume)
         db.commit()
 
@@ -1035,7 +1123,7 @@ async def delete_resume(
     except Exception as e:
         logger.error(f"Error deleting resume: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to delete resume")
+        raise HTTPException(status_code=500, detail=f"Failed to delete resume: {str(e)}")
 
 
 @router.post("/save")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import List
 
 from fastapi import HTTPException
 
@@ -28,6 +29,7 @@ class CoverLetterAgent:
         resume_text: str,
         tone: str = "professional",
         custom_requirements: str | None = None,
+        selected_sentences: List[str] | None = None,
     ) -> dict:
         """Generate a cover letter."""
         if not self.openai_client:
@@ -44,6 +46,7 @@ class CoverLetterAgent:
                 resume_text=resume_text,
                 tone=tone,
                 custom_requirements=custom_requirements,
+                selected_sentences=selected_sentences,
             )
 
             headers = {

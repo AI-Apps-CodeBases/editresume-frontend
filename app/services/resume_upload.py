@@ -432,29 +432,110 @@ Resume Text (Full Content):
                         }
                     )
 
-        final_sections: List[Dict] = []
+        # Deduplicate sections by normalized title before finalizing
+        section_dict: Dict[str, Dict] = {}
+        
+        def normalize_section_title(title: str) -> str:
+            """Normalize section title for comparison"""
+            normalized = title.lower().strip()
+            semantic_map = {
+                "work experience": "work experience",
+                "professional experience": "work experience",
+                "employment": "work experience",
+                "employment history": "work experience",
+                "career history": "work experience",
+                "professional history": "work experience",
+                "work history": "work experience",
+                "experience": "work experience",
+                "academic projects": "projects",
+                "project experience": "projects",
+                "project": "projects",
+                "projects": "projects",
+                "technical skills": "skills",
+                "core competencies": "skills",
+                "competencies": "skills",
+                "expertise": "skills",
+                "skill": "skills",
+                "skills": "skills",
+                "education & training": "education",
+                "academic background": "education",
+                "educational background": "education",
+                "education": "education",
+                "certification": "certifications",
+                "certificate": "certifications",
+                "certifications": "certifications",
+            }
+            for variant, canonical in semantic_map.items():
+                if variant in normalized:
+                    return canonical
+            return normalized
+        
         for idx, section in enumerate(normalized_sections):
+            section_title = section.get("title") or f"Section {idx + 1}"
+            normalized_title = normalize_section_title(section_title)
+            
             bullets: List[Dict] = []
             for bullet_idx, entry in enumerate(section.get("bullets", [])):
-                bullet_text = str(entry.get("text", ""))
-                bullet_params = entry.get("params") or {}
-                bullets.append(
-                    {
-                        "id": f"{idx}-{bullet_idx}",
-                        "text": bullet_text,
-                        "params": bullet_params,
-                    }
-                )
-
-            final_sections.append(
-                {
+                bullet_text = str(entry.get("text", "")).strip()
+                if bullet_text:  # Only add non-empty bullets
+                    bullet_params = entry.get("params") or {}
+                    bullets.append(
+                        {
+                            "id": f"{idx}-{bullet_idx}",
+                            "text": bullet_text,
+                            "params": bullet_params,
+                        }
+                    )
+            
+            if normalized_title in section_dict:
+                # Merge with existing section
+                existing_section = section_dict[normalized_title]
+                existing_bullets = existing_section["bullets"]
+                
+                # Use more descriptive title
+                if len(section_title) > len(existing_section["title"]):
+                    existing_section["title"] = section_title
+                
+                # Check for duplicate bullets (case-insensitive)
+                existing_bullet_texts = {b["text"].lower().strip() for b in existing_bullets}
+                
+                # Add separator for work experience sections
+                is_work_exp = normalized_title == "work experience"
+                if is_work_exp and existing_bullets and existing_bullets[-1]["text"].strip() != "":
+                    existing_bullets.append({
+                        "id": f"{existing_section['id']}-sep",
+                        "text": "",
+                        "params": {}
+                    })
+                
+                # Add new bullets, skipping duplicates
+                for bullet in bullets:
+                    bullet_lower = bullet["text"].lower().strip()
+                    if bullet_lower and bullet_lower not in existing_bullet_texts:
+                        # Check for near-duplicates
+                        is_duplicate = False
+                        for existing_text in existing_bullet_texts:
+                            if ((bullet_lower in existing_text or existing_text in bullet_lower) and
+                                abs(len(bullet_lower) - len(existing_text)) < max(len(bullet_lower), len(existing_text)) * 0.2):
+                                is_duplicate = True
+                                break
+                        
+                        if not is_duplicate:
+                            existing_bullet_texts.add(bullet_lower)
+                            existing_bullets.append(bullet)
+                
+                existing_section["bullets"] = existing_bullets
+                logger.info(f"Merged duplicate section '{section_title}' (normalized: '{normalized_title}') into existing section")
+            else:
+                # Create new section
+                section_dict[normalized_title] = {
                     "id": str(idx),
-                    "title": section.get("title") or f"Section {idx + 1}",
+                    "title": section_title,
                     "bullets": bullets,
                     "params": section.get("params") or {},
                 }
-            )
-
+        
+        final_sections = list(section_dict.values())
         parsed_data["sections"] = final_sections
 
         parsed_data.setdefault("detected_variables", {})

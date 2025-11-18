@@ -105,13 +105,18 @@ async def export_pdf(
         if payload.location:
             contact_info += " • " + apply_replacements(payload.location, replacements)
 
+        # Check if this is a cover letter only export (no resume sections)
+        is_cover_letter_only = bool(payload.cover_letter and not payload.sections and not payload.summary)
+        
         # Add cover letter if provided
         cover_letter_html = ""
         if payload.cover_letter:
             cover_letter_content = payload.cover_letter.replace("\n", "<br>")
+            # Use company name for title if provided, otherwise "Cover Letter"
+            cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
             cover_letter_html = f"""
             <div class="cover-letter-section">
-                <h2>Cover Letter</h2>
+                <h2>{cover_letter_title}</h2>
                 <div class="cover-letter-content">
                     {cover_letter_content}
                 </div>
@@ -341,7 +346,9 @@ async def export_pdf(
             content_html = cover_letter_html + summary_html + sections_html
 
         # Get page margin from templateConfig
-        page_margin = template_config.get("spacing", {}).get("pageMargin", 24) if template_config else 24
+        # For cover letter only, use larger margins for professional appearance
+        base_page_margin = template_config.get("spacing", {}).get("pageMargin", 24) if template_config else 24
+        page_margin = base_page_margin + 20 if is_cover_letter_only else base_page_margin
         page_margin_cm = f"{page_margin / 10:.1f}cm"  # Convert from px to cm (assuming 1cm ≈ 10px)
         
         html_content = f"""<!DOCTYPE html>
@@ -350,7 +357,7 @@ async def export_pdf(
     <meta charset="utf-8">
     <style>
         @page {{ size: A4; margin: {page_margin_cm}; }}
-        body {{ font-family: {font_family}; font-size: {body_size}pt; line-height: {line_height}; color: {text_color}; }}
+        body {{ font-family: {font_family}; font-size: {body_size}pt; line-height: {line_height}; color: {text_color}; {'text-align: justify;' if is_cover_letter_only else ''} }}
         .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: {section_gap}px; }}
         .header h1 {{ margin: 0; font-size: {h1_size}pt; font-weight: bold; color: {primary_color}; }}
         .header .title {{ font-size: {h2_size + 2}pt; margin: 5px 0; color: {text_color}; }}
@@ -383,17 +390,25 @@ async def export_pdf(
             padding-right: 1%;
         }}
         .clearfix {{ clear: both; }}
-        .cover-letter-section {{ margin-bottom: 20px; page-break-after: always; }}
-        .cover-letter-section h2 {{ font-size: {h2_size + 2}pt; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid {primary_color}; padding-bottom: 5px; }}
-        .cover-letter-content {{ font-size: {body_size + 1}pt; line-height: {line_height}; text-align: justify; }}
+        .cover-letter-section {{ margin-bottom: 20px; {'page-break-after: always;' if not is_cover_letter_only else ''} }}
+        .cover-letter-section h2 {{ 
+            font-size: {h2_size + 4 if is_cover_letter_only else h2_size + 2}pt; 
+            font-weight: bold; 
+            margin-bottom: 15px; 
+            {'border-bottom: 2px solid ' + primary_color + ';' if not is_cover_letter_only else ''} 
+            padding-bottom: {10 if is_cover_letter_only else 5}px; 
+            {'color: ' + primary_color + ';' if not is_cover_letter_only else ''} 
+        }}
+        .cover-letter-content {{ 
+            font-size: {body_size + 2 if is_cover_letter_only else body_size + 1}pt; 
+            line-height: {line_height + 0.2 if is_cover_letter_only else line_height}; 
+            text-align: justify; 
+            margin-top: {20 if is_cover_letter_only else 0}px; 
+        }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>{apply_replacements(payload.name, replacements)}</h1>
-        <div class="title">{apply_replacements(payload.title, replacements)}</div>
-        <div class="contact">{contact_info}</div>
-    </div>
+    {f'<div class="header"><h1>{apply_replacements(payload.name, replacements)}</h1><div class="title">{apply_replacements(payload.title, replacements)}</div><div class="contact">{contact_info}</div></div>' if not is_cover_letter_only else ''}
     {content_html}
 </body>
 </html>"""
@@ -517,53 +532,77 @@ async def export_docx(
         doc = Document()
 
         section = doc.sections[0]
+        # Check if this is a cover letter only export (no resume sections)
+        is_cover_letter_only = bool(payload.cover_letter and not payload.sections and not payload.summary)
+        
+        # For cover letter only, use larger margins for professional appearance
+        if is_cover_letter_only:
+            page_margin_inches = Inches(1.5)  # 1.5 inches margins for cover letters
+        
         section.top_margin = page_margin_inches
         section.bottom_margin = page_margin_inches
         section.left_margin = page_margin_inches
         section.right_margin = page_margin_inches
 
-        name_para = doc.add_paragraph()
-        name_run = name_para.add_run(apply_replacements(payload.name, replacements))
-        name_run.font.size = Pt(h1_size)
-        name_run.font.bold = True
-        name_run.font.name = font_family_heading
-        if header_align == "center":
-            name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        title_para = doc.add_paragraph()
-        title_run = title_para.add_run(apply_replacements(payload.title, replacements))
-        title_run.font.size = Pt(h2_size)
-        title_run.font.name = font_family_body
-        if header_align == "center":
-            title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        contact_parts = []
-        if payload.email:
-            contact_parts.append(apply_replacements(payload.email, replacements))
-        if payload.phone:
-            contact_parts.append(apply_replacements(payload.phone, replacements))
-        if payload.location:
-            contact_parts.append(apply_replacements(payload.location, replacements))
-
-        if contact_parts:
-            contact_para = doc.add_paragraph(" • ".join(contact_parts))
-            contact_para.runs[0].font.size = Pt(body_size)
-            contact_para.runs[0].font.name = font_family_body
+        # Only add header (name, title, contact) if not cover letter only
+        if not is_cover_letter_only:
+            name_para = doc.add_paragraph()
+            name_run = name_para.add_run(apply_replacements(payload.name, replacements))
+            name_run.font.size = Pt(h1_size)
+            name_run.font.bold = True
+            name_run.font.name = font_family_heading
             if header_align == "center":
-                contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-        doc.add_paragraph()
+            title_para = doc.add_paragraph()
+            title_run = title_para.add_run(apply_replacements(payload.title, replacements))
+            title_run.font.size = Pt(h2_size)
+            title_run.font.name = font_family_body
+            if header_align == "center":
+                title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            contact_parts = []
+            if payload.email:
+                contact_parts.append(apply_replacements(payload.email, replacements))
+            if payload.phone:
+                contact_parts.append(apply_replacements(payload.phone, replacements))
+            if payload.location:
+                contact_parts.append(apply_replacements(payload.location, replacements))
+
+            if contact_parts:
+                contact_para = doc.add_paragraph(" • ".join(contact_parts))
+                contact_para.runs[0].font.size = Pt(body_size)
+                contact_para.runs[0].font.name = font_family_body
+                if header_align == "center":
+                    contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            doc.add_paragraph()
 
         # Add cover letter if provided
         if payload.cover_letter:
+            # Use company name for title if provided, otherwise "Cover Letter"
+            cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
+            
             cover_letter_heading = doc.add_paragraph()
-            cover_letter_heading_run = cover_letter_heading.add_run("Cover Letter")
-            cover_letter_heading_run.font.size = Pt(14)
+            cover_letter_heading_run = cover_letter_heading.add_run(cover_letter_title)
+            cover_letter_heading_run.font.size = Pt(18 if is_cover_letter_only else 14)
             cover_letter_heading_run.font.bold = True
+            cover_letter_heading_run.font.name = font_family_heading
+            
+            # Add spacing after heading for cover letter only
+            if is_cover_letter_only:
+                doc.add_paragraph()
 
-            cover_letter_para = doc.add_paragraph(payload.cover_letter)
-            cover_letter_para.runs[0].font.size = Pt(11)
-            cover_letter_para.runs[0].font.name = "Arial"
+            # Format cover letter content with better styling for cover letter only
+            cover_letter_lines = payload.cover_letter.split('\n')
+            for i, line in enumerate(cover_letter_lines):
+                if line.strip():
+                    cover_letter_para = doc.add_paragraph(line.strip())
+                    cover_letter_para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
+                    cover_letter_para.runs[0].font.name = font_family_body
+                    cover_letter_para.paragraph_format.space_after = Pt(6)
+                elif i < len(cover_letter_lines) - 1:  # Add spacing for empty lines (except last)
+                    doc.add_paragraph()
 
             doc.add_paragraph()  # Add spacing
 

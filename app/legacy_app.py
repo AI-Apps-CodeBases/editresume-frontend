@@ -2030,18 +2030,48 @@ Return ONLY valid JSON, no markdown formatting."""
         cover_letter_content = result["choices"][0]["message"]["content"].strip()
 
         # Try to parse as JSON
+        parsed_content = None
         try:
             import json
+            import re
 
-            parsed_content = json.loads(cover_letter_content)
-        except json.JSONDecodeError:
+            # Remove markdown code blocks if present
+            cleaned_content = cover_letter_content
+            if "```json" in cleaned_content or "```" in cleaned_content:
+                # Extract JSON from markdown code blocks
+                json_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", cleaned_content, re.DOTALL)
+                if json_match:
+                    cleaned_content = json_match.group(1)
+                else:
+                    # Remove code block markers
+                    cleaned_content = re.sub(r"^```(?:json)?\s*\n?", "", cleaned_content, flags=re.MULTILINE)
+                    cleaned_content = re.sub(r"\n?```\s*$", "", cleaned_content, flags=re.MULTILINE)
+                    cleaned_content = cleaned_content.strip()
+
+            # Try to parse as JSON
+            parsed_content = json.loads(cleaned_content)
+            
+            # Validate required fields exist
+            if not isinstance(parsed_content, dict):
+                raise ValueError("Parsed content is not a dictionary")
+            
+            # Ensure all required fields exist with proper values
+            if "opening" not in parsed_content or not parsed_content["opening"]:
+                parsed_content["opening"] = f"I am writing to express my strong interest in the {payload.position_title} position at {payload.company_name}."
+            if "body" not in parsed_content or not parsed_content["body"]:
+                parsed_content["body"] = cover_letter_content
+            if "closing" not in parsed_content or not parsed_content["closing"]:
+                parsed_content["closing"] = "I would welcome the opportunity to discuss how my experience can contribute to your team. Thank you for your consideration."
+            
+            # Build full_letter if not present or if it contains JSON artifacts
+            if "full_letter" not in parsed_content or not parsed_content["full_letter"] or ("{" in parsed_content["full_letter"] and '"opening"' in parsed_content["full_letter"]):
+                parsed_content["full_letter"] = f"{parsed_content['opening']}\n\n{parsed_content['body']}\n\n{parsed_content['closing']}"
+            
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            logger.warning(f"Failed to parse cover letter as JSON: {e}")
             # If not JSON, create structured response
             parsed_content = {
-                "opening": "I am writing to express my strong interest in the "
-                + payload.position_title
-                + " position at "
-                + payload.company_name
-                + ".",
+                "opening": f"I am writing to express my strong interest in the {payload.position_title} position at {payload.company_name}.",
                 "body": cover_letter_content,
                 "closing": "I would welcome the opportunity to discuss how my experience can contribute to your team. Thank you for your consideration.",
                 "full_letter": cover_letter_content,
