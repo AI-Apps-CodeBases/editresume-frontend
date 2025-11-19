@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class KeywordExtractor:
     def __init__(self):
-        # Simple stop words list
+        # Simple stop words list - expanded to match extension improvements
         self.stop_words = {
             "a",
             "an",
@@ -35,12 +35,122 @@ class KeywordExtractor:
             "was",
             "will",
             "with",
-            "the",
             "this",
             "these",
             "they",
             "them",
             "their",
+            # Additional generic job posting words
+            "opportunity",
+            "opportunities",
+            "position",
+            "positions",
+            "join",
+            "seeking",
+            "hiring",
+            "apply",
+            "applicant",
+            "applicants",
+            "job",
+            "jobs",
+            "career",
+            "careers",
+            "employment",
+            "employed",
+            "employee",
+            "employees",
+            "description",
+            "posting",
+            "opening",
+            "openings",
+            "vacancy",
+            "vacancies",
+            "offer",
+            "offers",
+            "provide",
+            "provides",
+            "providing",
+            "day",
+            "days",
+            "week",
+            "weeks",
+            "month",
+            "months",
+            "time",
+            "times",
+            "people",
+            "person",
+            "individual",
+            "individuals",
+            "successful",
+            "success",
+            "ideal",
+            "perfect",
+            "best",
+            "top",
+            "leading",
+            "premier",
+            "world",
+            "class",
+            "award",
+            "winning",
+            "innovative",
+            "dynamic",
+            "growing",
+            "established",
+            "well",
+            "known",
+            "recognized",
+            "industry",
+            "industries",
+            "sector",
+            "sectors",
+            "field",
+            "fields",
+            "candidate",
+            "candidates",
+            "looking",
+            "work",
+            "team",
+            "role",
+            "company",
+            "you",
+            "your",
+            "our",
+            "can",
+            "able",
+            "have",
+            "had",
+            "should",
+            "must",
+            "could",
+            "would",
+            "also",
+            "ensure",
+            "using",
+            "use",
+            "make",
+            "year",
+            "years",
+            "plus",
+            "nice",
+            "preferred",
+            "strong",
+            "excellent",
+            "great",
+            "good",
+            "fast",
+            "paced",
+            "environment",
+            "responsible",
+            "responsibilities",
+            "requirements",
+            "requirement",
+            "qualification",
+            "qualifications",
+            "skills",
+            "experience",
+            "experiences",
         }
 
         # Common technical skills and keywords
@@ -308,12 +418,58 @@ class KeywordExtractor:
         for category, keywords in self.technical_keywords.items():
             self.all_technical_keywords.update(keywords)
 
+    def extract_ats_focused_keywords(self, text: str) -> List[str]:
+        """Extract ATS-focused keywords: education, experience, certifications"""
+        if not text:
+            return []
+        
+        ats_keywords = set()
+        
+        # Extract education requirements (e.g., "Bachelor's degree in Computer Science")
+        education_patterns = [
+            r'\b(bachelor\'?s?|master\'?s?|phd|doctorate|mba)\s+(?:degree\s+)?(?:in\s+)?([a-z\s]+?)(?=\s*(?:or|and|,|\.|required|preferred|from|$))',
+            r'\b(bachelor\'?s?|master\'?s?|phd|doctorate|mba)\b'
+        ]
+        
+        for pattern in education_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                # Check if we have a second group (field of study)
+                if len(match.groups()) >= 2 and match.group(2):
+                    if len(match.group(2).strip()) > 3 and len(match.group(2).strip()) < 50:
+                        clean_field = match.group(2).strip()
+                        # Filter out generic words
+                        if not re.search(r'(degree|required|preferred|equivalent|related)$', clean_field, re.IGNORECASE):
+                            ats_keywords.add(f"{match.group(1)} {clean_field}".title())
+                # Always add the degree itself
+                if match.group(1):
+                    ats_keywords.add(match.group(1).title())
+        
+        # Extract years of experience (e.g., "5+ years experience")
+        exp_pattern = r'(\d+\+?)\s*(?:years?|yrs?)\s+(?:of\s+)?(?:experience|exp)(?:\s+(?:in|with)\s+([a-z\s/+#.]+?))?(?=\s*(?:,|\.|;|required|preferred|or|and|$))'
+        exp_matches = re.finditer(exp_pattern, text, re.IGNORECASE)
+        for match in exp_matches:
+            # Check if we have a skill specified
+            if len(match.groups()) >= 2 and match.group(2):
+                if len(match.group(2).strip()) > 2:
+                    skill = match.group(2).strip()
+                    if len(skill) < 40:
+                        ats_keywords.add(f"{match.group(1)}+ years {skill.title()}")
+            else:
+                ats_keywords.add(f"{match.group(1)}+ years experience")
+        
+        # Extract certifications (e.g., "AWS Certified", "PMP Certification")
+                ats_keywords.add(cert.strip())
+        
+        return list(ats_keywords)
+
     def extract_keywords(self, text: str) -> Dict[str, any]:
         """Extract keywords from text using multiple methods"""
         if not text or not text.strip():
             return {
                 "technical_keywords": [],
                 "general_keywords": [],
+                "ats_focused_keywords": [],  # New field
                 "soft_skills": [],
                 "high_frequency_keywords": [],
                 "ats_keywords": {
@@ -328,6 +484,9 @@ class KeywordExtractor:
         # Clean and preprocess text
         cleaned_text = self._clean_text(text)
 
+        # Extract ATS-focused keywords (education, experience, certifications)
+        ats_focused = self.extract_ats_focused_keywords(text)
+
         # Extract technical keywords
         technical_keywords = self._extract_technical_keywords(cleaned_text)
 
@@ -340,16 +499,21 @@ class KeywordExtractor:
         # Extract general keywords using frequency analysis
         general_keywords = self._extract_general_keywords(cleaned_text)
 
+        # Combine ATS-focused keywords with general keywords, prioritizing ATS
+        # This ensures education, experience, and certifications appear first
+        combined_general = list(dict.fromkeys(ats_focused + general_keywords))[:20]
+
         # Get high-frequency keywords (most important for ATS)
         high_frequency_keywords = self._extract_high_frequency_keywords(cleaned_text)
 
         # Combine and get frequency
-        all_keywords = technical_keywords + general_keywords + soft_skills
+        all_keywords = technical_keywords + combined_general + soft_skills
         keyword_frequency = Counter(all_keywords)
 
         return {
             "technical_keywords": technical_keywords,
-            "general_keywords": general_keywords,
+            "general_keywords": combined_general,  # Now includes ATS-focused keywords
+            "ats_focused_keywords": ats_focused,  # New field for ATS-specific keywords
             "soft_skills": soft_skills,
             "high_frequency_keywords": high_frequency_keywords,
             "ats_keywords": ats_keywords,
@@ -412,7 +576,8 @@ class KeywordExtractor:
 
             word_counts = Counter(filtered_words)
 
-            return [word for word, _ in word_counts.most_common(40)]
+            # Return top 20 keywords (reduced from 40 for more focused results)
+            return [word for word, _ in word_counts.most_common(20)]
 
         except Exception as e:
             logger.error(f"Error extracting general keywords: {e}")
@@ -576,11 +741,43 @@ class KeywordExtractor:
                 else 0.0
             )
 
+            # Prioritize missing keywords: technical > ATS-focused > soft skills > general
+            # This ensures Match JD shows the most important keywords first
+            missing_technical = technical_missing
+            missing_soft = job_soft - resume_soft
+            
+            # Get ATS-focused keywords that are missing
+            job_ats_focused = normalize_collection(job_keywords.get("ats_focused_keywords", []))
+            resume_ats_focused = normalize_collection(resume_keywords.get("ats_focused_keywords", []))
+            missing_ats_focused = job_ats_focused - resume_ats_focused
+            
+            # Get general keywords that are missing (but exclude ones already in technical/ATS/soft)
+            missing_general = missing_keywords - missing_technical - missing_ats_focused - missing_soft
+            
+            # Combine in priority order: technical, ATS-focused, soft skills, then general
+            prioritized_missing = (
+                list(missing_technical) +
+                list(missing_ats_focused) + 
+                list(missing_soft) +
+                list(missing_general)
+            )
+            
+            # Debug logging
+            logger.info(f"Keyword extraction summary:")
+            logger.info(f"  Total job keywords: {len(job_all_keywords)}")
+            logger.info(f"  Missing technical: {len(missing_technical)}")
+            logger.info(f"  Missing ATS-focused: {len(missing_ats_focused)}")
+            logger.info(f"  Missing soft skills: {len(missing_soft)}")
+            logger.info(f"  Missing general: {len(missing_general)}")
+            logger.info(f"  Total prioritized missing: {len(prioritized_missing)}")
+            if len(prioritized_missing) > 0:
+                logger.info(f"  First 10 missing: {prioritized_missing[:10]}")
+
             return {
                 "similarity_score": round(similarity_score * 100, 2),
                 "technical_score": round(technical_score * 100, 2),
                 "matching_keywords": list(matching_keywords),
-                "missing_keywords": list(missing_keywords),
+                "missing_keywords": prioritized_missing,  # Now prioritized
                 "technical_matches": list(technical_matches),
                 "technical_missing": list(technical_missing),
                 "total_job_keywords": len(job_all_keywords),
