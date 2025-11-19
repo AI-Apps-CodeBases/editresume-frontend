@@ -107,11 +107,11 @@ const flattenGroups = (groups: Bullet[][]) => {
   return flattened
 }
 
-export default function VisualResumeEditor({ 
-  data, 
-  onChange, 
-  template = 'tech', 
-  onAIImprove, 
+export default function VisualResumeEditor({
+  data,
+  onChange,
+  template = 'tech',
+  onAIImprove,
   onAddContent,
   roomId,
   onAddComment,
@@ -128,17 +128,17 @@ export default function VisualResumeEditor({
   const [jdKeywords, setJdKeywords] = useState<{
     matching: string[];
     missing: string[];
-    high_frequency: Array<{keyword: string, frequency: number, importance: string}>;
+    high_frequency: Array<{ keyword: string, frequency: number, importance: string }>;
     priority: string[];
   } | null>(null);
   const [showAIImproveModal, setShowAIImproveModal] = useState(false);
-  const [aiImproveContext, setAiImproveContext] = useState<{sectionId: string, bulletId: string, currentText: string, mode?: 'existing' | 'new'} | null>(null);
+  const [aiImproveContext, setAiImproveContext] = useState<{ sectionId: string, bulletId: string, currentText: string, mode?: 'existing' | 'new' } | null>(null);
   const [selectedMissingKeywords, setSelectedMissingKeywords] = useState<Set<string>>(new Set());
   const [generatedBulletOptions, setGeneratedBulletOptions] = useState<string[]>([]);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
   const [selectedBullets, setSelectedBullets] = useState<Set<number>>(new Set());
   const hasCleanedDataRef = useRef(false); // Track if we've cleaned old HTML data
-  
+
   // Collapsible sections state
   const [isTitleSectionOpen, setIsTitleSectionOpen] = useState(true);
   const [isContactSectionOpen, setIsContactSectionOpen] = useState(true);
@@ -159,21 +159,21 @@ export default function VisualResumeEditor({
     }
     return new Set();
   });
-  
+
   // Update localStorage when openSections changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('openSections', JSON.stringify(Array.from(openSections)));
     }
   }, [openSections]);
-  
+
   // Update localStorage when openCompanyGroups changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('openCompanyGroups', JSON.stringify(Array.from(openCompanyGroups)));
     }
   }, [openCompanyGroups]);
-  
+
   // Initialize sections as open when they're added
   useEffect(() => {
     if (data.sections.length > 0) {
@@ -201,19 +201,19 @@ export default function VisualResumeEditor({
   const lastSectionsRef = useRef<string>('')
   useEffect(() => {
     if (!data.sections || data.sections.length === 0) return
-    
+
     // Create a signature of current sections to detect actual changes
     const sectionsSignature = JSON.stringify(data.sections.map(s => ({ id: s.id, title: s.title })))
     if (lastSectionsRef.current === sectionsSignature) return // No change, skip
     lastSectionsRef.current = sectionsSignature
-    
+
     const seenTitles = new Map<string, { id: string, index: number }>()
     const duplicates: string[] = []
-    
+
     data.sections.forEach((section, index) => {
       if (!section || !section.title) return
       const titleLower = section.title.toLowerCase().trim()
-      
+
       if (seenTitles.has(titleLower)) {
         const first = seenTitles.get(titleLower)!
         duplicates.push(section.id)
@@ -222,7 +222,7 @@ export default function VisualResumeEditor({
         seenTitles.set(titleLower, { id: section.id, index })
       }
     })
-    
+
     if (duplicates.length > 0) {
       console.log(`🧹 Removing ${duplicates.length} duplicate section(s)`)
       const deduplicatedSections = data.sections.filter(s => !duplicates.includes(s.id))
@@ -231,7 +231,7 @@ export default function VisualResumeEditor({
       onChange({ ...data, sections: deduplicatedSections })
     }
   }, [data.sections, data, onChange])
-  
+
   const toggleSection = (sectionId: string) => {
     setOpenSections(prev => {
       const updated = new Set(prev);
@@ -243,7 +243,7 @@ export default function VisualResumeEditor({
       return updated;
     });
   };
-  
+
   // Custom title fields (for multiple titles)
   const [customTitleFields, setCustomTitleFields] = useState<CustomField[]>(() => {
     if (typeof window !== 'undefined') {
@@ -252,7 +252,7 @@ export default function VisualResumeEditor({
     }
     return [];
   });
-  
+
   // Custom contact fields
   const [customContactFields, setCustomContactFields] = useState<CustomField[]>(() => {
     if (typeof window !== 'undefined') {
@@ -261,7 +261,7 @@ export default function VisualResumeEditor({
     }
     return [];
   });
-  
+
   // Contact fields configuration with order
   const [contactFieldOrder, setContactFieldOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -270,7 +270,7 @@ export default function VisualResumeEditor({
     }
     return ['email', 'phone', 'location', 'linkedin', 'website', 'github'];
   });
-  
+
   // Save custom fields to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -278,15 +278,15 @@ export default function VisualResumeEditor({
       localStorage.setItem('customContactFields', JSON.stringify(customContactFields));
     }
   }, [customTitleFields, customContactFields]);
-  
-  
+
+
   // Save order to localStorage when it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('contactFieldOrder', JSON.stringify(contactFieldOrder));
     }
   }, [contactFieldOrder]);
-  
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -312,15 +312,15 @@ export default function VisualResumeEditor({
   useEffect(() => {
     const currentSectionIds = new Set(sectionOrder);
     const newSectionIds = new Set(['title', 'contact', 'summary', ...(data.sections || []).map(s => s.id)]);
-    
+
     // Add new sections to the end
     const newSections = (data.sections || []).filter(s => !currentSectionIds.has(s.id));
     if (newSections.length > 0) {
       setSectionOrder(prev => [...prev, ...newSections.map(s => s.id)]);
     }
-    
+
     // Remove deleted sections
-    const removedSections = Array.from(currentSectionIds).filter(id => 
+    const removedSections = Array.from(currentSectionIds).filter(id =>
       id !== 'title' && id !== 'contact' && id !== 'summary' && !newSectionIds.has(id)
     );
     if (removedSections.length > 0) {
@@ -347,7 +347,7 @@ export default function VisualResumeEditor({
       }
     }
   };
-  
+
   // Contact field definitions
   const contactFields = {
     email: { label: '📧 email', icon: '📧', field: 'email' },
@@ -359,7 +359,7 @@ export default function VisualResumeEditor({
     portfolio: { label: '🎨 Portfolio', icon: '🎨', field: 'portfolio' },
     twitter: { label: '🐦 Twitter', icon: '🐦', field: 'twitter' }
   };
-  
+
   // Add custom title field
   const addCustomTitleField = () => {
     const fieldId = `custom_title_${Date.now()}`;
@@ -368,7 +368,7 @@ export default function VisualResumeEditor({
     setCustomTitleFields([...customTitleFields, newField]);
     onChange({ ...data, [fieldName]: '' });
   };
-  
+
   // Add custom contact field
   const addCustomContactField = () => {
     const fieldId = `custom_contact_${Date.now()}`;
@@ -378,7 +378,7 @@ export default function VisualResumeEditor({
     onChange({ ...data, [fieldName]: '' });
     setContactFieldOrder([...contactFieldOrder, fieldName]);
   };
-  
+
   // Remove custom field
   const removeCustomTitleField = (fieldId: string) => {
     const field = customTitleFields.find(f => f.id === fieldId);
@@ -389,7 +389,7 @@ export default function VisualResumeEditor({
       onChange(newData);
     }
   };
-  
+
   const removeCustomContactField = (fieldId: string) => {
     const field = customContactFields.find(f => f.id === fieldId);
     if (field) {
@@ -400,7 +400,7 @@ export default function VisualResumeEditor({
       onChange(newData);
     }
   };
-  
+
   // Select all / Deselect all for title fields
   const toggleAllTitleFields = (enable: boolean) => {
     const fieldsVisible = { ...(data as any).fieldsVisible };
@@ -411,7 +411,7 @@ export default function VisualResumeEditor({
     });
     onChange({ ...data, fieldsVisible });
   };
-  
+
   // Select all / Deselect all for contact fields
   const toggleAllContactFields = (enable: boolean) => {
     const fieldsVisible = { ...(data as any).fieldsVisible };
@@ -423,7 +423,7 @@ export default function VisualResumeEditor({
     });
     onChange({ ...data, fieldsVisible });
   };
-  
+
   const handleContactFieldDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -434,7 +434,7 @@ export default function VisualResumeEditor({
       });
     }
   };
-  
+
   // Clean HTML from text content (for old data that might have HTML stored)
   const cleanTextContent = useCallback((text: string | undefined | null): string => {
     if (!text) return '';
@@ -460,7 +460,7 @@ export default function VisualResumeEditor({
         console.error('Failed to load JD keywords:', e);
       }
     }
-    
+
     // Clean any HTML from resume data on mount (for old data compatibility)
     // This prevents hydration errors from old data that might have HTML stored
     // Only run once on initial mount, not on every data change
@@ -474,7 +474,7 @@ export default function VisualResumeEditor({
         }, 100);
       }
     }
-    
+
     // Listen for storage changes (when match is done)
     const handleStorageChange = () => {
       try {
@@ -486,21 +486,21 @@ export default function VisualResumeEditor({
         console.error('Failed to load JD keywords:', e);
       }
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
     // Also poll for changes (same-tab updates)
     const interval = setInterval(handleStorageChange, 1000);
-    
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
   }, []);
-  
+
   // Check if bullet text contains JD matching keywords and count occurrences
   const checkBulletMatches = (bulletText: string, sectionTitle?: string, generatedKeywords?: string[]): { matches: boolean; matchedKeywords: string[], keywordCounts: Record<string, number> } => {
     if (!jdKeywords || !bulletText) return { matches: false, matchedKeywords: [], keywordCounts: {} };
-    
+
     // Exclude certifications from keyword matching
     if (sectionTitle) {
       const sectionLower = sectionTitle.toLowerCase();
@@ -508,28 +508,28 @@ export default function VisualResumeEditor({
         return { matches: false, matchedKeywords: [], keywordCounts: {} };
       }
     }
-    
+
     const lowerText = bulletText.toLowerCase();
     const matched: string[] = [];
     const keywordCounts: Record<string, number> = {};
-    
+
     // Collect all keywords to check (JD keywords + generated keywords)
     const keywordsToCheck = new Set<string>();
-    
+
     // Add JD matching keywords
     jdKeywords.matching.forEach(kw => {
       if (kw && kw.length > 1 && kw.trim().length > 1) {
         keywordsToCheck.add(kw);
       }
     });
-    
+
     // Add priority keywords
     jdKeywords.priority.forEach(kw => {
       if (kw && kw.length > 1 && kw.trim().length > 1) {
         keywordsToCheck.add(kw);
       }
     });
-    
+
     // Add generated keywords (keywords used to generate this bullet)
     if (generatedKeywords && Array.isArray(generatedKeywords)) {
       generatedKeywords.forEach(kw => {
@@ -538,12 +538,12 @@ export default function VisualResumeEditor({
         }
       });
     }
-    
+
     keywordsToCheck.forEach(keyword => {
       const keywordLower = keyword.toLowerCase().trim();
       // Skip single letters and very short keywords
       if (keywordLower.length <= 1) return;
-      
+
       // Use word boundary matching to avoid partial matches like "r" in "project"
       const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
       const matches = lowerText.match(regex);
@@ -555,30 +555,30 @@ export default function VisualResumeEditor({
         keywordCounts[keyword] = matches.length;
       }
     });
-    
+
     return { matches: matched.length > 0, matchedKeywords: matched, keywordCounts };
   };
-  
+
   // Highlight keywords in text with counts (for display)
   const highlightKeywordsInText = (text: string, matchedKeywords: string[], keywordCounts: Record<string, number>): React.ReactNode => {
     if (!matchedKeywords.length || !text) return text;
-    
+
     const parts: Array<React.ReactNode> = [];
     let lastIndex = 0;
-    
+
     // Sort keywords by length (longest first) to avoid partial matches
     const sortedKeywords = [...matchedKeywords].sort((a, b) => b.length - a.length);
-    const matches: Array<{keyword: string, index: number, length: number, count: number}> = [];
-    
+    const matches: Array<{ keyword: string, index: number, length: number, count: number }> = [];
+
     sortedKeywords.forEach(keyword => {
       if (!keyword || typeof keyword !== 'string') return;
       const keywordLower = keyword.toLowerCase().trim();
       if (keywordLower.length <= 1) return;
-      
+
       try {
         const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
         const textMatches = text.matchAll(regex);
-        
+
         for (const match of textMatches) {
           if (match.index !== undefined && match[0]) {
             matches.push({
@@ -593,14 +593,14 @@ export default function VisualResumeEditor({
         console.warn('Error matching keyword:', keyword, e);
       }
     });
-    
+
     // Sort matches by index
     matches.sort((a, b) => a.index - b.index);
-    
+
     // Remove overlapping matches (keep longest)
     const nonOverlapping: typeof matches = [];
     for (const match of matches) {
-      const overlaps = nonOverlapping.some(m => 
+      const overlaps = nonOverlapping.some(m =>
         (match.index >= m.index && match.index < m.index + m.length) ||
         (match.index + match.length > m.index && match.index + match.length <= m.index + m.length)
       );
@@ -608,11 +608,11 @@ export default function VisualResumeEditor({
         nonOverlapping.push(match);
       }
     }
-    
+
     // Build result with highlighted keywords
     nonOverlapping.forEach((match, idx) => {
       if (match.index === undefined || match.length === undefined) return;
-      
+
       // Add text before match
       if (match.index > lastIndex) {
         const beforeText = text.substring(lastIndex, match.index);
@@ -630,13 +630,13 @@ export default function VisualResumeEditor({
       }
       lastIndex = match.index + match.length;
     });
-    
+
     // Add remaining text
     if (lastIndex < text.length) {
       const remainingText = text.substring(lastIndex);
       if (remainingText) parts.push(remainingText);
     }
-    
+
     if (parts.length === 0) return text;
     if (parts.length === 1 && typeof parts[0] === 'string') return parts[0];
     return <>{parts}</>;
@@ -645,19 +645,19 @@ export default function VisualResumeEditor({
   // Highlight keywords in HTML string for contentEditable (returns HTML string)
   const highlightKeywordsInHTML = (text: string, matchedKeywords: string[]): string => {
     if (!matchedKeywords.length || !text || typeof text !== 'string') return text || '';
-    
+
     let highlightedText = text;
     const sortedKeywords = [...matchedKeywords]
       .filter(kw => kw && typeof kw === 'string' && kw.trim().length > 1)
       .sort((a, b) => b.length - a.length);
-    
+
     if (sortedKeywords.length === 0) return text;
-    
+
     sortedKeywords.forEach(keyword => {
       try {
         const keywordLower = keyword.toLowerCase().trim();
         if (keywordLower.length <= 1) return;
-        
+
         const regex = new RegExp(`\\b(${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
         highlightedText = highlightedText.replace(regex, (match) => {
           if (!match) return match;
@@ -668,7 +668,7 @@ export default function VisualResumeEditor({
         console.warn('Error highlighting keyword in HTML:', keyword, e);
       }
     });
-    
+
     return highlightedText;
   };
 
@@ -677,11 +677,11 @@ export default function VisualResumeEditor({
     if (!jdKeywords?.matching?.length || !text) {
       return { matchedKeywords: [], keywordCounts: {} };
     }
-    
+
     const textLower = text.toLowerCase();
     const matchedKeywords: string[] = [];
     const keywordCounts: Record<string, number> = {};
-    
+
     jdKeywords.matching.forEach(keyword => {
       const keywordLower = keyword.toLowerCase();
       const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
@@ -691,14 +691,14 @@ export default function VisualResumeEditor({
         keywordCounts[keyword] = matches.length;
       }
     });
-    
+
     return { matchedKeywords, keywordCounts };
   };
-  
+
   // Track if component is mounted to avoid hydration errors
   const [isMounted, setIsMounted] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
-  
+
   useEffect(() => {
     setIsMounted(true);
     // Wait for React hydration to complete
@@ -707,13 +707,13 @@ export default function VisualResumeEditor({
     }, 300);
     return () => clearTimeout(hydrationTimer);
   }, []);
-  
+
   // Update highlighting when keywords change (client-side only to avoid hydration errors)
   useEffect(() => {
     if (!isHydrated) return; // Wait for hydration to complete
     if (typeof window === 'undefined') return; // Skip on server
     if (!jdKeywords?.matching?.length) return;
-    
+
     // Use requestAnimationFrame to ensure DOM is fully ready
     const frameId = requestAnimationFrame(() => {
       // Update summary highlighting
@@ -734,23 +734,23 @@ export default function VisualResumeEditor({
           console.warn('Error highlighting summary:', e);
         }
       }
-      
+
       // Update bullet highlighting
       document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
         const bulletEl = el as HTMLElement;
         if (bulletEl.matches(':focus')) return; // Skip if editing
-        
+
         const sectionId = bulletEl.getAttribute('data-section-id');
         const bulletId = bulletEl.getAttribute('data-bullet-id');
         if (!sectionId || !bulletId) return;
-        
+
         try {
           const section = data.sections.find(s => s.id === sectionId);
           if (!section) return;
-          
+
           const bullet = section.bullets.find(b => b.id === bulletId);
           if (!bullet?.text) return;
-          
+
           const generatedKeywords = bullet.params?.generatedKeywords as string[] | undefined;
           const bulletMatch = checkBulletMatches(bullet.text, section.title, generatedKeywords);
           if (bulletMatch.matchedKeywords.length > 0) {
@@ -766,7 +766,7 @@ export default function VisualResumeEditor({
         }
       });
     });
-    
+
     return () => {
       cancelAnimationFrame(frameId);
     };
@@ -829,7 +829,7 @@ export default function VisualResumeEditor({
       }
     `
     document.head.appendChild(style)
-    
+
     return () => {
       document.head.removeChild(style)
     }
@@ -851,7 +851,7 @@ export default function VisualResumeEditor({
   const [showAISectionAssistant, setShowAISectionAssistant] = useState(false)
   const [aiSectionAssistantContext, setAiSectionAssistantContext] = useState<any>(null)
   const editorRef = useRef<HTMLDivElement>(null)
-  
+
   // Undo/Redo functionality
   const [history, setHistory] = useState<ResumeData[]>([data])
   const [historyIndex, setHistoryIndex] = useState(0)
@@ -913,11 +913,11 @@ export default function VisualResumeEditor({
     const sections = data.sections.map(s =>
       normalizeId(s.id) === targetSectionId
         ? {
-            ...s,
-            bullets: s.bullets.map(b =>
-              normalizeId(b.id) === targetBulletId ? { ...b, text } : b
-            )
-          }
+          ...s,
+          bullets: s.bullets.map(b =>
+            normalizeId(b.id) === targetBulletId ? { ...b, text } : b
+          )
+        }
         : s
     )
     onChange({ ...data, sections })
@@ -928,9 +928,9 @@ export default function VisualResumeEditor({
     const sections = data.sections.map(s =>
       normalizeId(s.id) === targetSectionId
         ? {
-            ...s,
-            bullets: [...s.bullets, { id: Date.now().toString(), text: '', params: {} }]
-          }
+          ...s,
+          bullets: [...s.bullets, { id: Date.now().toString(), text: '', params: {} }]
+        }
         : s
     )
     onChange({ ...data, sections })
@@ -959,9 +959,9 @@ export default function VisualResumeEditor({
     const sections = data.sections.map(s =>
       normalizeId(s.id) === targetSectionId
         ? {
-            ...s,
-            bullets: s.bullets.filter(b => normalizeId(b.id) !== targetBulletId)
-          }
+          ...s,
+          bullets: s.bullets.filter(b => normalizeId(b.id) !== targetBulletId)
+        }
         : s
     )
     onChange({ ...data, sections })
@@ -969,14 +969,14 @@ export default function VisualResumeEditor({
 
   const addSection = () => {
     // Check if "New Section" already exists
-    const existingNewSections = data.sections.filter(s => 
+    const existingNewSections = data.sections.filter(s =>
       s.title.toLowerCase().trim() === 'new section'
     )
-    
-    const sectionNumber = existingNewSections.length > 0 
-      ? ` ${existingNewSections.length + 1}` 
+
+    const sectionNumber = existingNewSections.length > 0
+      ? ` ${existingNewSections.length + 1}`
       : ''
-    
+
     const newSection: Section = {
       id: Date.now().toString(),
       title: `New Section${sectionNumber}`,
@@ -987,9 +987,9 @@ export default function VisualResumeEditor({
 
   const handleParsedResume = (jobs: any[], sections: any[]) => {
     // Parsing resume data
-    
+
     const newSections: Section[] = []
-    
+
     // Create work experience section with modern format
     if (jobs.length > 0) {
       const workExperienceSection: Section = {
@@ -997,7 +997,7 @@ export default function VisualResumeEditor({
         title: 'Work Experience',
         bullets: []
       }
-      
+
       jobs.forEach((job, index) => {
         // Create company header
         const companyHeader = {
@@ -1006,7 +1006,7 @@ export default function VisualResumeEditor({
           params: {}
         }
         workExperienceSection.bullets.push(companyHeader)
-        
+
         // Add job bullets
         job.bullets.forEach((bullet: string, bulletIndex: number) => {
           const bulletItem = {
@@ -1017,21 +1017,21 @@ export default function VisualResumeEditor({
           workExperienceSection.bullets.push(bulletItem)
         })
       })
-      
+
       newSections.push(workExperienceSection)
     }
-    
+
     // Process ALL sections and create modern format for each
     sections.forEach((section, index) => {
       // Processing section
-      
+
       if (section.content && section.content.length > 0) {
         const modernSection: Section = {
           id: `section-${Date.now()}-${index}`,
           title: section.title,
           bullets: []
         }
-        
+
         // For each item in the section, create a modern format entry
         section.content.forEach((item: string, itemIndex: number) => {
           // Create a header for each item
@@ -1041,7 +1041,7 @@ export default function VisualResumeEditor({
             params: {}
           }
           modernSection.bullets.push(headerBullet)
-          
+
           // Add the original item as a bullet point
           const itemBullet = {
             id: `item-${Date.now()}-${index}-${itemIndex}`,
@@ -1050,11 +1050,11 @@ export default function VisualResumeEditor({
           }
           modernSection.bullets.push(itemBullet)
         })
-        
+
         newSections.push(modernSection)
       }
     })
-    
+
     // Deduplicate sections by title before adding
     const seenTitles = new Map<string, number>()
     const deduplicatedSections = newSections.filter((section, index) => {
@@ -1068,9 +1068,9 @@ export default function VisualResumeEditor({
       seenTitles.set(titleLower, index)
       return true
     })
-    
+
     console.log(`📋 Deduplicated parsed sections: ${newSections.length} → ${deduplicatedSections.length}`)
-    
+
     // Replace all existing sections with new ones
     onChange({ ...data, sections: deduplicatedSections })
     setShowAIParser(false)
@@ -1079,7 +1079,7 @@ export default function VisualResumeEditor({
   const getSectionType = (title: string): 'work' | 'project' | 'skill' | 'certificate' | 'education' | 'other' => {
     const lower = title.toLowerCase()
     console.log(`Checking section type for: "${title}"`)
-    
+
     // More comprehensive detection
     if (lower.includes('project') || lower.includes('portfolio') || lower.includes('development')) {
       console.log('Detected as PROJECT')
@@ -1101,7 +1101,7 @@ export default function VisualResumeEditor({
       console.log('Detected as WORK')
       return 'work'
     }
-    
+
     console.log('Detected as OTHER')
     return 'other'
   }
@@ -1135,7 +1135,7 @@ export default function VisualResumeEditor({
     if (!aiWorkExperienceContext) return
 
     const { sectionId, bulletId } = aiWorkExperienceContext
-    
+
     // Find the section and update the company header
     const sections = data.sections.map(section => {
       if (section.id === sectionId) {
@@ -1150,11 +1150,11 @@ export default function VisualResumeEditor({
           }
           return bullet
         })
-        
+
         // Remove existing bullets for this company and add new ones
         const companyBulletIds: string[] = []
         const headerIndex = updatedBullets.findIndex(b => b.id === bulletId)
-        
+
         // Find all bullets that belong to this company (until next company or end)
         for (let i = headerIndex + 1; i < updatedBullets.length; i++) {
           const bullet = updatedBullets[i]
@@ -1165,21 +1165,21 @@ export default function VisualResumeEditor({
             companyBulletIds.push(bullet.id)
           }
         }
-        
+
         // Remove old bullets
         const filteredBullets = updatedBullets.filter(bullet => !companyBulletIds.includes(bullet.id))
-        
+
         // Add new bullets after the company header
         const newBullets = updateData.bullets.map((bulletText, index) => ({
           id: `bullet-${Date.now()}-${index}`,
           text: `• ${bulletText}`,
           params: {}
         }))
-        
+
         // Insert new bullets after the company header
         const newHeaderIndex = filteredBullets.findIndex(b => b.id === bulletId)
         filteredBullets.splice(newHeaderIndex + 1, 0, ...newBullets)
-        
+
         return {
           ...section,
           bullets: filteredBullets
@@ -1187,7 +1187,7 @@ export default function VisualResumeEditor({
       }
       return section
     })
-    
+
     onChange({ ...data, sections })
     setShowAIWorkExperience(false)
     setAiWorkExperienceContext(null)
@@ -1219,7 +1219,7 @@ export default function VisualResumeEditor({
           // Find all bullets that belong to this item (until next item or end)
           const itemBulletIds: string[] = []
           const headerIndex = updatedBullets.findIndex(b => b.id === bulletId)
-          
+
           // Find all bullets that belong to this item (until next item or end)
           for (let i = headerIndex + 1; i < updatedBullets.length; i++) {
             const bullet = updatedBullets[i]
@@ -1230,21 +1230,21 @@ export default function VisualResumeEditor({
               itemBulletIds.push(bullet.id)
             }
           }
-          
+
           // Remove old bullets
           const filteredBullets = updatedBullets.filter(bullet => !itemBulletIds.includes(bullet.id))
-          
+
           // Add new bullets after the item header
           const newBullets = bullets.map((bulletText: string, index: number) => ({
             id: `bullet-${Date.now()}-${index}`,
             text: `• ${bulletText}`,
             params: {}
           }))
-          
+
           // Insert new bullets after the item header
           const headerIndexAfter = filteredBullets.findIndex(b => b.id === bulletId)
           filteredBullets.splice(headerIndexAfter + 1, 0, ...newBullets)
-          
+
           return {
             ...section,
             bullets: filteredBullets
@@ -1310,19 +1310,19 @@ export default function VisualResumeEditor({
       if (section) {
         const bulletIndex = section.bullets.findIndex(b => b.id === bulletId)
         const groupIds: string[] = [bulletId]
-        
+
         // Collect all bullets after this company until separator or next company
         for (let i = bulletIndex + 1; i < section.bullets.length; i++) {
           const bullet = section.bullets[i]
           const text = bullet.text.trim()
-          
+
           // Stop at empty separator or next company
           if (!text || (text.startsWith('**') && text.includes('**', 2))) {
             break
           }
           groupIds.push(bullet.id)
         }
-        
+
         setDraggedCompanyGroup({ sectionId, bulletIds: groupIds })
         console.log('Dragging company group:', groupIds)
       }
@@ -1334,21 +1334,21 @@ export default function VisualResumeEditor({
   const handleBulletDragOver = (e: React.DragEvent, targetSectionId: string, targetBulletId: string) => {
     e.preventDefault()
     e.stopPropagation()
-    
+
     // Handle company group dragging
     if (draggedCompanyGroup) {
       const sections = [...data.sections]
       const sourceSectionIdx = sections.findIndex(s => s.id === draggedCompanyGroup.sectionId)
       const targetSectionIdx = sections.findIndex(s => s.id === targetSectionId)
-      
+
       if (sourceSectionIdx === -1 || targetSectionIdx === -1) return
-      
+
       const sourceBullets = [...sections[sourceSectionIdx].bullets]
-      
+
       // Extract the entire group
       const groupBullets = sourceBullets.filter(b => draggedCompanyGroup.bulletIds.includes(b.id))
       const remainingBullets = sourceBullets.filter(b => !draggedCompanyGroup.bulletIds.includes(b.id))
-      
+
       if (draggedCompanyGroup.sectionId === targetSectionId) {
         const targetBulletIdx = remainingBullets.findIndex(b => b.id === targetBulletId)
         if (targetBulletIdx !== -1) {
@@ -1364,27 +1364,27 @@ export default function VisualResumeEditor({
         targetBullets.splice(targetBulletIdx, 0, ...groupBullets)
         sections[targetSectionIdx].bullets = targetBullets
       }
-      
+
       onChange({ ...data, sections })
       return
     }
-    
+
     // Handle single bullet dragging
     if (!draggedBullet) return
-    
+
     const sections = [...data.sections]
     const sourceSectionIdx = sections.findIndex(s => s.id === draggedBullet.sectionId)
     const targetSectionIdx = sections.findIndex(s => s.id === targetSectionId)
-    
+
     if (sourceSectionIdx === -1 || targetSectionIdx === -1) return
-    
+
     const sourceBullets = [...sections[sourceSectionIdx].bullets]
     const draggedBulletIdx = sourceBullets.findIndex(b => b.id === draggedBullet.bulletId)
-    
+
     if (draggedBulletIdx === -1) return
-    
+
     const [removed] = sourceBullets.splice(draggedBulletIdx, 1)
-    
+
     if (draggedBullet.sectionId === targetSectionId) {
       const targetBulletIdx = sourceBullets.findIndex(b => b.id === targetBulletId)
       sourceBullets.splice(targetBulletIdx, 0, removed)
@@ -1396,7 +1396,7 @@ export default function VisualResumeEditor({
       targetBullets.splice(targetBulletIdx, 0, removed)
       sections[targetSectionIdx].bullets = targetBullets
     }
-    
+
     onChange({ ...data, sections })
   }
 
@@ -1465,14 +1465,14 @@ export default function VisualResumeEditor({
           existing_summary: data.summary || ''
         })
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      
+
       const result = await response.json()
       console.log('Generated summary:', result)
-      
+
       if (result.summary) {
         const updatedResume = { ...data, summary: result.summary }
         onChange(updatedResume)
@@ -1505,7 +1505,7 @@ export default function VisualResumeEditor({
       // Extract company title and job title from the section
       let companyTitle = ''
       let jobTitle = ''
-      
+
       // Look for company headers in the section
       for (const bullet of section.bullets) {
         if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
@@ -1531,7 +1531,7 @@ export default function VisualResumeEditor({
       // Add timeout and limit context size
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout
-      
+
       try {
         const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
           method: 'POST',
@@ -1539,20 +1539,20 @@ export default function VisualResumeEditor({
           body: JSON.stringify(requestBody),
           signal: controller.signal
         })
-        
+
         clearTimeout(timeoutId)
-        
+
         console.log('Response status:', response.status)
-        
+
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unknown error')
           console.error('API error response:', errorText)
           throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
         }
-        
+
         const result = await response.json()
         console.log('API result:', result)
-        
+
         if (result.success && (result.bullet_text || (result.bullet_options && result.bullet_options.length > 0))) {
           const bulletText = result.bullet_text || result.bullet_options[0]
           const keywordsUsed = result.keywords_used || []
@@ -1560,9 +1560,9 @@ export default function VisualResumeEditor({
           // Add the new bullet to the section with keywords metadata
           const sections = data.sections.map(s => {
             if (s.id === sectionId) {
-              const newBullets = [...s.bullets, { 
-                id: Date.now().toString(), 
-                text: `• ${bulletText}`, 
+              const newBullets = [...s.bullets, {
+                id: Date.now().toString(),
+                text: `• ${bulletText}`,
                 params: {
                   generatedKeywords: keywordsUsed // Store keywords used for highlighting
                 }
@@ -1612,11 +1612,11 @@ export default function VisualResumeEditor({
       const sections = data.sections.map(s =>
         s.id === sectionId
           ? {
-              ...s,
-              bullets: s.bullets.map(b =>
-                b.id === bulletId ? { ...b, text: newText } : b
-              )
-            }
+            ...s,
+            bullets: s.bullets.map(b =>
+              b.id === bulletId ? { ...b, text: newText } : b
+            )
+          }
           : s
       )
       onChange({ ...data, sections })
@@ -1647,7 +1647,7 @@ export default function VisualResumeEditor({
         {/* Mobile Sidebar Toggle */}
         <div className="lg:hidden fixed top-4 left-4 z-40">
           <button
-            onClick={() => {/* TODO: Add mobile sidebar toggle */}}
+            onClick={() => {/* TODO: Add mobile sidebar toggle */ }}
             className="bg-white shadow-lg rounded-lg p-3 border border-gray-200 hover:bg-gray-50 transition-colors"
           >
             <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1655,858 +1655,1116 @@ export default function VisualResumeEditor({
             </svg>
           </button>
         </div>
-      
-      {/* AI Loading Indicator */}
-      {isAILoading && (
-        <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center">
-          <div className="bg-white rounded-xl px-8 py-6 shadow-2xl flex items-center gap-4 animate-fade-in">
-            <div className="loading-spinner w-6 h-6 border-primary-500"></div>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-gray-700">AI is improving your text...</span>
-              <div className="loading-dots mt-1">
-                <div></div>
-                <div></div>
-                <div></div>
+
+        {/* AI Loading Indicator */}
+        {isAILoading && (
+          <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center">
+            <div className="bg-white rounded-xl px-8 py-6 shadow-2xl flex items-center gap-4 animate-fade-in">
+              <div className="loading-spinner w-6 h-6 border-primary-500"></div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-700">AI is improving your text...</span>
+                <div className="loading-dots mt-1">
+                  <div></div>
+                  <div></div>
+                  <div></div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
 
-      {/* Resume Editor Canvas */}
-      <div className="h-full overflow-y-auto bg-gray-50 custom-scrollbar">
-        {/* Editor Toolbar */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3">
-          <div className="flex items-center justify-between">
-            {/* Breadcrumb */}
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>Resumes</span>
-              <span>/</span>
-              <span className="text-gray-900 font-medium">{data.name || 'Untitled Resume'}</span>
-              <span>/</span>
-              <span className="text-gray-600">Editor</span>
-            </div>
+        {/* Resume Editor Canvas */}
+        <div className="h-full overflow-y-auto bg-gray-50 custom-scrollbar">
+          {/* Editor Toolbar */}
+          <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3">
+            <div className="flex items-center justify-between">
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span>Resumes</span>
+                <span>/</span>
+                <span className="text-gray-900 font-medium">{data.name || 'Untitled Resume'}</span>
+                <span>/</span>
+                <span className="text-gray-600">Editor</span>
+              </div>
 
-            {/* Center: View Toggle */}
-            <div className="flex items-center gap-2">
-              <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">
-                Sections
-              </button>
-              <button className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-lg">
-                Full Page Preview
-              </button>
-            </div>
-
-            {/* Right: Actions */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500">
-                Saved · just now
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Resume Canvas */}
-        <div className="max-w-4xl mx-auto py-6 px-4">
-          {/* Candidate Name */}
-          <div className="mb-4">
-            <h1 className="text-2xl font-bold text-gray-900 text-center">
-              {data.name || 'Your Name'}
-            </h1>
-          </div>
-
-          {/* All Sections - Sortable */}
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleSectionDragEnd}
-          >
-            <SortableContext
-              items={sectionOrder}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-4">
-                {sectionOrder.map((sectionId) => {
-                  // Title Section
-                  if (sectionId === 'title') {
-                    return (
-                      <SortableSectionCard
-                        key="title"
-                        id="title"
-                        title="Title Section"
-                        icon="📋"
-                        isEnabled={true}
-                        fieldCount={1 + customTitleFields.length}
-                        isCollapsed={!isTitleSectionOpen}
-                        onToggleCollapse={() => setIsTitleSectionOpen(!isTitleSectionOpen)}
-                      >
-              <div className="space-y-2">
-                {/* Default Title with Checkbox */}
-                <div className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group">
-                  <input
-                    type="checkbox"
-                    checked={(data as any).fieldsVisible?.title !== false}
-                    onChange={(e) => {
-                      const fieldsVisible = { ...(data as any).fieldsVisible, title: e.target.checked }
-                      onChange({ ...data, fieldsVisible })
-                    }}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
-                  />
-                  <div
-                    contentEditable
-                    suppressContentEditableWarning
-                    data-editable-type="field"
-                    data-field="title"
-                    onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
-                    className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                      (data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                    }`}
-                  >
-                    {data.title || 'Click to edit title'}
-                  </div>
-                </div>
-                
-                {/* Custom Title Fields */}
-                {customTitleFields.map((customField) => (
-                  <div key={customField.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group">
-                    <input
-                      type="checkbox"
-                      checked={(data as any).fieldsVisible?.[customField.field] !== false}
-                      onChange={(e) => {
-                        const fieldsVisible = { ...(data as any).fieldsVisible, [customField.field]: e.target.checked }
-                        onChange({ ...data, fieldsVisible })
-                      }}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
-                    />
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      data-editable-type="field"
-                      data-field={customField.field}
-                      onBlur={(e) => {
-                        const value = e.currentTarget.textContent || '';
-                        onChange({ ...data, [customField.field]: value });
-                      }}
-                      className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                        (data as any).fieldsVisible?.[customField.field] === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                      }`}
-                    >
-                      {(data as any)[customField.field] || 'Click to edit custom title'}
-                    </div>
-                    <button
-                      onClick={() => removeCustomTitleField(customField.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity flex-shrink-0"
-                      title="Remove this field"
-                    >
-                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-                
-                {/* Add Title Field Button */}
-                <button
-                  onClick={addCustomTitleField}
-                  className="w-full mt-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
-                >
-                  + Add Title Field
+              {/* Center: View Toggle */}
+              <div className="flex items-center gap-2">
+                <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">
+                  Sections
                 </button>
-                      </div>
-                    </SortableSectionCard>
-                  )
-                  }
+                <button className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-lg">
+                  Full Page Preview
+                </button>
+              </div>
 
-                  // Contact Section
-                  if (sectionId === 'contact') {
-                    return (
-                      <SortableSectionCard
-                        key="contact"
-                        id="contact"
-                        title="Contact Information"
-                        icon="📞"
-                        isEnabled={true}
-                        fieldCount={contactFieldOrder.length + customContactFields.length}
-                        isCollapsed={!isContactSectionOpen}
-                        onToggleCollapse={() => setIsContactSectionOpen(!isContactSectionOpen)}
-                      >
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleContactFieldDragEnd}
+              {/* Right: Actions */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500">
+                  Saved · just now
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Resume Canvas */}
+          <div className="max-w-4xl mx-auto py-6 px-4">
+            {/* Candidate Name */}
+            <div className="mb-4">
+              <h1 className="text-2xl font-bold text-gray-900 text-center">
+                {data.name || 'Your Name'}
+              </h1>
+            </div>
+
+            {/* All Sections - Sortable */}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleSectionDragEnd}
+            >
+              <SortableContext
+                items={sectionOrder}
+                strategy={verticalListSortingStrategy}
               >
-                <SortableContext
-                  items={contactFieldOrder}
-                >
-                  <div className="grid grid-cols-2 gap-2">
-                    {contactFieldOrder
-                      .filter((fieldKey, index, self) => self.indexOf(fieldKey) === index)
-                      .map((fieldKey) => {
-                      const fieldIcons: Record<string, string> = {
-                        email: '📧',
-                        phone: '📱',
-                        location: '📍',
-                        linkedin: '💼',
-                        website: '🌐',
-                        github: '💻',
-                        twitter: '🐦',
-                      }
-                      const fieldLabels: Record<string, string> = {
-                        email: 'Email',
-                        phone: 'Phone',
-                        location: 'Location',
-                        linkedin: 'LinkedIn',
-                        website: 'Website',
-                        github: 'GitHub',
-                        twitter: 'Twitter',
-                      }
-                      const icon = fieldIcons[fieldKey] || '📧'
-                      const label = fieldLabels[fieldKey] || fieldKey
-                      const value = (data as any)[fieldKey] || ''
-                      
+                <div className="space-y-4">
+                  {sectionOrder.map((sectionId) => {
+                    // Title Section
+                    if (sectionId === 'title') {
                       return (
-                        <ModernContactField
-                          key={`contact-${fieldKey}`}
-                          icon={icon}
-                          label={label}
-                          value={value}
-                          fieldKey={fieldKey}
-                          data={data}
-                          onChange={onChange}
-                        />
-                      )
-                    })}
-                    
-                    {/* Custom Contact Fields */}
-                    {customContactFields.map((customField) => (
-                      <ModernContactField
-                        key={`custom-${customField.id}`}
-                        icon="📧"
-                        label={customField.label}
-                        value={(data as any)[customField.field] || ''}
-                        fieldKey={customField.field}
-                        data={data}
-                        onChange={onChange}
-                        onRemove={() => removeCustomContactField(customField.id)}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-              
-              {/* Add Contact Field Button */}
-              <button
-                onClick={addCustomContactField}
-                className="w-full mt-3 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
-              >
-                + Add Contact Field
-              </button>
-                      </SortableSectionCard>
-                    )
-                  }
+                        <SortableSectionCard
+                          key="title"
+                          id="title"
+                          title="Title Section"
+                          icon="📋"
+                          isEnabled={true}
+                          fieldCount={1 + customTitleFields.length}
+                          isCollapsed={!isTitleSectionOpen}
+                          onToggleCollapse={() => setIsTitleSectionOpen(!isTitleSectionOpen)}
+                        >
+                          <div className="space-y-2">
+                            {/* Default Title with Checkbox */}
+                            <div className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group">
+                              <input
+                                type="checkbox"
+                                checked={(data as any).fieldsVisible?.title !== false}
+                                onChange={(e) => {
+                                  const fieldsVisible = { ...(data as any).fieldsVisible, title: e.target.checked }
+                                  onChange({ ...data, fieldsVisible })
+                                }}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                              />
+                              <div
+                                contentEditable
+                                suppressContentEditableWarning
+                                data-editable-type="field"
+                                data-field="title"
+                                onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
+                                className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${(data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                  }`}
+                              >
+                                {data.title || 'Click to edit title'}
+                              </div>
+                            </div>
 
-                  // Summary Section
-                  if (sectionId === 'summary') {
-                    return (
-                      <SortableSectionCard
-                        key="summary"
-                        id="summary"
-                        title="Professional Summary"
-                        icon="📝"
-                        isEnabled={(data as any).fieldsVisible?.summary !== false}
-                        onToggleVisibility={() => {
-                          const currentFieldsVisible = (data as any).fieldsVisible || {}
-                          const newFieldsVisible = {
-                            ...currentFieldsVisible,
-                            summary: currentFieldsVisible.summary === false ? undefined : false
-                          }
-                          onChange({ ...data, fieldsVisible: newFieldsVisible })
-                        }}
-                      >
-                        <div className="prose max-w-none">
-                          <div 
-                            contentEditable
-                            suppressContentEditableWarning
-                            data-editable-type="field"
-                            data-field="summary"
-                            onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
-                            className="text-sm text-gray-700 leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200"
-                          >
-                            {data.summary || 'Write a compelling professional summary that highlights your key skills and experience...'}
+                            {/* Custom Title Fields */}
+                            {customTitleFields.map((customField) => (
+                              <div key={customField.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group">
+                                <input
+                                  type="checkbox"
+                                  checked={(data as any).fieldsVisible?.[customField.field] !== false}
+                                  onChange={(e) => {
+                                    const fieldsVisible = { ...(data as any).fieldsVisible, [customField.field]: e.target.checked }
+                                    onChange({ ...data, fieldsVisible })
+                                  }}
+                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                                />
+                                <div
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  data-editable-type="field"
+                                  data-field={customField.field}
+                                  onBlur={(e) => {
+                                    const value = e.currentTarget.textContent || '';
+                                    onChange({ ...data, [customField.field]: value });
+                                  }}
+                                  className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${(data as any).fieldsVisible?.[customField.field] === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                    }`}
+                                >
+                                  {(data as any)[customField.field] || 'Click to edit custom title'}
+                                </div>
+                                <button
+                                  onClick={() => removeCustomTitleField(customField.id)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity flex-shrink-0"
+                                  title="Remove this field"
+                                >
+                                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+
+                            {/* Add Title Field Button */}
+                            <button
+                              onClick={addCustomTitleField}
+                              className="w-full mt-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                            >
+                              + Add Title Field
+                            </button>
                           </div>
-                          <button
-                            onClick={generateSummaryFromExperience}
-                            disabled={isSummaryGenerating || !data.sections.length}
-                            className="mt-3 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
-                            title="AI will analyze your work experience and create an ATS-optimized summary"
-                          >
-                            {isSummaryGenerating ? (
-                              <>
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                Generating...
-                              </>
-                            ) : (
-                              <>
-                                🤖 Generate Summary
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </SortableSectionCard>
-                    )
-                  }
-
-                  // Dynamic Sections
-                  const section = data.sections.find(s => s.id === sectionId)
-                  if (section) {
-                    const isSectionOpen = openSections.has(section.id);
-                    const bulletCount = (section.bullets || []).length;
-                    const sectionIcons: Record<string, string> = {
-                      'Work Experience': '💼',
-                      'Education': '🎓',
-                      'Skills': '🛠️',
-                      'Projects': '🚀',
-                      'Certifications': '🏆',
-                      'Languages': '🌐',
-                      'Awards': '⭐',
+                        </SortableSectionCard>
+                      )
                     }
-                    const icon = sectionIcons[section.title] || '📄'
-                    
-                    const isSectionCollapsed = !openSections.has(section.id)
-                    return (
-                      <SortableSectionCard
-                        key={section.id}
-                        id={section.id}
-                        title={section.title}
-                        icon={icon}
-                        isEnabled={section.params?.visible !== false}
-                        fieldCount={bulletCount}
-                        isCollapsed={isSectionCollapsed}
-                        onToggleCollapse={() => {
-                          setOpenSections(prev => {
-                            const updated = new Set(prev)
-                            if (updated.has(section.id)) {
-                              updated.delete(section.id)
-                            } else {
-                              updated.add(section.id)
+
+                    // Contact Section
+                    if (sectionId === 'contact') {
+                      return (
+                        <SortableSectionCard
+                          key="contact"
+                          id="contact"
+                          title="Contact Information"
+                          icon="📞"
+                          isEnabled={true}
+                          fieldCount={contactFieldOrder.length + customContactFields.length}
+                          isCollapsed={!isContactSectionOpen}
+                          onToggleCollapse={() => setIsContactSectionOpen(!isContactSectionOpen)}
+                        >
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleContactFieldDragEnd}
+                          >
+                            <SortableContext
+                              items={contactFieldOrder}
+                            >
+                              <div className="grid grid-cols-2 gap-2">
+                                {contactFieldOrder
+                                  .filter((fieldKey, index, self) => self.indexOf(fieldKey) === index)
+                                  .map((fieldKey) => {
+                                    const fieldIcons: Record<string, string> = {
+                                      email: '📧',
+                                      phone: '📱',
+                                      location: '📍',
+                                      linkedin: '💼',
+                                      website: '🌐',
+                                      github: '💻',
+                                      twitter: '🐦',
+                                    }
+                                    const fieldLabels: Record<string, string> = {
+                                      email: 'Email',
+                                      phone: 'Phone',
+                                      location: 'Location',
+                                      linkedin: 'LinkedIn',
+                                      website: 'Website',
+                                      github: 'GitHub',
+                                      twitter: 'Twitter',
+                                    }
+                                    const icon = fieldIcons[fieldKey] || '📧'
+                                    const label = fieldLabels[fieldKey] || fieldKey
+                                    const value = (data as any)[fieldKey] || ''
+
+                                    return (
+                                      <ModernContactField
+                                        key={`contact-${fieldKey}`}
+                                        icon={icon}
+                                        label={label}
+                                        value={value}
+                                        fieldKey={fieldKey}
+                                        data={data}
+                                        onChange={onChange}
+                                      />
+                                    )
+                                  })}
+
+                                {/* Custom Contact Fields */}
+                                {customContactFields.map((customField) => (
+                                  <ModernContactField
+                                    key={`custom-${customField.id}`}
+                                    icon="📧"
+                                    label={customField.label}
+                                    value={(data as any)[customField.field] || ''}
+                                    fieldKey={customField.field}
+                                    data={data}
+                                    onChange={onChange}
+                                    onRemove={() => removeCustomContactField(customField.id)}
+                                  />
+                                ))}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+
+                          {/* Add Contact Field Button */}
+                          <button
+                            onClick={addCustomContactField}
+                            className="w-full mt-3 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                          >
+                            + Add Contact Field
+                          </button>
+                        </SortableSectionCard>
+                      )
+                    }
+
+                    // Summary Section
+                    if (sectionId === 'summary') {
+                      return (
+                        <SortableSectionCard
+                          key="summary"
+                          id="summary"
+                          title="Professional Summary"
+                          icon="📝"
+                          isEnabled={(data as any).fieldsVisible?.summary !== false}
+                          onToggleVisibility={() => {
+                            const currentFieldsVisible = (data as any).fieldsVisible || {}
+                            const newFieldsVisible = {
+                              ...currentFieldsVisible,
+                              summary: currentFieldsVisible.summary === false ? undefined : false
                             }
-                            return updated
-                          })
-                        }}
-                        onToggleVisibility={() => {
-                          const updatedSections = data.sections.map(s =>
-                            s.id === section.id
-                              ? {
+                            onChange({ ...data, fieldsVisible: newFieldsVisible })
+                          }}
+                        >
+                          <div className="prose max-w-none">
+                            <div
+                              contentEditable
+                              suppressContentEditableWarning
+                              data-editable-type="field"
+                              data-field="summary"
+                              onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
+                              className="text-sm text-gray-700 leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200"
+                            >
+                              {data.summary || 'Write a compelling professional summary that highlights your key skills and experience...'}
+                            </div>
+                            <button
+                              onClick={generateSummaryFromExperience}
+                              disabled={isSummaryGenerating || !data.sections.length}
+                              className="mt-3 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                              title="AI will analyze your work experience and create an ATS-optimized summary"
+                            >
+                              {isSummaryGenerating ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  🤖 Generate Summary
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </SortableSectionCard>
+                      )
+                    }
+
+                    // Dynamic Sections
+                    const section = data.sections.find(s => s.id === sectionId)
+                    if (section) {
+                      const isSectionOpen = openSections.has(section.id);
+                      const bulletCount = (section.bullets || []).length;
+                      const sectionIcons: Record<string, string> = {
+                        'Work Experience': '💼',
+                        'Education': '🎓',
+                        'Skills': '🛠️',
+                        'Projects': '🚀',
+                        'Certifications': '🏆',
+                        'Languages': '🌐',
+                        'Awards': '⭐',
+                      }
+                      const icon = sectionIcons[section.title] || '📄'
+
+                      const isSectionCollapsed = !openSections.has(section.id)
+                      return (
+                        <SortableSectionCard
+                          key={section.id}
+                          id={section.id}
+                          title={section.title}
+                          icon={icon}
+                          isEnabled={section.params?.visible !== false}
+                          fieldCount={bulletCount}
+                          isCollapsed={isSectionCollapsed}
+                          onToggleCollapse={() => {
+                            setOpenSections(prev => {
+                              const updated = new Set(prev)
+                              if (updated.has(section.id)) {
+                                updated.delete(section.id)
+                              } else {
+                                updated.add(section.id)
+                              }
+                              return updated
+                            })
+                          }}
+                          onToggleVisibility={() => {
+                            const updatedSections = data.sections.map(s =>
+                              s.id === section.id
+                                ? {
                                   ...s,
                                   params: {
                                     ...s.params,
                                     visible: s.params?.visible === false ? undefined : false
                                   }
                                 }
-                              : s
-                          )
-                          onChange({ ...data, sections: updatedSections })
-                        }}
-                      >
-                        <div className="space-y-4">
-                          {/* Comments Section */}
-                          {showComments === section.id && roomId && onAddComment && onResolveComment && onDeleteComment && (
-                            <div className="mb-4">
-                              <Comments
-                                roomId={roomId}
-                                targetType="section"
-                                targetId={section.id}
-                                onAddComment={onAddComment}
-                                onResolveComment={onResolveComment}
-                                onDeleteComment={onDeleteComment}
-                              />
-                            </div>
-                          )}
-
-                {/* Modern Experience Layout - All Sections */}
-                  <div className="space-y-6">
-                    {/* Add New Item Button - At Top */}
-                    {getSectionType(section.title) !== 'skill' && (
-                      <div className="flex flex-col items-center mb-6 gap-3">
-                      <button
-                        onClick={() => {
-                          if (section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work')) {
-                            // Add new company for work experience
-                            const newItemBullet = {
-                              id: `company-${Date.now()}`,
-                              text: '**New Company / Location / New Role / Date Range**',
-                              params: {}
-                            }
-
-                            const sections = data.sections.map(s =>
-                              s.id === section.id
-                                ? {
-                                    ...s,
-                                    bullets: [newItemBullet, ...s.bullets]
-                                  }
                                 : s
                             )
-                            onChange({ ...data, sections })
-                          } else {
-                            // Add simple bullet point for other sections
-                            const newBullet = {
-                              id: `bullet-${Date.now()}`,
-                              text: '• ',
-                              params: {}
-                            }
-
-                            const sections = data.sections.map(s =>
-                              s.id === section.id
-                                ? {
-                                    ...s,
-                                    bullets: [newBullet, ...s.bullets]
-                                  }
-                                : s
-                            )
-                            onChange({ ...data, sections })
-                          }
-                        }}
-                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-                      >
-                        <span>+</span> Add {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? 'Company' : 'Bullet Point'}
-                      </button>
-                        {jdKeywords && jdKeywords.missing.length > 0 && !section.title.toLowerCase().includes('experience') && !section.title.toLowerCase().includes('work') && (
-                          <div className="w-full max-w-2xl p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-xs font-semibold text-blue-800 mb-2">💡 Create bullet from missing JD keywords:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {jdKeywords.missing.slice(0, 8).map((kw, i) => (
-                                <button
-                                  key={i}
-                                  onClick={async () => {
-                                    await generateBulletFromKeywords(section.id, kw);
-                                  }}
-                                  className="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded hover:bg-blue-200 transition-colors flex items-center gap-1"
-                                >
-                                  <span>✨</span> {kw}
-                                </button>
-                              ))}
-                    </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Skills Section - Add Skill Button */}
-                    {getSectionType(section.title) === 'skill' && (
-                      <div className="mb-4">
-                        <button
-                          onClick={() => {
-                            const newSkill = {
-                              id: `skill-${Date.now()}`,
-                              text: 'New Skill',
-                              params: { visible: true }
-                            }
-                            const sections = data.sections.map(s =>
-                              s.id === section.id
-                                ? {
-                                    ...s,
-                                    bullets: [...s.bullets, newSkill]
-                                  }
-                                : s
-                            )
-                            onChange({ ...data, sections })
+                            onChange({ ...data, sections: updatedSections })
                           }}
-                          className="px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          onRemove={() => removeSection(section.id)}
                         >
-                          <span>+</span> Add Skill
-                        </button>
-                        {jdKeywords && jdKeywords.missing.length > 0 && (
-                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p className="text-xs font-semibold text-yellow-800 mb-1">💡 Missing Keywords from JD:</p>
-                            <div className="flex flex-wrap gap-1">
-                              {jdKeywords.missing.slice(0, 5).map((kw, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => {
-                                    const newSkill = {
-                                      id: `skill-${Date.now()}-${i}`,
-                                      text: kw,
-                                      params: { visible: true }
-                                    }
-                                    const sections = data.sections.map(s =>
-                                      s.id === section.id
-                                        ? {
+                          <div className="space-y-4">
+                            {/* Comments Section */}
+                            {showComments === section.id && roomId && onAddComment && onResolveComment && onDeleteComment && (
+                              <div className="mb-4">
+                                <Comments
+                                  roomId={roomId}
+                                  targetType="section"
+                                  targetId={section.id}
+                                  onAddComment={onAddComment}
+                                  onResolveComment={onResolveComment}
+                                  onDeleteComment={onDeleteComment}
+                                />
+                              </div>
+                            )}
+
+                            {/* Modern Experience Layout - All Sections */}
+                            <div className="space-y-6">
+                              {/* Add New Item Button - At Top */}
+                              {getSectionType(section.title) !== 'skill' && (
+                                <div className="flex flex-col items-center mb-6 gap-3">
+                                  <button
+                                    onClick={() => {
+                                      if (section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work')) {
+                                        // Add new company for work experience
+                                        const newItemBullet = {
+                                          id: `company-${Date.now()}`,
+                                          text: '**New Company / Location / New Role / Date Range**',
+                                          params: {}
+                                        }
+
+                                        const sections = data.sections.map(s =>
+                                          s.id === section.id
+                                            ? {
+                                              ...s,
+                                              bullets: [newItemBullet, ...s.bullets]
+                                            }
+                                            : s
+                                        )
+                                        onChange({ ...data, sections })
+                                      } else {
+                                        // Add simple bullet point for other sections
+                                        const newBullet = {
+                                          id: `bullet-${Date.now()}`,
+                                          text: '• ',
+                                          params: {}
+                                        }
+
+                                        const sections = data.sections.map(s =>
+                                          s.id === section.id
+                                            ? {
+                                              ...s,
+                                              bullets: [newBullet, ...s.bullets]
+                                            }
+                                            : s
+                                        )
+                                        onChange({ ...data, sections })
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                                  >
+                                    <span>+</span> Add {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? 'Company' : 'Bullet Point'}
+                                  </button>
+                                  {jdKeywords && jdKeywords.missing.length > 0 && !section.title.toLowerCase().includes('experience') && !section.title.toLowerCase().includes('work') && (
+                                    <div className="w-full max-w-2xl p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                      <p className="text-xs font-semibold text-blue-800 mb-2">💡 Create bullet from missing JD keywords:</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {jdKeywords.missing.slice(0, 8).map((kw, i) => (
+                                          <button
+                                            key={i}
+                                            onClick={async () => {
+                                              await generateBulletFromKeywords(section.id, kw);
+                                            }}
+                                            className="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded hover:bg-blue-200 transition-colors flex items-center gap-1"
+                                          >
+                                            <span>✨</span> {kw}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Skills Section - Add Skill Button */}
+                              {getSectionType(section.title) === 'skill' && (
+                                <div className="mb-4">
+                                  <button
+                                    onClick={() => {
+                                      const newSkill = {
+                                        id: `skill-${Date.now()}`,
+                                        text: 'New Skill',
+                                        params: { visible: true }
+                                      }
+                                      const sections = data.sections.map(s =>
+                                        s.id === section.id
+                                          ? {
                                             ...s,
                                             bullets: [...s.bullets, newSkill]
                                           }
-                                        : s
-                                    )
-                                    onChange({ ...data, sections })
-                                  }}
-                                  className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded hover:bg-yellow-200 transition-colors"
-                                >
-                                  + {kw}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Work Experience - Company-based layout */}
-                    {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? (
-                      getOrderedCompanyGroups(section.bullets).filter((group) => {
-                        const headerBullet = group[0]
-                        return isCompanyHeaderBullet(headerBullet)
-                      }).map((group, groupIdx) => {
-                        const headerBullet = group[0]
-
-                        const headerText = headerBullet.text.replace(/\*\*/g, '').trim()
-                        const parts = headerText.split(' / ')
-                        // Support both old format (3 parts) and new format (4 parts)
-                        // Old: Company Name / Job Title / Date Range
-                        // New: Company Name / Location / Title / Date Range
-                        const companyName = parts[0]?.trim() || 'Unknown Company'
-                        const location = parts.length >= 4 ? parts[1]?.trim() : ''
-                        const jobTitle = parts.length >= 4 ? parts[2]?.trim() : (parts[1]?.trim() || 'Unknown Role')
-                        const dateRange = parts.length >= 4 ? parts[3]?.trim() : (parts[2]?.trim() || 'Unknown Date')
-
-                        const companyBullets: Bullet[] = group.slice(1)
-                        const uncheckedBulletCount = companyBullets.filter(bullet => bullet.params?.visible === false).length
-                        const companyGroupId = `company-${headerBullet.id}`
-                        const isCompanyCollapsed = !openCompanyGroups.has(companyGroupId)
-
-                        return (
-                          <div
-                            key={companyGroupId}
-                            className={`bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow ${uncheckedBulletCount > 0 ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200'} ${headerBullet.params?.visible === false ? 'opacity-60 grayscale' : ''}`}
-                          >
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-3 flex-1">
-                                <button
-                                  onClick={() => {
-                                    setOpenCompanyGroups(prev => {
-                                      const updated = new Set(prev)
-                                      if (updated.has(companyGroupId)) {
-                                        updated.delete(companyGroupId)
-                                      } else {
-                                        updated.add(companyGroupId)
-                                      }
-                                      return updated
-                                    })
-                                  }}
-                                  className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
-                                  title={isCompanyCollapsed ? 'Expand company' : 'Collapse company'}
-                                >
-                                  <svg 
-                                    className="w-4 h-4 text-gray-600 transition-transform" 
-                                    fill="none" 
-                                    stroke="currentColor" 
-                                    viewBox="0 0 24 24"
-                                    style={{ transform: isCompanyCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                                          : s
+                                      )
+                                      onChange({ ...data, sections })
+                                    }}
+                                    className="px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
                                   >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
-                                <input
-                                  type="checkbox"
-                                  checked={headerBullet.params?.visible !== false}
-                                  onChange={(e) => {
-                                    e.stopPropagation()
-                                    const newChecked = Boolean(e.target.checked)
-                                    const updatedData = {
-                                      ...data,
-                                      sections: data.sections.map(s => {
-                                        if (s.id !== section.id) return s
-
-                                        const updatedBullets = s.bullets.map(b =>
-                                          b.id === headerBullet.id
-                                            ? { 
-                                                ...b, 
-                                                params: { 
-                                                  ...(b.params || {}), 
-                                                  visible: newChecked ? true : false 
-                                                } 
+                                    <span>+</span> Add Skill
+                                  </button>
+                                  {jdKeywords && jdKeywords.missing.length > 0 && (
+                                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                      <p className="text-xs font-semibold text-yellow-800 mb-1">💡 Missing Keywords from JD:</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {jdKeywords.missing.slice(0, 5).map((kw, i) => (
+                                          <button
+                                            key={i}
+                                            onClick={() => {
+                                              const newSkill = {
+                                                id: `skill-${Date.now()}-${i}`,
+                                                text: kw,
+                                                params: { visible: true }
                                               }
-                                            : b
-                                        )
-
-                                        return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
-                                      })
-                                    }
-                                    onChange(updatedData)
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
-                                  title="Toggle this work experience entry visibility in preview"
-                                />
-                                <div className="w-3 h-3 bg-black rounded-full flex-shrink-0"></div>
-                                <div className="flex-1">
-                                  {/* Line 1: Company Name / Location */}
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <div
-                                      contentEditable
-                                      suppressContentEditableWarning
-                                      data-editable-type="company-name"
-                                      data-section-id={section.id}
-                                      data-bullet-id={headerBullet.id}
-                                      onBlur={(e) => {
-                                        const locationText = location || 'Location'
-                                        const newText = `**${e.currentTarget.textContent || 'Company Name'} / ${locationText} / ${jobTitle} / ${dateRange}**`
-                                        updateBullet(section.id, headerBullet.id, newText)
-                                      }}
-                                      className={`text-lg font-bold outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                        headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
-                                      }`}
-                                    >
-                                      {companyName}
+                                              const sections = data.sections.map(s =>
+                                                s.id === section.id
+                                                  ? {
+                                                    ...s,
+                                                    bullets: [...s.bullets, newSkill]
+                                                  }
+                                                  : s
+                                              )
+                                              onChange({ ...data, sections })
+                                            }}
+                                            className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded hover:bg-yellow-200 transition-colors"
+                                          >
+                                            + {kw}
+                                          </button>
+                                        ))}
+                                      </div>
                                     </div>
-                                    {location && (
-                                      <span className="text-gray-500">/</span>
-                                    )}
-                                    <div
-                                      contentEditable
-                                      suppressContentEditableWarning
-                                      data-editable-type="location"
-                                      data-section-id={section.id}
-                                      data-bullet-id={headerBullet.id}
-                                      onBlur={(e) => {
-                                        const newText = `**${companyName} / ${e.currentTarget.textContent || 'Location'} / ${jobTitle} / ${dateRange}**`
-                                        updateBullet(section.id, headerBullet.id, newText)
-                                      }}
-                                      className={`text-sm text-gray-600 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                        headerBullet.params?.visible === false ? 'text-gray-400 line-through' : ''
-                                      }`}
-                                    >
-                                      {location || 'Location'}
-                                    </div>
-                                  </div>
-                                  {/* Line 2: Title (left) and Date Range (right) */}
-                                  <div className="flex items-center justify-between">
-                                    <div
-                                      contentEditable
-                                      suppressContentEditableWarning
-                                      data-editable-type="job-title"
-                                      data-section-id={section.id}
-                                      data-bullet-id={headerBullet.id}
-                                      onBlur={(e) => {
-                                        const locationText = location || 'Location'
-                                        const newText = `**${companyName} / ${locationText} / ${e.currentTarget.textContent || 'Job Title'} / ${dateRange}**`
-                                        updateBullet(section.id, headerBullet.id, newText)
-                                      }}
-                                      className={`text-sm font-medium outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                        headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                                      }`}
-                                    >
-                                      {jobTitle}
-                                    </div>
-                                    <div
-                                      contentEditable
-                                      suppressContentEditableWarning
-                                      data-editable-type="date-range"
-                                      data-section-id={section.id}
-                                      data-bullet-id={headerBullet.id}
-                                      onBlur={(e) => {
-                                        const locationText = location || 'Location'
-                                        const newText = `**${companyName} / ${locationText} / ${jobTitle} / ${e.currentTarget.textContent || 'Date Range'}**`
-                                        updateBullet(section.id, headerBullet.id, newText)
-                                      }}
-                                      className="text-sm text-gray-500 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
-                                    >
-                                      {dateRange}
-                                    </div>
-                                  </div>
+                                  )}
                                 </div>
-                              </div>
+                              )}
 
-                              <div className="flex items-center gap-2">
+                              {/* Work Experience - Company-based layout */}
+                              {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? (
+                                getOrderedCompanyGroups(section.bullets).filter((group) => {
+                                  const headerBullet = group[0]
+                                  return isCompanyHeaderBullet(headerBullet)
+                                }).map((group, groupIdx) => {
+                                  const headerBullet = group[0]
 
-                                <button
-                                  onClick={() => {
-                                    setAiWorkExperienceContext({
-                                      companyName,
-                                      location: location || '',
-                                      jobTitle,
-                                      dateRange,
-                                      sectionId: section.id,
-                                      bulletId: headerBullet.id,
-                                      mode: 'new'
-                                    })
-                                    setShowAIWorkExperience(true)
-                                  }}
-                                  className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-semibold rounded-lg hover:from-orange-600 hover:to-red-600 transition-all shadow-md hover:shadow-lg flex items-center gap-1"
-                                  title="🤖 AI Assistant - Generate work experience content"
-                                >
-                                  <span>🤖</span> AI Assistant
-                                </button>
+                                  const headerText = headerBullet.text.replace(/\*\*/g, '').trim()
+                                  const parts = headerText.split(' / ')
+                                  // Support both old format (3 parts) and new format (4 parts)
+                                  // Old: Company Name / Job Title / Date Range
+                                  // New: Company Name / Location / Title / Date Range
+                                  const companyName = parts[0]?.trim() || 'Unknown Company'
+                                  const location = parts.length >= 4 ? parts[1]?.trim() : ''
+                                  const jobTitle = parts.length >= 4 ? parts[2]?.trim() : (parts[1]?.trim() || 'Unknown Role')
+                                  const dateRange = parts.length >= 4 ? parts[3]?.trim() : (parts[2]?.trim() || 'Unknown Date')
 
-                                <button
-                                  onClick={() => {
-                                    const companyBulletIds = companyBullets.map(b => b.id)
-                                    const updatedBullets = section.bullets.filter(b =>
-                                      b.id !== headerBullet.id && !companyBulletIds.includes(b.id)
-                                    )
-                                    const sections = data.sections.map(s =>
-                                      s.id === section.id ? { ...s, bullets: updatedBullets } : s
-                                    )
-                                    onChange({ ...data, sections })
-                                  }}
-                                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
-                                  title="Delete company panel"
-                                >
-                                  <span>×</span> Delete Company
-                                </button>
-                              </div>
-                            </div>
-
-                            {!isCompanyCollapsed && (
-                              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                                <div className="space-y-1.5">
-                                {companyBullets.filter(companyBullet => {
-                                  const normalizedText = companyBullet.text?.trim() || ''
-                                  const isHeaderLike = normalizedText.startsWith('**') || normalizedText.split(' / ').length >= 2
-                                  const isBulletLike = normalizedText.startsWith('•') || normalizedText.startsWith('-')
-                                  return isBulletLike || !isHeaderLike
-                                }).map(companyBullet => {
-
-                                  const generatedKeywords = companyBullet.params?.generatedKeywords as string[] | undefined;
-                                  const bulletMatch = checkBulletMatches(companyBullet.text, section.title, generatedKeywords)
-                                  const hasMatch = bulletMatch.matches
-                                  const hasNoMatch = jdKeywords && !hasMatch && companyBullet.text.trim().length > 0
-                                  const isDisabled = companyBullet.params?.visible === false
-                                  const disabledHasMissing = isDisabled && jdKeywords && jdKeywords.missing.length > 0 &&
-                                    jdKeywords.missing.some(kw => {
-                                      const regex = new RegExp(`\\b${kw.toLowerCase().replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'i')
-                                      return regex.test(companyBullet.text.toLowerCase())
-                                    })
+                                  const companyBullets: Bullet[] = group.slice(1)
+                                  const uncheckedBulletCount = companyBullets.filter(bullet => bullet.params?.visible === false).length
+                                  const companyGroupId = `company-${headerBullet.id}`
+                                  const isCompanyCollapsed = !openCompanyGroups.has(companyGroupId)
 
                                   return (
                                     <div
-                                      key={companyBullet.id}
-                                      className={`group flex items-start gap-2 px-2 py-1 rounded border border-transparent ${
-                                        companyBullet.params?.visible === false ? 'opacity-70' : ''
-                                      }`}
+                                      key={companyGroupId}
+                                      className={`bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow ${uncheckedBulletCount > 0 ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200'} ${headerBullet.params?.visible === false ? 'opacity-60 grayscale' : ''}`}
+                                    >
+                                      <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3 flex-1">
+                                          <button
+                                            onClick={() => {
+                                              setOpenCompanyGroups(prev => {
+                                                const updated = new Set(prev)
+                                                if (updated.has(companyGroupId)) {
+                                                  updated.delete(companyGroupId)
+                                                } else {
+                                                  updated.add(companyGroupId)
+                                                }
+                                                return updated
+                                              })
+                                            }}
+                                            className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+                                            title={isCompanyCollapsed ? 'Expand company' : 'Collapse company'}
+                                          >
+                                            <svg
+                                              className="w-4 h-4 text-gray-600 transition-transform"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              viewBox="0 0 24 24"
+                                              style={{ transform: isCompanyCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                                            >
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                          </button>
+                                          <input
+                                            type="checkbox"
+                                            checked={headerBullet.params?.visible !== false}
+                                            onChange={(e) => {
+                                              e.stopPropagation()
+                                              const newChecked = Boolean(e.target.checked)
+                                              const updatedData = {
+                                                ...data,
+                                                sections: data.sections.map(s => {
+                                                  if (s.id !== section.id) return s
+
+                                                  const updatedBullets = s.bullets.map(b =>
+                                                    b.id === headerBullet.id
+                                                      ? {
+                                                        ...b,
+                                                        params: {
+                                                          ...(b.params || {}),
+                                                          visible: newChecked ? true : false
+                                                        }
+                                                      }
+                                                      : b
+                                                  )
+
+                                                  return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
+                                                })
+                                              }
+                                              onChange(updatedData)
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                                            title="Toggle this work experience entry visibility in preview"
+                                          />
+                                          <div className="w-3 h-3 bg-black rounded-full flex-shrink-0"></div>
+                                          <div className="flex-1">
+                                            {/* Line 1: Company Name / Location */}
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <div
+                                                contentEditable
+                                                suppressContentEditableWarning
+                                                data-editable-type="company-name"
+                                                data-section-id={section.id}
+                                                data-bullet-id={headerBullet.id}
+                                                onBlur={(e) => {
+                                                  const locationText = location || 'Location'
+                                                  const newText = `**${e.currentTarget.textContent || 'Company Name'} / ${locationText} / ${jobTitle} / ${dateRange}**`
+                                                  updateBullet(section.id, headerBullet.id, newText)
+                                                }}
+                                                className={`text-lg font-bold outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
+                                                  }`}
+                                              >
+                                                {companyName}
+                                              </div>
+                                              {location && (
+                                                <span className="text-gray-500">/</span>
+                                              )}
+                                              <div
+                                                contentEditable
+                                                suppressContentEditableWarning
+                                                data-editable-type="location"
+                                                data-section-id={section.id}
+                                                data-bullet-id={headerBullet.id}
+                                                onBlur={(e) => {
+                                                  const newText = `**${companyName} / ${e.currentTarget.textContent || 'Location'} / ${jobTitle} / ${dateRange}**`
+                                                  updateBullet(section.id, headerBullet.id, newText)
+                                                }}
+                                                className={`text-sm text-gray-600 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${headerBullet.params?.visible === false ? 'text-gray-400 line-through' : ''
+                                                  }`}
+                                              >
+                                                {location || 'Location'}
+                                              </div>
+                                            </div>
+                                            {/* Line 2: Title (left) and Date Range (right) */}
+                                            <div className="flex items-center justify-between">
+                                              <div
+                                                contentEditable
+                                                suppressContentEditableWarning
+                                                data-editable-type="job-title"
+                                                data-section-id={section.id}
+                                                data-bullet-id={headerBullet.id}
+                                                onBlur={(e) => {
+                                                  const locationText = location || 'Location'
+                                                  const newText = `**${companyName} / ${locationText} / ${e.currentTarget.textContent || 'Job Title'} / ${dateRange}**`
+                                                  updateBullet(section.id, headerBullet.id, newText)
+                                                }}
+                                                className={`text-sm font-medium outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                                  }`}
+                                              >
+                                                {jobTitle}
+                                              </div>
+                                              <div
+                                                contentEditable
+                                                suppressContentEditableWarning
+                                                data-editable-type="date-range"
+                                                data-section-id={section.id}
+                                                data-bullet-id={headerBullet.id}
+                                                onBlur={(e) => {
+                                                  const locationText = location || 'Location'
+                                                  const newText = `**${companyName} / ${locationText} / ${jobTitle} / ${e.currentTarget.textContent || 'Date Range'}**`
+                                                  updateBullet(section.id, headerBullet.id, newText)
+                                                }}
+                                                className="text-sm text-gray-500 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
+                                              >
+                                                {dateRange}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+
+                                          <button
+                                            onClick={() => {
+                                              setAiWorkExperienceContext({
+                                                companyName,
+                                                location: location || '',
+                                                jobTitle,
+                                                dateRange,
+                                                sectionId: section.id,
+                                                bulletId: headerBullet.id,
+                                                mode: 'new'
+                                              })
+                                              setShowAIWorkExperience(true)
+                                            }}
+                                            className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-semibold rounded-lg hover:from-orange-600 hover:to-red-600 transition-all shadow-md hover:shadow-lg flex items-center gap-1"
+                                            title="🤖 AI Assistant - Generate work experience content"
+                                          >
+                                            <span>🤖</span> AI Assistant
+                                          </button>
+
+                                          <button
+                                            onClick={() => {
+                                              const companyBulletIds = companyBullets.map(b => b.id)
+                                              const updatedBullets = section.bullets.filter(b =>
+                                                b.id !== headerBullet.id && !companyBulletIds.includes(b.id)
+                                              )
+                                              const sections = data.sections.map(s =>
+                                                s.id === section.id ? { ...s, bullets: updatedBullets } : s
+                                              )
+                                              onChange({ ...data, sections })
+                                            }}
+                                            className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
+                                            title="Delete company panel"
+                                          >
+                                            <span>×</span> Delete Company
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {!isCompanyCollapsed && (
+                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                          <div className="space-y-1.5">
+                                            {companyBullets.filter(companyBullet => {
+                                              const normalizedText = companyBullet.text?.trim() || ''
+                                              const isHeaderLike = normalizedText.startsWith('**') || normalizedText.split(' / ').length >= 2
+                                              const isBulletLike = normalizedText.startsWith('•') || normalizedText.startsWith('-')
+                                              return isBulletLike || !isHeaderLike
+                                            }).map(companyBullet => {
+
+                                              const generatedKeywords = companyBullet.params?.generatedKeywords as string[] | undefined;
+                                              const bulletMatch = checkBulletMatches(companyBullet.text, section.title, generatedKeywords)
+                                              const hasMatch = bulletMatch.matches
+                                              const hasNoMatch = jdKeywords && !hasMatch && companyBullet.text.trim().length > 0
+                                              const isDisabled = companyBullet.params?.visible === false
+                                              const disabledHasMissing = isDisabled && jdKeywords && jdKeywords.missing.length > 0 &&
+                                                jdKeywords.missing.some(kw => {
+                                                  const regex = new RegExp(`\\b${kw.toLowerCase().replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'i')
+                                                  return regex.test(companyBullet.text.toLowerCase())
+                                                })
+
+                                              return (
+                                                <div
+                                                  key={companyBullet.id}
+                                                  className={`group flex items-start gap-2 px-2 py-1 rounded border border-transparent ${companyBullet.params?.visible === false ? 'opacity-70' : ''
+                                                    }`}
+                                                >
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={companyBullet.params?.visible !== false}
+                                                    onChange={(e) => {
+                                                      e.stopPropagation()
+                                                      const newChecked = Boolean(e.target.checked)
+                                                      const updatedData = {
+                                                        ...data,
+                                                        sections: data.sections.map(s => {
+                                                          if (s.id !== section.id) return s
+
+                                                          const updatedBullets = s.bullets.map(b =>
+                                                            b.id === companyBullet.id
+                                                              ? {
+                                                                ...b,
+                                                                params: {
+                                                                  ...(b.params || {}),
+                                                                  visible: newChecked ? true : false
+                                                                }
+                                                              }
+                                                              : b
+                                                          )
+
+                                                          const companyBulletIds = companyBullets.map(b => b.id)
+                                                          const indexes = companyBulletIds
+                                                            .map(id => updatedBullets.findIndex(b => b.id === id))
+                                                            .filter(index => index !== -1)
+
+                                                          if (indexes.length > 0) {
+                                                            const currentRange = indexes.map(index => updatedBullets[index])
+                                                            const orderedRange = [
+                                                              ...currentRange.filter(b => b.params?.visible !== false),
+                                                              ...currentRange.filter(b => b.params?.visible === false)
+                                                            ]
+
+                                                            const reordered = [...updatedBullets]
+                                                            const sortedIndicesDesc = [...indexes].sort((a, b) => b - a)
+                                                            sortedIndicesDesc.forEach(index => {
+                                                              reordered.splice(index, 1)
+                                                            })
+                                                            reordered.splice(Math.min(...indexes), 0, ...orderedRange)
+
+                                                            return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(reordered)) }
+                                                          }
+
+                                                          return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
+                                                        })
+                                                      }
+                                                      onChange(updatedData)
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
+                                                    title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : 'Toggle bullet visibility in preview'}
+                                                  />
+                                                  <div className="flex-1 min-w-0">
+                                                    <div className="relative flex-1">
+                                                      {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
+                                                        <div
+                                                          className={`text-sm leading-relaxed pointer-events-none ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                            }`}
+                                                        >
+                                                          {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                                        </div>
+                                                      )}
+                                                      <div
+                                                        contentEditable
+                                                        suppressContentEditableWarning
+                                                        data-editable-type="bullet"
+                                                        data-section-id={section.id}
+                                                        data-bullet-id={companyBullet.id}
+                                                        onBlur={(e) => {
+                                                          updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '')
+                                                          if (typeof window !== 'undefined') {
+                                                            window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
+                                                              detail: {
+                                                                resumeData: {
+                                                                  ...data,
+                                                                  sections: data.sections.map(s =>
+                                                                    s.id === section.id
+                                                                      ? {
+                                                                        ...s,
+                                                                        bullets: s.bullets.map(b =>
+                                                                          b.id === companyBullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
+                                                                        )
+                                                                      }
+                                                                      : s
+                                                                  )
+                                                                }
+                                                              }
+                                                            }))
+                                                          }
+                                                        }}
+                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text ${hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0 pointer-events-none' : ''
+                                                          } ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                                          }`}
+                                                        style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, pointerEvents: 'none' } : {}}
+                                                      >
+                                                        {companyBullet.text.replace(/^•\s*/, '')}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                      onClick={() => {
+                                                        if (jdKeywords && jdKeywords.missing.length > 0) {
+                                                          const cleanedText = (companyBullet.text || '').replace(/^[-•*]+\s*/, '').trim()
+                                                          setAiImproveContext({
+                                                            sectionId: section.id,
+                                                            bulletId: companyBullet.id,
+                                                            currentText: companyBullet.text,
+                                                            mode: cleanedText.length > 0 ? 'existing' : 'new'
+                                                          })
+                                                          setShowAIImproveModal(true)
+                                                        } else if (onAIImprove) {
+                                                          ; (async () => {
+                                                            try {
+                                                              setIsAILoading(true)
+                                                              const improvedText = await onAIImprove(companyBullet.text)
+                                                              updateBullet(section.id, companyBullet.id, improvedText)
+                                                            } catch (error) {
+                                                              console.error('AI improvement failed:', error)
+                                                            } finally {
+                                                              setIsAILoading(false)
+                                                            }
+                                                          })()
+                                                        }
+                                                      }}
+                                                      disabled={isAILoading}
+                                                      className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
+                                                      title="✨ AI Improve - Enhance with missing JD keywords"
+                                                    >
+                                                      <span>{isAILoading ? '⏳' : '✨'}</span>
+                                                    </button>
+
+                                                    <button
+                                                      onClick={() => removeBullet(section.id, companyBullet.id)}
+                                                      className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
+                                                      title="Remove bullet point"
+                                                    >
+                                                      <span>×</span>
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              )
+                                            })}
+
+                                            <div className="flex justify-center pt-2">
+                                              <button
+                                                onClick={() => {
+                                                  const companyBulletIds = companyBullets.map(b => b.id)
+                                                  const lastBulletId = companyBulletIds[companyBulletIds.length - 1]
+                                                  const lastIndex = section.bullets.findIndex(b => b.id === lastBulletId)
+                                                  const newBullet = { id: Date.now().toString(), text: '• ', params: {} }
+                                                  const sections = data.sections.map(s =>
+                                                    s.id === section.id
+                                                      ? {
+                                                        ...s,
+                                                        bullets: [
+                                                          ...s.bullets.slice(0, lastIndex + 1),
+                                                          newBullet,
+                                                          ...s.bullets.slice(lastIndex + 1)
+                                                        ]
+                                                      }
+                                                      : s
+                                                  )
+                                                  onChange({ ...data, sections })
+                                                }}
+                                                className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg font-semibold flex items-center gap-1 transition-all text-xs"
+                                                title="Add bullet point to this company"
+                                              >
+                                                <span>+</span> Add Bullet
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })
+                              ) : getSectionType(section.title) === 'skill' ? (
+                                /* Skills Section - Checkbox Chips Layout */
+                                <div className="flex flex-wrap gap-2">
+                                  {section.bullets
+                                    .filter(bullet => !bullet.text?.startsWith('**'))
+                                    .filter((bullet) => {
+                                      const skillName = bullet.text.replace(/^•\s*/, '').trim()
+                                      return skillName
+                                    })
+                                    .map((bullet) => {
+                                      const skillName = bullet.text.replace(/^•\s*/, '').trim()
+
+                                      return (
+                                        <label
+                                          key={bullet.id}
+                                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all border-2 ${bullet.params?.visible !== false
+                                            ? 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
+                                            : 'bg-gray-100 text-gray-400 border-gray-200 line-through'
+                                            }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={bullet.params?.visible !== false}
+                                            onChange={(e) => {
+                                              e.stopPropagation()
+                                              const newChecked = Boolean(e.target.checked)
+                                              const updatedData = {
+                                                ...data,
+                                                sections: data.sections.map(s =>
+                                                  s.id === section.id
+                                                    ? {
+                                                      ...s,
+                                                      bullets: s.bullets.map(b =>
+                                                        b.id === bullet.id
+                                                          ? {
+                                                            ...b,
+                                                            params: {
+                                                              ...(b.params || {}),
+                                                              visible: newChecked ? true : false
+                                                            }
+                                                          }
+                                                          : b
+                                                      )
+                                                    }
+                                                    : s
+                                                )
+                                              }
+                                              onChange(updatedData)
+                                            }}
+                                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                          <span
+                                            contentEditable
+                                            suppressContentEditableWarning
+                                            data-editable-type="bullet"
+                                            data-section-id={section.id}
+                                            data-bullet-id={bullet.id}
+                                            onBlur={(e) => {
+                                              const newText = e.currentTarget.textContent?.trim() || ''
+                                              if (newText) {
+                                                updateBullet(section.id, bullet.id, newText)
+                                              }
+                                            }}
+                                            className="outline-none cursor-text"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            {skillName}
+                                          </span>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              removeBullet(section.id, bullet.id)
+                                            }}
+                                            className="ml-1 text-gray-400 hover:text-red-600 transition-colors"
+                                            title="Remove skill"
+                                          >
+                                            ×
+                                          </button>
+                                        </label>
+                                      )
+                                    })}
+                                </div>
+                              ) : (
+                                /* Simple Bullet Points for other non-work experience sections */
+                                (section.bullets || []).map((bullet, idx) => {
+                                  // Show bullets that start with • or don't start with ** (simple bullet points)
+                                  if (bullet.text?.startsWith('**')) return null
+
+                                  // Exclude certifications from keyword matching
+                                  const isCertificationSection = section.title.toLowerCase().includes('certif') ||
+                                    section.title.toLowerCase().includes('license') ||
+                                    section.title.toLowerCase().includes('credential');
+
+                                  const bulletMatch = isCertificationSection
+                                    ? { matches: false, matchedKeywords: [], keywordCounts: {} }
+                                    : (() => {
+                                      const generatedKeywords = bullet.params?.generatedKeywords as string[] | undefined;
+                                      return checkBulletMatches(bullet.text, section.title, generatedKeywords);
+                                    })();
+                                  const hasMatch = bulletMatch.matches;
+                                  const hasNoMatch = !isCertificationSection && jdKeywords && !hasMatch && bullet.text.trim().length > 0;
+
+                                  // Check if disabled bullet has missing keywords
+                                  const isDisabled = bullet.params?.visible === false;
+                                  return (
+                                    <div
+                                      key={bullet.id}
+                                      className={`group flex items-start gap-2 px-2 py-1 rounded border border-transparent ${bullet.params?.visible === false ? 'opacity-70' : ''
+                                        }`}
                                     >
                                       <input
                                         type="checkbox"
-                                        checked={companyBullet.params?.visible !== false}
+                                        checked={bullet.params?.visible !== false}
                                         onChange={(e) => {
                                           e.stopPropagation()
-                                          const newChecked = Boolean(e.target.checked)
-                                          const updatedData = {
-                                            ...data,
-                                            sections: data.sections.map(s => {
-                                              if (s.id !== section.id) return s
-
-                                              const updatedBullets = s.bullets.map(b =>
-                                                b.id === companyBullet.id
-                                                  ? { 
-                                                      ...b, 
-                                                      params: { 
-                                                        ...(b.params || {}), 
-                                                        visible: newChecked ? true : false 
-                                                      } 
-                                                    }
-                                                  : b
-                                              )
-
-                                              const companyBulletIds = companyBullets.map(b => b.id)
-                                              const indexes = companyBulletIds
-                                                .map(id => updatedBullets.findIndex(b => b.id === id))
-                                                .filter(index => index !== -1)
-
-                                              if (indexes.length > 0) {
-                                                const currentRange = indexes.map(index => updatedBullets[index])
-                                                const orderedRange = [
-                                                  ...currentRange.filter(b => b.params?.visible !== false),
-                                                  ...currentRange.filter(b => b.params?.visible === false)
-                                                ]
-
-                                                const reordered = [...updatedBullets]
-                                                const sortedIndicesDesc = [...indexes].sort((a, b) => b - a)
-                                                sortedIndicesDesc.forEach(index => {
-                                                  reordered.splice(index, 1)
-                                                })
-                                                reordered.splice(Math.min(...indexes), 0, ...orderedRange)
-
-                                                return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(reordered)) }
+                                          const newChecked = e.target.checked
+                                          const sections = data.sections.map(s =>
+                                            s.id === section.id
+                                              ? {
+                                                ...s,
+                                                bullets: s.bullets.map(b =>
+                                                  b.id === bullet.id
+                                                    ? { ...b, params: { ...b.params, visible: newChecked } }
+                                                    : b
+                                                )
                                               }
-
-                                              return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
-                                            })
-                                          }
-                                          onChange(updatedData)
+                                              : s
+                                          )
+                                          onChange({ ...data, sections })
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
-                                        title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : 'Toggle bullet visibility in preview'}
+                                        title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
                                       />
                                       <div className="flex-1 min-w-0">
                                         <div className="relative flex-1">
                                           {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
                                             <div
-                                              className={`text-sm leading-relaxed pointer-events-none ${
-                                                companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
-                                              }`}
-                                            >
-                                              {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
-                                            </div>
+                                              className={`text-sm leading-relaxed pointer-events-none ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                }`}
+                                              dangerouslySetInnerHTML={{
+                                                __html: highlightKeywordsInHTML((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords)
+                                              }}
+                                            />
                                           )}
                                           <div
                                             contentEditable
                                             suppressContentEditableWarning
                                             data-editable-type="bullet"
                                             data-section-id={section.id}
-                                            data-bullet-id={companyBullet.id}
+                                            data-bullet-id={bullet.id}
+                                            onFocus={(e) => {
+                                              if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
+                                                e.currentTarget.textContent = e.currentTarget.textContent || '';
+                                              }
+                                            }}
+                                            suppressHydrationWarning
+                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text ${hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0 pointer-events-none' : ''
+                                              } ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                              }`}
+                                            style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, pointerEvents: 'none' } : {}}
                                             onBlur={(e) => {
-                                              updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '')
+                                              updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
                                               if (typeof window !== 'undefined') {
                                                 window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
                                                   detail: {
                                                     resumeData: {
-                                                      ...data,
-                                                      sections: data.sections.map(s =>
-                                                        s.id === section.id
-                                                          ? {
-                                                              ...s,
-                                                              bullets: s.bullets.map(b =>
-                                                                b.id === companyBullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
-                                                              )
-                                                            }
-                                                          : s
+                                                      ...data, sections: data.sections.map(s =>
+                                                        s.id === section.id ? {
+                                                          ...s, bullets: s.bullets.map(b =>
+                                                            b.id === bullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
+                                                          )
+                                                        } : s
                                                       )
                                                     }
                                                   }
-                                                }))
+                                                }));
                                               }
                                             }}
-                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text ${
-                                              hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0 pointer-events-none' : ''
-                                            } ${
-                                              companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                                            }`}
-                                            style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, pointerEvents: 'none' } : {}}
                                           >
-                                            {companyBullet.text.replace(/^•\s*/, '')}
+                                            {bullet.text.replace(/^•\s*/, '')}
                                           </div>
                                         </div>
                                       </div>
 
+                                      {/* Action Buttons on the Right */}
                                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {/* AI Improve Button */}
                                         <button
                                           onClick={() => {
                                             if (jdKeywords && jdKeywords.missing.length > 0) {
-                                              const cleanedText = (companyBullet.text || '').replace(/^[-•*]+\s*/, '').trim()
+                                              const cleanedText = (bullet.text || '').replace(/^[-•*]+\s*/, '').trim()
                                               setAiImproveContext({
                                                 sectionId: section.id,
-                                                bulletId: companyBullet.id,
-                                                currentText: companyBullet.text,
+                                                bulletId: bullet.id,
+                                                currentText: bullet.text,
                                                 mode: cleanedText.length > 0 ? 'existing' : 'new'
                                               })
                                               setShowAIImproveModal(true)
                                             } else if (onAIImprove) {
-                                              ;(async () => {
+                                              ; (async () => {
                                                 try {
                                                   setIsAILoading(true)
-                                                  const improvedText = await onAIImprove(companyBullet.text)
-                                                  updateBullet(section.id, companyBullet.id, improvedText)
+                                                  const improvedText = await onAIImprove(bullet.text)
+                                                  updateBullet(section.id, bullet.id, improvedText)
                                                 } catch (error) {
                                                   console.error('AI improvement failed:', error)
                                                 } finally {
@@ -2522,8 +2780,9 @@ export default function VisualResumeEditor({
                                           <span>{isAILoading ? '⏳' : '✨'}</span>
                                         </button>
 
+                                        {/* Remove Button */}
                                         <button
-                                          onClick={() => removeBullet(section.id, companyBullet.id)}
+                                          onClick={() => removeBullet(section.id, bullet.id)}
                                           className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
                                           title="Remove bullet point"
                                         >
@@ -2532,426 +2791,159 @@ export default function VisualResumeEditor({
                                       </div>
                                     </div>
                                   )
-                                })}
-
-                                <div className="flex justify-center pt-2">
-                                  <button
-                                    onClick={() => {
-                                      const companyBulletIds = companyBullets.map(b => b.id)
-                                      const lastBulletId = companyBulletIds[companyBulletIds.length - 1]
-                                      const lastIndex = section.bullets.findIndex(b => b.id === lastBulletId)
-                                      const newBullet = { id: Date.now().toString(), text: '• ', params: {} }
-                                      const sections = data.sections.map(s =>
-                                        s.id === section.id
-                                          ? {
-                                              ...s,
-                                              bullets: [
-                                                ...s.bullets.slice(0, lastIndex + 1),
-                                                newBullet,
-                                                ...s.bullets.slice(lastIndex + 1)
-                                              ]
-                                            }
-                                          : s
-                                      )
-                                      onChange({ ...data, sections })
-                                    }}
-                                    className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg font-semibold flex items-center gap-1 transition-all text-xs"
-                                    title="Add bullet point to this company"
-                                  >
-                                    <span>+</span> Add Bullet
-                                  </button>
-                                </div>
-                              </div>
+                                })
+                              )}
                             </div>
-                            )}
                           </div>
-                        )
-                      })
-                    ) : getSectionType(section.title) === 'skill' ? (
-                      /* Skills Section - Checkbox Chips Layout */
-                      <div className="flex flex-wrap gap-2">
-                        {section.bullets
-                          .filter(bullet => !bullet.text?.startsWith('**'))
-                          .filter((bullet) => {
-                            const skillName = bullet.text.replace(/^•\s*/, '').trim()
-                            return skillName
-                          })
-                          .map((bullet) => {
-                            const skillName = bullet.text.replace(/^•\s*/, '').trim()
-                            
-                            return (
-                              <label
-                                key={bullet.id}
-                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all border-2 ${
-                                  bullet.params?.visible !== false
-                                    ? 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
-                                    : 'bg-gray-100 text-gray-400 border-gray-200 line-through'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={bullet.params?.visible !== false}
-                                  onChange={(e) => {
-                                    e.stopPropagation()
-                                    const newChecked = Boolean(e.target.checked)
-                                    const updatedData = {
-                                      ...data,
-                                      sections: data.sections.map(s =>
-                                        s.id === section.id
-                                          ? {
-                                              ...s,
-                                              bullets: s.bullets.map(b =>
-                                                b.id === bullet.id
-                                                  ? { 
-                                                      ...b, 
-                                                      params: { 
-                                                        ...(b.params || {}), 
-                                                        visible: newChecked ? true : false 
-                                                      } 
-                                                    }
-                                                  : b
-                                              )
-                                            }
-                                          : s
-                                      )
-                                    }
-                                    onChange(updatedData)
-                                  }}
-                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                                <span
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  data-editable-type="bullet"
-                                  data-section-id={section.id}
-                                  data-bullet-id={bullet.id}
-                                  onBlur={(e) => {
-                                    const newText = e.currentTarget.textContent?.trim() || ''
-                                    if (newText) {
-                                      updateBullet(section.id, bullet.id, newText)
-                                    }
-                                  }}
-                                  className="outline-none cursor-text"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {skillName}
-                                </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    removeBullet(section.id, bullet.id)
-                                  }}
-                                  className="ml-1 text-gray-400 hover:text-red-600 transition-colors"
-                                  title="Remove skill"
-                                >
-                                  ×
-                                </button>
-                              </label>
-                            )
-                          })}
-                      </div>
-                    ) : (
-                      /* Simple Bullet Points for other non-work experience sections */
-                      (section.bullets || []).map((bullet, idx) => {
-                        // Show bullets that start with • or don't start with ** (simple bullet points)
-                        if (bullet.text?.startsWith('**')) return null
-                        
-                        // Exclude certifications from keyword matching
-                        const isCertificationSection = section.title.toLowerCase().includes('certif') || 
-                                                       section.title.toLowerCase().includes('license') ||
-                                                       section.title.toLowerCase().includes('credential');
-                        
-                        const bulletMatch = isCertificationSection 
-                          ? { matches: false, matchedKeywords: [], keywordCounts: {} }
-                          : (() => {
-                              const generatedKeywords = bullet.params?.generatedKeywords as string[] | undefined;
-                              return checkBulletMatches(bullet.text, section.title, generatedKeywords);
-                            })();
-                        const hasMatch = bulletMatch.matches;
-                        const hasNoMatch = !isCertificationSection && jdKeywords && !hasMatch && bullet.text.trim().length > 0;
-                        
-                        // Check if disabled bullet has missing keywords
-                        const isDisabled = bullet.params?.visible === false;
-                        return (
-                          <div 
-                            key={bullet.id}
-                            className={`group flex items-start gap-2 px-2 py-1 rounded border border-transparent ${
-                              bullet.params?.visible === false ? 'opacity-70' : ''
-                            }`}
-                          >
-                              <input
-                                type="checkbox"
-                                checked={bullet.params?.visible !== false}
-                                onChange={(e) => {
-                                  e.stopPropagation()
-                                  const newChecked = e.target.checked
-                                  const sections = data.sections.map(s =>
-                                    s.id === section.id
-                                      ? {
-                                          ...s,
-                                          bullets: s.bullets.map(b =>
-                                            b.id === bullet.id
-                                              ? { ...b, params: { ...b.params, visible: newChecked } }
-                                              : b
-                                          )
-                                        }
-                                      : s
-                                  )
-                                  onChange({ ...data, sections })
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
-                                title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
-                              />
-                            <div className="flex-1 min-w-0">
-                              <div className="relative flex-1">
-                                {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
-                                  <div
-                                    className={`text-sm leading-relaxed pointer-events-none ${
-                                      bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
-                                    }`}
-                                    dangerouslySetInnerHTML={{
-                                      __html: highlightKeywordsInHTML((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords)
-                                    }}
-                                  />
-                                )}
-                                <div 
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  data-editable-type="bullet"
-                                  data-section-id={section.id}
-                                  data-bullet-id={bullet.id}
-                                  onFocus={(e) => {
-                                    if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
-                                      e.currentTarget.textContent = e.currentTarget.textContent || '';
-                                    }
-                                  }}
-                                  suppressHydrationWarning
-                                  className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text ${
-                                    hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0 pointer-events-none' : ''
-                                  } ${
-                                    bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                                  }`}
-                                  style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, pointerEvents: 'none' } : {}}
-                                  onBlur={(e) => {
-                                    updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
-                                    if (typeof window !== 'undefined') {
-                                      window.dispatchEvent(new CustomEvent('resumeDataUpdated', { 
-                                        detail: { resumeData: { ...data, sections: data.sections.map(s =>
-                                          s.id === section.id ? { ...s, bullets: s.bullets.map(b =>
-                                            b.id === bullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
-                                          )} : s
-                                        )}}
-                                      }));
-                                      }
-                                    }}
-                                  >
-                                    {bullet.text.replace(/^•\s*/, '')}
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* Action Buttons on the Right */}
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {/* AI Improve Button */}
-                                <button
-                                  onClick={() => {
-                                    if (jdKeywords && jdKeywords.missing.length > 0) {
-                                      const cleanedText = (bullet.text || '').replace(/^[-•*]+\s*/, '').trim()
-                                      setAiImproveContext({
-                                        sectionId: section.id,
-                                        bulletId: bullet.id,
-                                        currentText: bullet.text,
-                                        mode: cleanedText.length > 0 ? 'existing' : 'new'
-                                      })
-                                      setShowAIImproveModal(true)
-                                    } else if (onAIImprove) {
-                                      ;(async () => {
-                                      try {
-                                        setIsAILoading(true)
-                                        const improvedText = await onAIImprove(bullet.text)
-                                        updateBullet(section.id, bullet.id, improvedText)
-                                      } catch (error) {
-                                        console.error('AI improvement failed:', error)
-                                      } finally {
-                                        setIsAILoading(false)
-                                      }
-                                      })()
-                                    }
-                                  }}
-                                  disabled={isAILoading}
-                                  className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
-                                  title="✨ AI Improve - Enhance with missing JD keywords"
-                                >
-                                  <span>{isAILoading ? '⏳' : '✨'}</span>
-                                </button>
-                                
-                                {/* Remove Button */}
-                                <button
-                                  onClick={() => removeBullet(section.id, bullet.id)}
-                                  className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
-                                  title="Remove bullet point"
-                                >
-                                  <span>×</span>
-                                </button>
-                              </div>
-                          </div>
-                        )
-                      })
-                    )}
-                        </div>
-                      </div>
-                    </SortableSectionCard>
-                    )
-                  }
+                        </SortableSectionCard>
+                      )
+                    }
 
-                  return null
-                })}
-              </div>
-            </SortableContext>
-          </DndContext>
-
-          {/* AI Improve Modal with Missing Keywords */}
-          {showAIImproveModal && aiImproveContext && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
-              setShowAIImproveModal(false);
-              setAiImproveContext(null);
-              setSelectedMissingKeywords(new Set());
-              setGeneratedBulletOptions([]);
-            }}>
-              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
-                  <h2 className="text-2xl font-bold text-white">✨ AI Improve with Missing Keywords</h2>
-                  <button
-                    onClick={() => {
-                      setShowAIImproveModal(false);
-                      setAiImproveContext(null);
-                      setSelectedMissingKeywords(new Set());
-                      setGeneratedBulletOptions([]);
-                    }}
-                    className="text-white hover:text-gray-200 text-2xl font-bold"
-                  >
-                    ×
-                  </button>
+                    return null
+                  })}
                 </div>
-                
-                <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-                      <div className="mb-4">
-                        <p className="text-sm text-gray-700 mb-3">Current bullet:</p>
-                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <p className="text-gray-800">{aiImproveContext.currentText}</p>
-                        </div>
+              </SortableContext>
+            </DndContext>
+
+            {/* AI Improve Modal with Missing Keywords */}
+            {showAIImproveModal && aiImproveContext && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
+                setShowAIImproveModal(false);
+                setAiImproveContext(null);
+                setSelectedMissingKeywords(new Set());
+                setGeneratedBulletOptions([]);
+              }}>
+                <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
+                    <h2 className="text-2xl font-bold text-white">✨ AI Improve with Missing Keywords</h2>
+                    <button
+                      onClick={() => {
+                        setShowAIImproveModal(false);
+                        setAiImproveContext(null);
+                        setSelectedMissingKeywords(new Set());
+                        setGeneratedBulletOptions([]);
+                      }}
+                      className="text-white hover:text-gray-200 text-2xl font-bold"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-700 mb-3">Current bullet:</p>
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-gray-800">{aiImproveContext.currentText}</p>
                       </div>
-                      
-                      <div className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900 mb-3">Select missing keywords to include (choose 2-8):</p>
-                        <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          {jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30).map((keyword, idx) => {
-                        const isSelected = selectedMissingKeywords.has(keyword)
-                            return (
-                              <button
-                                key={idx}
-                                onClick={() => {
-                              const newSelected = new Set(selectedMissingKeywords)
-                                  if (isSelected) {
-                                newSelected.delete(keyword)
-                                  } else if (newSelected.size < 8) {
-                                newSelected.add(keyword)
-                                  } else {
-                                alert('Please select maximum 8 keywords')
-                                  }
-                              setSelectedMissingKeywords(newSelected)
-                                }}
-                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                  isSelected
-                                    ? 'bg-blue-600 text-white border-2 border-blue-700'
-                                    : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                    </div>
+
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-gray-900 mb-3">Select missing keywords to include (choose 2-8):</p>
+                      <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        {jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30).map((keyword, idx) => {
+                          const isSelected = selectedMissingKeywords.has(keyword)
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                const newSelected = new Set(selectedMissingKeywords)
+                                if (isSelected) {
+                                  newSelected.delete(keyword)
+                                } else if (newSelected.size < 8) {
+                                  newSelected.add(keyword)
+                                } else {
+                                  alert('Please select maximum 8 keywords')
+                                }
+                                setSelectedMissingKeywords(newSelected)
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${isSelected
+                                ? 'bg-blue-600 text-white border-2 border-blue-700'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
                                 }`}
-                              >
-                                {isSelected && '✓ '}{keyword}
-                              </button>
-                        )
-                          })}
-                        </div>
-                        {selectedMissingKeywords.size > 0 && (
-                          <p className="text-xs text-gray-600 mt-2">
-                            {selectedMissingKeywords.size} keyword{selectedMissingKeywords.size > 1 ? 's' : ''} selected {selectedMissingKeywords.size < 2 ? '(minimum 2 required)' : selectedMissingKeywords.size >= 8 ? '(maximum reached)' : ''}
-                          </p>
-                        )}
+                            >
+                              {isSelected && '✓ '}{keyword}
+                            </button>
+                          )
+                        })}
                       </div>
-                      
-                      <button
-                        onClick={async () => {
-                      if (!aiImproveContext) return
-                          if (selectedMissingKeywords.size < 2) {
-                        alert('Please select at least 2 keywords (minimum 2, maximum 8)')
-                        return
-                          }
-                          if (selectedMissingKeywords.size > 8) {
-                        alert('Please select maximum 8 keywords')
-                        return
-                          }
-                          
-                      setIsGeneratingBullets(true)
+                      {selectedMissingKeywords.size > 0 && (
+                        <p className="text-xs text-gray-600 mt-2">
+                          {selectedMissingKeywords.size} keyword{selectedMissingKeywords.size > 1 ? 's' : ''} selected {selectedMissingKeywords.size < 2 ? '(minimum 2 required)' : selectedMissingKeywords.size >= 8 ? '(maximum reached)' : ''}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={async () => {
+                        if (!aiImproveContext) return
+                        if (selectedMissingKeywords.size < 2) {
+                          alert('Please select at least 2 keywords (minimum 2, maximum 8)')
+                          return
+                        }
+                        if (selectedMissingKeywords.size > 8) {
+                          alert('Please select maximum 8 keywords')
+                          return
+                        }
+
+                        setIsGeneratingBullets(true)
+                        try {
+                          const keywordsArray = Array.from(selectedMissingKeywords)
+                          const jobDescriptionText = typeof window !== 'undefined'
+                            ? localStorage.getItem('currentJDText') || ''
+                            : ''
+
+                          const targetSection = data.sections.find((s: any) =>
+                            normalizeId(s.id) === normalizeId(aiImproveContext.sectionId)
+                          )
+
+                          const sectionContext = targetSection
+                            ? (targetSection.bullets || [])
+                              .map((b: any) => (b.text || '').replace(/^[-•*]+\s*/, '').trim())
+                              .filter(Boolean)
+                              .join('\n')
+                            : ''
+
+                          const resumeContextParts = [
+                            data.summary || '',
+                            sectionContext
+                          ].filter(Boolean)
+                          // Limit context size to prevent slow API calls
+                          const resumeContext = resumeContextParts.join('\n').substring(0, 500)
+
+                          // Create AbortController for timeout
+                          const controller = new AbortController()
+                          const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout
+
                           try {
-                        const keywordsArray = Array.from(selectedMissingKeywords)
-                            const jobDescriptionText = typeof window !== 'undefined'
-                              ? localStorage.getItem('currentJDText') || ''
-                              : ''
+                            const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                keywords: keywordsArray,
+                                current_bullet: aiImproveContext.currentText,
+                                mode: aiImproveContext.mode === 'new' ? 'create' : 'improve',
+                                job_description: jobDescriptionText.substring(0, 1000), // Limit JD size
+                                resume_context: resumeContext,
+                                company_title: targetSection?.title || data.name,
+                                job_title: data.title,
+                                count: aiImproveContext.mode === 'new' ? 3 : 1
+                              }),
+                              signal: controller.signal
+                            })
 
-                            const targetSection = data.sections.find((s: any) =>
-                              normalizeId(s.id) === normalizeId(aiImproveContext.sectionId)
-                            )
+                            clearTimeout(timeoutId)
 
-                            const sectionContext = targetSection
-                              ? (targetSection.bullets || [])
-                                  .map((b: any) => (b.text || '').replace(/^[-•*]+\s*/, '').trim())
-                                  .filter(Boolean)
-                                  .join('\n')
-                              : ''
+                            if (!response.ok) {
+                              const errorText = await response.text().catch(() => 'Unknown error')
+                              throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
+                            }
 
-                            const resumeContextParts = [
-                              data.summary || '',
-                              sectionContext
-                            ].filter(Boolean)
-                            // Limit context size to prevent slow API calls
-                            const resumeContext = resumeContextParts.join('\n').substring(0, 500)
+                            const result = await response.json()
+                            console.log('AI bullet response:', result)
 
-                            // Create AbortController for timeout
-                            const controller = new AbortController()
-                            const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout
-
-                            try {
-                              const response = await fetch(`${config.apiBase}/api/ai/generate_bullet_from_keywords`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  keywords: keywordsArray,
-                                  current_bullet: aiImproveContext.currentText,
-                                  mode: aiImproveContext.mode === 'new' ? 'create' : 'improve',
-                                  job_description: jobDescriptionText.substring(0, 1000), // Limit JD size
-                                  resume_context: resumeContext,
-                                  company_title: targetSection?.title || data.name,
-                                  job_title: data.title,
-                                  count: aiImproveContext.mode === 'new' ? 3 : 1
-                                }),
-                                signal: controller.signal
-                              })
-                              
-                              clearTimeout(timeoutId)
-
-                              if (!response.ok) {
-                                const errorText = await response.text().catch(() => 'Unknown error')
-                                throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
-                              }
-
-                              const result = await response.json()
-                              console.log('AI bullet response:', result)
-
-                              if (!result.success) {
-                                throw new Error(result.error || 'AI request failed')
-                              }
+                            if (!result.success) {
+                              throw new Error(result.error || 'AI request failed')
+                            }
 
                             const parseBulletOptions = (raw: unknown): string[] => {
                               if (!raw) return []
@@ -2994,13 +2986,13 @@ export default function VisualResumeEditor({
                                 originalTrimmed.startsWith('*') ||
                                 originalTrimmed === ''
                               const newText = needsBullet ? `• ${sanitized}` : sanitized
-                          updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, newText)
-                          setShowAIImproveModal(false)
-                          setAiImproveContext(null)
-                          setSelectedMissingKeywords(new Set())
-                          setGeneratedBulletOptions([])
+                              updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, newText)
+                              setShowAIImproveModal(false)
+                              setAiImproveContext(null)
+                              setSelectedMissingKeywords(new Set())
+                              setGeneratedBulletOptions([])
                               setSelectedBullets(new Set())
-                              } else {
+                            } else {
                               const optionSources: Array<unknown> = [
                                 result.bullet_options,
                                 result.bullet_points,
@@ -3023,272 +3015,269 @@ export default function VisualResumeEditor({
                               setGeneratedBulletOptions(options)
                               setSelectedBullets(new Set([0]))
                             }
-                            } catch (fetchError: any) {
-                              clearTimeout(timeoutId)
-                              if (fetchError.name === 'AbortError') {
-                                throw new Error('Request timed out after 45 seconds. Please try again with fewer keywords or shorter context.')
-                              }
-                              throw fetchError
+                          } catch (fetchError: any) {
+                            clearTimeout(timeoutId)
+                            if (fetchError.name === 'AbortError') {
+                              throw new Error('Request timed out after 45 seconds. Please try again with fewer keywords or shorter context.')
                             }
-                          } catch (error: any) {
-                            console.error('Failed to generate AI bullet:', error)
-                            const errorMessage = error?.message || 'Unknown error occurred'
-                            if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
-                              alert('Request timed out. The AI service may be slow right now. Please try again in a moment or reduce the number of keywords.')
-                            } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
-                              alert('AI service is temporarily unavailable. Please try again in a moment.')
-                            } else {
-                              alert(`Failed to generate bullet: ${errorMessage}`)
-                            }
-                          } finally {
-                            setIsGeneratingBullets(false)
+                            throw fetchError
                           }
-                    }}
-                    className={`w-full py-3 rounded-xl font-semibold text-white shadow-lg transition-all relative overflow-hidden ${
-                      isGeneratingBullets
+                        } catch (error: any) {
+                          console.error('Failed to generate AI bullet:', error)
+                          const errorMessage = error?.message || 'Unknown error occurred'
+                          if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
+                            alert('Request timed out. The AI service may be slow right now. Please try again in a moment or reduce the number of keywords.')
+                          } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
+                            alert('AI service is temporarily unavailable. Please try again in a moment.')
+                          } else {
+                            alert(`Failed to generate bullet: ${errorMessage}`)
+                          }
+                        } finally {
+                          setIsGeneratingBullets(false)
+                        }
+                      }}
+                      className={`w-full py-3 rounded-xl font-semibold text-white shadow-lg transition-all relative overflow-hidden ${isGeneratingBullets
                         ? 'bg-gray-400 cursor-not-allowed'
                         : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
-                    }`}
-                    disabled={isGeneratingBullets}
-                  >
-                        {isGeneratingBullets ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            <span>Generating... (this may take 10-30 seconds)</span>
-                          </div>
-                        ) : (
-                          aiImproveContext.mode === 'new'
-                            ? 'Generate bullet ideas'
-                            : 'Enhance bullet with keywords'
-                        )}
-                          </button>
-
-                      {generatedBulletOptions.length > 0 && (
-                        <div className="mt-6 space-y-4">
-                          <p className="text-sm font-semibold text-gray-900">
-                            Choose the bullet point you want to insert:
-                          </p>
-                          <div className="space-y-3">
-                            {generatedBulletOptions.map((option, idx) => {
-                              const isSelected = selectedBullets.has(idx)
-                              
-                              // Find which keywords are used in this bullet
-                              const usedKeywords = Array.from(selectedMissingKeywords).filter(keyword => {
-                                const keywordLower = keyword.toLowerCase()
-                                const optionLower = option.toLowerCase()
-                                // Check for whole word match (case-insensitive)
-                                const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
-                                return regex.test(optionLower)
-                              })
-                              
-                              // Highlight keywords in the bullet text
-                              const highlightKeywords = (text: string, keywords: string[]): React.ReactNode[] => {
-                                if (keywords.length === 0) return [text]
-                                
-                                const parts: React.ReactNode[] = []
-                                let lastIndex = 0
-                                const textLower = text.toLowerCase()
-                                
-                                // Find all keyword matches with their positions
-                                const matches: Array<{ start: number; end: number; keyword: string }> = []
-                                keywords.forEach(keyword => {
-                                  const keywordLower = keyword.toLowerCase()
-                                  const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
-                                  let match
-                                  while ((match = regex.exec(text)) !== null) {
-                                    matches.push({
-                                      start: match.index,
-                                      end: match.index + match[0].length,
-                                      keyword: match[0]
-                                    })
-                                  }
-                                })
-                                
-                                // Sort matches by start position
-                                matches.sort((a, b) => a.start - b.start)
-                                
-                                // Remove overlapping matches (keep first)
-                                const nonOverlapping: Array<{ start: number; end: number; keyword: string }> = []
-                                matches.forEach(match => {
-                                  const overlaps = nonOverlapping.some(existing => 
-                                    match.start < existing.end && match.end > existing.start
-                                  )
-                                  if (!overlaps) {
-                                    nonOverlapping.push(match)
-                                  }
-                                })
-                                
-                                // Build the highlighted text
-                                nonOverlapping.forEach((match, matchIdx) => {
-                                  // Add text before match
-                                  if (match.start > lastIndex) {
-                                    parts.push(text.substring(lastIndex, match.start))
-                                  }
-                                  // Add highlighted keyword
-                                  parts.push(
-                                    <span
-                                      key={`highlight-${matchIdx}`}
-                                      className="bg-yellow-200 text-yellow-900 font-semibold px-1 rounded"
-                                    >
-                                      {text.substring(match.start, match.end)}
-                                    </span>
-                                  )
-                                  lastIndex = match.end
-                                })
-                                
-                                // Add remaining text
-                                if (lastIndex < text.length) {
-                                  parts.push(text.substring(lastIndex))
-                                }
-                                
-                                return parts.length > 0 ? parts : [text]
-                              }
-                              
-                              return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={() => {
-                                    const nextSelection = new Set<number>()
-                                    nextSelection.add(idx)
-                                    setSelectedBullets(nextSelection)
-                                  }}
-                                  className={`w-full text-left p-4 rounded-lg border transition-all ${
-                                    isSelected
-                                      ? 'border-blue-500 bg-blue-50 shadow-md'
-                                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                                  }`}
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <span
-                                      className={`mt-1 inline-flex h-4 w-4 rounded-full border-2 ${
-                                        isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
-                                      }`}
-                                    />
-                                    <div className="flex-1">
-                                      <p className="text-sm text-gray-800 leading-relaxed">
-                                        {highlightKeywords(option, usedKeywords)}
-                                      </p>
-                                      {usedKeywords.length > 0 && (
-                                        <div className="mt-2 flex flex-wrap gap-1">
-                                          <span className="text-xs text-gray-500">Used keywords:</span>
-                                          {usedKeywords.map((keyword, kwIdx) => (
-                                            <span
-                                              key={kwIdx}
-                                              className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium"
-                                            >
-                                              {keyword}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </button>
-                              )
-                            })}
-                          </div>
-
-                          <div className="flex flex-col sm:flex-row gap-3">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!aiImproveContext) return
-                                if (selectedBullets.size === 0) {
-                                  alert('Please select a bullet to insert')
-                                  return
-                                }
-                                const selectedIndex = Array.from(selectedBullets)[0]
-                                const chosen = generatedBulletOptions[selectedIndex]
-                                if (!chosen) {
-                                  alert('Selected bullet is unavailable')
-                                  return
-                                }
-                                const sanitizedChoice = chosen.replace(/^[-•*]+\s*/, '').trim()
-                                const finalText = `• ${sanitizedChoice}`.trim()
-                                updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, finalText)
-                                setShowAIImproveModal(false)
-                                setAiImproveContext(null)
-                                setSelectedMissingKeywords(new Set())
-                                setGeneratedBulletOptions([])
-                                setSelectedBullets(new Set())
-                              }}
-                              className="flex-1 py-3 rounded-xl font-semibold text-white shadow-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all"
-                            >
-                              Use selected bullet
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setGeneratedBulletOptions([])
-                                setSelectedBullets(new Set())
-                              }}
-                              className="flex-1 py-3 rounded-xl font-semibold text-blue-600 border border-blue-200 hover:bg-blue-50 transition-all"
-                            >
-                              Generate again
-                            </button>
-                          </div>
+                        }`}
+                      disabled={isGeneratingBullets}
+                    >
+                      {isGeneratingBullets ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Generating... (this may take 10-30 seconds)</span>
                         </div>
+                      ) : (
+                        aiImproveContext.mode === 'new'
+                          ? 'Generate bullet ideas'
+                          : 'Enhance bullet with keywords'
                       )}
+                    </button>
+
+                    {generatedBulletOptions.length > 0 && (
+                      <div className="mt-6 space-y-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Choose the bullet point you want to insert:
+                        </p>
+                        <div className="space-y-3">
+                          {generatedBulletOptions.map((option, idx) => {
+                            const isSelected = selectedBullets.has(idx)
+
+                            // Find which keywords are used in this bullet
+                            const usedKeywords = Array.from(selectedMissingKeywords).filter(keyword => {
+                              const keywordLower = keyword.toLowerCase()
+                              const optionLower = option.toLowerCase()
+                              // Check for whole word match (case-insensitive)
+                              const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+                              return regex.test(optionLower)
+                            })
+
+                            // Highlight keywords in the bullet text
+                            const highlightKeywords = (text: string, keywords: string[]): React.ReactNode[] => {
+                              if (keywords.length === 0) return [text]
+
+                              const parts: React.ReactNode[] = []
+                              let lastIndex = 0
+                              const textLower = text.toLowerCase()
+
+                              // Find all keyword matches with their positions
+                              const matches: Array<{ start: number; end: number; keyword: string }> = []
+                              keywords.forEach(keyword => {
+                                const keywordLower = keyword.toLowerCase()
+                                const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
+                                let match
+                                while ((match = regex.exec(text)) !== null) {
+                                  matches.push({
+                                    start: match.index,
+                                    end: match.index + match[0].length,
+                                    keyword: match[0]
+                                  })
+                                }
+                              })
+
+                              // Sort matches by start position
+                              matches.sort((a, b) => a.start - b.start)
+
+                              // Remove overlapping matches (keep first)
+                              const nonOverlapping: Array<{ start: number; end: number; keyword: string }> = []
+                              matches.forEach(match => {
+                                const overlaps = nonOverlapping.some(existing =>
+                                  match.start < existing.end && match.end > existing.start
+                                )
+                                if (!overlaps) {
+                                  nonOverlapping.push(match)
+                                }
+                              })
+
+                              // Build the highlighted text
+                              nonOverlapping.forEach((match, matchIdx) => {
+                                // Add text before match
+                                if (match.start > lastIndex) {
+                                  parts.push(text.substring(lastIndex, match.start))
+                                }
+                                // Add highlighted keyword
+                                parts.push(
+                                  <span
+                                    key={`highlight-${matchIdx}`}
+                                    className="bg-yellow-200 text-yellow-900 font-semibold px-1 rounded"
+                                  >
+                                    {text.substring(match.start, match.end)}
+                                  </span>
+                                )
+                                lastIndex = match.end
+                              })
+
+                              // Add remaining text
+                              if (lastIndex < text.length) {
+                                parts.push(text.substring(lastIndex))
+                              }
+
+                              return parts.length > 0 ? parts : [text]
+                            }
+
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  const nextSelection = new Set<number>()
+                                  nextSelection.add(idx)
+                                  setSelectedBullets(nextSelection)
+                                }}
+                                className={`w-full text-left p-4 rounded-lg border transition-all ${isSelected
+                                  ? 'border-blue-500 bg-blue-50 shadow-md'
+                                  : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                  }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <span
+                                    className={`mt-1 inline-flex h-4 w-4 rounded-full border-2 ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                                      }`}
+                                  />
+                                  <div className="flex-1">
+                                    <p className="text-sm text-gray-800 leading-relaxed">
+                                      {highlightKeywords(option, usedKeywords)}
+                                    </p>
+                                    {usedKeywords.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-1">
+                                        <span className="text-xs text-gray-500">Used keywords:</span>
+                                        {usedKeywords.map((keyword, kwIdx) => (
+                                          <span
+                                            key={kwIdx}
+                                            className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium"
+                                          >
+                                            {keyword}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!aiImproveContext) return
+                              if (selectedBullets.size === 0) {
+                                alert('Please select a bullet to insert')
+                                return
+                              }
+                              const selectedIndex = Array.from(selectedBullets)[0]
+                              const chosen = generatedBulletOptions[selectedIndex]
+                              if (!chosen) {
+                                alert('Selected bullet is unavailable')
+                                return
+                              }
+                              const sanitizedChoice = chosen.replace(/^[-•*]+\s*/, '').trim()
+                              const finalText = `• ${sanitizedChoice}`.trim()
+                              updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, finalText)
+                              setShowAIImproveModal(false)
+                              setAiImproveContext(null)
+                              setSelectedMissingKeywords(new Set())
+                              setGeneratedBulletOptions([])
+                              setSelectedBullets(new Set())
+                            }}
+                            className="flex-1 py-3 rounded-xl font-semibold text-white shadow-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all"
+                          >
+                            Use selected bullet
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGeneratedBulletOptions([])
+                              setSelectedBullets(new Set())
+                            }}
+                            className="flex-1 py-3 rounded-xl font-semibold text-blue-600 border border-blue-200 hover:bg-blue-50 transition-all"
+                          >
+                            Generate again
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Add Section Buttons */}
-          <div className="mt-6">
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500 hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer">
-              <button
-                onClick={addSection}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700"
-              >
-                + Add New Section
-              </button>
+            {/* Add Section Buttons */}
+            <div className="mt-6">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500 hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer">
+                <button
+                  onClick={addSection}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                >
+                  + Add New Section
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* AI Work Experience */}
-      {showAIWorkExperience && aiWorkExperienceContext && (
-        <AIWorkExperience
-          companyName={aiWorkExperienceContext.companyName}
-          jobTitle={aiWorkExperienceContext.jobTitle}
-          dateRange={aiWorkExperienceContext.dateRange}
-          sectionId={aiWorkExperienceContext.sectionId}
-          bulletId={aiWorkExperienceContext.bulletId}
-          onUpdate={(workData) => {
-            // Update the company header in the current resume data
-            const sections = data.sections.map((s: any) =>
-              s.id === aiWorkExperienceContext.sectionId
-                ? {
+        {/* AI Work Experience */}
+        {showAIWorkExperience && aiWorkExperienceContext && (
+          <AIWorkExperience
+            companyName={aiWorkExperienceContext.companyName}
+            jobTitle={aiWorkExperienceContext.jobTitle}
+            dateRange={aiWorkExperienceContext.dateRange}
+            sectionId={aiWorkExperienceContext.sectionId}
+            bulletId={aiWorkExperienceContext.bulletId}
+            onUpdate={(workData) => {
+              // Update the company header in the current resume data
+              const sections = data.sections.map((s: any) =>
+                s.id === aiWorkExperienceContext.sectionId
+                  ? {
                     ...s,
                     bullets: s.bullets.map((b: any) =>
                       b.id === aiWorkExperienceContext.bulletId
                         ? {
-                            ...b,
-                            text: `**${workData.companyName} / ${workData.jobTitle} / ${workData.dateRange}**`
-                          }
+                          ...b,
+                          text: `**${workData.companyName} / ${workData.jobTitle} / ${workData.dateRange}**`
+                        }
                         : b
                     )
                   }
-                : s
-            )
+                  : s
+              )
 
-            // Add new bullet points after the company header
-            if (workData.bullets && workData.bullets.length > 0) {
-              const newBullets = workData.bullets.map((bulletText: string, index: number) => ({
-                id: `bullet-${Date.now()}-${index}`,
-                text: `• ${bulletText}`,
-                params: {}
-              }))
+              // Add new bullet points after the company header
+              if (workData.bullets && workData.bullets.length > 0) {
+                const newBullets = workData.bullets.map((bulletText: string, index: number) => ({
+                  id: `bullet-${Date.now()}-${index}`,
+                  text: `• ${bulletText}`,
+                  params: {}
+                }))
 
-              const updatedSections = sections.map((s: any) =>
-                s.id === aiWorkExperienceContext.sectionId
-                  ? {
+                const updatedSections = sections.map((s: any) =>
+                  s.id === aiWorkExperienceContext.sectionId
+                    ? {
                       ...s,
                       bullets: [
                         ...s.bullets.slice(0, s.bullets.findIndex((b: any) => b.id === aiWorkExperienceContext.bulletId) + 1),
@@ -3296,36 +3285,36 @@ export default function VisualResumeEditor({
                         ...s.bullets.slice(s.bullets.findIndex((b: any) => b.id === aiWorkExperienceContext.bulletId) + 1)
                       ]
                     }
-                  : s
-              )
+                    : s
+                )
 
-              onChange({ ...data, sections: updatedSections })
-            } else {
-              onChange({ ...data, sections })
-            }
+                onChange({ ...data, sections: updatedSections })
+              } else {
+                onChange({ ...data, sections })
+              }
 
-            setShowAIWorkExperience(false)
-            setAiWorkExperienceContext(null)
-          }}
-          onClose={() => {
-            setShowAIWorkExperience(false)
-            setAiWorkExperienceContext(null)
-          }}
-        />
-      )}
+              setShowAIWorkExperience(false)
+              setAiWorkExperienceContext(null)
+            }}
+            onClose={() => {
+              setShowAIWorkExperience(false)
+              setAiWorkExperienceContext(null)
+            }}
+          />
+        )}
 
-      {/* AI Section Assistant */}
-      {showAISectionAssistant && aiSectionAssistantContext && (
-        <AISectionAssistant
-          isOpen={showAISectionAssistant}
-          onClose={() => {
-            setShowAISectionAssistant(false)
-            setAiSectionAssistantContext(null)
-          }}
-          onUpdate={handleSectionAssistantUpdate}
-          context={aiSectionAssistantContext}
-        />
-      )}
+        {/* AI Section Assistant */}
+        {showAISectionAssistant && aiSectionAssistantContext && (
+          <AISectionAssistant
+            isOpen={showAISectionAssistant}
+            onClose={() => {
+              setShowAISectionAssistant(false)
+              setAiSectionAssistantContext(null)
+            }}
+            onUpdate={handleSectionAssistantUpdate}
+            context={aiSectionAssistantContext}
+          />
+        )}
       </div>
     </div>
   )
@@ -3342,6 +3331,7 @@ function SortableSectionCard({
   isCollapsed,
   onToggleCollapse,
   onToggleVisibility,
+  onRemove,
 }: {
   id: string
   title: string
@@ -3352,6 +3342,7 @@ function SortableSectionCard({
   isCollapsed?: boolean
   onToggleCollapse?: () => void
   onToggleVisibility?: () => void
+  onRemove?: () => void
 }) {
   const {
     attributes,
@@ -3372,11 +3363,10 @@ function SortableSectionCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-xl border transition-all ${
-        isDragging
-          ? 'border-blue-400 shadow-lg z-50'
-          : 'border-gray-200 shadow-sm hover:shadow-md'
-      }`}
+      className={`bg-white rounded-xl border transition-all ${isDragging
+        ? 'border-blue-400 shadow-lg z-50'
+        : 'border-gray-200 shadow-sm hover:shadow-md'
+        }`}
     >
       {/* Section Header */}
       <div className="flex items-center justify-between p-3 border-b border-gray-100">
@@ -3397,10 +3387,10 @@ function SortableSectionCard({
               className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
               title={isCollapsed ? 'Expand section' : 'Collapse section'}
             >
-              <svg 
-                className="w-4 h-4 text-gray-600 transition-transform" 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className="w-4 h-4 text-gray-600 transition-transform"
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
                 style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
               >
@@ -3408,14 +3398,14 @@ function SortableSectionCard({
               </svg>
             </button>
           )}
-          <input 
-            type="checkbox" 
-            checked={isEnabled} 
+          <input
+            type="checkbox"
+            checked={isEnabled}
             onChange={(e) => {
               e.stopPropagation()
               onToggleVisibility?.()
-            }} 
-            className="w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0" 
+            }}
+            className="w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
             title={isEnabled ? "Hide section in preview" : "Show section in preview"}
           />
           <span className="text-lg flex-shrink-0">{icon}</span>
@@ -3425,6 +3415,22 @@ function SortableSectionCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {onRemove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (confirm(`Are you sure you want to delete the "${title}" section?`)) {
+                  onRemove()
+                }
+              }}
+              className="p-1 hover:bg-red-50 rounded-lg transition-colors group"
+              title="Delete section"
+            >
+              <svg className="w-4 h-4 text-gray-400 group-hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
           <button className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -3460,11 +3466,11 @@ function ModernSectionCard({
       {/* Section Header */}
       <div className="flex items-center justify-between p-3 border-b border-gray-100">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <input 
-            type="checkbox" 
-            checked={isEnabled} 
-            onChange={() => {}} 
-            className="w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0" 
+          <input
+            type="checkbox"
+            checked={isEnabled}
+            onChange={() => { }}
+            className="w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
           />
           <span className="text-lg flex-shrink-0">{icon}</span>
           <h3 className="text-base font-semibold text-gray-900 truncate">{title}</h3>
@@ -3527,9 +3533,8 @@ function ModernContactField({
           const newValue = e.currentTarget.textContent || ''
           onChange({ ...data, [fieldKey]: newValue })
         }}
-        className={`flex-1 text-xs outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-          !isVisible ? 'text-gray-400 line-through' : 'text-gray-700'
-        }`}
+        className={`flex-1 text-xs outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${!isVisible ? 'text-gray-400 line-through' : 'text-gray-700'
+          }`}
         title={label}
       >
         {value || label}
