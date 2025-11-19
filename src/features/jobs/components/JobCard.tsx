@@ -97,3 +97,4 @@ export const JobCard = memo(JobCardComponent)
 
 
 
+

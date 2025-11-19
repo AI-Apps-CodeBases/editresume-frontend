@@ -36,3 +36,4 @@ export function useOptimizationSuggestions(result: AutoGenerateResponse | null) 
 
 
 
+
