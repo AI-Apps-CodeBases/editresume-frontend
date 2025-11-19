@@ -291,7 +291,7 @@ export default function PreviewPanel({
           // Close previous list if exists
           if (currentList.length > 0) {
             elements.push(
-              <ul key={`list-${index}`} className="space-y-2">
+              <ul key={`list-${index}`} className="space-y-1">
                 {currentList}
               </ul>
             )
@@ -310,11 +310,11 @@ export default function PreviewPanel({
           elements.push(
             <div 
               key={bullet.id} 
-              className="mb-3 mt-5 first:mt-0"
+              className="mb-2 mt-3 first:mt-0"
               style={{ 
                 fontFamily: headingFont,
-                marginBottom: `${bulletSpacing * 2}px`,
-                marginTop: index === 0 ? 0 : `${bulletSpacing * 2}px`,
+                marginBottom: `${Math.max(bulletSpacing * 1.2, 6)}px`,
+                marginTop: index === 0 ? 0 : `${Math.max(bulletSpacing * 1.2, 8)}px`,
               }}
             >
               {/* Line 1: Company Name / Location */}
@@ -367,16 +367,16 @@ export default function PreviewPanel({
           currentList.push(
             <li 
               key={bullet.id} 
-              className="text-sm leading-relaxed flex"
+              className="text-sm leading-snug flex"
               style={{ 
                 fontFamily: bodyFont,
                 fontSize: `${bodySize}px`,
                 color: textColor,
-                marginBottom: `${bulletSpacing}px`
+                marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`
               }}
             >
               <span 
-                className="mr-2"
+                className="mr-1.5"
                 style={{ color: primaryColor }}
               >
                 •
@@ -395,14 +395,14 @@ export default function PreviewPanel({
       // Close final list if exists
       if (currentList.length > 0) {
         elements.push(
-          <ul key="list-final" className="space-y-2">
+          <ul key="list-final" className="space-y-1">
             {currentList}
           </ul>
         )
       }
       
       return elements.length > 0 ? elements : (
-        <ul className="space-y-2">
+        <ul className="space-y-1">
           {validBullets.map((bullet) => {
             let cleanText = bullet.text
             if (cleanText.startsWith('• ')) {
@@ -417,16 +417,16 @@ export default function PreviewPanel({
             return (
               <li 
                 key={bullet.id} 
-                className="text-sm leading-relaxed flex"
+                className="text-sm leading-snug flex"
                 style={{ 
                   fontFamily: bodyFont,
                   fontSize: `${bodySize}px`,
                   color: textColor,
-                  marginBottom: `${bulletSpacing}px`
+                  marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`
                 }}
               >
                 <span 
-                  className="mr-2"
+                  className="mr-1.5"
                   style={{ color: primaryColor }}
                 >
                   •
@@ -445,7 +445,7 @@ export default function PreviewPanel({
     }
     
     return (
-      <div className="space-y-2">
+      <div className="space-y-1">
         {renderBullets()}
       </div>
     )

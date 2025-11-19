@@ -44,3 +44,4 @@ export const classicDefaultConfig: TemplateConfig = {
 
 
 
+

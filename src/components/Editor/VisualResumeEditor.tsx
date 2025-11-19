@@ -1840,7 +1840,9 @@ export default function VisualResumeEditor({
                   items={contactFieldOrder}
                 >
                   <div className="grid grid-cols-2 gap-2">
-                    {contactFieldOrder.map((fieldKey) => {
+                    {contactFieldOrder
+                      .filter((fieldKey, index, self) => self.indexOf(fieldKey) === index)
+                      .map((fieldKey) => {
                       const fieldIcons: Record<string, string> = {
                         email: '📧',
                         phone: '📱',
@@ -1865,7 +1867,7 @@ export default function VisualResumeEditor({
                       
                       return (
                         <ModernContactField
-                          key={fieldKey}
+                          key={`contact-${fieldKey}`}
                           icon={icon}
                           label={label}
                           value={value}
@@ -1879,7 +1881,7 @@ export default function VisualResumeEditor({
                     {/* Custom Contact Fields */}
                     {customContactFields.map((customField) => (
                       <ModernContactField
-                        key={customField.id}
+                        key={`custom-${customField.id}`}
                         icon="📧"
                         label={customField.label}
                         value={(data as any)[customField.field] || ''}
@@ -2150,11 +2152,11 @@ export default function VisualResumeEditor({
 
                     {/* Work Experience - Company-based layout */}
                     {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? (
-                      getOrderedCompanyGroups(section.bullets).map((group, groupIdx) => {
+                      getOrderedCompanyGroups(section.bullets).filter((group) => {
                         const headerBullet = group[0]
-                        if (!isCompanyHeaderBullet(headerBullet)) {
-                          return null
-                        }
+                        return isCompanyHeaderBullet(headerBullet)
+                      }).map((group, groupIdx) => {
+                        const headerBullet = group[0]
 
                         const headerText = headerBullet.text.replace(/\*\*/g, '').trim()
                         const parts = headerText.split(' / ')
@@ -2207,19 +2209,31 @@ export default function VisualResumeEditor({
                                   type="checkbox"
                                   checked={headerBullet.params?.visible !== false}
                                   onChange={(e) => {
-                                    const sections = data.sections.map(s => {
-                                      if (s.id !== section.id) return s
+                                    e.stopPropagation()
+                                    const newChecked = Boolean(e.target.checked)
+                                    const updatedData = {
+                                      ...data,
+                                      sections: data.sections.map(s => {
+                                        if (s.id !== section.id) return s
 
-                                      const updatedBullets = s.bullets.map(b =>
-                                        b.id === headerBullet.id
-                                          ? { ...b, params: { ...b.params, visible: e.target.checked } }
-                                          : b
-                                      )
+                                        const updatedBullets = s.bullets.map(b =>
+                                          b.id === headerBullet.id
+                                            ? { 
+                                                ...b, 
+                                                params: { 
+                                                  ...(b.params || {}), 
+                                                  visible: newChecked ? true : false 
+                                                } 
+                                              }
+                                            : b
+                                        )
 
-                                      return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
-                                    })
-                                    onChange({ ...data, sections })
+                                        return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
+                                      })
+                                    }
+                                    onChange(updatedData)
                                   }}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
                                   title="Toggle this work experience entry visibility in preview"
                                 />
@@ -2343,15 +2357,14 @@ export default function VisualResumeEditor({
                             </div>
 
                             {!isCompanyCollapsed && (
-                              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                                <div className="space-y-3">
-                                {companyBullets.map(companyBullet => {
+                              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                <div className="space-y-1.5">
+                                {companyBullets.filter(companyBullet => {
                                   const normalizedText = companyBullet.text?.trim() || ''
                                   const isHeaderLike = normalizedText.startsWith('**') || normalizedText.split(' / ').length >= 2
                                   const isBulletLike = normalizedText.startsWith('•') || normalizedText.startsWith('-')
-                                  if (!isBulletLike && isHeaderLike) {
-                                    return null
-                                  }
+                                  return isBulletLike || !isHeaderLike
+                                }).map(companyBullet => {
 
                                   const generatedKeywords = companyBullet.params?.generatedKeywords as string[] | undefined;
                                   const bulletMatch = checkBulletMatches(companyBullet.text, section.title, generatedKeywords)
@@ -2367,80 +2380,69 @@ export default function VisualResumeEditor({
                                   return (
                                     <div
                                       key={companyBullet.id}
-                                      className={`group flex items-start gap-3 p-2 rounded ${
-                                        hasMatch
-                                          ? 'bg-green-50 border border-green-200'
-                                          : hasNoMatch
-                                          ? 'bg-orange-50 border border-orange-200'
-                                          : disabledHasMissing
-                                          ? 'bg-purple-50 border border-purple-300'
-                                          : 'border border-gray-200'
-                                      } ${companyBullet.params?.visible === false ? 'opacity-70' : ''}`}
+                                      className={`group flex items-start gap-2 px-2 py-1 rounded border border-transparent ${
+                                        companyBullet.params?.visible === false ? 'opacity-70' : ''
+                                      }`}
                                     >
                                       <input
                                         type="checkbox"
                                         checked={companyBullet.params?.visible !== false}
                                         onChange={(e) => {
-                                          const sections = data.sections.map(s => {
-                                            if (s.id !== section.id) return s
+                                          e.stopPropagation()
+                                          const newChecked = Boolean(e.target.checked)
+                                          const updatedData = {
+                                            ...data,
+                                            sections: data.sections.map(s => {
+                                              if (s.id !== section.id) return s
 
-                                            const updatedBullets = s.bullets.map(b =>
-                                              b.id === companyBullet.id
-                                                ? { ...b, params: { ...b.params, visible: e.target.checked } }
-                                                : b
-                                            )
+                                              const updatedBullets = s.bullets.map(b =>
+                                                b.id === companyBullet.id
+                                                  ? { 
+                                                      ...b, 
+                                                      params: { 
+                                                        ...(b.params || {}), 
+                                                        visible: newChecked ? true : false 
+                                                      } 
+                                                    }
+                                                  : b
+                                              )
 
-                                            const companyBulletIds = companyBullets.map(b => b.id)
-                                            const indexes = companyBulletIds
-                                              .map(id => updatedBullets.findIndex(b => b.id === id))
-                                              .filter(index => index !== -1)
+                                              const companyBulletIds = companyBullets.map(b => b.id)
+                                              const indexes = companyBulletIds
+                                                .map(id => updatedBullets.findIndex(b => b.id === id))
+                                                .filter(index => index !== -1)
 
-                                            if (indexes.length > 0) {
-                                              const currentRange = indexes.map(index => updatedBullets[index])
-                                              const orderedRange = [
-                                                ...currentRange.filter(b => b.params?.visible !== false),
-                                                ...currentRange.filter(b => b.params?.visible === false)
-                                              ]
+                                              if (indexes.length > 0) {
+                                                const currentRange = indexes.map(index => updatedBullets[index])
+                                                const orderedRange = [
+                                                  ...currentRange.filter(b => b.params?.visible !== false),
+                                                  ...currentRange.filter(b => b.params?.visible === false)
+                                                ]
 
-                                              const reordered = [...updatedBullets]
-                                              const sortedIndicesDesc = [...indexes].sort((a, b) => b - a)
-                                              sortedIndicesDesc.forEach(index => {
-                                                reordered.splice(index, 1)
-                                              })
-                                              reordered.splice(Math.min(...indexes), 0, ...orderedRange)
+                                                const reordered = [...updatedBullets]
+                                                const sortedIndicesDesc = [...indexes].sort((a, b) => b - a)
+                                                sortedIndicesDesc.forEach(index => {
+                                                  reordered.splice(index, 1)
+                                                })
+                                                reordered.splice(Math.min(...indexes), 0, ...orderedRange)
 
-                                              return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(reordered)) }
-                                            }
+                                                return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(reordered)) }
+                                              }
 
-                                            return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
-                                          })
-                                          onChange({ ...data, sections })
+                                              return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
+                                            })
+                                          }
+                                          onChange(updatedData)
                                         }}
+                                        onClick={(e) => e.stopPropagation()}
                                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
                                         title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : 'Toggle bullet visibility in preview'}
                                       />
-                                      <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                                        hasMatch ? 'bg-green-500' : hasNoMatch ? 'bg-orange-400' : 'bg-black'
-                                      }`}></div>
-                                      <div className="flex-1">
-                                        {disabledHasMissing && (
-                                          <div className="mb-1">
-                                            <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs rounded-full font-semibold">
-                                              💡 Enable to increase ATS score
-                                            </span>
-                                          </div>
-                                        )}
-                                        {hasNoMatch && !disabledHasMissing && (
-                                          <div className="mb-1">
-                                            <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs rounded-full font-semibold">
-                                              ⚠ No JD keywords
-                                            </span>
-                                          </div>
-                                        )}
+                                      <div className="flex-1 min-w-0">
                                         <div className="relative flex-1">
                                           {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
                                             <div
-                                              className={`text-sm px-2 py-1 rounded pointer-events-none ${
+                                              className={`text-sm leading-relaxed pointer-events-none ${
                                                 companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                               }`}
                                             >
@@ -2475,12 +2477,12 @@ export default function VisualResumeEditor({
                                                 }))
                                               }
                                             }}
-                                            className={`text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${
-                                              hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0' : ''
+                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text ${
+                                              hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0 pointer-events-none' : ''
                                             } ${
-                                              companyBullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch ? 'text-gray-800 font-medium' : 'text-gray-700'
+                                              companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
                                             }`}
-                                            style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : {}}
+                                            style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, pointerEvents: 'none' } : {}}
                                           >
                                             {companyBullet.text.replace(/^•\s*/, '')}
                                           </div>
@@ -2570,9 +2572,12 @@ export default function VisualResumeEditor({
                       <div className="flex flex-wrap gap-2">
                         {section.bullets
                           .filter(bullet => !bullet.text?.startsWith('**'))
+                          .filter((bullet) => {
+                            const skillName = bullet.text.replace(/^•\s*/, '').trim()
+                            return skillName
+                          })
                           .map((bullet) => {
                             const skillName = bullet.text.replace(/^•\s*/, '').trim()
-                            if (!skillName) return null
                             
                             return (
                               <label
@@ -2587,19 +2592,30 @@ export default function VisualResumeEditor({
                                   type="checkbox"
                                   checked={bullet.params?.visible !== false}
                                   onChange={(e) => {
-                                    const sections = data.sections.map(s =>
-                                      s.id === section.id
-                                        ? {
-                                            ...s,
-                                            bullets: s.bullets.map(b =>
-                                              b.id === bullet.id
-                                                ? { ...b, params: { ...b.params, visible: e.target.checked } }
-                                                : b
-                                            )
-                                          }
-                                        : s
-                                    )
-                                    onChange({ ...data, sections })
+                                    e.stopPropagation()
+                                    const newChecked = Boolean(e.target.checked)
+                                    const updatedData = {
+                                      ...data,
+                                      sections: data.sections.map(s =>
+                                        s.id === section.id
+                                          ? {
+                                              ...s,
+                                              bullets: s.bullets.map(b =>
+                                                b.id === bullet.id
+                                                  ? { 
+                                                      ...b, 
+                                                      params: { 
+                                                        ...(b.params || {}), 
+                                                        visible: newChecked ? true : false 
+                                                      } 
+                                                    }
+                                                  : b
+                                              )
+                                            }
+                                          : s
+                                      )
+                                    }
+                                    onChange(updatedData)
                                   }}
                                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
                                   onClick={(e) => e.stopPropagation()}
@@ -2657,38 +2673,26 @@ export default function VisualResumeEditor({
                         
                         // Check if disabled bullet has missing keywords
                         const isDisabled = bullet.params?.visible === false;
-                        const disabledHasMissing = isDisabled && jdKeywords && jdKeywords.missing.length > 0 && 
-                          jdKeywords.missing.some(kw => {
-                            const regex = new RegExp(`\\b${kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-                            return regex.test(bullet.text.toLowerCase());
-                          });
-                        
                         return (
                           <div 
                             key={bullet.id}
-                            className={`group rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow ${
-                              hasMatch 
-                                ? 'bg-green-50 border-2 border-green-300' 
-                                : hasNoMatch
-                                ? 'bg-orange-50 border-2 border-orange-200'
-                                : disabledHasMissing
-                                ? 'bg-purple-50 border-2 border-purple-300'
-                                : 'bg-white border border-gray-200'
+                            className={`group flex items-start gap-2 px-2 py-1 rounded border border-transparent ${
+                              bullet.params?.visible === false ? 'opacity-70' : ''
                             }`}
                           >
-                            {/* Simple Bullet Point */}
-                            <div className="flex items-start gap-3">
                               <input
                                 type="checkbox"
                                 checked={bullet.params?.visible !== false}
                                 onChange={(e) => {
+                                  e.stopPropagation()
+                                  const newChecked = e.target.checked
                                   const sections = data.sections.map(s =>
                                     s.id === section.id
                                       ? {
                                           ...s,
                                           bullets: s.bullets.map(b =>
                                             b.id === bullet.id
-                                              ? { ...b, params: { ...b.params, visible: e.target.checked } }
+                                              ? { ...b, params: { ...b.params, visible: newChecked } }
                                               : b
                                           )
                                         }
@@ -2696,67 +2700,50 @@ export default function VisualResumeEditor({
                                   )
                                   onChange({ ...data, sections })
                                 }}
+                                onClick={(e) => e.stopPropagation()}
                                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
                                 title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
                               />
-                              <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                                hasMatch ? 'bg-green-500' : hasNoMatch ? 'bg-orange-400' : 'bg-black'
-                              }`}></div>
-                              <div className="flex-1">
-                                {disabledHasMissing && (
-                                  <div className="mb-1">
-                                    <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs rounded-full font-semibold">
-                                      💡 Enable to increase ATS score
-                                    </span>
-                                  </div>
-                                )}
-                                {hasNoMatch && !disabledHasMissing && (
-                                  <div className="mb-1">
-                                    <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs rounded-full font-semibold">
-                                      ⚠ No JD keywords
-                                    </span>
-                                  </div>
-                                )}
-                                <div className="relative flex-1">
-                                  {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
-                                    <div
-                                      className={`text-sm px-2 py-1 rounded pointer-events-none ${
-                                        bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
-                                      }`}
-                                      dangerouslySetInnerHTML={{
-                                        __html: highlightKeywordsInHTML((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords)
-                                      }}
-                                    />
-                                  )}
-                                  <div 
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    data-editable-type="bullet"
-                                    data-section-id={section.id}
-                                    data-bullet-id={bullet.id}
-                                    onFocus={(e) => {
-                                      // Clear highlighting when editing
-                                      if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
-                                        e.currentTarget.textContent = e.currentTarget.textContent || '';
-                                      }
-                                    }}
-                                    suppressHydrationWarning
-                                    className={`text-sm text-gray-700 leading-relaxed min-h-[24px] px-2 py-1 rounded outline-none hover:bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-300 transition-colors cursor-text ${
-                                      hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0' : ''
-                                    } ${
-                                      bullet.params?.visible === false ? 'text-gray-400 line-through' : ''
+                            <div className="flex-1 min-w-0">
+                              <div className="relative flex-1">
+                                {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
+                                  <div
+                                    className={`text-sm leading-relaxed pointer-events-none ${
+                                      bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                     }`}
-                                    style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : {}}
-                                    onBlur={(e) => {
-                                      updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
-                                      if (typeof window !== 'undefined') {
-                                        window.dispatchEvent(new CustomEvent('resumeDataUpdated', { 
-                                          detail: { resumeData: { ...data, sections: data.sections.map(s =>
-                                            s.id === section.id ? { ...s, bullets: s.bullets.map(b =>
-                                              b.id === bullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
-                                            )} : s
-                                          )}}
-                                        }));
+                                    dangerouslySetInnerHTML={{
+                                      __html: highlightKeywordsInHTML((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords)
+                                    }}
+                                  />
+                                )}
+                                <div 
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  data-editable-type="bullet"
+                                  data-section-id={section.id}
+                                  data-bullet-id={bullet.id}
+                                  onFocus={(e) => {
+                                    if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
+                                      e.currentTarget.textContent = e.currentTarget.textContent || '';
+                                    }
+                                  }}
+                                  suppressHydrationWarning
+                                  className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text ${
+                                    hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0 pointer-events-none' : ''
+                                  } ${
+                                    bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                  }`}
+                                  style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, pointerEvents: 'none' } : {}}
+                                  onBlur={(e) => {
+                                    updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
+                                    if (typeof window !== 'undefined') {
+                                      window.dispatchEvent(new CustomEvent('resumeDataUpdated', { 
+                                        detail: { resumeData: { ...data, sections: data.sections.map(s =>
+                                          s.id === section.id ? { ...s, bullets: s.bullets.map(b =>
+                                            b.id === bullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
+                                          )} : s
+                                        )}}
+                                      }));
                                       }
                                     }}
                                   >
@@ -2809,14 +2796,13 @@ export default function VisualResumeEditor({
                                   <span>×</span>
                                 </button>
                               </div>
-                            </div>
                           </div>
                         )
                       })
                     )}
                         </div>
                       </div>
-                      </SortableSectionCard>
+                    </SortableSectionCard>
                     )
                   }
 
