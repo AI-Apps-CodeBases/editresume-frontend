@@ -2070,24 +2070,7 @@ export default function VisualResumeEditor({
                                   >
                                     <span>+</span> Add {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? 'Company' : 'Bullet Point'}
                                   </button>
-                                  {jdKeywords && jdKeywords.missing.length > 0 && !section.title.toLowerCase().includes('experience') && !section.title.toLowerCase().includes('work') && (
-                                    <div className="w-full max-w-2xl p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                      <p className="text-xs font-semibold text-blue-800 mb-2">💡 Create bullet from missing JD keywords:</p>
-                                      <div className="flex flex-wrap gap-2">
-                                        {jdKeywords.missing.slice(0, 8).map((kw, i) => (
-                                          <button
-                                            key={i}
-                                            onClick={async () => {
-                                              await generateBulletFromKeywords(section.id, kw);
-                                            }}
-                                            className="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded hover:bg-blue-200 transition-colors flex items-center gap-1"
-                                          >
-                                            <span>✨</span> {kw}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
+
                                 </div>
                               )}
 
@@ -2115,37 +2098,7 @@ export default function VisualResumeEditor({
                                   >
                                     <span>+</span> Add Skill
                                   </button>
-                                  {jdKeywords && jdKeywords.missing.length > 0 && (
-                                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                      <p className="text-xs font-semibold text-yellow-800 mb-1">💡 Missing Keywords from JD:</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {jdKeywords.missing.slice(0, 5).map((kw, i) => (
-                                          <button
-                                            key={i}
-                                            onClick={() => {
-                                              const newSkill = {
-                                                id: `skill-${Date.now()}-${i}`,
-                                                text: kw,
-                                                params: { visible: true }
-                                              }
-                                              const sections = data.sections.map(s =>
-                                                s.id === section.id
-                                                  ? {
-                                                    ...s,
-                                                    bullets: [...s.bullets, newSkill]
-                                                  }
-                                                  : s
-                                              )
-                                              onChange({ ...data, sections })
-                                            }}
-                                            className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded hover:bg-yellow-200 transition-colors"
-                                          >
-                                            + {kw}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
+
                                 </div>
                               )}
 
