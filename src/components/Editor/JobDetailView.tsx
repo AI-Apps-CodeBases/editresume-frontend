@@ -388,19 +388,32 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         const resumes = data.resumes || []
         if (resumes.length > 0) {
           const latestResume = resumes[0]
-          const resumeVersionRes = await fetch(`${config.apiBase}/api/resumes/${latestResume.id}/versions/latest`)
-          if (resumeVersionRes.ok) {
-            const versionData = await resumeVersionRes.json()
-            setResumeDataForCoverLetter(versionData.resume_data || {
-              name: '',
-              title: '',
-              email: '',
-              phone: '',
-              location: '',
-              summary: '',
-              sections: []
-            })
-            setShowCoverLetterGenerator(true)
+          if (latestResume.latest_version_id) {
+            const resumeVersionRes = await fetch(`${config.apiBase}/api/resume/version/${latestResume.latest_version_id}?user_email=${encodeURIComponent(user.email)}`)
+            if (resumeVersionRes.ok) {
+              const versionData = await resumeVersionRes.json()
+              setResumeDataForCoverLetter(versionData.version?.resume_data || {
+                name: '',
+                title: '',
+                email: '',
+                phone: '',
+                location: '',
+                summary: '',
+                sections: []
+              })
+              setShowCoverLetterGenerator(true)
+            } else {
+              setResumeDataForCoverLetter({
+                name: '',
+                title: '',
+                email: '',
+                phone: '',
+                location: '',
+                summary: '',
+                sections: []
+              })
+              setShowCoverLetterGenerator(true)
+            }
           } else {
             setResumeDataForCoverLetter({
               name: '',
@@ -507,10 +520,12 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
       if (resumes.length > 0) {
         const latestResume = resumes[0]
-        const resumeVersionRes = await fetch(`${config.apiBase}/api/resumes/${latestResume.id}/versions/latest`)
-        if (resumeVersionRes.ok) {
-          const versionData = await resumeVersionRes.json()
-          resumeData = versionData.resume_data || resumeData
+        if (latestResume.latest_version_id) {
+          const resumeVersionRes = await fetch(`${config.apiBase}/api/resume/version/${latestResume.latest_version_id}?user_email=${encodeURIComponent(user.email)}`)
+          if (resumeVersionRes.ok) {
+            const versionData = await resumeVersionRes.json()
+            resumeData = versionData.version?.resume_data || resumeData
+          }
         }
       }
 
