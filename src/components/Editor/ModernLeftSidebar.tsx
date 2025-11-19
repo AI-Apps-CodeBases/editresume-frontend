@@ -8,6 +8,7 @@ interface ModernLeftSidebarProps {
   currentView?: 'editor' | 'jobs' | 'resumes'
   onCollapseChange?: (collapsed: boolean) => void
   onAIContentWizard?: (contentType: 'job' | 'project' | 'skill' | 'education') => void
+  onOpenCoverLetter?: () => void
   onTemplatesClick?: () => void
   userName?: string
   isAuthenticated?: boolean
@@ -20,6 +21,7 @@ export default function ModernLeftSidebar({
   currentView = 'editor', 
   onCollapseChange, 
   onAIContentWizard, 
+  onOpenCoverLetter,
   onTemplatesClick,
   userName,
   isAuthenticated: isAuthenticatedProp,
@@ -130,7 +132,7 @@ export default function ModernLeftSidebar({
     } else if (itemId.startsWith('ai-')) {
       // Handle AI Content Wizard tools
       const aiTool = aiTools.find(tool => tool.id === itemId)
-      if (aiTool && onAIContentWizard) {
+      if (aiTool && aiTool.contentType && onAIContentWizard) {
         onAIContentWizard(aiTool.contentType)
       }
     } else if (itemId === 'templates') {

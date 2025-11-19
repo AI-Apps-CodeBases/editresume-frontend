@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 const aiHighlights = [
   'Write polished bullet points in seconds.',
@@ -31,6 +32,27 @@ export default function HeroSection() {
               <Link href="/editor?new=true" className="button-secondary text-sm">
                 Create my resume
               </Link>
+            </div>
+            <div className="mt-6">
+              <Link
+                href="/extension"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 hover:border-primary-300 transition-colors"
+              >
+                <Image 
+                  src="/extension-icon.png" 
+                  alt="EditResume Extension" 
+                  width={20} 
+                  height={20}
+                  className="w-5 h-5"
+                />
+                <span>Download Chrome Extension (Beta)</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+              <p className="mt-2 text-xs text-text-muted">
+                Save LinkedIn jobs directly to editresume.io • Beta testing
+              </p>
             </div>
             <div className="mt-8 flex flex-wrap gap-4 text-sm text-text-muted">
               <span className="surface-pill">Works on desktop and mobile</span>

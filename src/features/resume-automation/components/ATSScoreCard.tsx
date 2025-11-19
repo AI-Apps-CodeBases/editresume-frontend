@@ -80,3 +80,5 @@ export function ATSScoreCard({ score }: ATSScoreCardProps) {
 
 
 
+
+

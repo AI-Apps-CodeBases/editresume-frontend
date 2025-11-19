@@ -31,6 +31,7 @@ interface ModernEditorLayoutProps {
   template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
   templateConfig?: any
   onAIContentWizard?: (contentType: 'job' | 'project' | 'skill' | 'education') => void
+  onOpenCoverLetter?: () => void
   // VisualResumeEditor props
   onAddContent?: (content: any) => void
   roomId?: string | null
@@ -78,6 +79,7 @@ export default function ModernEditorLayout({
   activeUsers = [],
   onAIImprove,
   onAIContentWizard,
+  onOpenCoverLetter,
   onNewResume,
   onSaveResume,
   onUploadResume,
@@ -141,6 +143,7 @@ export default function ModernEditorLayout({
           currentView={currentView}
           onCollapseChange={setLeftSidebarCollapsed}
           onAIContentWizard={onAIContentWizard}
+          onOpenCoverLetter={onOpenCoverLetter}
           onTemplatesClick={onTemplatesClick}
           userName={userName}
           isAuthenticated={isAuthenticated}

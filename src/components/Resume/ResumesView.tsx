@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config'
 
 interface Resume {
@@ -33,6 +34,7 @@ interface Props {
 
 export default function ResumesView({ onBack }: Props) {
   const { user, isAuthenticated } = useAuth()
+  const { showAlert, showConfirm } = useModal()
   const [savedResumes, setSavedResumes] = useState<Resume[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -161,6 +163,60 @@ export default function ResumesView({ onBack }: Props) {
                       className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-all font-semibold text-center"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        const confirmed = await showConfirm({
+                          title: 'Delete Resume',
+                          message: `Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`,
+                          confirmText: 'Delete',
+                          cancelText: 'Cancel',
+                          type: 'danger',
+                          icon: '🗑️'
+                        })
+                        
+                        if (!confirmed) {
+                          return
+                        }
+                        
+                        try {
+                          const res = await fetch(`${config.apiBase}/api/resumes/${resume.id}?user_email=${encodeURIComponent(user?.email || '')}`, {
+                            method: 'DELETE',
+                            headers: {
+                              'Content-Type': 'application/json'
+                            }
+                          })
+                          
+                          if (res.ok) {
+                            setSavedResumes((prev) => prev.filter((x) => x.id !== resume.id))
+                            await showAlert({
+                              title: 'Success',
+                              message: 'Resume deleted successfully',
+                              type: 'success',
+                              icon: '✅'
+                            })
+                          } else {
+                            const error = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
+                            await showAlert({
+                              title: 'Error',
+                              message: error.detail || 'Failed to delete resume',
+                              type: 'error'
+                            })
+                          }
+                        } catch (error) {
+                          console.error('Failed to delete resume:', error)
+                          await showAlert({
+                            title: 'Error',
+                            message: 'Failed to delete resume. Please try again.',
+                            type: 'error'
+                          })
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-all font-semibold"
+                      title="Delete this resume"
+                    >
+                      🗑️ Delete
                     </button>
                     {resume.match_count && resume.match_count > 0 && (
                       <span className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-xs font-semibold">
