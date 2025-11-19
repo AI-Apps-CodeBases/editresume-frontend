@@ -201,29 +201,12 @@ const extractAtsInsightsFromText = (text: string) => {
   };
 };
 
-const buildKeywordFrequencyMap = (items: string[]): Record<string, number> => {
-  return items.reduce((acc, word) => {
-    if (!word) return acc;
-    const key = word.toLowerCase();
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-};
-
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const prettifyKeyword = (keyword: string) => {
   const trimmed = keyword.trim();
   if (!trimmed) return '';
   if (trimmed.length <= 3) return trimmed.toUpperCase();
   return trimmed.replace(/\b\w/g, (char) => char.toUpperCase());
-};
-
-type KeywordBadgeStatus = 'matched' | 'missing' | 'neutral';
-
-const KEYWORD_BADGE_STYLES: Record<KeywordBadgeStatus, string> = {
-  matched: 'border border-emerald-200 bg-emerald-50 text-emerald-700',
-  missing: 'border border-rose-200 bg-rose-50 text-rose-600',
-  neutral: 'border border-gray-200 bg-gray-100 text-gray-600',
 };
 
 interface JobMetadata {
@@ -245,18 +228,6 @@ interface JobMetadata {
   easy_apply_url?: string;
 }
 
-interface KeywordGroupItem {
-  label: string;
-  status: KeywordBadgeStatus;
-}
-
-interface KeywordGroup {
-  label: string;
-  items: KeywordGroupItem[];
-  matchedCount: number;
-  missingCount: number;
-  total: number;
-}
 
 const roundScoreValue = (value?: number | null) =>
   typeof value === 'number' && !Number.isNaN(value) ? Math.round(value) : null;
@@ -1048,118 +1019,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       totalKeywords,
     };
   }, [resumeData, buildPrecomputedKeywordPayload]);
-
-  const atsKeywordGroups = useMemo<KeywordGroup[]>(() => {
-    const keywordBundle = buildPrecomputedKeywordPayload();
-    if (!keywordBundle) return [];
-
-    const matchedSet = new Set<string>();
-    const missingSet = new Set<string>();
-
-    const collect = (values: string[] | undefined | null, target: Set<string>) => {
-      if (!values) return;
-      values.forEach((value) => {
-        if (!value) return;
-        const normalized = value.trim().toLowerCase();
-        if (normalized) {
-          target.add(normalized);
-        }
-      });
-    };
-
-    if (matchResult?.match_analysis) {
-      collect(matchResult.match_analysis.matching_keywords, matchedSet);
-      collect(matchResult.match_analysis.missing_keywords, missingSet);
-    } else if (estimatedATS) {
-      collect(estimatedATS.matchedKeywords, matchedSet);
-      collect(estimatedATS.missingKeywords, missingSet);
-    }
-
-    const dedupe = (keywords: string[]) => {
-      const seen = new Set<string>();
-      const result: string[] = [];
-      keywords.forEach((keyword) => {
-        if (!keyword) return;
-        const normalized = keyword.trim();
-        if (!normalized) return;
-        const lower = normalized.toLowerCase();
-        if (seen.has(lower)) return;
-        seen.add(lower);
-        result.push(normalized);
-      });
-      return result;
-    };
-
-    const baseTechnical = keywordBundle.extractedKeywordsPayload?.technical_keywords || [];
-    const highPriority = keywordBundle.highFrequencyKeywords
-      .filter((item) => item.importance === 'high' || item.importance === 'medium')
-      .map((item) => item.keyword);
-
-    const soft = keywordBundle.softSkills || [];
-    const general = keywordBundle.extractedKeywordsPayload?.general_keywords || [];
-
-    const hardList = dedupe([...baseTechnical, ...highPriority]);
-    const softList = dedupe(soft);
-    const blocked = new Set<string>([
-      ...hardList.map((word) => word.toLowerCase()),
-      ...softList.map((word) => word.toLowerCase()),
-    ]);
-
-    const insightKeywords = [
-      ...(keywordBundle.atsInsights?.action_verbs || []),
-      ...(keywordBundle.atsInsights?.metrics || []),
-      ...(keywordBundle.atsInsights?.industry_terms || []),
-    ];
-
-    const impactList = dedupe([
-      ...general.filter((keyword) => !blocked.has(keyword.toLowerCase())).slice(0, 20),
-      ...insightKeywords,
-    ]);
-
-    const statusOrder: Record<KeywordBadgeStatus, number> = { missing: 0, neutral: 1, matched: 2 };
-
-    const buildGroup = (label: string, keywords: string[]): KeywordGroup | null => {
-      if (!keywords.length) return null;
-
-      const items = keywords.map<KeywordGroupItem>((keyword) => {
-        const normalized = keyword.trim().toLowerCase();
-        let status: KeywordBadgeStatus = 'neutral';
-        if (matchedSet.has(normalized)) {
-          status = 'matched';
-        } else if (missingSet.has(normalized)) {
-          status = 'missing';
-        }
-        return {
-          label: prettifyKeyword(keyword),
-          status,
-        };
-      });
-
-      items.sort((a, b) => {
-        if (statusOrder[a.status] !== statusOrder[b.status]) {
-          return statusOrder[a.status] - statusOrder[b.status];
-        }
-        return a.label.localeCompare(b.label);
-      });
-
-      const matchedCount = items.filter((item) => item.status === 'matched').length;
-      const missingCount = items.filter((item) => item.status === 'missing').length;
-
-      return {
-        label,
-        items,
-        matchedCount,
-        missingCount,
-        total: items.length,
-      };
-    };
-
-    return [
-      buildGroup('Core Skills', hardList),
-      buildGroup('Soft Skills', softList),
-      buildGroup('Impact Drivers', impactList),
-    ].filter((group): group is KeywordGroup => Boolean(group));
-  }, [buildPrecomputedKeywordPayload, matchResult, estimatedATS]);
 
   const atsKeywordMetrics = useMemo(() => {
     if (!matchResult?.match_analysis) {
@@ -2727,344 +2586,138 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   )}
                 </div>
               )}
-
-              {/* Match Results (if available) */}
-              {matchResult ? (
-            <div className="space-y-6">
-              {/* Matching ATS Score */}
-          <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm w-full max-w-full">
-            <div className="flex flex-wrap gap-5">
-              <div className="space-y-4 flex-1 min-w-[200px] max-w-[320px]">
-                <div className="flex items-center gap-4">
-                  <div className="relative inline-flex h-24 w-24 flex-shrink-0 items-center justify-center sm:h-28 sm:w-28">
-                    <svg viewBox="0 0 120 120" className="h-full w-full">
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="52"
-                        fill="none"
-                        stroke="#e5e7eb"
-                        strokeWidth="8"
-                      />
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="52"
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeWidth="8"
-                        strokeDasharray={`${Math.max(0, Math.min(100, overallATSScore ?? 0)) * 3.27} 999`}
-                        strokeDashoffset="0"
-                        className={`${getScoreColor(overallATSScore ?? 0).replace('text-', 'stroke-')} drop-shadow-sm`}
-                        style={{
-                          transform: 'rotate(-90deg)',
-                          transformOrigin: 'center',
-                          transition: 'stroke-dasharray 0.6s ease-out'
-                        }}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className={`text-[28px] font-bold sm:text-[32px] ${getScoreColor(overallATSScore ?? 0)}`}>
-                        {overallATSScore !== null ? `${overallATSScore}%` : '—'}
-                      </span>
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        ATS Score
-                      </span>
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Overall Match
-                    </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      <span className={`text-2xl font-bold sm:text-3xl lg:text-4xl ${getScoreColor(overallATSScore ?? 0)}`}>
-                        {overallATSScore !== null ? `${overallATSScore}%` : '—'}
-                      </span>
-                      {scoreChange !== null && scoreChange !== 0 && previousATSScore !== null && (
-                        <span
-                          className={`text-sm font-bold px-2 py-1 rounded ${
-                            scoreChange > 0
-                              ? 'bg-green-100 text-green-700 border border-green-300'
-                              : 'bg-red-100 text-red-700 border border-red-300'
-                          }`}
-                        >
-                          {scoreChange > 0 ? '↑' : '↓'} {Math.abs(scoreChange)}%
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                      <button
-                        onClick={handleManualATSRefresh}
-                        disabled={isManualATSRefreshing || !resumeData}
-                        className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1 font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-                      >
-                        {isManualATSRefreshing ? (
-                          <>
-                            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                              <circle cx="12" cy="12" r="9" strokeWidth="2" className="opacity-30" />
-                              <path d="M15 9l-3 3 3 3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            Refreshing…
-                          </>
-                        ) : (
-                          <>
-                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                              <path d="M4.93 4.93a10 10 0 1114.14 0L12 12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            Refresh ATS
-                          </>
-                        )}
-                      </button>
-                      {isAnalyzing && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-600">
-                          <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4" />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                          </svg>
-                          Updating…
-                        </span>
-                      )}
-                      {!isAnalyzing && isATSUpdatePending && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-500">
-                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <circle cx="12" cy="12" r="9" strokeWidth="2" className="opacity-40" />
-                            <path d="M12 7v4.2l2.1 2.1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          Pending auto-update
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 text-sm text-gray-700">
-                      {matchTierLabel}
-                      {scoreSnapshotBase?.analysis_summary ? ` • ${scoreSnapshotBase.analysis_summary}` : ''}
-                    </p>
-                    {scoreChange !== null && scoreChange > 0 && previousATSScore !== null && (
-                      <p className="mt-1 text-xs font-semibold text-green-600">
-                        Improved from {previousATSScore}%.
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 text-sm">
-              {isAnalyzing && (
-                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-blue-600">
-                      <svg
-                        className="h-4 w-4 animate-spin"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                  </svg>
-                      Updating…
-                </span>
-              )}
-              {!isAnalyzing && isATSUpdatePending && (
-                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-gray-600">
-                      <svg
-                        className="h-4 w-4 text-gray-400"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"></circle>
-                    <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M12 7v4.2l2.1 2.1" />
-                  </svg>
-                      Pending changes
-                </span>
-              )}
             </div>
-              </div>
-              <div className="flex-1 min-w-[240px]">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
-                      <span>Keyword Coverage</span>
-                      {matchedKeywordCount !== null && totalKeywordCount !== null && (
-                        <span className="text-gray-400">
-                          {matchedKeywordCount}/{totalKeywordCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-gray-900">
-                      {keywordCoverageValue !== null ? `${keywordCoverageValue}%` : '—'}
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      JD keywords already reflected in your resume.
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3">
-                    <div className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
-                      <span>Estimated ATS (Keyword Fit)</span>
-                      {estimatedATS && (
-                        <span className="text-blue-600">
-                          {estimatedATS.matchedKeywords.length}/{estimatedATS.totalKeywords}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-blue-700">
-                      {estimatedATS ? `${estimatedATS.score}%` : '—'}
-                    </div>
-                    {estimatedATS?.missingKeywords?.length ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {estimatedATS.missingKeywords.slice(0, 4).map((keyword) => (
-                          <span
-                            key={keyword}
-                            className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-blue-700 shadow-sm"
-                          >
-                            {prettifyKeyword(keyword)}
-                          </span>
-                        ))}
-                        {estimatedATS.missingKeywords.length > 4 && (
-                          <span className="text-xs font-medium text-blue-600">
-                            +{estimatedATS.missingKeywords.length - 4} more
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-xs text-blue-700/70">
-                        Quick keyword scan for resume alignment.
-                      </p>
-                    )}
+          ) : null}
+
+          {/* Match Results (if available) */}
+          {matchResult && (
+            <div className="space-y-6 mt-6">
+              {/* ATS Score Header */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <div className="relative inline-flex h-20 w-20 flex-shrink-0 items-center justify-center">
+                  <svg viewBox="0 0 120 120" className="h-full w-full">
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="52"
+                      fill="none"
+                      stroke="#e5e7eb"
+                      strokeWidth="8"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="52"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeWidth="8"
+                      strokeDasharray={`${Math.max(0, Math.min(100, overallATSScore ?? 0)) * 3.27} 999`}
+                      strokeDashoffset="0"
+                      className={`${getScoreColor(overallATSScore ?? 0).replace('text-', 'stroke-')} drop-shadow-sm`}
+                      style={{
+                        transform: 'rotate(-90deg)',
+                        transformOrigin: 'center',
+                        transition: 'stroke-dasharray 0.6s ease-out'
+                      }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className={`text-2xl font-bold ${getScoreColor(overallATSScore ?? 0)}`}>
+                      {overallATSScore !== null ? `${overallATSScore}%` : '—'}
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                      ATS
+                    </span>
                   </div>
                 </div>
-                {atsKeywordGroups.length > 0 && (
-                  <div className="mt-4">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                      Keyword Categories
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {atsKeywordGroups.map((group) => {
-                        const chipsToShow = group.items.slice(0, 12);
-                        return (
-                          <div key={group.label} className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
-                            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                              <span>{group.label}</span>
-                              <span className="text-gray-400">
-                                {group.matchedCount}/{group.total}
-                              </span>
-                            </div>
-                            <div
-                              className={`mt-1 text-xs font-semibold ${
-                                group.missingCount ? 'text-rose-600' : 'text-emerald-600'
-                              }`}
-                            >
-                              {group.missingCount ? `${group.missingCount} missing` : 'All keywords covered'}
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {chipsToShow.map((item, idx) => (
-                                <span
-                                  key={`${group.label}-${item.label}-${idx}`}
-                                  className={`rounded-full px-2 py-1 text-[11px] font-medium ${KEYWORD_BADGE_STYLES[item.status]}`}
-                                >
-                                  {item.status === 'missing' ? '!' : item.status === 'matched' ? '✓' : '•'} {item.label}
-                                </span>
-                              ))}
-                              {group.items.length > chipsToShow.length && (
-                                <span className="text-[11px] font-medium text-gray-500">
-                                  +{group.items.length - chipsToShow.length} more
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                <div>
+                  <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                    Match Score
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-3xl font-bold ${getScoreColor(overallATSScore ?? 0)}`}>
+                      {overallATSScore !== null ? `${overallATSScore}%` : '—'}
+                    </span>
+                    {scoreChange !== null && scoreChange !== 0 && previousATSScore !== null && (
+                      <span
+                        className={`text-xs font-bold px-2 py-1 rounded ${
+                          scoreChange > 0
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        {scoreChange > 0 ? '↑' : '↓'} {Math.abs(scoreChange)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-600">
+                    {matchTierLabel}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleManualATSRefresh}
+                  disabled={isManualATSRefreshing || !resumeData}
+                  className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {isManualATSRefreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+                {isAnalyzing && (
+                  <span className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg font-medium">
+                    Updating...
+                  </span>
+                )}
+              </div>
+                </div>
+              </div>
+
+              {/* Key Metrics */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  Keyword Coverage
+                </div>
+                <div className="text-2xl font-bold text-gray-900 mb-1">
+                  {keywordCoverageValue !== null ? `${keywordCoverageValue}%` : '—'}
+                </div>
+                {matchedKeywordCount !== null && totalKeywordCount !== null && (
+                  <div className="text-xs text-gray-500">
+                    {matchedKeywordCount} of {totalKeywordCount} keywords
                   </div>
                 )}
-                <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/60 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-purple-700">
-                    Focus Areas
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                  Estimated Fit
+                </div>
+                <div className="text-2xl font-bold text-blue-700 mb-1">
+                  {estimatedATS ? `${estimatedATS.score}%` : '—'}
+                </div>
+                {estimatedATS && (
+                  <div className="text-xs text-blue-600">
+                    {estimatedATS.matchedKeywords.length} of {estimatedATS.totalKeywords} terms
                   </div>
-                  <p className="mt-2 text-sm text-purple-900">
-                    {scoreSnapshotBase?.analysis_summary ||
-                      'Highlight quantifiable wins and align technical stacks with the job description.'}
-                  </p>
-                  {missingKeywordSample.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {missingKeywordSample.map((keyword) => (
-                        <span
-                          key={keyword}
-                          className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-purple-700 shadow-sm"
-                        >
-                          {prettifyKeyword(keyword)}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
-                  Overall ATS uses the full AI comparison of your resume to the JD. Estimated ATS is a quick keyword
-                  check—use both to prioritize updates.
-                </div>
+                )}
               </div>
-                </div>
               </div>
 
-          {/* Matching Keywords (priority chips shown if available) */}
-          {/* High-Intensity Keywords from JD */}
-          {selectedJobMetadata?.high_frequency_keywords && selectedJobMetadata.high_frequency_keywords.length > 0 && (
-            <div className="mb-4">
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span>🔥</span> High-Intensity JD Keywords (Most Important)
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {selectedJobMetadata.high_frequency_keywords.slice(0, 15).map((item, index) => (
-                  <span
-                    key={index}
-                    className={`px-3 py-1 text-sm rounded-full font-semibold ${
-                      item.importance === 'high' 
-                        ? 'bg-red-100 text-red-800 border-2 border-red-300' 
-                        : 'bg-orange-100 text-orange-800 border border-orange-300'
-                    }`}
-                    title={`Frequency: ${item.frequency} times`}
-                  >
-                    {item.keyword} ({item.frequency})
-                  </span>
-                ))}
-            </div>
-              <p className="text-xs text-gray-600 mt-2">
-                These keywords appear most frequently in the JD. Include them in your resume to maximize ATS score.
-              </p>
-          </div>
-          )}
-
-          {matchResult.match_analysis.matching_keywords.length > 0 && (
-            <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                ✅ Matching Keywords in Your Resume ({matchResult.match_analysis.matching_keywords.length} / {matchResult.match_analysis.matching_keywords.length + matchResult.match_analysis.missing_keywords.length})
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {matchResult.match_analysis.matching_keywords.map((keyword, index) => (
-                  <span
-                    key={index}
-                    className={`px-3 py-1 text-sm rounded-full ${ (matchResult as any).priority_keywords?.includes?.(keyword) ? 'bg-purple-100 text-purple-800 border border-purple-200 font-semibold' : 'bg-green-100 text-green-800'}`}
-                  >
-                    ✓ {keyword}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Missing Keywords */}
+              {/* Missing Keywords Section */}
           {matchResult.match_analysis.missing_keywords.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-lg font-semibold text-gray-900">
-                  Missing Keywords ({matchResult.match_analysis.missing_keywords.length})
-                </h4>
+            <div className="border-t border-gray-200 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Missing Keywords
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Add these to improve your match score ({matchResult.match_analysis.missing_keywords.length} missing)
+                  </p>
+                </div>
                 {selectedKeywords.size > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => {
                         const workExpSections = resumeData.sections.filter((s: any) => 
@@ -3075,7 +2728,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         }
                         setShowBulletGenerator(true);
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3084,7 +2737,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     </button>
                     <button
                       onClick={() => addKeywordsToSkillsSection(Array.from(selectedKeywords))}
-                      className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                      className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3098,12 +2751,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 {matchResult.match_analysis.missing_keywords.map((keyword, index) => (
                   <label
                     key={index}
-                    className={`px-3 py-1 text-sm rounded-full cursor-pointer border transition-all flex items-center gap-2 ${
+                    className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer border-2 transition-all flex items-center gap-2 ${
                       selectedKeywords.has(keyword)
-                        ? 'bg-blue-100 text-blue-800 border-blue-300'
+                        ? 'bg-blue-50 text-blue-700 border-blue-300 font-medium'
                         : (matchResult as any).priority_keywords?.includes?.(keyword)
-                        ? 'bg-red-100 text-red-800 border-red-300'
-                        : 'bg-orange-50 text-orange-800 border-orange-200'
+                        ? 'bg-red-50 text-red-700 border-red-300 font-medium'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <input
@@ -3125,100 +2778,89 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 ))}
               </div>
             </div>
-          )}
+            )}
 
-              {/* Technical Skills Analysis */}
-              <div className="grid grid-cols-1 gap-4">
-                {matchResult.match_analysis.technical_matches.length > 0 && (
-                  <div>
-                    <h5 className="font-semibold text-gray-900 mb-2 text-sm">Technical Skills Match</h5>
-                    <div className="flex flex-wrap gap-1">
-                      {matchResult.match_analysis.technical_matches.map((skill, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {matchResult.match_analysis.technical_missing.length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h5 className="font-semibold text-gray-900 text-sm">Missing Technical Skills</h5>
-                      <button
-                        onClick={() => {
-                          // Extract all current skills from resume
-                          const currentSkills = new Set<string>()
-                          resumeData.sections?.forEach((section: any) => {
-                            const sectionType = section.title?.toLowerCase()
-                            if (sectionType?.includes('skill') || sectionType?.includes('technical')) {
-                              section.bullets?.forEach((bullet: any) => {
-                                const skillText = bullet.text?.replace(/^•\s*/, '').trim()
-                                if (skillText) {
-                                  currentSkills.add(skillText.toLowerCase())
-                                }
-                              })
-                            }
-                          })
-                          
-                          // Find skills section or create it
-                          let skillsSection = resumeData.sections?.find((s: any) => {
-                            const title = s.title?.toLowerCase()
-                            return title?.includes('skill') || title?.includes('technical')
-                          })
-                          
-                          if (!skillsSection) {
-                            // Create new skills section
-                            skillsSection = {
-                              id: `skill-${Date.now()}`,
-                              title: 'Skills',
-                              bullets: []
-                            }
+            {/* Technical Skills */}
+          {matchResult.match_analysis.technical_missing.length > 0 && (
+            <div className="border-t border-gray-200 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Missing Technical Skills
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Add these skills to your resume ({matchResult.match_analysis.technical_missing.length} missing)
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    const currentSkills = new Set<string>()
+                    resumeData.sections?.forEach((section: any) => {
+                      const sectionType = section.title?.toLowerCase()
+                      if (sectionType?.includes('skill') || sectionType?.includes('technical')) {
+                        section.bullets?.forEach((bullet: any) => {
+                          const skillText = bullet.text?.replace(/^•\s*/, '').trim()
+                          if (skillText) {
+                            currentSkills.add(skillText.toLowerCase())
                           }
-                          
-                          // Add missing skills that aren't already in resume
-                          const skillsToAdd = matchResult.match_analysis.technical_missing.filter(
-                            (skill: string) => !currentSkills.has(skill.toLowerCase())
-                          )
-                          
-                          const newSkills = skillsToAdd.map((skill: string) => ({
-                            id: `skill-${Date.now()}-${Math.random()}`,
-                            text: skill,
-                            params: { visible: true }
-                          }))
-                          
-                          const updatedSections = resumeData.sections?.map((s: any) =>
-                            s.id === skillsSection.id
-                              ? { ...s, bullets: [...s.bullets, ...newSkills] }
-                              : s
-                          ) || []
-                          
-                          if (!resumeData.sections?.find((s: any) => s.id === skillsSection.id)) {
-                            updatedSections.push(skillsSection)
-                          }
-                          
-                          const updatedResume = {
-                            ...resumeData,
-                            sections: updatedSections
-                          }
-                          
-                          if (onResumeUpdate) {
-                            onResumeUpdate(updatedResume)
-                          }
-                          
-                          alert(`✅ Added ${skillsToAdd.length} missing skill${skillsToAdd.length > 1 ? 's' : ''} to your resume!`)
-                        }}
-                        className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
-                      >
-                        <span>+</span> Add All Missing Skills
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {matchResult.match_analysis.technical_missing.map((skill, index) => {
+                        })
+                      }
+                    })
+                    
+                    let skillsSection = resumeData.sections?.find((s: any) => {
+                      const title = s.title?.toLowerCase()
+                      return title?.includes('skill') || title?.includes('technical')
+                    })
+                    
+                    if (!skillsSection) {
+                      skillsSection = {
+                        id: `skill-${Date.now()}`,
+                        title: 'Skills',
+                        bullets: []
+                      }
+                    }
+                    
+                    const skillsToAdd = matchResult.match_analysis.technical_missing.filter(
+                      (skill: string) => !currentSkills.has(skill.toLowerCase())
+                    )
+                    
+                    const newSkills = skillsToAdd.map((skill: string) => ({
+                      id: `skill-${Date.now()}-${Math.random()}`,
+                      text: skill,
+                      params: { visible: true }
+                    }))
+                    
+                    const updatedSections = resumeData.sections?.map((s: any) =>
+                      s.id === skillsSection.id
+                        ? { ...s, bullets: [...s.bullets, ...newSkills] }
+                        : s
+                    ) || []
+                    
+                    if (!resumeData.sections?.find((s: any) => s.id === skillsSection.id)) {
+                      updatedSections.push(skillsSection)
+                    }
+                    
+                    const updatedResume = {
+                      ...resumeData,
+                      sections: updatedSections
+                    }
+                    
+                    if (onResumeUpdate) {
+                      onResumeUpdate(updatedResume)
+                    }
+                    
+                    alert(`✅ Added ${skillsToAdd.length} missing skill${skillsToAdd.length > 1 ? 's' : ''} to your resume!`)
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add All Missing Skills
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {matchResult.match_analysis.technical_missing.map((skill, index) => {
                         // Check if skill already exists in resume
                         const skillExists = resumeData.sections?.some((section: any) => {
                           const sectionType = section.title?.toLowerCase()
@@ -3294,15 +2936,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             {skillExists && <span className="text-xs">✓</span>}
                           </label>
                         )
-                      })}
-                    </div>
-                  </div>
-                )}
+                })}
               </div>
+            </div>
+            )}
 
-          {/* Save Button */}
-          <div className="pt-4 border-t border-gray-200 space-y-3">
-            {matchResult && currentJobDescriptionId && (
+            {/* Save Button */}
+          {matchResult && currentJobDescriptionId && (
+            <div className="pt-4 border-t border-gray-200">
               <button
                 onClick={async () => {
                   if (!isAuthenticated || !user?.email) {
@@ -3310,7 +2951,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     return;
                   }
 
-                  // Generate smart resume name based on JD
                   let suggestedName = '';
                   if (currentJDInfo?.company) {
                     const companyName = currentJDInfo.company.trim();
@@ -3340,103 +2980,51 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   }
                 }}
                 data-save-job-btn
-                className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <span>Save to Jobs</span>
               </button>
-            )}
-          </div>
-                </div>
-              ) : (
-                estimatedATS ? (
-                  <div className="bg-gradient-to-br from-slate-50 to-indigo-50 rounded-lg p-6 border-2 border-dashed border-indigo-200 text-left">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                        <span>⚡</span> Estimated ATS Score
-                      </h4>
-                      {isATSUpdatePending && (
-                        <span className="text-xs font-semibold text-gray-500 uppercase">Pending sync</span>
-                      )}
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div>
-                        <div className="text-4xl font-bold text-indigo-600">{estimatedATS.score}%</div>
-                        <div className="text-xs text-gray-500">
-                          Matching {estimatedATS.matchedKeywords.length} of {estimatedATS.totalKeywords} key terms locally.
-                        </div>
-                      </div>
-                      {estimatedATS.missingKeywords.length > 0 && (
-                        <div className="text-xs text-gray-600 bg-white/70 px-3 py-2 rounded-lg border border-indigo-100">
-                          <span className="font-semibold text-gray-700">Top gaps:</span>{' '}
-                          {estimatedATS.missingKeywords.slice(0, 5).map((keyword, idx) => (
-                            <span key={keyword}>
-                              {idx > 0 ? ', ' : ''}
-                              {prettifyKeyword(keyword)}
-                            </span>
-                          ))}
-                          {estimatedATS.missingKeywords.length > 5 ? '…' : ''}
-                        </div>
-                      )}
-                    </div>
-                    {atsKeywordGroups.length > 0 && (
-                      <div className="mt-4">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
-                          Keyword Categories
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          {atsKeywordGroups.map((group) => {
-                            const chipsToShow = group.items.slice(0, 10);
-                            return (
-                              <div key={`estimated-${group.label}`} className="rounded-xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
-                                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                                  <span>{group.label}</span>
-                                  <span className="text-gray-400">
-                                    {group.matchedCount}/{group.total}
-                                  </span>
-                                </div>
-                                <div
-                                  className={`mt-1 text-xs font-semibold ${
-                                    group.missingCount ? 'text-rose-600' : 'text-emerald-600'
-                                  }`}
-                                >
-                                  {group.missingCount ? `${group.missingCount} missing` : 'All keywords covered'}
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {chipsToShow.map((item, idx) => (
-                                    <span
-                                      key={`${group.label}-est-${item.label}-${idx}`}
-                                      className={`rounded-full px-2 py-1 text-[11px] font-medium ${KEYWORD_BADGE_STYLES[item.status]}`}
-                                    >
-                                      {item.status === 'missing' ? '!' : item.status === 'matched' ? '✓' : '•'} {item.label}
-                                    </span>
-                                  ))}
-                                  {group.items.length > chipsToShow.length && (
-                                    <span className="text-[11px] font-medium text-gray-500">
-                                      +{group.items.length - chipsToShow.length} more
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-xs text-gray-500 mt-3">
-                      This estimate updates instantly as you edit. Click "Analyze Match" to run the full AI comparison.
-                    </p>
-                  </div>
-                ) : null
-              )}
             </div>
-          ) : (
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 rounded-lg p-8 text-center border-2 border-dashed border-gray-300">
-              <div className="text-gray-400 mb-2 text-4xl">📋</div>
-              <p className="text-sm text-gray-500 font-medium">Job metadata will appear here</p>
-              <p className="text-xs text-gray-400 mt-1">Paste a job description to extract information</p>
+            )}
+            </div>
+          )}
+
+          {/* Estimated ATS (when no match result) */}
+          {!matchResult && estimatedATS && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Estimated ATS Score</h3>
+                {isATSUpdatePending && (
+                  <span className="text-xs font-medium text-gray-500">Pending sync</span>
+                )}
+              </div>
+              <div className="text-4xl font-bold text-indigo-600 mb-2">
+                {estimatedATS?.score}%
+              </div>
+              <div className="text-sm text-gray-600 mb-4">
+                Matching {estimatedATS?.matchedKeywords?.length || 0} of {estimatedATS?.totalKeywords || 0} key terms
+              </div>
+              {estimatedATS?.missingKeywords && estimatedATS.missingKeywords.length > 0 && (
+                <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                  <div className="text-sm font-medium text-red-900 mb-2">Top Missing Keywords:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {estimatedATS.missingKeywords.slice(0, 5).map((keyword, idx) => (
+                      <span key={keyword} className="px-2 py-1 bg-white text-red-700 text-xs rounded border border-red-200">
+                        {prettifyKeyword(keyword)}
+                      </span>
+                    ))}
+                    {estimatedATS.missingKeywords.length > 5 && (
+                      <span className="px-2 py-1 text-xs text-red-600">+{estimatedATS.missingKeywords.length - 5} more</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-4">
+                This is an estimate. Click "Analyze Match" for a full AI-powered comparison.
+              </p>
             </div>
           )}
         </div>

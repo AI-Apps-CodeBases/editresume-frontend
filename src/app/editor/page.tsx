@@ -1982,6 +1982,7 @@ const EditorPageContent = () => {
         onSignIn={() => setShowAuthModal(true)}
         onAIContentWizard={handleAIContentWizard}
         onTemplatesClick={handleTemplatesClick}
+        onShareResume={() => setShowShareResume(true)}
       />
 
       {/* Modals */}
@@ -2088,11 +2089,11 @@ const EditorPageContent = () => {
         />
       )}
 
-      {showShareResume && currentResumeId && (
+      {showShareResume && (
         <ShareResumeModal
           isOpen={showShareResume}
           onClose={() => setShowShareResume(false)}
-          resumeId={currentResumeId}
+          resumeId={currentResumeId || 0}
           resumeName={resumeData.name || 'Untitled Resume'}
           resumeData={{
             personalInfo: {

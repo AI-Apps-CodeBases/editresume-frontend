@@ -22,20 +22,30 @@ export default function ShareResumeModal({ isOpen, onClose, resumeId, resumeName
     setError(null)
     
     try {
-      // Get the current authenticated user
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
       if (!currentUser.email) {
         setError('Please log in first to share your resume.')
         return
       }
       
-      // First, save the resume to the database if we have resume data
-      let actualResumeId = resumeId
-      if (resumeData) {
-        const { versionControlService } = await import('@/lib/services/versionControl')
-        const saveResult = await versionControlService.saveResume(resumeData)
-        actualResumeId = saveResult.resume_id
-        console.log('Resume saved with ID:', actualResumeId)
+      let actualResumeId = resumeId && resumeId > 0 ? resumeId : null
+      
+      if (!actualResumeId && resumeData) {
+        try {
+          const { versionControlService } = await import('@/lib/services/versionControl')
+          const saveResult = await versionControlService.saveResume(resumeData)
+          actualResumeId = saveResult.resume_id
+          console.log('Resume saved with ID:', actualResumeId)
+        } catch (saveError: any) {
+          const saveErrorMessage = saveError?.message || saveError?.toString() || 'Unknown error'
+          setError(`Failed to save resume: ${saveErrorMessage}. Please try saving the resume first using the Save button.`)
+          return
+        }
+      }
+      
+      if (!actualResumeId || actualResumeId === 0) {
+        setError('Resume ID is required. Please save the resume first using the Save button, then try sharing again.')
+        return
       }
       
       const result = await sharedResumeService.createSharedResume(
@@ -44,8 +54,9 @@ export default function ShareResumeModal({ isOpen, onClose, resumeId, resumeName
         expiresDays || undefined
       )
       setSharedInfo(result)
-    } catch (err) {
-      setError('Failed to create shared link. Make sure the resume is saved first.')
+    } catch (err: any) {
+      const errorMessage = err?.message || err?.toString() || 'Unknown error'
+      setError(`Failed to create shared link: ${errorMessage}`)
       console.error('Failed to create shared link:', err)
     } finally {
       setLoading(false)

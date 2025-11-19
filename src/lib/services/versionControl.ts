@@ -89,14 +89,31 @@ class VersionControlService {
       throw new Error('Resume name is required to save.');
     }
 
+    const title = resumeData.personalInfo?.title || resumeData.title || 'Professional';
+
+    const sections = (resumeData.sections || [])
+      .filter((section: any) => section && (section.title || section.bullets?.length > 0))
+      .map((section: any) => ({
+        id: section.id || String(Date.now() + Math.random()),
+        title: (section.title || 'Untitled Section').trim(),
+        bullets: (section.bullets || [])
+          .filter((bullet: any) => bullet && bullet.text && String(bullet.text).trim())
+          .map((bullet: any) => ({
+            id: bullet.id || String(Date.now() + Math.random()),
+            text: String(bullet.text).trim(),
+            params: bullet.params || {}
+          }))
+      }))
+      .filter((section: any) => section.title.trim() !== '');
+
     const payload = {
       name: resumeData.personalInfo.name.trim(),
-      title: resumeData.personalInfo?.title || '',
+      title: title.trim() || 'Professional',
       email: resumeData.personalInfo?.email || '',
       phone: resumeData.personalInfo?.phone || '',
       location: resumeData.personalInfo?.location || '',
       summary: resumeData.summary || '',
-      sections: resumeData.sections || [],
+      sections: sections,
       template: resumeData.template || 'tech'
     };
 

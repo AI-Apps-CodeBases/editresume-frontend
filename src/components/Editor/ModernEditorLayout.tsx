@@ -58,6 +58,7 @@ interface ModernEditorLayoutProps {
   deepLinkedJD?: string | null
   activeJobDescriptionId?: number | null
   onTemplatesClick?: () => void
+  onShareResume?: () => void
 }
 
 export default function ModernEditorLayout({
@@ -93,6 +94,7 @@ export default function ModernEditorLayout({
   deepLinkedJD,
   activeJobDescriptionId,
   onTemplatesClick,
+  onShareResume,
 }: ModernEditorLayoutProps) {
   const [activeRightTab, setActiveRightTab] = useState<'live' | 'match' | 'analysis' | 'grammar' | 'comments'>('live')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
@@ -133,6 +135,7 @@ export default function ModernEditorLayout({
         isAuthenticated={isAuthenticated}
         onLogout={onLogout}
         onSignIn={onSignIn}
+        onShareResume={onShareResume}
       />
 
       {/* Main Content Area */}

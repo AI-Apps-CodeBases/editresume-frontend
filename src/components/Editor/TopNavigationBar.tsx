@@ -15,6 +15,7 @@ interface TopNavigationBarProps {
   isAuthenticated?: boolean
   onLogout?: () => void
   onSignIn?: () => void
+  onShareResume?: () => void
 }
 
 export default function TopNavigationBar({ 
@@ -29,6 +30,7 @@ export default function TopNavigationBar({
   isAuthenticated,
   onLogout,
   onSignIn,
+  onShareResume,
 }: TopNavigationBarProps) {
   const { user } = useAuth()
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -70,6 +72,16 @@ export default function TopNavigationBar({
               className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
             >
               💾 Save
+            </button>
+          )}
+
+          {/* Share Resume */}
+          {onShareResume && isAuthenticated && hasResumeName && (
+            <button
+              onClick={onShareResume}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              🔗 Share
             </button>
           )}
 
