@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import List, Optional
@@ -1267,21 +1268,44 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
 
             logger.info(f"Generating summary from experience for: {name}")
 
-            response = openai_client["requests"].post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=60,
-            )
-
-            if response.status_code != 200:
-                raise Exception(
-                    f"OpenAI API error: {response.status_code} - {response.text}"
+            # Use async HTTP client with proper timeout handling
+            httpx_client = openai_client.get("httpx_client")
+            if not httpx_client:
+                # Fallback to creating a new client if not available
+                import httpx
+                httpx_client = httpx.AsyncClient(
+                    timeout=httpx.Timeout(35.0, connect=5.0),
+                    limits=httpx.Limits(max_keepalive_connections=10, max_connections=50),
                 )
 
-            result = response.json()
+            async def make_request():
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                )
+                if response.status_code != 200:
+                    raise Exception(
+                        f"OpenAI API error: {response.status_code} - {response.text}"
+                    )
+                return response.json()
+
+            # Use asyncio.wait_for for proper timeout handling
+            result = await asyncio.wait_for(make_request(), timeout=35.0)
             summary_text = result["choices"][0]["message"]["content"].strip()
             tokens_used = result.get("usage", {}).get("total_tokens", 0)
+        except asyncio.TimeoutError:
+            fallback_error = "Request timed out after 35 seconds"
+            logger.error(f"OpenAI generate summary timeout: {fallback_error}")
+            summary_text = build_fallback_summary()
+            if not summary_text:
+                default_headline = title or "Results-driven professional"
+                keyword_snippet = ", ".join(combined_keywords[:5])
+                if keyword_snippet:
+                    summary_text = f"{default_headline} known for expertise across {keyword_snippet}, committed to delivering measurable business impact."
+                else:
+                    summary_text = f"{default_headline} with a track record of driving successful outcomes and elevating team performance."
+            tokens_used = 0
         except Exception as generation_error:
             fallback_error = str(generation_error)
             logger.error(
@@ -1341,10 +1365,40 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
             response_payload["error"] = fallback_error
 
         return response_payload
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"OpenAI generate summary from experience error: {str(e)}")
-        error_message = "Failed to generate summary: " + str(e)
-        raise HTTPException(status_code=500, detail=error_message)
+        # Always return a response, even on error, to prevent "No response returned" error
+        try:
+            fallback_summary = build_fallback_summary()
+            if not fallback_summary:
+                default_headline = payload.get("title") or "Results-driven professional"
+                fallback_summary = f"{default_headline} with a track record of driving successful outcomes and elevating team performance."
+            
+            return {
+                "success": True,
+                "summary": fallback_summary,
+                "tokens_used": 0,
+                "word_count": len(fallback_summary.split()),
+                "keywords_incorporated": [],
+                "requested_keywords": [],
+                "fallback": True,
+                "error": str(e)
+            }
+        except Exception as fallback_error:
+            logger.error(f"Even fallback summary generation failed: {str(fallback_error)}")
+            # Last resort - return a basic summary
+            return {
+                "success": True,
+                "summary": "Experienced professional with a proven track record of delivering results and driving business impact.",
+                "tokens_used": 0,
+                "word_count": 12,
+                "keywords_incorporated": [],
+                "requested_keywords": [],
+                "fallback": True,
+                "error": f"Primary error: {str(e)}, Fallback error: {str(fallback_error)}"
+            }
 
 
 @router.post("/generate_resume_content")
