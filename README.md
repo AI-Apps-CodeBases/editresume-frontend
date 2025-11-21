@@ -159,11 +159,44 @@ OPENAI_MODEL=gpt-4o-mini
 OPENAI_MAX_TOKENS=2000
 ```
 
+## Quick Start
+
+### 1. Setup Environment Variables
+
+```bash
+# Copy the example env file
+cp env.example .env
+
+# Edit .env and add your configuration
+DATABASE_URL=postgresql+psycopg2://...
+OPENAI_API_KEY=sk-your-key-here
+# ... see env.example for all variables
+```
+
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Start the Application
+
+```bash
+# Using Docker Compose (includes PostgreSQL)
+docker compose up
+
+# Or run directly
+uvicorn main:app --reload --port 8000
+```
+
+**API**: http://localhost:8000  
+**API Docs**: http://localhost:8000/docs
+
 ## Testing
 
 ```bash
 # Create test user
-python backend/create_test_user.py
+python create_test_user.py
 
 # Test API
 curl http://localhost:8000/health
@@ -172,14 +205,19 @@ curl http://localhost:8000/health
 ## Deployment
 
 **Render.com:**
-- Uses `Dockerfile.render`
+- Uses `Dockerfile.render` (configured in `render.yaml`)
 - PostgreSQL database
 - Auto-deploys on push
 
-**Local:**
+**Local Development:**
 ```bash
-docker compose up backend
-# or
+# Standard environment
+docker compose up
+
+# Local development environment (different ports)
+docker compose -f docker-compose.local.yml up
+
+# Or run directly
 uvicorn main:app --reload --port 8000
 ```
 
