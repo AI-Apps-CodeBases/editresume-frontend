@@ -1440,8 +1440,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   const signInBtn = document.getElementById('signInBtn');
   const refreshBtn = document.getElementById('refreshSaved');
 
-  const existingToken = await ensureAuthToken({ silent: true });
-  updateAuthStatus(!!existingToken);
+  const checkAuth = async (forceRefresh = false) => {
+    try {
+      const token = await ensureAuthToken({ silent: true, forceRefresh });
+      const hasToken = !!token;
+      updateAuthStatus(hasToken);
+      if (hasToken) {
+        loadSavedJDs();
+      }
+      return hasToken;
+    } catch (err) {
+      updateAuthStatus(false);
+      return false;
+    }
+  };
+  
+  await checkAuth();
+  
+  let pollInterval = setInterval(async () => {
+    const hasToken = await checkAuth(false);
+    if (hasToken) {
+      clearInterval(pollInterval);
+    }
+  }, 2000);
+  
+  setTimeout(() => clearInterval(pollInterval), 30000);
 
   if (signInBtn) {
     signInBtn.addEventListener('click', async () => {
@@ -1514,8 +1537,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   } catch (_) { }
-
-  loadSavedJDs();
 
   // Listen for storage changes
   chrome.storage.onChanged.addListener((changes, areaName) => {

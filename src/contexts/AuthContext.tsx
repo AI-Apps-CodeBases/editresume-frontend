@@ -146,7 +146,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (!auth.currentUser) {
+      const waitForAuth = async (maxWait = 5000): Promise<boolean> => {
+        if (auth.currentUser) return true
+        return new Promise((resolve) => {
+          const unsubscribe = onAuthStateChanged(auth, (user) => {
+            unsubscribe()
+            resolve(!!user)
+          })
+          setTimeout(() => {
+            unsubscribe()
+            resolve(false)
+          }, maxWait)
+        })
+      }
+
+      const isAuthenticated = await waitForAuth()
+      if (!isAuthenticated) {
         reply({ ok: false, error: 'not_authenticated' })
         return
       }
@@ -162,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('message', handleExtensionTokenRequest)
     return () => window.removeEventListener('message', handleExtensionTokenRequest)
-  }, [user?.uid])
+  }, [])
 
   const signIn = useCallback(async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password)

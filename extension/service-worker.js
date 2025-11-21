@@ -112,6 +112,8 @@ const requestTokenViaApp = async (retries = 3) => {
 
   await waitForTabComplete(targetTab.id)
 
+  await new Promise(resolve => setTimeout(resolve, 1000))
+
   try {
     await chrome.scripting.executeScript({
       target: { tabId: targetTab.id },
@@ -120,6 +122,8 @@ const requestTokenViaApp = async (retries = 3) => {
   } catch (err) {
     console.warn('Failed to inject appBridge.js', err)
   }
+
+  await new Promise(resolve => setTimeout(resolve, 500))
 
   const response = await new Promise((resolve, reject) => {
     chrome.tabs.sendMessage(
@@ -204,6 +208,60 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return false
 })
 
+const handleExtensionAuthTab = async (tabId) => {
+  try {
+    const injected = await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['appBridge.js']
+    }).catch(() => null)
+    
+    if (!injected) return false
+    
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    let attempts = 0
+    const maxAttempts = 8
+    
+    const tryGetToken = async () => {
+      attempts++
+      const response = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(
+          tabId,
+          { type: 'REQUEST_TOKEN_FROM_PAGE' },
+          (res) => {
+            if (chrome.runtime.lastError) {
+              resolve({ ok: false, error: chrome.runtime.lastError.message })
+              return
+            }
+            resolve(res || { ok: false, error: 'no_response' })
+          }
+        )
+      })
+
+        if (response?.ok && response.token) {
+          await chrome.storage.sync.set({ 
+            token: response.token, 
+            tokenFetchedAt: Date.now() 
+          })
+          console.log('Extension: Token successfully obtained and stored')
+          return true
+        }
+      
+      if (response?.error === 'not_authenticated' && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        return tryGetToken()
+      }
+      
+      return false
+    }
+    
+    return await tryGetToken()
+  } catch (err) {
+    console.warn('Auto-retry token request failed:', err)
+    return false
+  }
+}
+
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || !tab?.url) return
   
@@ -215,41 +273,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const normalizedBase = normalizeBaseUrl(appBase)
     if (!tab.url.startsWith(normalizedBase)) return
     
-    setTimeout(async () => {
-      try {
-        const injected = await chrome.scripting.executeScript({
-          target: { tabId },
-          files: ['appBridge.js']
-        }).catch(() => null)
-        
-        if (!injected) return
-        
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const response = await new Promise((resolve) => {
-          chrome.tabs.sendMessage(
-            tabId,
-            { type: 'REQUEST_TOKEN_FROM_PAGE' },
-            (res) => {
-              if (chrome.runtime.lastError) {
-                resolve({ ok: false, error: chrome.runtime.lastError.message })
-                return
-              }
-              resolve(res || { ok: false, error: 'no_response' })
-            }
-          )
-        })
-
-        if (response?.ok && response.token) {
-          await chrome.storage.sync.set({ 
-            token: response.token, 
-            tokenFetchedAt: Date.now() 
-          })
-        }
-      } catch (err) {
-        console.warn('Auto-retry token request failed:', err)
-      }
-    }, 1500)
+    setTimeout(() => handleExtensionAuthTab(tabId), 2000)
   } catch (err) {
     // Ignore invalid URLs
   }

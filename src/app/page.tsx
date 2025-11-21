@@ -3,10 +3,12 @@ import FeatureGrid from '@/components/home/FeatureGrid'
 import StepsSection from '@/components/home/StepsSection'
 import TestimonialsSection from '@/components/home/TestimonialsSection'
 import CollaborationSection from '@/components/home/CollaborationSection'
+import ExtensionAuthHandler from '@/components/extension/ExtensionAuthHandler'
 
 export default function Page() {
   return (
     <div className="flex flex-col">
+      <ExtensionAuthHandler />
       <HeroSection />
       <FeatureGrid />
       <StepsSection />
