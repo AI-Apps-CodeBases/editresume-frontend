@@ -161,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const isAuthenticated = await waitForAuth()
-      if (!isAuthenticated) {
+      if (!isAuthenticated || !auth.currentUser) {
         reply({ ok: false, error: 'not_authenticated' })
         return
       }
