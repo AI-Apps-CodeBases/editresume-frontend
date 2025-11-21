@@ -334,8 +334,14 @@ const EditorPageContent = () => {
               setPreviewMode('match')
             } else {
               Promise.all([
-                fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null),
-                fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
+                fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => {
+                  if (res.status === 404) return null;
+                  return res.ok ? res.json() : null;
+                }).catch(() => null),
+                fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
+                  if (res.status === 404) return null;
+                  return res.ok ? res.json() : null;
+                }).catch(() => null)
               ]).then(([newJob, legacyJob]) => {
                 if (!cancelled) {
                   const jobData = newJob || legacyJob
@@ -551,7 +557,17 @@ const EditorPageContent = () => {
   useEffect(() => {
     if (previewMode === 'match' && activeJobDescriptionId && !deepLinkedJD) {
       fetch(`${config.apiBase}/api/job-descriptions/${activeJobDescriptionId}`)
-        .then(res => res.ok ? res.json() : null)
+        .then(res => {
+          if (res.status === 404) {
+            // Job description not found - clear stale ID
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('activeJobDescriptionId');
+            }
+            setActiveJobDescriptionId(null);
+            return null;
+          }
+          return res.ok ? res.json() : null;
+        })
         .then(data => {
           if (data && data.content) {
             setDeepLinkedJD(data.content)
@@ -568,8 +584,14 @@ const EditorPageContent = () => {
       setActiveJobDescriptionId(jobId)
       
       Promise.all([
-        fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null),
-        fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
+        fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => {
+          if (res.status === 404) return null;
+          return res.ok ? res.json() : null;
+        }).catch(() => null),
+        fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
+          if (res.status === 404) return null;
+          return res.ok ? res.json() : null;
+        }).catch(() => null)
       ]).then(([newJob, legacyJob]) => {
         const jobData = newJob || legacyJob
         if (jobData) {
@@ -577,11 +599,16 @@ const EditorPageContent = () => {
           if (description) {
             setDeepLinkedJD(description)
             setPreviewMode('match')
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('deepLinkedJD', description)
-              localStorage.setItem('activeJobDescriptionId', String(jobId))
-            }
           }
+        } else {
+          // Job not found - clear the ID from URL and localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('activeJobDescriptionId');
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('jdId');
+            window.history.replaceState({}, '', newUrl.toString());
+          }
+          setActiveJobDescriptionId(null);
         }
       }).catch(() => {})
     }

@@ -199,8 +199,16 @@ export default function VisualResumeEditor({
 
   // Deduplicate sections by title (case-insensitive) - keep first occurrence
   const lastSectionsRef = useRef<string>('')
+  const isDeletingRef = useRef<boolean>(false)
+  
   useEffect(() => {
     if (!data.sections || data.sections.length === 0) return
+    
+    // Skip deduplication if we're in the middle of a deletion operation
+    if (isDeletingRef.current) {
+      isDeletingRef.current = false
+      return
+    }
 
     // Create a signature of current sections to detect actual changes
     const sectionsSignature = JSON.stringify(data.sections.map(s => ({ id: s.id, title: s.title })))
@@ -1278,7 +1286,17 @@ export default function VisualResumeEditor({
   }
 
   const removeSection = (sectionId: string) => {
-    onChange({ ...data, sections: data.sections.filter(s => s.id !== sectionId) })
+    // Mark that we're deleting to prevent deduplication useEffect from interfering
+    isDeletingRef.current = true
+    
+    // Prevent any other operations - just delete the section
+    const filteredSections = data.sections.filter(s => s.id !== sectionId)
+    
+    // Update ref to prevent deduplication from running
+    lastSectionsRef.current = JSON.stringify(filteredSections.map(s => ({ id: s.id, title: s.title })))
+    
+    // Only update sections - don't do anything else
+    onChange({ ...data, sections: filteredSections })
   }
 
   const handleSectionDragStart = (sectionId: string) => {
@@ -1711,7 +1729,14 @@ export default function VisualResumeEditor({
           <div className="max-w-4xl mx-auto py-6 px-4">
             {/* Candidate Name */}
             <div className="mb-4">
-              <h1 className="text-2xl font-bold text-gray-900 text-center">
+              <h1 
+                contentEditable
+                suppressContentEditableWarning
+                data-editable-type="field"
+                data-field="name"
+                onBlur={(e) => updateField('name', e.currentTarget.textContent || '')}
+                className="text-2xl font-bold text-gray-900 text-center outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text px-2 py-1"
+              >
                 {data.name || 'Your Name'}
               </h1>
             </div>
@@ -2387,10 +2412,10 @@ export default function VisualResumeEditor({
                                                     title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : 'Toggle bullet visibility in preview'}
                                                   />
                                                   <div className="flex-1 min-w-0">
-                                                    <div className="relative flex-1">
+                                                    <div className="relative flex-1 group">
                                                       {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
                                                         <div
-                                                          className={`text-sm leading-relaxed pointer-events-none ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                          className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                             }`}
                                                         >
                                                           {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
@@ -2402,6 +2427,20 @@ export default function VisualResumeEditor({
                                                         data-editable-type="bullet"
                                                         data-section-id={section.id}
                                                         data-bullet-id={companyBullet.id}
+                                                        onMouseDown={(e) => {
+                                                          e.stopPropagation()
+                                                          e.currentTarget.focus()
+                                                        }}
+                                                        onClick={(e) => {
+                                                          e.stopPropagation()
+                                                          e.currentTarget.focus()
+                                                          const range = document.createRange()
+                                                          const sel = window.getSelection()
+                                                          range.selectNodeContents(e.currentTarget)
+                                                          range.collapse(false)
+                                                          sel?.removeAllRanges()
+                                                          sel?.addRange(range)
+                                                        }}
                                                         onBlur={(e) => {
                                                           updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '')
                                                           if (typeof window !== 'undefined') {
@@ -2424,10 +2463,8 @@ export default function VisualResumeEditor({
                                                             }))
                                                           }
                                                         }}
-                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text ${hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0 pointer-events-none' : ''
-                                                          } ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
                                                           }`}
-                                                        style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, pointerEvents: 'none' } : {}}
                                                       >
                                                         {companyBullet.text.replace(/^•\s*/, '')}
                                                       </div>
@@ -2648,10 +2685,10 @@ export default function VisualResumeEditor({
                                         title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
                                       />
                                       <div className="flex-1 min-w-0">
-                                        <div className="relative flex-1">
+                                        <div className="relative flex-1 group">
                                           {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
                                             <div
-                                              className={`text-sm leading-relaxed pointer-events-none ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                 }`}
                                               dangerouslySetInnerHTML={{
                                                 __html: highlightKeywordsInHTML((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords)
@@ -2664,16 +2701,28 @@ export default function VisualResumeEditor({
                                             data-editable-type="bullet"
                                             data-section-id={section.id}
                                             data-bullet-id={bullet.id}
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation()
+                                              e.currentTarget.focus()
+                                            }}
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              e.currentTarget.focus()
+                                              const range = document.createRange()
+                                              const sel = window.getSelection()
+                                              range.selectNodeContents(e.currentTarget)
+                                              range.collapse(false)
+                                              sel?.removeAllRanges()
+                                              sel?.addRange(range)
+                                            }}
                                             onFocus={(e) => {
                                               if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
                                                 e.currentTarget.textContent = e.currentTarget.textContent || '';
                                               }
                                             }}
                                             suppressHydrationWarning
-                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text ${hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'absolute inset-0 opacity-0 pointer-events-none' : ''
-                                              } ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
                                               }`}
-                                            style={hasMatch && bulletMatch.matchedKeywords.length > 0 ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, pointerEvents: 'none' } : {}}
                                             onBlur={(e) => {
                                               updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
                                               if (typeof window !== 'undefined') {
@@ -3372,10 +3421,13 @@ function SortableSectionCard({
             <button
               onClick={(e) => {
                 e.stopPropagation()
+                e.preventDefault()
                 if (confirm(`Are you sure you want to delete the "${title}" section?`)) {
+                  // Immediately call remove - no other operations
                   onRemove()
                 }
               }}
+              type="button"
               className="p-1 hover:bg-red-50 rounded-lg transition-colors group"
               title="Delete section"
             >
