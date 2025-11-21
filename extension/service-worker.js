@@ -75,13 +75,20 @@ const waitForTabComplete = (tabId) =>
     })
   })
 
-const requestTokenViaApp = async () => {
+const requestTokenViaApp = async (retries = 3) => {
   const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
   const normalizedBase = normalizeBaseUrl(appBase)
   const urlPattern = `${normalizedBase}/*`
 
   const existingTabs = await chrome.tabs.query({ url: urlPattern })
-  let targetTab = existingTabs[0]
+  let targetTab = existingTabs.find(tab => {
+    try {
+      const url = new URL(tab.url)
+      return url.searchParams.get('extensionAuth') === '1'
+    } catch {
+      return false
+    }
+  }) || existingTabs[0]
   let createdTempTab = false
 
   if (!targetTab) {
@@ -90,6 +97,13 @@ const requestTokenViaApp = async () => {
       active: false
     })
     createdTempTab = true
+  } else {
+    const tabUrl = new URL(targetTab.url)
+    if (tabUrl.searchParams.get('extensionAuth') !== '1') {
+      await chrome.tabs.update(targetTab.id, {
+        url: `${normalizedBase}/?extensionAuth=1`
+      })
+    }
   }
 
   if (!targetTab?.id) {
@@ -132,8 +146,14 @@ const requestTokenViaApp = async () => {
     return response.token
   }
 
-  if (createdTempTab && response.error === 'not_authenticated') {
-    chrome.tabs.update(targetTab.id, { active: true })
+  if (response.error === 'not_authenticated') {
+    if (createdTempTab) {
+      chrome.tabs.update(targetTab.id, { active: true })
+    }
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      return requestTokenViaApp(retries - 1)
+    }
   }
 
   throw new Error(response.error || 'token_request_failed')
@@ -182,4 +202,55 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   return false
+})
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete' || !tab?.url) return
+  
+  try {
+    const url = new URL(tab.url)
+    if (url.searchParams.get('extensionAuth') !== '1') return
+    
+    const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
+    const normalizedBase = normalizeBaseUrl(appBase)
+    if (!tab.url.startsWith(normalizedBase)) return
+    
+    setTimeout(async () => {
+      try {
+        const injected = await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['appBridge.js']
+        }).catch(() => null)
+        
+        if (!injected) return
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const response = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(
+            tabId,
+            { type: 'REQUEST_TOKEN_FROM_PAGE' },
+            (res) => {
+              if (chrome.runtime.lastError) {
+                resolve({ ok: false, error: chrome.runtime.lastError.message })
+                return
+              }
+              resolve(res || { ok: false, error: 'no_response' })
+            }
+          )
+        })
+
+        if (response?.ok && response.token) {
+          await chrome.storage.sync.set({ 
+            token: response.token, 
+            tokenFetchedAt: Date.now() 
+          })
+        }
+      } catch (err) {
+        console.warn('Auto-retry token request failed:', err)
+      }
+    }, 1500)
+  } catch (err) {
+    // Ignore invalid URLs
+  }
 })

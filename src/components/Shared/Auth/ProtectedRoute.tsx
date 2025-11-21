@@ -18,7 +18,19 @@ export default function ProtectedRoute({ children, fallbackPath = '/auth/login' 
       const next = typeof window !== 'undefined'
         ? `${window.location.pathname}${window.location.search}`
         : '/'
-      const redirectUrl = next && next !== '/' ? `${fallbackPath}?next=${encodeURIComponent(next)}` : fallbackPath
+      const extensionAuth = typeof window !== 'undefined' 
+        ? new URLSearchParams(window.location.search).get('extensionAuth')
+        : null
+      const params = new URLSearchParams()
+      if (next && next !== '/') {
+        params.set('next', next)
+      }
+      if (extensionAuth === '1') {
+        params.set('extensionAuth', '1')
+      }
+      const redirectUrl = params.toString() 
+        ? `${fallbackPath}?${params.toString()}`
+        : fallbackPath
       router.replace(redirectUrl)
     }
   }, [loading, isAuthenticated, router, fallbackPath])

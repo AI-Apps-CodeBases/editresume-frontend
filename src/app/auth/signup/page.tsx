@@ -42,7 +42,12 @@ function SignupPageContent() {
     try {
       await signUp({ email: email.trim(), password, name: name.trim() })
       const next = searchParams.get('next')
-      router.replace(next || '/editor')
+      const extensionAuth = searchParams.get('extensionAuth')
+      if (extensionAuth === '1') {
+        router.replace(`/?extensionAuth=1`)
+      } else {
+        router.replace(next || '/editor')
+      }
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -56,7 +61,12 @@ function SignupPageContent() {
     try {
       await signInWithGoogle()
       const next = searchParams.get('next')
-      router.replace(next || '/editor')
+      const extensionAuth = searchParams.get('extensionAuth')
+      if (extensionAuth === '1') {
+        router.replace(`/?extensionAuth=1`)
+      } else {
+        router.replace(next || '/editor')
+      }
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {

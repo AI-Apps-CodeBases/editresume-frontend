@@ -41,7 +41,12 @@ function LoginPageContent() {
     try {
       await signIn(email.trim(), password)
       const next = searchParams.get('next')
-      router.replace(next || '/editor')
+      const extensionAuth = searchParams.get('extensionAuth')
+      if (extensionAuth === '1') {
+        router.replace(`/?extensionAuth=1`)
+      } else {
+        router.replace(next || '/editor')
+      }
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -55,7 +60,12 @@ function LoginPageContent() {
     try {
       await signInWithGoogle()
       const next = searchParams.get('next')
-      router.replace(next || '/editor')
+      const extensionAuth = searchParams.get('extensionAuth')
+      if (extensionAuth === '1') {
+        router.replace(`/?extensionAuth=1`)
+      } else {
+        router.replace(next || '/editor')
+      }
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {

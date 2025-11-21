@@ -1444,8 +1444,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateAuthStatus(!!existingToken);
 
   if (signInBtn) {
-    signInBtn.addEventListener('click', () => {
-      chrome.runtime.openOptionsPage();
+    signInBtn.addEventListener('click', async () => {
+      const { appBase } = await chrome.storage.sync.get({ appBase: 'https://staging.editresume.io' });
+      const normalizedBase = appBase?.trim().replace(/\/+$/, '') || 'https://staging.editresume.io';
+      if (!normalizedBase.startsWith('http')) {
+        chrome.runtime.openOptionsPage();
+        return;
+      }
+      chrome.tabs.create({ url: `${normalizedBase}/?extensionAuth=1` });
     });
   }
 
