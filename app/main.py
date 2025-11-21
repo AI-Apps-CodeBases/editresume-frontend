@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
     ai,
@@ -162,6 +163,33 @@ async def get_match_legacy(match_id: int, db=Depends(get_db)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# URL normalization middleware - removes double slashes
+class URLNormalizeMiddleware(BaseHTTPMiddleware):
+    """Middleware to normalize URLs by removing double slashes"""
+    
+    async def dispatch(self, request: Request, call_next):
+        import re
+        # Normalize the path by removing double slashes (but keep the leading slash)
+        original_path = request.url.path
+        normalized_path = re.sub(r'/+', '/', original_path)
+        
+        if normalized_path != original_path:
+            logger = logging.getLogger(__name__)
+            logger.info(f"Normalizing URL: {original_path} -> {normalized_path}")
+            # Update the request scope to use the normalized path
+            request.scope["path"] = normalized_path
+            # Reconstruct raw_path from normalized path
+            request.scope["raw_path"] = normalized_path.encode("utf-8")
+            # Update the path_info as well
+            if "path_info" in request.scope:
+                request.scope["path_info"] = normalized_path
+        
+        return await call_next(request)
+
+# Add URL normalization middleware (should run first, so add it last)
+app.add_middleware(URLNormalizeMiddleware)
 
 
 # Timing middleware
