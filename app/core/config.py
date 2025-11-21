@@ -83,6 +83,7 @@ class Settings(BaseSettings):
             "https://editresume-staging.onrender.com",
             "https://editresume-staging-d4ang4wye-hasans-projects-d7f2163d.vercel.app",
             "https://editresume-staging-git-fixuploadissue-hasans-projects-d7f2163d.vercel.app",
+            "https://editresume-frontend-c943dt9jp-hasans-projects-d7f2163d.vercel.app",
         ]
 
     @property
