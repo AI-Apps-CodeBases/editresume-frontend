@@ -1094,8 +1094,15 @@ async function loadSavedJDs() {
       document.getElementById('savedList').innerHTML = '<div class="empty-state">Sign in to see saved jobs</div>';
       return;
     }
-    const { apiBase } = await chrome.storage.sync.get({ apiBase: 'https://editresume-staging.onrender.com' });
-    const base = (apiBase || 'https://editresume-staging.onrender.com').replace(/\/$/, '');
+    const { appBase, apiBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
+    const resolvedApiBase = apiBase || (appBase && appBase.includes('editresume.io') && !appBase.includes('staging') 
+      ? 'https://editresume-api-prod.onrender.com' 
+      : appBase && appBase.includes('staging.editresume.io')
+      ? 'https://editresume-staging.onrender.com'
+      : appBase && appBase.includes('localhost:3000')
+      ? 'http://localhost:8000'
+      : 'https://editresume-api-prod.onrender.com');
+    const base = resolvedApiBase.replace(/\/$/, '');
     const res = await fetch(`${base}/api/job-descriptions`, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -1149,8 +1156,8 @@ function renderSavedList(list) {
             console.warn('No auth token when loading saved job');
             return;
           }
-          const { apiBase } = await chrome.storage.sync.get({ apiBase: 'https://editresume-staging.onrender.com' });
-          const base = (apiBase || 'https://editresume-staging.onrender.com').replace(/\/$/, '');
+          const { apiBase } = await chrome.storage.sync.get({ apiBase: 'https://editresume-api-prod.onrender.com' });
+          const base = (apiBase || 'https://editresume-api-prod.onrender.com').replace(/\/$/, '');
           const res = await fetch(`${base}/api/job-descriptions/${id}`, {
             headers: {
               Authorization: `Bearer ${token}`
@@ -1273,8 +1280,15 @@ async function saveJobDescription() {
       return;
     }
 
-    const { apiBase } = await chrome.storage.sync.get({ apiBase: 'https://editresume-staging.onrender.com' });
-    const apiUrl = (apiBase || 'https://editresume-staging.onrender.com').replace(/\/$/, '') + '/api/job-descriptions';
+    const { appBase, apiBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
+    const resolvedApiBase = apiBase || (appBase && appBase.includes('editresume.io') && !appBase.includes('staging') 
+      ? 'https://editresume-api-prod.onrender.com' 
+      : appBase && appBase.includes('staging.editresume.io')
+      ? 'https://editresume-staging.onrender.com'
+      : appBase && appBase.includes('localhost:3000')
+      ? 'http://localhost:8000'
+      : 'https://editresume-api-prod.onrender.com');
+    const apiUrl = resolvedApiBase.replace(/\/$/, '') + '/api/job-descriptions';
     console.log('Saving job description to:', apiUrl);
 
     // Extract Easy Apply URL if available
@@ -1440,6 +1454,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const signInBtn = document.getElementById('signInBtn');
   const refreshBtn = document.getElementById('refreshSaved');
 
+  const current = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
+  
+  const hasStaging = current.appBase && (
+    current.appBase.includes('staging.editresume.io') || 
+    current.appBase.includes('localhost')
+  );
+  
+  const hasStagingApi = current.apiBase && (
+    current.apiBase.includes('staging.editresume.io') ||
+    current.apiBase.includes('editresume-staging.onrender.com') ||
+    current.apiBase.includes('localhost')
+  );
+  
+  if (hasStaging || hasStagingApi || !current.appBase) {
+    await chrome.storage.sync.set({ 
+      appBase: 'https://editresume.io',
+      apiBase: 'https://editresume-api-prod.onrender.com'
+    });
+    console.log('Extension: Force migrated to production on popup open');
+  }
+
   const checkAuth = async (forceRefresh = false) => {
     try {
       const token = await ensureAuthToken({ silent: true, forceRefresh });
@@ -1468,12 +1503,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (signInBtn) {
     signInBtn.addEventListener('click', async () => {
-      const { appBase } = await chrome.storage.sync.get({ appBase: 'https://staging.editresume.io' });
-      const normalizedBase = appBase?.trim().replace(/\/+$/, '') || 'https://staging.editresume.io';
+      const { appBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
+      let normalizedBase = appBase?.trim().replace(/\/+$/, '') || 'https://editresume.io';
+      
       if (!normalizedBase.startsWith('http')) {
         chrome.runtime.openOptionsPage();
         return;
       }
+      
+      if (normalizedBase.includes('staging.editresume.io') || normalizedBase.includes('localhost')) {
+        normalizedBase = 'https://editresume.io';
+        await chrome.storage.sync.set({ 
+          appBase: normalizedBase,
+          apiBase: 'https://editresume-api-prod.onrender.com'
+        });
+      }
+      
       chrome.tabs.create({ url: `${normalizedBase}/?extensionAuth=1` });
     });
   }
