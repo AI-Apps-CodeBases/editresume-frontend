@@ -65,6 +65,7 @@ BASE_ALLOWED_ORIGINS = [
     "https://editresume-staging.onrender.com",
     "https://editresume-staging-d4ang4wye-hasans-projects-d7f2163d.vercel.app",
     "https://editresume-staging-git-fixuploadissue-hasans-projects-d7f2163d.vercel.app",
+    "https://editresume-frontend-c943dt9jp-hasans-projects-d7f2163d.vercel.app",
 ]
 
 ADDITIONAL_ORIGINS = os.getenv("ADDITIONAL_CORS_ORIGINS", "").split(",")
@@ -215,6 +216,14 @@ async def options_handler(path: str, request: Request):
                 "vercel.app" in origin
                 and "hasans-projects-d7f2163d" in origin
                 and ("editresume-staging" in origin or "editresume-staging-git" in origin)
+            ):
+                return True
+        elif ENVIRONMENT == "production":
+            # Allow production Vercel deployments
+            if (
+                "vercel.app" in origin
+                and "hasans-projects-d7f2163d" in origin
+                and ("editresume-frontend" in origin or "editresume" in origin)
             ):
                 return True
         return False
