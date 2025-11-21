@@ -1007,7 +1007,25 @@
       };
       setStatus('Saving...');
       try {
-        const cfg = await chrome.storage.sync.get({ apiBase: 'http://localhost:8000', appBase: 'http://localhost:3000', token: '' });
+        const cfg = await chrome.storage.sync.get({ appBase: 'https://editresume.io', token: '' });
+        
+        if (cfg.appBase && (cfg.appBase.includes('staging.editresume.io') || cfg.appBase.includes('localhost'))) {
+          cfg.appBase = 'https://editresume.io';
+          cfg.apiBase = 'https://editresume-api-prod.onrender.com';
+          await chrome.storage.sync.set({ 
+            appBase: cfg.appBase,
+            apiBase: cfg.apiBase
+          });
+        }
+        
+        const resolvedApiBase = cfg.apiBase || (cfg.appBase && cfg.appBase.includes('editresume.io') && !cfg.appBase.includes('staging') 
+          ? 'https://editresume-api-prod.onrender.com' 
+          : cfg.appBase && cfg.appBase.includes('staging.editresume.io')
+          ? 'https://editresume-staging.onrender.com'
+          : cfg.appBase && cfg.appBase.includes('localhost:3000')
+          ? 'http://localhost:8000'
+          : 'https://editresume-api-prod.onrender.com');
+        cfg.apiBase = resolvedApiBase;
         if (!cfg.token) { setStatus('Please sign in first.'); return; }
         const res = await fetch(`${cfg.apiBase}/api/job-descriptions`, {
           method: 'POST',

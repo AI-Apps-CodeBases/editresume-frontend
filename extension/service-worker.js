@@ -1,30 +1,101 @@
 const DEFAULTS = {
-  apiBase: 'https://editresume-staging.onrender.com',
-  appBase: 'https://staging.editresume.io',
+  appBase: 'https://editresume.io',
   token: '',
   tokenFetchedAt: 0
 }
 
 const TOKEN_TTL_MS = 45 * 60 * 1000 // 45 minutes
 
+const getApiBaseFromAppBase = (appBase) => {
+  if (!appBase) return 'https://editresume-api-prod.onrender.com'
+  if (appBase.includes('editresume.io') && !appBase.includes('staging')) {
+    return 'https://editresume-api-prod.onrender.com'
+  }
+  if (appBase.includes('staging.editresume.io')) {
+    return 'https://editresume-staging.onrender.com'
+  }
+  if (appBase.includes('localhost:3000')) {
+    return 'http://localhost:8000'
+  }
+  return 'https://editresume-api-prod.onrender.com'
+}
+
+const migrateStagingToProduction = async () => {
+  const current = await chrome.storage.sync.get()
+  const updates = {}
+  
+  const hasStagingAppBase = current.appBase && (
+    current.appBase.includes('staging.editresume.io') ||
+    current.appBase.includes('localhost')
+  )
+  
+  const hasStagingApiBase = current.apiBase && (
+    current.apiBase.includes('staging.editresume.io') ||
+    current.apiBase.includes('editresume-staging.onrender.com') ||
+    current.apiBase.includes('localhost')
+  )
+  
+  const hasProductionAppBase = current.appBase && 
+    current.appBase.includes('editresume.io') && 
+    !current.appBase.includes('staging')
+  
+  if (hasStagingAppBase || !current.appBase || !hasProductionAppBase) {
+    updates.appBase = DEFAULTS.appBase
+    updates.apiBase = getApiBaseFromAppBase(DEFAULTS.appBase)
+  } else if (hasStagingApiBase || !current.apiBase) {
+    const appBase = current.appBase || DEFAULTS.appBase
+    updates.apiBase = getApiBaseFromAppBase(appBase)
+  }
+  
+  if (Object.keys(updates).length > 0) {
+    await chrome.storage.sync.set(updates)
+    console.log('Extension: Force-migrated to production URLs:', updates)
+    return true
+  }
+  return false
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.sync.get()
   const next = { ...DEFAULTS }
   let needsUpdate = false
+  let needsMigration = false
 
-  Object.entries(DEFAULTS).forEach(([key, defaultValue]) => {
-    if (current[key] === undefined) {
-      next[key] = defaultValue
-      needsUpdate = true
-    } else {
-      next[key] = current[key]
-    }
-  })
+  const hasStagingAppBase = current.appBase && (
+    current.appBase.includes('staging.editresume.io') ||
+    current.appBase.includes('localhost')
+  )
+  
+  const hasStagingApiBase = current.apiBase && (
+    current.apiBase.includes('staging.editresume.io') ||
+    current.apiBase.includes('editresume-staging.onrender.com') ||
+    current.apiBase.includes('localhost')
+  )
+
+  if (hasStagingAppBase || !current.appBase) {
+    next.appBase = DEFAULTS.appBase
+    needsMigration = true
+    needsUpdate = true
+  } else {
+    next.appBase = current.appBase
+  }
+  
+  if (hasStagingApiBase || !current.apiBase || needsMigration) {
+    next.apiBase = getApiBaseFromAppBase(next.appBase || DEFAULTS.appBase)
+    needsUpdate = true
+  }
 
   if (needsUpdate) {
-    chrome.storage.sync.set(next)
+    await chrome.storage.sync.set(next)
+    console.log('Extension: Force-set production defaults:', next)
   }
 })
+
+chrome.runtime.onStartup.addListener(async () => {
+  await migrateStagingToProduction()
+})
+
+migrateStagingToProduction()
 
 const normalizeBaseUrl = (value) => {
   if (!value) return DEFAULTS.appBase
@@ -77,7 +148,17 @@ const waitForTabComplete = (tabId) =>
 
 const requestTokenViaApp = async (retries = 3) => {
   const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
-  const normalizedBase = normalizeBaseUrl(appBase)
+  let resolvedAppBase = appBase || DEFAULTS.appBase
+  
+  if (resolvedAppBase.includes('staging.editresume.io') || resolvedAppBase.includes('localhost')) {
+    resolvedAppBase = DEFAULTS.appBase
+    await chrome.storage.sync.set({ 
+      appBase: DEFAULTS.appBase,
+      apiBase: getApiBaseFromAppBase(DEFAULTS.appBase)
+    })
+  }
+  
+  const normalizedBase = normalizeBaseUrl(resolvedAppBase)
   const urlPattern = `${normalizedBase}/*`
 
   const existingTabs = await chrome.tabs.query({ url: urlPattern })

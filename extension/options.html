@@ -14,12 +14,12 @@
   <body>
     <h2>editresume.io Extension Settings</h2>
     <label>API Base URL</label>
-    <input id="apiBase" placeholder="http://localhost:8000" />
-    <div class="muted">Use your deployed backend base URL in production.</div>
+    <input id="apiBase" placeholder="https://editresume-api-prod.onrender.com" />
+    <div class="muted">Production: https://editresume-api-prod.onrender.com<br/>Testing: https://editresume-staging.onrender.com or http://localhost:8000</div>
 
     <label>App Base URL</label>
-    <input id="appBase" placeholder="http://localhost:3000" />
-    <div class="muted">Your web app base. Used for deep links after save.</div>
+    <input id="appBase" placeholder="https://editresume.io" />
+    <div class="muted">Production: https://editresume.io<br/>Testing: https://staging.editresume.io or http://localhost:3000</div>
 
     <label>Access Token (auto-managed)</label>
     <input id="token" placeholder="Sign in on editresume.io to populate automatically" readonly />

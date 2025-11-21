@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const cfg = await chrome.storage.sync.get({ apiBase: 'https://editresume-staging.onrender.com', appBase:'https://staging.editresume.io', token: '' });
+    const cfg = await chrome.storage.sync.get({ apiBase: 'https://editresume-api-prod.onrender.com', appBase:'https://editresume.io', token: '' });
     const apiBaseEl = document.getElementById('apiBase');
     const appBaseEl = document.getElementById('appBase');
     const tokenEl = document.getElementById('token');
