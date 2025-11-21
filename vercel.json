@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "git": {
+    "deploymentEnabled": {
+      "staging": true
+    }
+  },
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_API_BASE": "https://editresume-staging.onrender.com",
+    "NEXT_PUBLIC_PREMIUM_MODE": "false"
+  }
+}
+

@@ -1,1 +1,12 @@
+node_modules/
+.next/
+dist/
+build/
+.env
+.env.local
+.env.staging
+.env.production
+.DS_Store
+*.log
 .vercel
+*.tsbuildinfo
