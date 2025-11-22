@@ -1495,25 +1495,38 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         );
         if (sectionIndex === -1) return;
 
-        const selectedSection = { ...updatedSections[sectionIndex] };
+        // Get the latest version of the section (may have been updated by previous iterations)
+        const selectedSection = { 
+          ...updatedSections[sectionIndex],
+          bullets: [...updatedSections[sectionIndex].bullets] // Deep copy bullets array
+        };
+        
+        // Find the header bullet in the current (possibly updated) bullets array
         const headerBulletIndex = selectedSection.bullets.findIndex(
           (b: any) => b.id === entry.bulletId
         );
         if (headerBulletIndex === -1) return;
 
-        // Find the correct insert position - after the header, before the next header or end
-        // Start by assuming we'll insert right after the header
+        // Find the correct insert position - after existing bullets for this entry, before the next header or end
+        // Start by finding where existing bullets for this entry end
         let insertIndex = headerBulletIndex + 1;
         
         // Find the next header bullet after the current header
+        // All bullets between current header and next header belong to this entry
+        let nextHeaderIndex = selectedSection.bullets.length; // Default to end if no next header
         for (let i = headerBulletIndex + 1; i < selectedSection.bullets.length; i++) {
           const bullet = selectedSection.bullets[i];
+          // Check if this is a header (company header format)
           if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
-            // Found next header - insert before it
-            insertIndex = i;
+            // Found next header - bullets for this entry end before this
+            nextHeaderIndex = i;
             break;
           }
         }
+        
+        // Insert at the end of existing bullets for this entry (right before the next header)
+        // This ensures new bullets are appended after any existing bullets for the same entry
+        insertIndex = nextHeaderIndex;
         
         // Ensure insertIndex is valid: at least after the header, at most at the end
         insertIndex = Math.max(headerBulletIndex + 1, Math.min(insertIndex, selectedSection.bullets.length));
