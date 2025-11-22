@@ -1502,7 +1502,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         if (headerBulletIndex === -1) return;
 
         // Find the correct insert position - after the header, before the next header or end
+        // Start by assuming we'll insert right after the header
         let insertIndex = headerBulletIndex + 1;
+        
+        // Find the next header bullet after the current header
         for (let i = headerBulletIndex + 1; i < selectedSection.bullets.length; i++) {
           const bullet = selectedSection.bullets[i];
           if (bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)) {
@@ -1510,8 +1513,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             insertIndex = i;
             break;
           }
-          insertIndex = i + 1;
         }
+        
+        // Ensure insertIndex is valid: at least after the header, at most at the end
+        insertIndex = Math.max(headerBulletIndex + 1, Math.min(insertIndex, selectedSection.bullets.length));
 
         // Check for existing bullets to avoid duplicates
         const existingTexts = new Set(
