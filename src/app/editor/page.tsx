@@ -62,10 +62,15 @@ const normalizeSectionsForState = (sections: any[]) => {
       text: bullet.text,
       params: bullet.params ? Object.fromEntries(
         Object.entries(bullet.params).map(([k, v]) => {
-          // Preserve boolean and number types, only convert other types to string
+          // Preserve boolean, number, and array types
           if (typeof v === 'boolean' || typeof v === 'number') {
             return [k, v]
           }
+          // Preserve arrays (like generatedKeywords)
+          if (Array.isArray(v)) {
+            return [k, v]
+          }
+          // Convert other types to string
           return [k, String(v)]
         })
       ) : {}
