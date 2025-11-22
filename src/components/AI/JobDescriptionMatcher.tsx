@@ -1569,28 +1569,57 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           const endIdx = Math.min(startIdx + keywordsPerBullet, keywordsArray.length);
           const bulletKeywords = keywordsArray.slice(startIdx, endIdx);
 
+          // Ensure text is properly formatted with bullet point
+          const bulletText = text.trim();
+          const formattedText = bulletText.startsWith('•') ? bulletText : `• ${bulletText}`;
+
           return {
-            id: `bullet-${Date.now()}-${Math.random()}-${idx}`,
-            text: text.startsWith('•') ? text : `• ${text}`,
+            id: `bullet-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`,
+            text: formattedText,
             params: {
+              visible: true, // Explicitly set visible to true
               generatedKeywords: bulletKeywords // Store keywords used to generate this bullet
             },
           };
         });
 
         // Insert new bullets at the calculated position
+        const beforeInsert = selectedSection.bullets.slice(0, insertIndex);
+        const afterInsert = selectedSection.bullets.slice(insertIndex);
+        
+        console.log('Inserting bullets:', {
+          entry: entry.companyName,
+          headerBulletIndex,
+          insertIndex,
+          bulletsBefore: beforeInsert.length,
+          bulletsAfter: afterInsert.length,
+          newBulletsCount: newBullets.length,
+          newBullets: newBullets.map(b => b.text.substring(0, 50))
+        });
+        
         selectedSection.bullets = [
-          ...selectedSection.bullets.slice(0, insertIndex),
+          ...beforeInsert,
           ...newBullets,
-          ...selectedSection.bullets.slice(insertIndex),
+          ...afterInsert,
         ];
 
+        // Ensure we have a fresh copy of the bullets array
+        selectedSection.bullets = [...selectedSection.bullets];
+
         // Update the section in the updatedSections array
-        updatedSections[sectionIndex] = selectedSection;
+        updatedSections[sectionIndex] = {
+          ...selectedSection,
+          bullets: [...selectedSection.bullets] // Ensure deep copy
+        };
+
+        console.log('After insertion:', {
+          totalBullets: selectedSection.bullets.length,
+          headerIndex: selectedSection.bullets.findIndex(b => b.id === entry.bulletId),
+          insertedBulletIds: newBullets.map(b => b.id)
+        });
 
         assignmentResults.push(
-          `${newBullets.length} bullet${newBullets.length > 1 ? 's' : ''} added to ${entry.companyName
-          }`
+          `${newBullets.length} bullet${newBullets.length > 1 ? 's' : ''} added to ${entry.companyName}`
         );
       });
 
