@@ -1614,8 +1614,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
         console.log('After insertion:', {
           totalBullets: selectedSection.bullets.length,
-          headerIndex: selectedSection.bullets.findIndex(b => b.id === entry.bulletId),
-          insertedBulletIds: newBullets.map(b => b.id)
+          headerIndex: selectedSection.bullets.findIndex((b: any) => b.id === entry.bulletId),
+          insertedBulletIds: newBullets.map((b: any) => b.id)
         });
 
         assignmentResults.push(
