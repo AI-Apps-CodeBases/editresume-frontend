@@ -3277,18 +3277,28 @@ export default function VisualResumeEditor({
                   params: {}
                 }))
 
-                const updatedSections = sections.map((s: any) =>
-                  s.id === aiWorkExperienceContext.sectionId
-                    ? {
+                const updatedSections = sections.map((s: any) => {
+                  if (s.id === aiWorkExperienceContext.sectionId) {
+                    const headerBulletIndex = s.bullets.findIndex((b: any) => b.id === aiWorkExperienceContext.bulletId)
+                    // If header not found, append to end instead of inserting at beginning
+                    if (headerBulletIndex === -1) {
+                      return {
+                        ...s,
+                        bullets: [...s.bullets, ...newBullets]
+                      }
+                    }
+                    const insertIndex = headerBulletIndex + 1
+                    return {
                       ...s,
                       bullets: [
-                        ...s.bullets.slice(0, s.bullets.findIndex((b: any) => b.id === aiWorkExperienceContext.bulletId) + 1),
+                        ...s.bullets.slice(0, insertIndex),
                         ...newBullets,
-                        ...s.bullets.slice(s.bullets.findIndex((b: any) => b.id === aiWorkExperienceContext.bulletId) + 1)
+                        ...s.bullets.slice(insertIndex)
                       ]
                     }
-                    : s
-                )
+                  }
+                  return s
+                })
 
                 onChange({ ...data, sections: updatedSections })
               } else {
