@@ -918,16 +918,53 @@ export default function VisualResumeEditor({
   const updateBullet = (sectionId: string | number, bulletId: string | number, text: string) => {
     const targetSectionId = normalizeId(sectionId)
     const targetBulletId = normalizeId(bulletId)
-    const sections = data.sections.map(s =>
-      normalizeId(s.id) === targetSectionId
-        ? {
+    
+    console.log('=== updateBullet called ===', {
+      sectionId: targetSectionId,
+      bulletId: targetBulletId,
+      newText: text.substring(0, 50),
+      currentSections: data.sections.length
+    })
+    
+    const sections = data.sections.map(s => {
+      if (normalizeId(s.id) === targetSectionId) {
+        const updatedBullets = s.bullets.map(b => {
+          if (normalizeId(b.id) === targetBulletId) {
+            console.log('Updating bullet:', {
+              oldText: b.text?.substring(0, 50),
+              newText: text.substring(0, 50),
+              hasParams: !!b.params,
+              params: b.params
+            })
+            // Preserve all bullet properties including params, ensure visible is true if not explicitly false
+            return { 
+              ...b, 
+              text,
+              params: {
+                ...(b.params || {}),
+                visible: b.params?.visible !== false ? true : false // Explicitly set visible
+              }
+            }
+          }
+          return b
+        })
+        
+        console.log('Section updated:', {
+          sectionTitle: s.title,
+          bulletsBefore: s.bullets.length,
+          bulletsAfter: updatedBullets.length,
+          updatedBulletIndex: updatedBullets.findIndex(b => normalizeId(b.id) === targetBulletId)
+        })
+        
+        return {
           ...s,
-          bullets: s.bullets.map(b =>
-            normalizeId(b.id) === targetBulletId ? { ...b, text } : b
-          )
+          bullets: updatedBullets
         }
-        : s
-    )
+      }
+      return s
+    })
+    
+    console.log('Calling onChange with updated sections')
     onChange({ ...data, sections })
   }
 
@@ -2988,6 +3025,13 @@ export default function VisualResumeEditor({
                                 originalTrimmed.startsWith('*') ||
                                 originalTrimmed === ''
                               const newText = needsBullet ? `• ${sanitized}` : sanitized
+                              console.log('AI Improve: Applying improved text:', {
+                                sectionId: aiImproveContext.sectionId,
+                                bulletId: aiImproveContext.bulletId,
+                                newText: newText.substring(0, 100),
+                                originalText: aiImproveContext.currentText?.substring(0, 100),
+                                needsBullet
+                              })
                               updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, newText)
                               setShowAIImproveModal(false)
                               setAiImproveContext(null)
@@ -3200,6 +3244,12 @@ export default function VisualResumeEditor({
                               }
                               const sanitizedChoice = chosen.replace(/^[-•*]+\s*/, '').trim()
                               const finalText = `• ${sanitizedChoice}`.trim()
+                              console.log('AI Improve: Applying final text:', {
+                                sectionId: aiImproveContext.sectionId,
+                                bulletId: aiImproveContext.bulletId,
+                                finalText: finalText.substring(0, 100),
+                                originalText: aiImproveContext.currentText?.substring(0, 100)
+                              })
                               updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, finalText)
                               setShowAIImproveModal(false)
                               setAiImproveContext(null)

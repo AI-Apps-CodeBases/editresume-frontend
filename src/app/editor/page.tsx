@@ -971,17 +971,33 @@ const EditorPageContent = () => {
 
   const handleResumeDataChange = useCallback((newData: any) => {
     console.log('=== handleResumeDataChange called ===')
-    console.log('Previous resume data:', resumeData)
-    console.log('New resume data:', newData)
+    
+    // Log bullet counts before normalization
+    const bulletsBefore = newData.sections?.flatMap((s: any) => s.bullets || []).length || 0
+    console.log('Bullets before normalization:', bulletsBefore)
     
     const cleanedData = {
       ...newData,
       sections: normalizeSectionsForState(newData.sections || [])
     }
     
-    console.log('Cleaned data (after deduplication):', cleanedData)
-    console.log('Setting new resume data...')
+    // Log bullet counts after normalization
+    const bulletsAfter = cleanedData.sections?.flatMap((s: any) => s.bullets || []).length || 0
+    console.log('Bullets after normalization:', bulletsAfter)
     
+    if (bulletsBefore !== bulletsAfter) {
+      console.warn(`⚠️ Bullet count changed: ${bulletsBefore} → ${bulletsAfter}`)
+      // Log which sections changed
+      newData.sections?.forEach((section: any, idx: number) => {
+        const beforeCount = section.bullets?.length || 0
+        const afterCount = cleanedData.sections[idx]?.bullets?.length || 0
+        if (beforeCount !== afterCount) {
+          console.warn(`Section "${section.title}": ${beforeCount} → ${afterCount} bullets`)
+        }
+      })
+    }
+    
+    console.log('Setting new resume data...')
     setResumeData(cleanedData)
     setPreviewKey(prev => prev + 1) // Force preview re-render
     
