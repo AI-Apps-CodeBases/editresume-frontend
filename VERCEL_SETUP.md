@@ -57,18 +57,29 @@ NODE_ENV=production
    - **Production Branch**: `main`
    - **Preview Branches**: Include `staging` (or set it as a custom production branch)
 
-### 5. Build Settings
+### 5. Build Settings ⚠️ CRITICAL
+
+**YOU MUST SET THE ROOT DIRECTORY OR DEPLOYMENT WILL FAIL!**
 
 1. Go to **Settings** → **General**
-2. Configure the following:
-   - **Root Directory**: `frontend` (set this in Vercel dashboard)
-   - **Build Command**: `npm run build` (or leave empty to use default)
-   - **Output Directory**: `.next` (or leave empty to use default)
-   - **Install Command**: `npm install` (or leave empty to use default)
+2. **MANDATORY**: Set **Root Directory** to: `frontend`
+   - This is the most important setting!
+   - Without this, Vercel won't find your `package.json` and Next.js
+   - The error "No Next.js version detected" means Root Directory is not set correctly
 
-   **Important**: Set the **Root Directory** to `frontend` in the Vercel dashboard. This tells Vercel that your Next.js app is in the `frontend/` subdirectory.
+3. After setting Root Directory, the following will be auto-detected:
+   - **Build Command**: `npm run build` (auto-detected from frontend/package.json)
+   - **Output Directory**: `.next` (auto-detected for Next.js)
+   - **Install Command**: `npm install` (auto-detected)
 
-   Alternatively, if you prefer to configure via `vercel.json`, the build commands are already set to `cd frontend && npm run build` etc., but you still need to set the Root Directory in the dashboard.
+4. **Alternative** (if you can't set Root Directory):
+   - You can override build commands in `vercel.json` (already configured)
+   - But Root Directory setting is still recommended for best results
+
+**Troubleshooting**: If you see "No Next.js version detected":
+- ✅ Check that Root Directory is set to `frontend` (not empty, not `/frontend`, just `frontend`)
+- ✅ Verify that `frontend/package.json` exists and contains `"next"` in dependencies
+- ✅ Re-deploy after changing Root Directory setting
 
 ## Environment Variables Reference
 

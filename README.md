@@ -4,6 +4,8 @@ Next.js 14 frontend application for the full-featured resume editor platform.
 
 ## ✨ Features
 
+test
+
 ✅ **Upload PDF Resume** - Automatically parse existing resumes  
 ✅ **Smart Parameterization** - Auto-detect & create variables for easy customization  
 ✅ **Export PDF & DOCX** - Professional outputs in both formats  
