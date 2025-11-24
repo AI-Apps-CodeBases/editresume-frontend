@@ -1,0 +1,273 @@
+from __future__ import annotations
+
+import base64
+import json
+import logging
+import secrets
+from functools import lru_cache
+from typing import Any, Dict, Optional
+
+import firebase_admin
+from firebase_admin import auth as firebase_auth
+from firebase_admin import credentials, firestore
+from firebase_admin import exceptions as firebase_exceptions
+
+from app.core.config import settings
+from app.core.db import SessionLocal
+from app.models.user import User
+
+logger = logging.getLogger(__name__)
+
+
+def _load_service_account_info() -> Optional[Dict[str, Any]]:
+    if settings.firebase_service_account_json:
+        try:
+            return json.loads(settings.firebase_service_account_json)
+        except json.JSONDecodeError as exc:
+            logger.error("Invalid FIREBASE_SERVICE_ACCOUNT_JSON: %s", exc)
+            return None
+
+    if settings.firebase_service_account_base64:
+        try:
+            decoded = base64.b64decode(settings.firebase_service_account_base64)
+            return json.loads(decoded.decode("utf-8"))
+        except (ValueError, json.JSONDecodeError) as exc:
+            logger.error("Invalid FIREBASE_SERVICE_ACCOUNT_BASE64: %s", exc)
+            return None
+
+    return None
+
+
+@lru_cache
+def get_firebase_app() -> Optional[firebase_admin.App]:
+    if firebase_admin._apps:
+        return firebase_admin.get_app()
+
+    service_account_info = _load_service_account_info()
+    if not service_account_info and settings.firebase_service_account_key_path:
+        try:
+            cred = credentials.Certificate(settings.firebase_service_account_key_path)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to load Firebase credential from path: %s", exc)
+            return None
+    elif service_account_info:
+        try:
+            cred = credentials.Certificate(service_account_info)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to load Firebase credential from JSON: %s", exc)
+            return None
+    else:
+        logger.warning(
+            "Firebase Admin SDK not configured. Set service account env vars."
+        )
+        return None
+
+    try:
+        options = {}
+        if settings.firebase_project_id:
+            options["projectId"] = settings.firebase_project_id
+        return firebase_admin.initialize_app(cred, options)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise Firebase Admin SDK: %s", exc)
+        return None
+
+
+@lru_cache
+def get_firestore_client() -> Optional[firestore.Client]:
+    app = get_firebase_app()
+    if not app:
+        return None
+    try:
+        return firestore.client(app=app)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise Firestore client: %s", exc)
+        return None
+
+
+def verify_id_token(id_token: str) -> Optional[Dict[str, Any]]:
+    app = get_firebase_app()
+    if not app:
+        logger.warning("verify_id_token called without configured Firebase app.")
+        return None
+    try:
+        return firebase_auth.verify_id_token(id_token, app=app)
+    except firebase_exceptions.FirebaseError as exc:
+        logger.warning("Firebase ID token verification error: %s", exc)
+        return None
+    except ValueError as exc:
+        logger.warning("Firebase ID token value error: %s", exc)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to verify Firebase ID token: %s", exc)
+        return None
+
+
+def sync_user_profile(uid: str, profile: Dict[str, Any]) -> None:
+    _sync_relational_user_profile(profile)
+
+    client = get_firestore_client()
+    if not client:
+        return
+
+    doc_ref = client.collection("users").document(uid)
+    data = {
+        "uid": uid,
+        "email": profile.get("email"),
+        "name": profile.get("name"),
+        "photoURL": profile.get("picture"),
+        "emailVerified": profile.get("emailVerified"),
+        "isPremium": profile.get("isPremium", False),
+        "lastLoginAt": firestore.SERVER_TIMESTAMP,
+    }
+    try:
+        snapshot = doc_ref.get()
+        payload = {**data}
+        if not snapshot.exists:
+            payload["createdAt"] = firestore.SERVER_TIMESTAMP
+        doc_ref.set(payload, merge=True)
+    except firebase_exceptions.FirebaseError as exc:
+        logger.error("Failed to sync Firestore profile for %s: %s", uid, exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Unexpected error syncing Firestore profile for %s: %s", uid, exc)
+
+
+def _sync_relational_user_profile(profile: Dict[str, Any]) -> None:
+    email = (profile.get("email") or "").strip()
+    if not email:
+        return
+
+    name = profile.get("name") or (email.split("@")[0] if "@" in email else "User")
+    is_premium = bool(profile.get("isPremium", False))
+
+    session = SessionLocal()
+    try:
+        user = session.query(User).filter(User.email == email).first()
+        if user:
+            updated = False
+            if name and user.name != name:
+                user.name = name
+                updated = True
+            if user.is_premium != is_premium:
+                user.is_premium = is_premium
+                updated = True
+            if updated:
+                session.commit()
+            return
+
+        temp_password = secrets.token_urlsafe(32)
+        new_user = User(
+            email=email,
+            name=name or email,
+            password=temp_password,
+            is_premium=is_premium,
+        )
+        session.add(new_user)
+        session.commit()
+    except Exception as exc:  # noqa: BLE001
+        session.rollback()
+        logger.warning("Failed to sync relational user profile for %s: %s", email, exc)
+    finally:
+        session.close()
+
+
+def update_user_subscription(uid: str, subscription_data: Dict[str, Any]) -> None:
+    client = get_firestore_client()
+    if not client:
+        return
+
+    doc_ref = client.collection("users").document(uid)
+    payload = {
+        **subscription_data,
+        "subscriptionUpdatedAt": firestore.SERVER_TIMESTAMP,
+    }
+    try:
+        doc_ref.set(payload, merge=True)
+    except firebase_exceptions.FirebaseError as exc:
+        logger.error("Failed to update subscription for %s: %s", uid, exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Unexpected error updating subscription for %s: %s", uid, exc)
+
+
+def find_user_by_stripe_customer(customer_id: str) -> Optional[Dict[str, Any]]:
+    client = get_firestore_client()
+    if not client:
+        return None
+
+    try:
+        query = (
+            client.collection("users")
+            .where("stripeCustomerId", "==", customer_id)
+            .limit(1)
+        )
+        docs = list(query.stream())
+        if not docs:
+            return None
+        doc = docs[0]
+        data = doc.to_dict()
+        data["uid"] = doc.id
+        return data
+    except firebase_exceptions.FirebaseError as exc:
+        logger.error("Failed to query user by Stripe customer: %s", exc)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Unexpected error querying user by Stripe customer: %s", exc)
+        return None
+
+
+def get_user_profile(uid: str) -> Optional[Dict[str, Any]]:
+    client = get_firestore_client()
+    if not client:
+        return None
+
+    try:
+        doc_ref = client.collection("users").document(uid)
+        snapshot = doc_ref.get()
+        if not snapshot.exists:
+            return None
+        data = snapshot.to_dict()
+        data["uid"] = uid
+        return data
+    except firebase_exceptions.FirebaseError as exc:
+        logger.error("Failed to fetch user profile %s: %s", uid, exc)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Unexpected error fetching user profile %s: %s", uid, exc)
+        return None
+
+
+def sanitized_user_from_token(token: Dict[str, Any]) -> Dict[str, Any]:
+    email = token.get("email")
+    name = token.get("name") or (email.split("@")[0] if email else None) or "User"
+    firebase_claims = token.get("firebase", {})
+
+    return {
+        "uid": token.get("uid"),
+        "email": email,
+        "name": name,
+        "picture": token.get("picture"),
+        "emailVerified": token.get("email_verified", False),
+        "isAnonymous": firebase_claims.get("sign_in_provider") == "anonymous",
+        "isPremium": bool(token.get("premium")),
+        "signInProvider": firebase_claims.get("sign_in_provider"),
+        "claims": {
+            key: value
+            for key, value in token.items()
+            if key
+            not in {
+                "iss",
+                "aud",
+                "auth_time",
+                "user_id",
+                "sub",
+                "iat",
+                "exp",
+                "firebase",
+                "email",
+                "email_verified",
+                "uid",
+                "name",
+                "picture",
+                "premium",
+            }
+        },
+    }

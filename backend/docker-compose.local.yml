@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: editresume_db_local
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-editresume}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password123}
+      POSTGRES_DB: ${POSTGRES_DB:-editresume_db}
+    volumes:
+      - db_data_local:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  backend:
+    build:
+      context: .
+    container_name: editresume_backend_local
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-editresume}:${POSTGRES_PASSWORD:-password123}@db:5432/${POSTGRES_DB:-editresume_db}
+      PYTHONUNBUFFERED: "1"
+      PREMIUM_MODE: ${PREMIUM_MODE:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-4000}
+      ADDITIONAL_CORS_ORIGINS: ${ADDITIONAL_CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+    depends_on:
+      - db
+    ports:
+      - "8001:8000"
+
+volumes:
+  db_data_local:
+
