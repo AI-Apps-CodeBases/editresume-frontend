@@ -60,13 +60,15 @@ NODE_ENV=production
 ### 5. Build Settings
 
 1. Go to **Settings** → **General**
-2. Verify (these should be auto-detected from `vercel.json`):
-   - **Root Directory**: `frontend` (configured in vercel.json)
-   - **Build Command**: `npm run build` (runs from frontend directory)
-   - **Output Directory**: `.next` (relative to frontend directory)
-   - **Install Command**: `npm install` (runs from frontend directory)
+2. Configure the following:
+   - **Root Directory**: `frontend` (set this in Vercel dashboard)
+   - **Build Command**: `npm run build` (or leave empty to use default)
+   - **Output Directory**: `.next` (or leave empty to use default)
+   - **Install Command**: `npm install` (or leave empty to use default)
 
-   Note: The `vercel.json` file already configures these settings, so Vercel should auto-detect them.
+   **Important**: Set the **Root Directory** to `frontend` in the Vercel dashboard. This tells Vercel that your Next.js app is in the `frontend/` subdirectory.
+
+   Alternatively, if you prefer to configure via `vercel.json`, the build commands are already set to `cd frontend && npm run build` etc., but you still need to set the Root Directory in the dashboard.
 
 ## Environment Variables Reference
 
