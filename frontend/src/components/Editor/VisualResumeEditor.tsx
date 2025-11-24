@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import config from '@/lib/config';
 import InlineGrammarChecker from '@/components/AI/InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
@@ -833,16 +833,54 @@ export default function VisualResumeEditor({
   useEffect(() => {
     if (!isHydrated || typeof window === 'undefined') return;
     
-    // Run cleanup immediately
+    // Run cleanup immediately and synchronously
     cleanupBulletHTML();
+    
+    // Use requestAnimationFrame to ensure DOM is ready
+    const frameId = requestAnimationFrame(() => {
+      cleanupBulletHTML();
+    });
     
     // Also run after a short delay to catch any async updates
     const timeoutId = setTimeout(() => {
       cleanupBulletHTML();
-    }, 100);
+    }, 50);
     
-    return () => clearTimeout(timeoutId);
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(timeoutId);
+    };
   }, [isHydrated, data.sections, cleanupBulletHTML]);
+
+  // Immediate cleanup when component updates - runs synchronously BEFORE paint
+  useLayoutEffect(() => {
+    if (!isHydrated || typeof window === 'undefined') return;
+    
+    // Force immediate cleanup of all bullets - runs synchronously before browser paints
+    document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
+      const bulletEl = el as HTMLElement;
+      if (bulletEl.isContentEditable) {
+        // Get plain text from data attribute or textContent
+        const sectionId = bulletEl.getAttribute('data-section-id');
+        const bulletId = bulletEl.getAttribute('data-bullet-id');
+        let plainText = bulletEl.textContent || '';
+        
+        // Try to get clean text from data if available
+        if (sectionId && bulletId) {
+          const section = data.sections.find(s => String(s.id) === sectionId);
+          if (section) {
+            const bullet = section.bullets.find(b => String(b.id) === bulletId);
+            if (bullet?.text) {
+              plainText = bullet.text.replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+            }
+          }
+        }
+        
+        // Force plain text - remove any HTML immediately
+        bulletEl.textContent = plainText;
+      }
+    });
+  });
 
   // Add page break styles
   useEffect(() => {
@@ -2605,12 +2643,13 @@ export default function VisualResumeEditor({
                                                           // Use ref to set textContent directly, bypassing React rendering
                                                           // This prevents HTML from being rendered as children
                                                           if (el && el.isContentEditable) {
+                                                            // Strip HTML and set textContent immediately
                                                             const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
-                                                            if (el.textContent !== plainText) {
-                                                              el.textContent = plainText;
-                                                            }
+                                                            // Force textContent - don't check, just set it
+                                                            el.textContent = plainText;
                                                           }
                                                         }}
+                                                        dangerouslySetInnerHTML={{ __html: '' }}
                                                       />
                                                     </div>
                                                   </div>
@@ -2848,12 +2887,13 @@ export default function VisualResumeEditor({
                                             ref={(el) => {
                                               // Use ref to set textContent directly, bypassing React rendering
                                               if (el && el.isContentEditable) {
+                                                // Strip HTML and set textContent immediately
                                                 const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
-                                                if (el.textContent !== plainText) {
-                                                  el.textContent = plainText;
-                                                }
+                                                // Force textContent - don't check, just set it
+                                                el.textContent = plainText;
                                               }
                                             }}
+                                            dangerouslySetInnerHTML={{ __html: '' }}
                                             onFocus={(e) => {
                                               // Hide overlay when focused
                                               const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
