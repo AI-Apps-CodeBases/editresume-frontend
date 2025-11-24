@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: editresume_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-editresume}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_secure_password_here}
+      POSTGRES_DB: ${POSTGRES_DB:-editresume_db}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: .
+    container_name: editresume_backend
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-editresume}:${POSTGRES_PASSWORD:-your_secure_password_here}@db:5432/${POSTGRES_DB:-editresume_db}
+      PYTHONUNBUFFERED: "1"
+      PREMIUM_MODE: ${PREMIUM_MODE:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-4000}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_SERVICE_ACCOUNT_BASE64: ${FIREBASE_SERVICE_ACCOUNT_BASE64}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL}
+      ADDITIONAL_CORS_ORIGINS: ${ADDITIONAL_CORS_ORIGINS:-http://localhost:3000}
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+volumes:
+  db_data:
+
