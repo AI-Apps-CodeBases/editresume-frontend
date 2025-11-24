@@ -743,8 +743,27 @@ export default function VisualResumeEditor({
         }
       }
 
-      // Skip bullet highlighting - all bullets now use overlay highlighting in JSX
-      // Direct innerHTML manipulation interferes with contentEditable editing
+      // Ensure all contentEditable bullets have plain text (no HTML)
+      // This prevents highlighting HTML from interfering with editing
+      document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
+        const bulletEl = el as HTMLElement;
+        
+        // Skip if currently focused/editing
+        if (bulletEl.matches(':focus')) return;
+        
+        // Clean any HTML from contentEditable - should only contain plain text
+        if (bulletEl.isContentEditable && bulletEl.innerHTML !== bulletEl.textContent) {
+          const textContent = bulletEl.textContent || '';
+          bulletEl.textContent = textContent;
+        }
+        
+        // Ensure overlay is visible if not focused
+        const overlay = bulletEl.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
+        if (overlay && !bulletEl.matches(':focus')) {
+          overlay.style.opacity = '';
+          overlay.style.pointerEvents = 'none';
+        }
+      });
     });
 
     return () => {
@@ -2444,6 +2463,20 @@ export default function VisualResumeEditor({
                                                           if (overlay) {
                                                             overlay.style.opacity = '0';
                                                             overlay.style.pointerEvents = 'none';
+                                                            overlay.style.display = 'none';
+                                                          }
+                                                          // Ensure contentEditable has plain text - remove any HTML
+                                                          const textContent = e.currentTarget.textContent || '';
+                                                          if (e.currentTarget.innerHTML !== textContent) {
+                                                            e.currentTarget.textContent = textContent;
+                                                          }
+                                                        }}
+                                                        onInput={(e) => {
+                                                          // Prevent HTML from being inserted during editing
+                                                          const target = e.currentTarget as HTMLElement;
+                                                          if (target.innerHTML !== target.textContent) {
+                                                            const textContent = target.textContent || '';
+                                                            target.textContent = textContent;
                                                           }
                                                         }}
                                                         onBlur={(e) => {
@@ -2451,8 +2484,14 @@ export default function VisualResumeEditor({
                                                           const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
                                                           if (overlay && hasMatch && bulletMatch.matchedKeywords.length > 0) {
                                                             overlay.style.opacity = '1';
+                                                            overlay.style.display = 'block';
                                                           }
-                                                          updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '')
+                                                          // Ensure plain text before saving
+                                                          const textContent = e.currentTarget.textContent || '';
+                                                          if (e.currentTarget.innerHTML !== textContent) {
+                                                            e.currentTarget.textContent = textContent;
+                                                          }
+                                                          updateBullet(section.id, companyBullet.id, textContent)
                                                           if (typeof window !== 'undefined') {
                                                             window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
                                                               detail: {
@@ -2731,10 +2770,20 @@ export default function VisualResumeEditor({
                                               if (overlay) {
                                                 overlay.style.opacity = '0';
                                                 overlay.style.pointerEvents = 'none';
+                                                overlay.style.display = 'none';
                                               }
-                                              // Ensure contentEditable has plain text
-                                              if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
-                                                e.currentTarget.textContent = e.currentTarget.textContent || '';
+                                              // Ensure contentEditable has plain text - remove any HTML
+                                              const textContent = e.currentTarget.textContent || '';
+                                              if (e.currentTarget.innerHTML !== textContent) {
+                                                e.currentTarget.textContent = textContent;
+                                              }
+                                            }}
+                                            onInput={(e) => {
+                                              // Prevent HTML from being inserted during editing
+                                              const target = e.currentTarget as HTMLElement;
+                                              if (target.innerHTML !== target.textContent) {
+                                                const textContent = target.textContent || '';
+                                                target.textContent = textContent;
                                               }
                                             }}
                                             onBlur={(e) => {
@@ -2742,8 +2791,14 @@ export default function VisualResumeEditor({
                                               const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
                                               if (overlay && hasMatch && bulletMatch.matchedKeywords.length > 0) {
                                                 overlay.style.opacity = '1';
+                                                overlay.style.display = 'block';
                                               }
-                                              updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
+                                              // Ensure plain text before saving
+                                              const textContent = e.currentTarget.textContent || '';
+                                              if (e.currentTarget.innerHTML !== textContent) {
+                                                e.currentTarget.textContent = textContent;
+                                              }
+                                              updateBullet(section.id, bullet.id, textContent)
                                               if (typeof window !== 'undefined') {
                                                 window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
                                                   detail: {
