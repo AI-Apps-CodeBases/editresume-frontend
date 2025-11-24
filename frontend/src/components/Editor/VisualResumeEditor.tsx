@@ -2601,9 +2601,17 @@ export default function VisualResumeEditor({
                                                         }}
                                                         className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
                                                           }`}
-                                                      >
-                                                        {companyBullet.text.replace(/^•\s*/, '')}
-                                                      </div>
+                                                        ref={(el) => {
+                                                          // Use ref to set textContent directly, bypassing React rendering
+                                                          // This prevents HTML from being rendered as children
+                                                          if (el && el.isContentEditable) {
+                                                            const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                            if (el.textContent !== plainText) {
+                                                              el.textContent = plainText;
+                                                            }
+                                                          }
+                                                        }}
+                                                      />
                                                     </div>
                                                   </div>
 
@@ -2837,6 +2845,15 @@ export default function VisualResumeEditor({
                                             data-editable-type="bullet"
                                             data-section-id={section.id}
                                             data-bullet-id={bullet.id}
+                                            ref={(el) => {
+                                              // Use ref to set textContent directly, bypassing React rendering
+                                              if (el && el.isContentEditable) {
+                                                const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                if (el.textContent !== plainText) {
+                                                  el.textContent = plainText;
+                                                }
+                                              }
+                                            }}
                                             onFocus={(e) => {
                                               // Hide overlay when focused
                                               const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
@@ -2845,17 +2862,15 @@ export default function VisualResumeEditor({
                                                 overlay.style.pointerEvents = 'none';
                                                 overlay.style.display = 'none';
                                               }
-                                              // Ensure contentEditable has plain text - remove any HTML
+                                              // Force plain text - remove any HTML
                                               const textContent = e.currentTarget.textContent || '';
-                                              if (e.currentTarget.innerHTML !== textContent) {
-                                                e.currentTarget.textContent = textContent;
-                                              }
+                                              e.currentTarget.textContent = textContent;
                                             }}
                                             onInput={(e) => {
                                               // Prevent HTML from being inserted during editing
                                               const target = e.currentTarget as HTMLElement;
-                                              if (target.innerHTML !== target.textContent) {
-                                                const textContent = target.textContent || '';
+                                              const textContent = target.textContent || '';
+                                              if (target.innerHTML !== textContent) {
                                                 target.textContent = textContent;
                                               }
                                             }}
@@ -2866,11 +2881,9 @@ export default function VisualResumeEditor({
                                                 overlay.style.opacity = '1';
                                                 overlay.style.display = 'block';
                                               }
-                                              // Ensure plain text before saving
+                                              // Force plain text before saving
                                               const textContent = e.currentTarget.textContent || '';
-                                              if (e.currentTarget.innerHTML !== textContent) {
-                                                e.currentTarget.textContent = textContent;
-                                              }
+                                              e.currentTarget.textContent = textContent;
                                               updateBullet(section.id, bullet.id, textContent)
                                               if (typeof window !== 'undefined') {
                                                 window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
@@ -2905,9 +2918,7 @@ export default function VisualResumeEditor({
                                             suppressHydrationWarning
                                             className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
                                               }`}
-                                          >
-                                            {bullet.text.replace(/^•\s*/, '')}
-                                          </div>
+                                          />
                                         </div>
                                       </div>
 
