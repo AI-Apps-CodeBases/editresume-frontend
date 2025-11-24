@@ -717,10 +717,45 @@ export default function VisualResumeEditor({
   }, []);
 
   // Update highlighting when keywords change (client-side only to avoid hydration errors)
+  // Aggressive cleanup function to ensure bullets are plain text
+  const cleanupBulletHTML = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    
+    document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
+      const bulletEl = el as HTMLElement;
+      
+      // Skip if currently focused/editing
+      if (bulletEl.matches(':focus')) return;
+      
+      // Force plain text - remove any HTML
+      if (bulletEl.isContentEditable) {
+        const textContent = bulletEl.textContent || '';
+        if (bulletEl.innerHTML !== textContent) {
+          bulletEl.textContent = textContent;
+        }
+      }
+      
+      // Ensure overlay is visible if not focused
+      const overlay = bulletEl.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
+      if (overlay && !bulletEl.matches(':focus')) {
+        overlay.style.opacity = '';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.display = '';
+      }
+    });
+  }, []);
+
   useEffect(() => {
     if (!isHydrated) return; // Wait for hydration to complete
     if (typeof window === 'undefined') return; // Skip on server
-    if (!jdKeywords?.matching?.length) return;
+    if (!jdKeywords?.matching?.length) {
+      // Even without keywords, clean up any HTML
+      cleanupBulletHTML();
+      return;
+    }
+
+    // Immediate cleanup first
+    cleanupBulletHTML();
 
     // Use requestAnimationFrame to ensure DOM is fully ready
     const frameId = requestAnimationFrame(() => {
@@ -743,33 +778,71 @@ export default function VisualResumeEditor({
         }
       }
 
-      // Ensure all contentEditable bullets have plain text (no HTML)
-      // This prevents highlighting HTML from interfering with editing
-      document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
-        const bulletEl = el as HTMLElement;
-        
-        // Skip if currently focused/editing
-        if (bulletEl.matches(':focus')) return;
-        
-        // Clean any HTML from contentEditable - should only contain plain text
-        if (bulletEl.isContentEditable && bulletEl.innerHTML !== bulletEl.textContent) {
-          const textContent = bulletEl.textContent || '';
-          bulletEl.textContent = textContent;
+      // Clean up again after potential DOM updates
+      cleanupBulletHTML();
+    });
+
+    // Set up MutationObserver to catch any HTML insertion
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList' || mutation.type === 'characterData') {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              if (el.hasAttribute && el.hasAttribute('data-editable-type') && el.getAttribute('data-editable-type') === 'bullet') {
+                cleanupBulletHTML();
+              }
+              // Also check if any contentEditable bullets were modified
+              const bullets = el.querySelectorAll?.('[data-editable-type="bullet"]');
+              if (bullets && bullets.length > 0) {
+                cleanupBulletHTML();
+              }
+            }
+          });
         }
-        
-        // Ensure overlay is visible if not focused
-        const overlay = bulletEl.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
-        if (overlay && !bulletEl.matches(':focus')) {
-          overlay.style.opacity = '';
-          overlay.style.pointerEvents = 'none';
+        // Check if innerHTML was modified
+        if (mutation.type === 'childList' && mutation.target && mutation.target instanceof HTMLElement) {
+          const target = mutation.target as HTMLElement;
+          if (target.getAttribute && target.getAttribute('data-editable-type') === 'bullet' && target.isContentEditable) {
+            const textContent = target.textContent || '';
+            if (target.innerHTML !== textContent) {
+              target.textContent = textContent;
+            }
+          }
         }
+      });
+    });
+
+    // Observe all bullet elements
+    document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
+      observer.observe(el, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: false
       });
     });
 
     return () => {
       cancelAnimationFrame(frameId);
+      observer.disconnect();
     };
-  }, [isHydrated, jdKeywords, data.summary, data.sections]);
+  }, [isHydrated, jdKeywords, data.summary, data.sections, cleanupBulletHTML]);
+
+  // Aggressive cleanup on every render - ensures bullets are always plain text
+  useEffect(() => {
+    if (!isHydrated || typeof window === 'undefined') return;
+    
+    // Run cleanup immediately
+    cleanupBulletHTML();
+    
+    // Also run after a short delay to catch any async updates
+    const timeoutId = setTimeout(() => {
+      cleanupBulletHTML();
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [isHydrated, data.sections, cleanupBulletHTML]);
 
   // Add page break styles
   useEffect(() => {
