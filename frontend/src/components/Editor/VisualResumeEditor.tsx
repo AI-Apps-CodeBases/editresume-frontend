@@ -743,36 +743,8 @@ export default function VisualResumeEditor({
         }
       }
 
-      // Update bullet highlighting
-      document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
-        const bulletEl = el as HTMLElement;
-        if (bulletEl.matches(':focus')) return; // Skip if editing
-
-        const sectionId = bulletEl.getAttribute('data-section-id');
-        const bulletId = bulletEl.getAttribute('data-bullet-id');
-        if (!sectionId || !bulletId) return;
-
-        try {
-          const section = data.sections.find(s => s.id === sectionId);
-          if (!section) return;
-
-          const bullet = section.bullets.find(b => b.id === bulletId);
-          if (!bullet?.text) return;
-
-          const generatedKeywords = bullet.params?.generatedKeywords as string[] | undefined;
-          const bulletMatch = checkBulletMatches(bullet.text, section.title, generatedKeywords);
-          if (bulletMatch.matchedKeywords.length > 0) {
-            const bulletText = bullet.text.replace(/^•\s*/, '').trim();
-            const currentText = (bulletEl.textContent || '').replace(/^•\s*/, '').trim();
-            // Only update if text matches exactly (avoid overwriting user edits or hydration mismatches)
-            if (currentText === bulletText || !currentText) {
-              bulletEl.innerHTML = highlightKeywordsInHTML(bulletText, bulletMatch.matchedKeywords);
-            }
-          }
-        } catch (e) {
-          console.warn(`Error highlighting bullet ${bulletId}:`, e);
-        }
-      });
+      // Skip bullet highlighting - all bullets now use overlay highlighting in JSX
+      // Direct innerHTML manipulation interferes with contentEditable editing
     });
 
     return () => {
@@ -2452,8 +2424,9 @@ export default function VisualResumeEditor({
                                                     <div className="relative flex-1 group">
                                                       {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
                                                         <div
-                                                          className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                          className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                             }`}
+                                                          data-highlight-overlay="true"
                                                         >
                                                           {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                                         </div>
@@ -2464,21 +2437,21 @@ export default function VisualResumeEditor({
                                                         data-editable-type="bullet"
                                                         data-section-id={section.id}
                                                         data-bullet-id={companyBullet.id}
-                                                        onMouseDown={(e) => {
-                                                          e.stopPropagation()
-                                                          e.currentTarget.focus()
-                                                        }}
-                                                        onClick={(e) => {
-                                                          e.stopPropagation()
-                                                          e.currentTarget.focus()
-                                                          const range = document.createRange()
-                                                          const sel = window.getSelection()
-                                                          range.selectNodeContents(e.currentTarget)
-                                                          range.collapse(false)
-                                                          sel?.removeAllRanges()
-                                                          sel?.addRange(range)
+                                                        data-is-work-exp="true"
+                                                        onFocus={(e) => {
+                                                          // Hide overlay when focused
+                                                          const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
+                                                          if (overlay) {
+                                                            overlay.style.opacity = '0';
+                                                            overlay.style.pointerEvents = 'none';
+                                                          }
                                                         }}
                                                         onBlur={(e) => {
+                                                          // Show overlay when not focused (if it exists)
+                                                          const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
+                                                          if (overlay && hasMatch && bulletMatch.matchedKeywords.length > 0) {
+                                                            overlay.style.opacity = '1';
+                                                          }
                                                           updateBullet(section.id, companyBullet.id, e.currentTarget.textContent || '')
                                                           if (typeof window !== 'undefined') {
                                                             window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
@@ -2499,6 +2472,20 @@ export default function VisualResumeEditor({
                                                               }
                                                             }))
                                                           }
+                                                        }}
+                                                        onMouseDown={(e) => {
+                                                          e.stopPropagation()
+                                                          e.currentTarget.focus()
+                                                        }}
+                                                        onClick={(e) => {
+                                                          e.stopPropagation()
+                                                          e.currentTarget.focus()
+                                                          const range = document.createRange()
+                                                          const sel = window.getSelection()
+                                                          range.selectNodeContents(e.currentTarget)
+                                                          range.collapse(false)
+                                                          sel?.removeAllRanges()
+                                                          sel?.addRange(range)
                                                         }}
                                                         className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
                                                           }`}
@@ -2725,12 +2712,12 @@ export default function VisualResumeEditor({
                                         <div className="relative flex-1 group">
                                           {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
                                             <div
-                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                 }`}
-                                              dangerouslySetInnerHTML={{
-                                                __html: highlightKeywordsInHTML((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords)
-                                              }}
-                                            />
+                                              data-highlight-overlay="true"
+                                            >
+                                              {highlightKeywordsInText((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                            </div>
                                           )}
                                           <div
                                             contentEditable
@@ -2738,29 +2725,24 @@ export default function VisualResumeEditor({
                                             data-editable-type="bullet"
                                             data-section-id={section.id}
                                             data-bullet-id={bullet.id}
-                                            onMouseDown={(e) => {
-                                              e.stopPropagation()
-                                              e.currentTarget.focus()
-                                            }}
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              e.currentTarget.focus()
-                                              const range = document.createRange()
-                                              const sel = window.getSelection()
-                                              range.selectNodeContents(e.currentTarget)
-                                              range.collapse(false)
-                                              sel?.removeAllRanges()
-                                              sel?.addRange(range)
-                                            }}
                                             onFocus={(e) => {
+                                              // Hide overlay when focused
+                                              const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
+                                              if (overlay) {
+                                                overlay.style.opacity = '0';
+                                                overlay.style.pointerEvents = 'none';
+                                              }
+                                              // Ensure contentEditable has plain text
                                               if (e.currentTarget.innerHTML !== e.currentTarget.textContent) {
                                                 e.currentTarget.textContent = e.currentTarget.textContent || '';
                                               }
                                             }}
-                                            suppressHydrationWarning
-                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                                              }`}
                                             onBlur={(e) => {
+                                              // Show overlay when not focused (if it exists)
+                                              const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
+                                              if (overlay && hasMatch && bulletMatch.matchedKeywords.length > 0) {
+                                                overlay.style.opacity = '1';
+                                              }
                                               updateBullet(section.id, bullet.id, e.currentTarget.textContent || '')
                                               if (typeof window !== 'undefined') {
                                                 window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
@@ -2778,6 +2760,23 @@ export default function VisualResumeEditor({
                                                 }));
                                               }
                                             }}
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation()
+                                              e.currentTarget.focus()
+                                            }}
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              e.currentTarget.focus()
+                                              const range = document.createRange()
+                                              const sel = window.getSelection()
+                                              range.selectNodeContents(e.currentTarget)
+                                              range.collapse(false)
+                                              sel?.removeAllRanges()
+                                              sel?.addRange(range)
+                                            }}
+                                            suppressHydrationWarning
+                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                              }`}
                                           >
                                             {bullet.text.replace(/^•\s*/, '')}
                                           </div>
