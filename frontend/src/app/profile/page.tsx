@@ -95,6 +95,8 @@ function ProfilePageContent() {
     }>
   }>>([])
   const [loading, setLoading] = useState(true)
+  const [jobsLoading, setJobsLoading] = useState(false)
+  const [resumesLoading, setResumesLoading] = useState(false)
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionStatus | null>(null)
   const [subscriptionLoading, setSubscriptionLoading] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
@@ -185,9 +187,10 @@ function ProfilePageContent() {
   const fetchSavedResumes = useCallback(async () => {
     if (!isAuthenticated || !user?.email) return
     
+    setResumesLoading(true)
     try {
-      // Fetch saved resumes
-      const resumesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+      const resumesRes = await fetch(`${apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
       if (resumesRes.ok) {
         const resumesData = await resumesRes.json()
         setSavedResumes(resumesData.resumes || [])
@@ -197,54 +200,54 @@ function ProfilePageContent() {
       }
     } catch (e) {
       console.error('Failed to load resumes', e)
+    } finally {
+      setResumesLoading(false)
     }
   }, [isAuthenticated, user?.email])
 
   const fetchJobDescriptions = useCallback(async () => {
     if (!isAuthenticated || !user?.email) return
     
+    setJobsLoading(true)
     try {
-      // Fetch job descriptions
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+      const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
       if (res.ok) {
         const data = await res.json()
         const jds = Array.isArray(data) ? data : data.results || []
         
-        // For each JD, fetch all match sessions to show all matched versions
-        const jdsWithMatches = await Promise.all(jds.map(async (jd: any) => {
-          try {
-            const matchesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/job-descriptions/${jd.id}/matches`)
-            if (matchesRes.ok) {
-              const matchesData = await matchesRes.json()
-              jd.all_matches = Array.isArray(matchesData) ? matchesData : matchesData.matches || []
-              jd.last_match = jd.all_matches && jd.all_matches.length > 0 ? jd.all_matches[0] : null
-            }
-          } catch (e) {
-            console.error('Failed to load matches for JD:', jd.id, e)
-            jd.all_matches = []
-            jd.last_match = null
-          }
+        // Backend already includes last_match and all_matches in the response
+        // No need to make additional API calls for each job
+        const jdsWithMatches = jds.map((jd: any) => {
+          // Use matches from backend response if available
+          jd.all_matches = jd.all_matches || jd.resume_versions || []
+          jd.last_match = jd.last_match || jd.best_resume_version || (jd.all_matches && jd.all_matches.length > 0 ? jd.all_matches[0] : null)
           return jd
-        }))
+        })
         
         setSavedJDs(jdsWithMatches)
+        console.log('✅ Loaded job descriptions:', jdsWithMatches.length)
+      } else {
+        console.error('Failed to load job descriptions:', res.status)
       }
     } catch (e) {
       console.error('Failed to load job descriptions', e)
+    } finally {
+      setJobsLoading(false)
     }
   }, [isAuthenticated, user?.email])
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!isAuthenticated || !user?.email) return
-      
-      await fetchSavedResumes()
-      await fetchJobDescriptions()
-    }
-    if (isAuthenticated && user?.email) {
-      fetchData()
-    }
-  }, [isAuthenticated, user, activeTab, fetchJobDescriptions])
+    if (!isAuthenticated || !user?.email) return
+    
+    // Fetch both in parallel for better performance
+    Promise.all([
+      fetchSavedResumes(),
+      fetchJobDescriptions()
+    ]).catch(err => {
+      console.error('Error fetching profile data:', err)
+    })
+  }, [isAuthenticated, user?.email, fetchSavedResumes, fetchJobDescriptions])
 
   // Listen for job saved events to refresh the list automatically
   useEffect(() => {
@@ -272,12 +275,17 @@ function ProfilePageContent() {
     }
   }, [activeTab, isAuthenticated, loadSubscriptionStatus])
 
-  // Refresh resumes when tab changes to jobs or resumes
+  // Refresh data when switching to jobs or resumes tab (only if not already loaded)
   useEffect(() => {
     if ((activeTab === 'jobs' || activeTab === 'resumes') && isAuthenticated && user?.email) {
-      fetchSavedResumes()
+      if (activeTab === 'jobs' && savedJDs.length === 0 && !jobsLoading) {
+        fetchJobDescriptions()
+      }
+      if (activeTab === 'resumes' && savedResumes.length === 0 && !resumesLoading) {
+        fetchSavedResumes()
+      }
     }
-  }, [activeTab, isAuthenticated, user, fetchSavedResumes])
+  }, [activeTab, isAuthenticated, user?.email, savedJDs.length, savedResumes.length, jobsLoading, resumesLoading, fetchJobDescriptions, fetchSavedResumes])
 
   const handleDeleteAccount = () => {
     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
@@ -525,13 +533,19 @@ function ProfilePageContent() {
                   <h2 className="text-2xl font-bold text-gray-900">Master Resumes</h2>
                   <button
                     onClick={fetchSavedResumes}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    disabled={resumesLoading}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Refresh
+                    {resumesLoading ? 'Loading...' : 'Refresh'}
                   </button>
                 </div>
 
-                {savedResumes.length === 0 ? (
+                {resumesLoading && savedResumes.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
+                    <div className="text-4xl mb-4 animate-pulse">📄</div>
+                    <p className="text-gray-600">Loading resumes...</p>
+                  </div>
+                ) : savedResumes.length === 0 ? (
                   <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
                     <div className="text-6xl mb-4">📄</div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No saved resumes yet</h3>
@@ -862,13 +876,19 @@ function ProfilePageContent() {
                   <h2 className="text-2xl font-bold text-gray-900">Saved Job Descriptions</h2>
                   <button
                     onClick={() => fetchJobDescriptions()}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    disabled={jobsLoading}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Refresh
+                    {jobsLoading ? 'Loading...' : 'Refresh'}
                   </button>
                 </div>
 
-                {savedJDs.length === 0 ? (
+                {jobsLoading && savedJDs.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
+                    <div className="text-4xl mb-4 animate-pulse">🗂️</div>
+                    <p className="text-gray-600">Loading job descriptions...</p>
+                  </div>
+                ) : savedJDs.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="text-6xl mb-4">🗂️</div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No saved jobs yet</h3>
