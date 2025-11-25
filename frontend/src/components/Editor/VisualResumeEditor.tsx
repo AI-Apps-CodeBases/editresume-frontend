@@ -852,6 +852,36 @@ export default function VisualResumeEditor({
     };
   }, [isHydrated, data.sections, cleanupBulletHTML]);
 
+  // Expose debug function to window for manual inspection
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).debugBulletHTML = () => {
+      const results: any[] = [];
+      document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
+        const bulletEl = el as HTMLElement;
+        const html = bulletEl.innerHTML || '';
+        const text = bulletEl.textContent || '';
+        if (html !== text || html.includes('<')) {
+          results.push({
+            id: bulletEl.getAttribute('data-bullet-id'),
+            innerHTML: html.substring(0, 200),
+            textContent: text.substring(0, 200),
+            hasHTML: html.includes('<'),
+            children: Array.from(bulletEl.children).map(c => ({
+              tagName: c.tagName,
+              innerHTML: c.innerHTML.substring(0, 100)
+            }))
+          });
+        }
+      });
+      console.table(results);
+      return results;
+    };
+    return () => {
+      delete (window as any).debugBulletHTML;
+    };
+  }, []);
+
   // Immediate cleanup when component updates - runs synchronously BEFORE paint
   useLayoutEffect(() => {
     if (!isHydrated || typeof window === 'undefined') return;
@@ -2626,6 +2656,48 @@ export default function VisualResumeEditor({
                                                         data-section-id={section.id}
                                                         data-bullet-id={companyBullet.id}
                                                         data-is-work-exp="true"
+                                                        key={`bullet-we-${companyBullet.id}-${companyBullet.text?.substring(0, 10)}`}
+                                                        ref={(el) => {
+                                                          if (!el || !el.isContentEditable) return;
+                                                          
+                                                          const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                          
+                                                          // IMMEDIATELY clear any content and set plain text
+                                                          el.innerHTML = '';
+                                                          el.textContent = plainText;
+                                                          
+                                                          // Use multiple timeouts to catch HTML at different stages
+                                                          [0, 10, 50, 100, 200].forEach(delay => {
+                                                            setTimeout(() => {
+                                                              if (!el || !el.isContentEditable) return;
+                                                              
+                                                              const currentHTML = el.innerHTML || '';
+                                                              const currentText = el.textContent || '';
+                                                              
+                                                              // Always check for HTML - be very aggressive
+                                                              if (currentHTML !== currentText || currentHTML.includes('<')) {
+                                                                console.error('🚨🚨🚨 HTML DETECTED (work exp):', {
+                                                                  bulletId: companyBullet.id,
+                                                                  delay,
+                                                                  innerHTML: currentHTML.substring(0, 200),
+                                                                  textContent: currentText.substring(0, 200),
+                                                                  hasMarkTags: currentHTML.includes('<mark'),
+                                                                  hasAnyHTML: currentHTML.includes('<'),
+                                                                  childrenCount: el.children.length,
+                                                                  firstChild: el.firstChild?.nodeName
+                                                                });
+                                                                // Aggressively remove ALL children
+                                                                while (el.firstChild) {
+                                                                  el.removeChild(el.firstChild);
+                                                                }
+                                                                el.textContent = plainText;
+                                                              } else if (!el.textContent || el.textContent.trim() !== plainText) {
+                                                                // Ensure textContent matches
+                                                                el.textContent = plainText;
+                                                              }
+                                                            }, delay);
+                                                          });
+                                                        }}
                                                         onFocus={(e) => {
                                                           // Hide overlay when focused
                                                           const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
@@ -2697,39 +2769,6 @@ export default function VisualResumeEditor({
                                                         }}
                                                         className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
                                                           }`}
-                                                        ref={(el) => {
-                                                          if (!el || !el.isContentEditable) return;
-                                                          
-                                                          const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
-                                                          
-                                                          // Force set textContent immediately
-                                                          el.textContent = plainText;
-                                                          
-                                                          // Use multiple timeouts to catch HTML at different stages
-                                                          [0, 10, 50, 100].forEach(delay => {
-                                                            setTimeout(() => {
-                                                              if (!el.isContentEditable) return;
-                                                              
-                                                              const currentHTML = el.innerHTML || '';
-                                                              const currentText = el.textContent || '';
-                                                              
-                                                              // Always check for HTML
-                                                              if (currentHTML !== currentText || currentHTML.includes('<')) {
-                                                                console.error('🚨🚨🚨 HTML DETECTED (work exp):', {
-                                                                  bulletId: companyBullet.id,
-                                                                  delay,
-                                                                  innerHTML: currentHTML.substring(0, 200),
-                                                                  textContent: currentText.substring(0, 200),
-                                                                  hasMarkTags: currentHTML.includes('<mark'),
-                                                                  hasAnyHTML: currentHTML.includes('<')
-                                                                });
-                                                                el.innerHTML = '';
-                                                                el.textContent = plainText;
-                                                              }
-                                                            }, delay);
-                                                          });
-                                                        }}
-                                                        dangerouslySetInnerHTML={{ __html: '' }}
                                                       />
                                                     </div>
                                                   </div>
@@ -2964,23 +3003,25 @@ export default function VisualResumeEditor({
                                             data-editable-type="bullet"
                                             data-section-id={section.id}
                                             data-bullet-id={bullet.id}
+                                            key={`bullet-${bullet.id}-${bullet.text?.substring(0, 10)}`}
                                             ref={(el) => {
                                               if (!el || !el.isContentEditable) return;
                                               
                                               const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                               
-                                              // Force set textContent immediately
+                                              // IMMEDIATELY clear any content and set plain text
+                                              el.innerHTML = '';
                                               el.textContent = plainText;
                                               
                                               // Use multiple timeouts to catch HTML at different stages
-                                              [0, 10, 50, 100].forEach(delay => {
+                                              [0, 10, 50, 100, 200].forEach(delay => {
                                                 setTimeout(() => {
-                                                  if (!el.isContentEditable) return;
+                                                  if (!el || !el.isContentEditable) return;
                                                   
                                                   const currentHTML = el.innerHTML || '';
                                                   const currentText = el.textContent || '';
                                                   
-                                                  // Always check for HTML
+                                                  // Always check for HTML - be very aggressive
                                                   if (currentHTML !== currentText || currentHTML.includes('<')) {
                                                     console.error('🚨🚨🚨 HTML DETECTED (regular bullet):', {
                                                       bulletId: bullet.id,
@@ -2988,15 +3029,22 @@ export default function VisualResumeEditor({
                                                       innerHTML: currentHTML.substring(0, 200),
                                                       textContent: currentText.substring(0, 200),
                                                       hasMarkTags: currentHTML.includes('<mark'),
-                                                      hasAnyHTML: currentHTML.includes('<')
+                                                      hasAnyHTML: currentHTML.includes('<'),
+                                                      childrenCount: el.children.length,
+                                                      firstChild: el.firstChild?.nodeName
                                                     });
-                                                    el.innerHTML = '';
+                                                    // Aggressively remove ALL children
+                                                    while (el.firstChild) {
+                                                      el.removeChild(el.firstChild);
+                                                    }
+                                                    el.textContent = plainText;
+                                                  } else if (!el.textContent || el.textContent.trim() !== plainText) {
+                                                    // Ensure textContent matches
                                                     el.textContent = plainText;
                                                   }
                                                 }, delay);
                                               });
                                             }}
-                                            dangerouslySetInnerHTML={{ __html: '' }}
                                             onFocus={(e) => {
                                               // Hide overlay when focused
                                               const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
