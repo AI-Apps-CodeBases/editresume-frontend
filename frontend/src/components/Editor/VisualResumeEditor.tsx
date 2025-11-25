@@ -2228,7 +2228,6 @@ export default function VisualResumeEditor({
                                                 contentEditable
                                                 suppressContentEditableWarning
                                                 spellCheck={false}
-                                                autoComplete="off"
                                                 data-editable-type="company-name"
                                                 data-section-id={section.id}
                                                 data-bullet-id={headerBullet.id}
@@ -2249,7 +2248,6 @@ export default function VisualResumeEditor({
                                                 contentEditable
                                                 suppressContentEditableWarning
                                                 spellCheck={false}
-                                                autoComplete="off"
                                                 data-editable-type="location"
                                                 data-section-id={section.id}
                                                 data-bullet-id={headerBullet.id}
@@ -2269,7 +2267,6 @@ export default function VisualResumeEditor({
                                                 contentEditable
                                                 suppressContentEditableWarning
                                                 spellCheck={false}
-                                                autoComplete="off"
                                                 data-editable-type="job-title"
                                                 data-section-id={section.id}
                                                 data-bullet-id={headerBullet.id}
@@ -2287,7 +2284,6 @@ export default function VisualResumeEditor({
                                                 contentEditable
                                                 suppressContentEditableWarning
                                                 spellCheck={false}
-                                                autoComplete="off"
                                                 data-editable-type="date-range"
                                                 data-section-id={section.id}
                                                 data-bullet-id={headerBullet.id}
@@ -2431,7 +2427,6 @@ export default function VisualResumeEditor({
                                                         contentEditable
                                                         suppressContentEditableWarning
                                                         spellCheck={false}
-                                                        autoComplete="off"
                                                         onBlur={(e) => {
                                                           const text = e.currentTarget.textContent || '';
                                                           updateBullet(section.id, companyBullet.id, text);
@@ -2681,7 +2676,6 @@ export default function VisualResumeEditor({
                                             contentEditable
                                             suppressContentEditableWarning
                                             spellCheck={false}
-                                            autoComplete="off"
                                             onBlur={(e) => {
                                               const text = e.currentTarget.textContent || '';
                                               updateBullet(section.id, bullet.id, text);
