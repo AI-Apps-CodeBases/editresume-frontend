@@ -2680,55 +2680,60 @@ export default function VisualResumeEditor({
                                                           zIndex: 10,
                                                           minHeight: '1.5rem'
                                                         }}
+                                                        dangerouslySetInnerHTML={undefined}
+                                                        children={undefined}
                                                         ref={(el) => {
                                                           if (!el || !el.isContentEditable) return;
                                                           
                                                           const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                                           
-                                                          // Set up continuous monitoring function
+                                                          // IMMEDIATELY clear everything and set plain text
                                                           const forcePlainText = () => {
                                                             if (!el || !el.isContentEditable) return;
                                                             
-                                                            // ALWAYS remove all children first
+                                                            // Remove ALL nodes (text nodes and element nodes)
                                                             while (el.firstChild) {
                                                               el.removeChild(el.firstChild);
                                                             }
                                                             
-                                                            // Then set plain text
-                                                            el.textContent = plainText;
+                                                            // Clear innerHTML completely
+                                                            el.innerHTML = '';
                                                             
-                                                            // Final check - if innerHTML still exists, clear it
-                                                            if (el.innerHTML && el.innerHTML !== plainText) {
-                                                              el.innerHTML = '';
-                                                              el.textContent = plainText;
-                                                            }
+                                                            // Set ONLY text content
+                                                            const textNode = document.createTextNode(plainText);
+                                                            el.appendChild(textNode);
                                                           };
                                                           
-                                                          // Force immediately
-                                                          forcePlainText();
-                                                          
-                                                          // Check repeatedly at different intervals
-                                                          [0, 1, 5, 10, 25, 50, 100, 200, 500].forEach(delay => {
-                                                            setTimeout(forcePlainText, delay);
+                                                          // Force immediately - use requestAnimationFrame to ensure DOM is ready
+                                                          requestAnimationFrame(() => {
+                                                            forcePlainText();
+                                                            // Also force after a tiny delay
+                                                            setTimeout(forcePlainText, 0);
                                                           });
                                                           
-                                                          // Continuous monitoring every 50ms
+                                                          // Continuous aggressive monitoring every 16ms (60fps)
                                                           const intervalId = setInterval(() => {
                                                             if (!el || !el.isContentEditable) {
                                                               clearInterval(intervalId);
                                                               return;
                                                             }
                                                             
-                                                            const hasHTML = el.innerHTML !== el.textContent || el.innerHTML.includes('<') || el.children.length > 0;
-                                                            if (hasHTML) {
-                                                              console.error('🚨 CONTINUOUS MONITOR CAUGHT HTML (work exp):', {
+                                                            // Check for ANY non-text content
+                                                            const hasNonTextNodes = Array.from(el.childNodes).some(node => 
+                                                              node.nodeType !== Node.TEXT_NODE
+                                                            );
+                                                            
+                                                            if (hasNonTextNodes || el.innerHTML !== plainText || el.children.length > 0) {
+                                                              console.error('🚨 HTML DETECTED (work exp) - FORCING PLAIN TEXT:', {
                                                                 bulletId: companyBullet.id,
-                                                                innerHTML: el.innerHTML.substring(0, 150),
-                                                                children: el.children.length
+                                                                innerHTML: el.innerHTML.substring(0, 100),
+                                                                children: el.children.length,
+                                                                childNodes: el.childNodes.length,
+                                                                nodeTypes: Array.from(el.childNodes).map(n => n.nodeType)
                                                               });
                                                               forcePlainText();
                                                             }
-                                                          }, 50);
+                                                          }, 16);
                                                           
                                                           (el as any)._forcePlainTextInterval = intervalId;
                                                         }}
@@ -3083,50 +3088,53 @@ export default function VisualResumeEditor({
                                               
                                               const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                               
-                                              // Set up continuous monitoring function
+                                              // IMMEDIATELY clear everything and set plain text
                                               const forcePlainText = () => {
                                                 if (!el || !el.isContentEditable) return;
                                                 
-                                                // ALWAYS remove all children first
+                                                // Remove ALL nodes (text nodes and element nodes)
                                                 while (el.firstChild) {
                                                   el.removeChild(el.firstChild);
                                                 }
                                                 
-                                                // Then set plain text
-                                                el.textContent = plainText;
+                                                // Clear innerHTML completely
+                                                el.innerHTML = '';
                                                 
-                                                // Final check - if innerHTML still exists, clear it
-                                                if (el.innerHTML && el.innerHTML !== plainText) {
-                                                  el.innerHTML = '';
-                                                  el.textContent = plainText;
-                                                }
+                                                // Set ONLY text content
+                                                const textNode = document.createTextNode(plainText);
+                                                el.appendChild(textNode);
                                               };
                                               
-                                              // Force immediately
-                                              forcePlainText();
-                                              
-                                              // Check repeatedly at different intervals
-                                              [0, 1, 5, 10, 25, 50, 100, 200, 500].forEach(delay => {
-                                                setTimeout(forcePlainText, delay);
+                                              // Force immediately - use requestAnimationFrame to ensure DOM is ready
+                                              requestAnimationFrame(() => {
+                                                forcePlainText();
+                                                // Also force after a tiny delay
+                                                setTimeout(forcePlainText, 0);
                                               });
                                               
-                                              // Continuous monitoring every 50ms
+                                              // Continuous aggressive monitoring every 16ms (60fps)
                                               const intervalId = setInterval(() => {
                                                 if (!el || !el.isContentEditable) {
                                                   clearInterval(intervalId);
                                                   return;
                                                 }
                                                 
-                                                const hasHTML = el.innerHTML !== el.textContent || el.innerHTML.includes('<') || el.children.length > 0;
-                                                if (hasHTML) {
-                                                  console.error('🚨 CONTINUOUS MONITOR CAUGHT HTML:', {
+                                                // Check for ANY non-text content
+                                                const hasNonTextNodes = Array.from(el.childNodes).some(node => 
+                                                  node.nodeType !== Node.TEXT_NODE
+                                                );
+                                                
+                                                if (hasNonTextNodes || el.innerHTML !== plainText || el.children.length > 0) {
+                                                  console.error('🚨 HTML DETECTED - FORCING PLAIN TEXT:', {
                                                     bulletId: bullet.id,
-                                                    innerHTML: el.innerHTML.substring(0, 150),
-                                                    children: el.children.length
+                                                    innerHTML: el.innerHTML.substring(0, 100),
+                                                    children: el.children.length,
+                                                    childNodes: el.childNodes.length,
+                                                    nodeTypes: Array.from(el.childNodes).map(n => n.nodeType)
                                                   });
                                                   forcePlainText();
                                                 }
-                                              }, 50);
+                                              }, 16);
                                               
                                               (el as any)._forcePlainTextInterval = intervalId;
                                             }}
