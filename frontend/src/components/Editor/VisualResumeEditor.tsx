@@ -865,19 +865,28 @@ export default function VisualResumeEditor({
         const bulletId = bulletEl.getAttribute('data-bullet-id');
         let plainText = bulletEl.textContent || '';
         
-        // Try to get clean text from data if available
+        // Try to get clean text from data if available - use DOM method to strip HTML
         if (sectionId && bulletId) {
           const section = data.sections.find(s => String(s.id) === sectionId);
           if (section) {
             const bullet = section.bullets.find(b => String(b.id) === bulletId);
             if (bullet?.text) {
-              plainText = bullet.text.replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+              // Use DOM method to extract plain text (more reliable than regex)
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = bullet.text;
+              plainText = (tempDiv.textContent || tempDiv.innerText || bullet.text).replace(/^•\s*/, '').trim();
             }
           }
         }
         
         // Force plain text - remove any HTML immediately
         bulletEl.textContent = plainText;
+        
+        // Also ensure innerHTML is empty or matches textContent (no HTML)
+        if (bulletEl.innerHTML !== plainText) {
+          bulletEl.innerHTML = '';
+          bulletEl.textContent = plainText;
+        }
       }
     });
   });
@@ -1021,10 +1030,17 @@ export default function VisualResumeEditor({
     const targetSectionId = normalizeId(sectionId)
     const targetBulletId = normalizeId(bulletId)
     
+    // CRITICAL: Strip all HTML from text before saving
+    // Create a temporary div to extract plain text
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = text;
+    const sanitizedText = tempDiv.textContent || tempDiv.innerText || text.replace(/<[^>]*>/g, '').trim();
+    
     console.log('=== updateBullet called ===', {
       sectionId: targetSectionId,
       bulletId: targetBulletId,
-      newText: text.substring(0, 50),
+      originalText: text.substring(0, 50),
+      sanitizedText: sanitizedText.substring(0, 50),
       currentSections: data.sections.length
     })
     
@@ -1034,14 +1050,15 @@ export default function VisualResumeEditor({
           if (normalizeId(b.id) === targetBulletId) {
             console.log('Updating bullet:', {
               oldText: b.text?.substring(0, 50),
-              newText: text.substring(0, 50),
+              newText: sanitizedText.substring(0, 50),
               hasParams: !!b.params,
               params: b.params
             })
             // Preserve all bullet properties including params, ensure visible is true if not explicitly false
+            // ALWAYS use sanitized text - never allow HTML in bullet.text
             return { 
               ...b, 
-              text,
+              text: sanitizedText,
               params: {
                 ...(b.params || {}),
                 visible: b.params?.visible !== false ? true : false // Explicitly set visible
