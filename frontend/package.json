@@ -11,7 +11,10 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "node scripts/check-component-size.mjs && next lint",
-    "type-check": "tsc --noEmit --skipLibCheck"
+    "type-check": "tsc --noEmit --skipLibCheck",
+    "dead:files": "knip",
+    "dead:exports": "ts-prune",
+    "dead:deps": "depcheck"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -68,19 +68,6 @@ export async function createJob(payload: CreateJobPayload): Promise<Job> {
   return handleResponse<Job>(response)
 }
 
-export async function getJob(jobId: number): Promise<Job> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  Object.assign(headers, getAuthHeaders())
-
-  const response = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
-    headers,
-    credentials: 'include',
-  })
-  return handleResponse<Job>(response)
-}
-
 export async function deleteJob(jobId: number): Promise<void> {
   const headers = getAuthHeaders()
 
