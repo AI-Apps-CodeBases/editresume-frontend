@@ -279,9 +279,18 @@ const highlightMissingKeywords = (text: string, missingKeywords: string[]): Reac
   sortedKeywords.forEach(keyword => {
     const keywordLower = keyword.toLowerCase().trim();
     try {
-      // Escape special regex characters
-      const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+      // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+      const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+      let regex: RegExp;
+      if (hasSpecialChars) {
+        // For keywords with special chars, escape and match directly (no word boundaries)
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(escaped, 'gi');
+      } else {
+        // For normal keywords, use word boundaries to avoid partial matches
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+      }
       const textMatches = text.matchAll(regex);
 
       for (const match of textMatches) {
@@ -1075,7 +1084,17 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             const missing: string[] = [];
 
             allKeywords.forEach((keyword) => {
-              const pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+              // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+              const hasSpecialChars = /[\/\-_]/g.test(keyword);
+              let pattern: RegExp;
+              if (hasSpecialChars) {
+                // For keywords with special chars, escape and match directly (no word boundaries)
+                const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                pattern = new RegExp(escaped, 'i');
+              } else {
+                // For normal keywords, use word boundaries to avoid partial matches
+                pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+              }
               if (pattern.test(resumeText)) {
                 matched.push(keyword);
               } else {
@@ -1329,7 +1348,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     const missingKeywords: string[] = [];
 
     keywordSet.forEach((keyword) => {
-      const pattern = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i');
+      // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+      const hasSpecialChars = /[\/\-_]/g.test(keyword);
+      let pattern: RegExp;
+      if (hasSpecialChars) {
+        // For keywords with special chars, escape and match directly (no word boundaries)
+        pattern = new RegExp(escapeRegExp(keyword), 'i');
+      } else {
+        // For normal keywords, use word boundaries to avoid partial matches
+        pattern = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i');
+      }
       if (pattern.test(resumeText)) {
         matchedKeywords.push(keyword);
       } else {

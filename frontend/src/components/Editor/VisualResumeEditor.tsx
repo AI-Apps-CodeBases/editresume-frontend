@@ -552,8 +552,17 @@ export default function VisualResumeEditor({
       // Skip single letters and very short keywords
       if (keywordLower.length <= 1) return;
 
-      // Use word boundary matching to avoid partial matches like "r" in "project"
-      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+      const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+      let regex: RegExp;
+      if (hasSpecialChars) {
+        // For keywords with special chars, escape and match directly (no word boundaries)
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(escaped, 'gi');
+      } else {
+        // For normal keywords, use word boundaries to avoid partial matches
+        regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      }
       const matches = lowerText.match(regex);
       if (matches && matches.length > 0) {
         // Preserve original keyword case
@@ -584,7 +593,17 @@ export default function VisualResumeEditor({
       if (keywordLower.length <= 1) return;
 
       try {
-        const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+        const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+        let regex: RegExp;
+        if (hasSpecialChars) {
+          // For keywords with special chars, escape and match directly (no word boundaries)
+          const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          regex = new RegExp(escaped, 'gi');
+        } else {
+          // For normal keywords, use word boundaries to avoid partial matches
+          regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        }
         const textMatches = text.matchAll(regex);
 
         for (const match of textMatches) {
@@ -654,23 +673,50 @@ export default function VisualResumeEditor({
   const highlightKeywordsInHTML = (text: string, matchedKeywords: string[]): string => {
     if (!matchedKeywords.length || !text || typeof text !== 'string') return text || '';
 
-    let highlightedText = text;
+    // First, decode any existing HTML entities to avoid double-encoding
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = text;
+    let cleanText = tempDiv.textContent || tempDiv.innerText || text;
+
+    let highlightedText = cleanText;
     const sortedKeywords = [...matchedKeywords]
       .filter(kw => kw && typeof kw === 'string' && kw.trim().length > 1)
       .sort((a, b) => b.length - a.length);
 
-    if (sortedKeywords.length === 0) return text;
+    if (sortedKeywords.length === 0) return cleanText;
 
     sortedKeywords.forEach(keyword => {
       try {
         const keywordLower = keyword.toLowerCase().trim();
         if (keywordLower.length <= 1) return;
 
-        const regex = new RegExp(`\\b(${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+        // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+        const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+        let regex: RegExp;
+        if (hasSpecialChars) {
+          // For keywords with special chars, escape and match directly (no word boundaries)
+          const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          regex = new RegExp(`(${escaped})`, 'gi');
+        } else {
+          // For normal keywords, use word boundaries to avoid partial matches
+          regex = new RegExp(`\\b(${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+        }
+        
         highlightedText = highlightedText.replace(regex, (match) => {
           if (!match) return match;
-          const escapedKeyword = keyword.replace(/"/g, '&quot;');
-          return `<mark class="bg-yellow-200 font-semibold underline" title="JD Keyword: ${escapedKeyword}">${match}</mark>`;
+          // Properly escape HTML entities for the title attribute
+          const escapedKeyword = keyword
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+          // Escape the match text itself for HTML
+          const escapedMatch = match
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          return `<mark class="bg-yellow-200 font-semibold underline" title="JD Keyword: ${escapedKeyword}">${escapedMatch}</mark>`;
         });
       } catch (e) {
         console.warn('Error highlighting keyword in HTML:', keyword, e);
@@ -692,7 +738,17 @@ export default function VisualResumeEditor({
 
     jdKeywords.matching.forEach(keyword => {
       const keywordLower = keyword.toLowerCase();
-      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+      const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+      let regex: RegExp;
+      if (hasSpecialChars) {
+        // For keywords with special chars, escape and match directly (no word boundaries)
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(escaped, 'gi');
+      } else {
+        // For normal keywords, use word boundaries to avoid partial matches
+        regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      }
       const matches = textLower.match(regex);
       if (matches && matches.length > 0) {
         matchedKeywords.push(keyword);
@@ -726,13 +782,17 @@ export default function VisualResumeEditor({
     const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
     if (summaryField && data.summary && !summaryField.matches(':focus')) {
       try {
-        const summaryMatches = getTextMatches(data.summary);
+        // Get clean text content (strip any existing HTML)
+        const cleanText = summaryField.textContent || data.summary || '';
+        const summaryMatches = getTextMatches(cleanText);
         if (summaryMatches.matchedKeywords.length > 0) {
           const currentText = summaryField.textContent || '';
           const normalizedCurrent = currentText.trim();
-          const normalizedData = data.summary.trim();
+          const normalizedData = cleanText.trim();
           if (normalizedCurrent === normalizedData || !normalizedCurrent) {
-            summaryField.innerHTML = highlightKeywordsInHTML(data.summary, summaryMatches.matchedKeywords);
+            // Use clean text to avoid HTML entity issues
+            const highlighted = highlightKeywordsInHTML(cleanText, summaryMatches.matchedKeywords);
+            summaryField.innerHTML = highlighted;
           }
         }
       } catch (e) {
