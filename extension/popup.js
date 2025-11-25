@@ -1115,7 +1115,13 @@ async function loadSavedJDs() {
       renderSavedList(list);
     } else if (res.status === 401) {
       document.getElementById('savedList').innerHTML = '<div class="empty-state">Please sign in on editresume.io</div>';
-      await chrome.storage.sync.set({ token: '', tokenFetchedAt: 0 });
+      // Preserve existing settings when clearing token
+      const current = await chrome.storage.sync.get();
+      await chrome.storage.sync.set({ 
+        ...current,
+        token: '', 
+        tokenFetchedAt: 0 
+      });
     } else {
       document.getElementById('savedList').innerHTML = '<div class="empty-state">Failed to load</div>';
     }
@@ -1454,26 +1460,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const signInBtn = document.getElementById('signInBtn');
   const refreshBtn = document.getElementById('refreshSaved');
 
-  const current = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
-  
-  const hasStaging = current.appBase && (
-    current.appBase.includes('staging.editresume.io') || 
-    current.appBase.includes('localhost')
-  );
-  
-  const hasStagingApi = current.apiBase && (
-    current.apiBase.includes('staging.editresume.io') ||
-    current.apiBase.includes('editresume-staging.onrender.com') ||
-    current.apiBase.includes('localhost')
-  );
-  
-  if (hasStaging || hasStagingApi || !current.appBase) {
-    await chrome.storage.sync.set({ 
-      appBase: 'https://editresume.io',
-      apiBase: 'https://editresume-api-prod.onrender.com'
-    });
-    console.log('Extension: Force migrated to production on popup open');
-  }
+  // Migration disabled - respect user's saved settings
+  // const current = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
+  // 
+  // const hasStaging = current.appBase && (
+  //   current.appBase.includes('staging.editresume.io') || 
+  //   current.appBase.includes('localhost')
+  // );
+  // 
+  // const hasStagingApi = current.apiBase && (
+  //   current.apiBase.includes('staging.editresume.io') ||
+  //   current.apiBase.includes('editresume-staging.onrender.com') ||
+  //   current.apiBase.includes('localhost')
+  // );
+  // 
+  // if (hasStaging || hasStagingApi || !current.appBase) {
+  //   await chrome.storage.sync.set({ 
+  //     appBase: 'https://editresume.io',
+  //     apiBase: 'https://editresume-api-prod.onrender.com'
+  //   });
+  //   console.log('Extension: Force migrated to production on popup open');
+  // }
 
   const checkAuth = async (forceRefresh = false) => {
     try {
@@ -1511,13 +1518,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       
-      if (normalizedBase.includes('staging.editresume.io') || normalizedBase.includes('localhost')) {
-        normalizedBase = 'https://editresume.io';
-        await chrome.storage.sync.set({ 
-          appBase: normalizedBase,
-          apiBase: 'https://editresume-api-prod.onrender.com'
-        });
-      }
+      // Allow staging URLs - don't force migration
+      // if (normalizedBase.includes('staging.editresume.io') || normalizedBase.includes('localhost')) {
+      //   normalizedBase = 'https://editresume.io';
+      //   await chrome.storage.sync.set({ 
+      //     appBase: normalizedBase,
+      //     apiBase: 'https://editresume-api-prod.onrender.com'
+      //   });
+      // }
       
       chrome.tabs.create({ url: `${normalizedBase}/?extensionAuth=1` });
     });

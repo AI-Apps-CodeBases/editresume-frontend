@@ -20,82 +20,74 @@ const getApiBaseFromAppBase = (appBase) => {
   return 'https://editresume-api-prod.onrender.com'
 }
 
+// Migration disabled - allow staging URLs to persist
 const migrateStagingToProduction = async () => {
-  const current = await chrome.storage.sync.get()
-  const updates = {}
-  
-  const hasStagingAppBase = current.appBase && (
-    current.appBase.includes('staging.editresume.io') ||
-    current.appBase.includes('localhost')
-  )
-  
-  const hasStagingApiBase = current.apiBase && (
-    current.apiBase.includes('staging.editresume.io') ||
-    current.apiBase.includes('editresume-staging.onrender.com') ||
-    current.apiBase.includes('localhost')
-  )
-  
-  const hasProductionAppBase = current.appBase && 
-    current.appBase.includes('editresume.io') && 
-    !current.appBase.includes('staging')
-  
-  if (hasStagingAppBase || !current.appBase || !hasProductionAppBase) {
-    updates.appBase = DEFAULTS.appBase
-    updates.apiBase = getApiBaseFromAppBase(DEFAULTS.appBase)
-  } else if (hasStagingApiBase || !current.apiBase) {
-    const appBase = current.appBase || DEFAULTS.appBase
-    updates.apiBase = getApiBaseFromAppBase(appBase)
-  }
-  
-  if (Object.keys(updates).length > 0) {
-    await chrome.storage.sync.set(updates)
-    console.log('Extension: Force-migrated to production URLs:', updates)
-    return true
-  }
+  // No longer forcing migration - respect user's saved settings
   return false
 }
 
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
+  // Only set defaults on first install, not on updates or reloads
+  if (details.reason !== 'install') {
+    return
+  }
+  
   const current = await chrome.storage.sync.get()
-  const next = { ...DEFAULTS }
-  let needsUpdate = false
-  let needsMigration = false
-
-  const hasStagingAppBase = current.appBase && (
-    current.appBase.includes('staging.editresume.io') ||
-    current.appBase.includes('localhost')
-  )
   
-  const hasStagingApiBase = current.apiBase && (
-    current.apiBase.includes('staging.editresume.io') ||
-    current.apiBase.includes('editresume-staging.onrender.com') ||
-    current.apiBase.includes('localhost')
-  )
-
-  if (hasStagingAppBase || !current.appBase) {
-    next.appBase = DEFAULTS.appBase
-    needsMigration = true
-    needsUpdate = true
-  } else {
-    next.appBase = current.appBase
+  // Don't override if settings are locked (user has explicitly saved)
+  if (current._settingsLocked) {
+    console.log('Extension: Settings are locked, skipping defaults')
+    return
   }
   
-  if (hasStagingApiBase || !current.apiBase || needsMigration) {
-    next.apiBase = getApiBaseFromAppBase(next.appBase || DEFAULTS.appBase)
-    needsUpdate = true
-  }
-
-  if (needsUpdate) {
-    await chrome.storage.sync.set(next)
-    console.log('Extension: Force-set production defaults:', next)
+  // Only set defaults if no settings exist - don't override user's staging settings
+  if (!current.appBase) {
+    const defaults = {
+      ...current, // Preserve existing keys
+      appBase: DEFAULTS.appBase,
+      apiBase: getApiBaseFromAppBase(DEFAULTS.appBase)
+    }
+    await chrome.storage.sync.set(defaults)
+  } else if (!current.apiBase) {
+    // If appBase exists but apiBase doesn't, derive it from appBase
+    const updated = {
+      ...current, // Preserve existing keys
+      apiBase: getApiBaseFromAppBase(current.appBase)
+    }
+    await chrome.storage.sync.set(updated)
   }
 })
 
 chrome.runtime.onStartup.addListener(async () => {
-  await migrateStagingToProduction()
+  // Migration disabled - respect user's saved settings
+  // await migrateStagingToProduction()
 })
 
-migrateStagingToProduction()
+// Migration disabled - respect user's saved settings
+// migrateStagingToProduction()
+
+// Monitor storage changes to prevent unauthorized overwrites
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'sync') {
+    if (changes.appBase || changes.apiBase) {
+      console.log('Extension: Storage changed', {
+        appBase: changes.appBase,
+        apiBase: changes.apiBase,
+        source: changes._lastSaved ? 'user_save' : 'unknown',
+        timestamp: changes._lastSaved?.newValue
+      })
+      
+      // If settings were just saved by user, don't allow overwrites for 5 seconds
+      if (changes._lastSaved?.newValue) {
+        const saveTime = changes._lastSaved.newValue
+        const now = Date.now()
+        if (now - saveTime < 5000) {
+          console.log('Extension: Settings recently saved by user, protecting from overwrites')
+        }
+      }
+    }
+  }
+})
 
 const normalizeBaseUrl = (value) => {
   if (!value) return DEFAULTS.appBase
@@ -150,13 +142,14 @@ const requestTokenViaApp = async (retries = 3) => {
   const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
   let resolvedAppBase = appBase || DEFAULTS.appBase
   
-  if (resolvedAppBase.includes('staging.editresume.io') || resolvedAppBase.includes('localhost')) {
-    resolvedAppBase = DEFAULTS.appBase
-    await chrome.storage.sync.set({ 
-      appBase: DEFAULTS.appBase,
-      apiBase: getApiBaseFromAppBase(DEFAULTS.appBase)
-    })
-  }
+  // Allow staging URLs - don't force migration
+  // if (resolvedAppBase.includes('staging.editresume.io') || resolvedAppBase.includes('localhost')) {
+  //   resolvedAppBase = DEFAULTS.appBase
+  //   await chrome.storage.sync.set({ 
+  //     appBase: DEFAULTS.appBase,
+  //     apiBase: getApiBaseFromAppBase(DEFAULTS.appBase)
+  //   })
+  // }
   
   const normalizedBase = normalizeBaseUrl(resolvedAppBase)
   const urlPattern = `${normalizedBase}/*`
@@ -255,12 +248,24 @@ const ensureFreshToken = async (forceRefresh = false) => {
   }
 
   const freshToken = await requestTokenViaApp()
-  await chrome.storage.sync.set({ token: freshToken, tokenFetchedAt: Date.now() })
+  // Preserve existing settings when updating token
+  const current = await chrome.storage.sync.get()
+  await chrome.storage.sync.set({ 
+    ...current,
+    token: freshToken, 
+    tokenFetchedAt: Date.now() 
+  })
   return freshToken
 }
 
 const clearStoredToken = async () => {
-  await chrome.storage.sync.set({ token: '', tokenFetchedAt: 0 })
+  // Preserve existing settings when clearing token
+  const current = await chrome.storage.sync.get()
+  await chrome.storage.sync.set({ 
+    ...current,
+    token: '', 
+    tokenFetchedAt: 0 
+  })
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -320,7 +325,10 @@ const handleExtensionAuthTab = async (tabId) => {
       })
 
         if (response?.ok && response.token) {
+          // Preserve existing settings when updating token
+          const current = await chrome.storage.sync.get()
           await chrome.storage.sync.set({ 
+            ...current,
             token: response.token, 
             tokenFetchedAt: Date.now() 
           })
