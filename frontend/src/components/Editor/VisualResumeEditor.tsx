@@ -887,8 +887,44 @@ export default function VisualResumeEditor({
           bulletEl.innerHTML = '';
           bulletEl.textContent = plainText;
         }
+        
+        // Set up MutationObserver to catch HTML insertion AFTER React renders
+        const observer = new MutationObserver(() => {
+          const currentHTML = bulletEl.innerHTML || '';
+          const currentText = bulletEl.textContent || '';
+          
+          // If HTML detected, remove it immediately
+          if (currentHTML !== currentText && currentHTML.includes('<')) {
+            console.warn('🚨 HTML INSERTED INTO DOM - Removing:', {
+              bulletId,
+              innerHTML: currentHTML.substring(0, 100)
+            });
+            bulletEl.innerHTML = '';
+            bulletEl.textContent = plainText || currentText;
+          }
+        });
+        
+        observer.observe(bulletEl, {
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+        
+        // Store observer for cleanup (we'll use a WeakMap or cleanup in return)
+        (bulletEl as any)._htmlObserver = observer;
       }
     });
+    
+    return () => {
+      // Cleanup observers
+      document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
+        const observer = (el as any)._htmlObserver;
+        if (observer) {
+          observer.disconnect();
+          delete (el as any)._htmlObserver;
+        }
+      });
+    };
   });
 
   // Add page break styles
@@ -2657,38 +2693,26 @@ export default function VisualResumeEditor({
                                                         className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
                                                           }`}
                                                         ref={(el) => {
-                                                          // Use ref to set textContent directly, bypassing React rendering
-                                                          // This prevents HTML from being rendered as children
-                                                          if (el && el.isContentEditable) {
-                                                            // Strip HTML and set textContent immediately
-                                                            const originalText = companyBullet.text || '';
-                                                            const plainText = originalText.replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                          if (!el || !el.isContentEditable) return;
+                                                          
+                                                          // Use setTimeout to run after React has rendered
+                                                          setTimeout(() => {
+                                                            const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                                             
-                                                            // DEBUG: Log if HTML is detected
-                                                            if (originalText !== plainText || originalText.includes('<')) {
-                                                              console.warn('🚨 HTML DETECTED IN WORK EXP BULLET:', {
+                                                            // Check if HTML exists in DOM
+                                                            if (el.innerHTML && el.innerHTML !== plainText && el.innerHTML.includes('<')) {
+                                                              console.warn('🚨 HTML FOUND IN DOM (work exp):', {
                                                                 bulletId: companyBullet.id,
-                                                                original: originalText.substring(0, 100),
-                                                                hasHTML: originalText.includes('<'),
-                                                                innerHTML: el.innerHTML.substring(0, 100),
-                                                                textContent: el.textContent?.substring(0, 100)
-                                                              });
-                                                            }
-                                                            
-                                                            // Force textContent - don't check, just set it
-                                                            el.textContent = plainText;
-                                                            
-                                                            // Force innerHTML to be empty
-                                                            if (el.innerHTML && el.innerHTML !== plainText) {
-                                                              console.warn('🚨 FORCING innerHTML cleanup (work exp):', {
-                                                                bulletId: companyBullet.id,
-                                                                before: el.innerHTML.substring(0, 100),
-                                                                after: plainText.substring(0, 100)
+                                                                innerHTML: el.innerHTML.substring(0, 150),
+                                                                willFix: true
                                                               });
                                                               el.innerHTML = '';
                                                               el.textContent = plainText;
+                                                            } else if (!el.textContent || el.textContent.trim() !== plainText) {
+                                                              // Set textContent if it doesn't match
+                                                              el.textContent = plainText;
                                                             }
-                                                          }
+                                                          }, 0);
                                                         }}
                                                         dangerouslySetInnerHTML={{ __html: '' }}
                                                       />
@@ -2926,37 +2950,26 @@ export default function VisualResumeEditor({
                                             data-section-id={section.id}
                                             data-bullet-id={bullet.id}
                                             ref={(el) => {
-                                              // Use ref to set textContent directly, bypassing React rendering
-                                              if (el && el.isContentEditable) {
-                                                // Strip HTML and set textContent immediately
-                                                const originalText = bullet.text || '';
-                                                const plainText = originalText.replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                              if (!el || !el.isContentEditable) return;
+                                              
+                                              // Use setTimeout to run after React has rendered
+                                              setTimeout(() => {
+                                                const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                                 
-                                                // DEBUG: Log if HTML is detected
-                                                if (originalText !== plainText || originalText.includes('<')) {
-                                                  console.warn('🚨 HTML DETECTED IN BULLET TEXT:', {
+                                                // Check if HTML exists in DOM
+                                                if (el.innerHTML && el.innerHTML !== plainText && el.innerHTML.includes('<')) {
+                                                  console.warn('🚨 HTML FOUND IN DOM:', {
                                                     bulletId: bullet.id,
-                                                    original: originalText.substring(0, 100),
-                                                    hasHTML: originalText.includes('<'),
-                                                    innerHTML: el.innerHTML.substring(0, 100),
-                                                    textContent: el.textContent?.substring(0, 100)
-                                                  });
-                                                }
-                                                
-                                                // Force textContent - don't check, just set it
-                                                el.textContent = plainText;
-                                                
-                                                // Force innerHTML to be empty
-                                                if (el.innerHTML && el.innerHTML !== plainText) {
-                                                  console.warn('🚨 FORCING innerHTML cleanup:', {
-                                                    bulletId: bullet.id,
-                                                    before: el.innerHTML.substring(0, 100),
-                                                    after: plainText.substring(0, 100)
+                                                    innerHTML: el.innerHTML.substring(0, 150),
+                                                    willFix: true
                                                   });
                                                   el.innerHTML = '';
                                                   el.textContent = plainText;
+                                                } else if (!el.textContent || el.textContent.trim() !== plainText) {
+                                                  // Set textContent if it doesn't match
+                                                  el.textContent = plainText;
                                                 }
-                                              }
+                                              }, 0);
                                             }}
                                             dangerouslySetInnerHTML={{ __html: '' }}
                                             onFocus={(e) => {
