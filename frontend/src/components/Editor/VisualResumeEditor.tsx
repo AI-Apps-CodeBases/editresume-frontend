@@ -2439,7 +2439,6 @@ export default function VisualResumeEditor({
                                                         </div>
                                                       )}
                                                       {(() => {
-                                                        const textareaRef = useRef<HTMLTextAreaElement>(null);
                                                         const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                                         const isEditing = editingBullet?.sectionId === section.id && editingBullet?.bulletId === companyBullet.id;
                                                         
@@ -2450,7 +2449,6 @@ export default function VisualResumeEditor({
                                                                 onClick={() => {
                                                                   setEditValue(plainText);
                                                                   setEditingBullet({ sectionId: section.id, bulletId: companyBullet.id });
-                                                                  setTimeout(() => textareaRef.current?.focus(), 0);
                                                                 }}
                                                                 className={`text-sm leading-relaxed outline-none hover:bg-blue-50 rounded transition-colors cursor-text relative z-10 min-h-[1.5rem] ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
                                                               >
@@ -2458,7 +2456,7 @@ export default function VisualResumeEditor({
                                                               </div>
                                                             ) : (
                                                               <textarea
-                                                                ref={textareaRef}
+                                                                autoFocus
                                                                 value={editValue}
                                                                 onChange={(e) => setEditValue(e.target.value)}
                                                                 onBlur={() => {
@@ -2474,7 +2472,7 @@ export default function VisualResumeEditor({
                                                                 onKeyDown={(e) => {
                                                                   if (e.key === 'Enter' && !e.shiftKey) {
                                                                     e.preventDefault();
-                                                                    textareaRef.current?.blur();
+                                                                    (e.target as HTMLTextAreaElement).blur();
                                                                   }
                                                                   if (e.key === 'Escape') {
                                                                     setEditingBullet(null);
@@ -2724,7 +2722,6 @@ export default function VisualResumeEditor({
                                             </div>
                                           )}
                                           {(() => {
-                                            const textareaRef = useRef<HTMLTextAreaElement>(null);
                                             const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                             const isEditing = editingBullet?.sectionId === section.id && editingBullet?.bulletId === bullet.id;
                                             
@@ -2735,7 +2732,6 @@ export default function VisualResumeEditor({
                                                     onClick={() => {
                                                       setEditValue(plainText);
                                                       setEditingBullet({ sectionId: section.id, bulletId: bullet.id });
-                                                      setTimeout(() => textareaRef.current?.focus(), 0);
                                                     }}
                                                     className={`text-sm leading-relaxed outline-none hover:bg-blue-50 rounded transition-colors cursor-text relative z-10 min-h-[1.5rem] ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
                                                   >
@@ -2743,7 +2739,7 @@ export default function VisualResumeEditor({
                                                   </div>
                                                 ) : (
                                                   <textarea
-                                                    ref={textareaRef}
+                                                    autoFocus
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
                                                     onBlur={() => {
@@ -2759,7 +2755,7 @@ export default function VisualResumeEditor({
                                                     onKeyDown={(e) => {
                                                       if (e.key === 'Enter' && !e.shiftKey) {
                                                         e.preventDefault();
-                                                        textareaRef.current?.blur();
+                                                        (e.target as HTMLTextAreaElement).blur();
                                                       }
                                                       if (e.key === 'Escape') {
                                                         setEditingBullet(null);
