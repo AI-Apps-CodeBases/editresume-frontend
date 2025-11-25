@@ -34,8 +34,10 @@ export default function HeroSection() {
               </Link>
             </div>
             <div className="mt-6">
-              <Link
-                href="/extension"
+              <a
+                href="https://chromewebstore.google.com/detail/editresume-job-saver/aecnknpdmopjemcdadfnlpoeldnehljp?utm_source=ext_app_menu"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 hover:border-primary-300 transition-colors"
               >
                 <Image 
@@ -45,13 +47,13 @@ export default function HeroSection() {
                   height={20}
                   className="w-5 h-5"
                 />
-                <span>Download Chrome Extension (Beta)</span>
+                <span>Install Chrome Extension</span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
-              </Link>
+              </a>
               <p className="mt-2 text-xs text-text-muted">
-                Save LinkedIn jobs directly to editresume.io • Beta testing
+                Save LinkedIn jobs directly to editresume.io • One-click installation
               </p>
             </div>
             <div className="mt-8 flex flex-wrap gap-4 text-sm text-text-muted">
