@@ -958,6 +958,16 @@ export default function VisualResumeEditor({
           clearInterval(interval);
           delete (el as any)._htmlInterval;
         }
+        const cleanupInterval = (el as any)._cleanupInterval;
+        if (cleanupInterval) {
+          clearInterval(cleanupInterval);
+          delete (el as any)._cleanupInterval;
+        }
+        const forcePlainTextInterval = (el as any)._forcePlainTextInterval;
+        if (forcePlainTextInterval) {
+          clearInterval(forcePlainTextInterval);
+          delete (el as any)._forcePlainTextInterval;
+        }
       });
     };
   });
@@ -2645,6 +2655,14 @@ export default function VisualResumeEditor({
                                                           className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                             }`}
                                                           data-highlight-overlay="true"
+                                                          style={{ 
+                                                            position: 'absolute',
+                                                            top: 0,
+                                                            left: 0,
+                                                            right: 0,
+                                                            bottom: 0,
+                                                            zIndex: 0
+                                                          }}
                                                         >
                                                           {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                                         </div>
@@ -2657,46 +2675,62 @@ export default function VisualResumeEditor({
                                                         data-bullet-id={companyBullet.id}
                                                         data-is-work-exp="true"
                                                         key={`bullet-we-${companyBullet.id}-${companyBullet.text?.substring(0, 10)}`}
+                                                        style={{ 
+                                                          position: 'relative',
+                                                          zIndex: 10,
+                                                          minHeight: '1.5rem'
+                                                        }}
                                                         ref={(el) => {
                                                           if (!el || !el.isContentEditable) return;
                                                           
                                                           const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                                           
-                                                          // IMMEDIATELY clear any content and set plain text
-                                                          el.innerHTML = '';
-                                                          el.textContent = plainText;
+                                                          // Set up continuous monitoring function
+                                                          const forcePlainText = () => {
+                                                            if (!el || !el.isContentEditable) return;
+                                                            
+                                                            // ALWAYS remove all children first
+                                                            while (el.firstChild) {
+                                                              el.removeChild(el.firstChild);
+                                                            }
+                                                            
+                                                            // Then set plain text
+                                                            el.textContent = plainText;
+                                                            
+                                                            // Final check - if innerHTML still exists, clear it
+                                                            if (el.innerHTML && el.innerHTML !== plainText) {
+                                                              el.innerHTML = '';
+                                                              el.textContent = plainText;
+                                                            }
+                                                          };
                                                           
-                                                          // Use multiple timeouts to catch HTML at different stages
-                                                          [0, 10, 50, 100, 200].forEach(delay => {
-                                                            setTimeout(() => {
-                                                              if (!el || !el.isContentEditable) return;
-                                                              
-                                                              const currentHTML = el.innerHTML || '';
-                                                              const currentText = el.textContent || '';
-                                                              
-                                                              // Always check for HTML - be very aggressive
-                                                              if (currentHTML !== currentText || currentHTML.includes('<')) {
-                                                                console.error('🚨🚨🚨 HTML DETECTED (work exp):', {
-                                                                  bulletId: companyBullet.id,
-                                                                  delay,
-                                                                  innerHTML: currentHTML.substring(0, 200),
-                                                                  textContent: currentText.substring(0, 200),
-                                                                  hasMarkTags: currentHTML.includes('<mark'),
-                                                                  hasAnyHTML: currentHTML.includes('<'),
-                                                                  childrenCount: el.children.length,
-                                                                  firstChild: el.firstChild?.nodeName
-                                                                });
-                                                                // Aggressively remove ALL children
-                                                                while (el.firstChild) {
-                                                                  el.removeChild(el.firstChild);
-                                                                }
-                                                                el.textContent = plainText;
-                                                              } else if (!el.textContent || el.textContent.trim() !== plainText) {
-                                                                // Ensure textContent matches
-                                                                el.textContent = plainText;
-                                                              }
-                                                            }, delay);
+                                                          // Force immediately
+                                                          forcePlainText();
+                                                          
+                                                          // Check repeatedly at different intervals
+                                                          [0, 1, 5, 10, 25, 50, 100, 200, 500].forEach(delay => {
+                                                            setTimeout(forcePlainText, delay);
                                                           });
+                                                          
+                                                          // Continuous monitoring every 50ms
+                                                          const intervalId = setInterval(() => {
+                                                            if (!el || !el.isContentEditable) {
+                                                              clearInterval(intervalId);
+                                                              return;
+                                                            }
+                                                            
+                                                            const hasHTML = el.innerHTML !== el.textContent || el.innerHTML.includes('<') || el.children.length > 0;
+                                                            if (hasHTML) {
+                                                              console.error('🚨 CONTINUOUS MONITOR CAUGHT HTML (work exp):', {
+                                                                bulletId: companyBullet.id,
+                                                                innerHTML: el.innerHTML.substring(0, 150),
+                                                                children: el.children.length
+                                                              });
+                                                              forcePlainText();
+                                                            }
+                                                          }, 50);
+                                                          
+                                                          (el as any)._forcePlainTextInterval = intervalId;
                                                         }}
                                                         onFocus={(e) => {
                                                           // Hide overlay when focused
@@ -2706,18 +2740,45 @@ export default function VisualResumeEditor({
                                                             overlay.style.pointerEvents = 'none';
                                                             overlay.style.display = 'none';
                                                           }
-                                                          // Ensure contentEditable has plain text - remove any HTML
+                                                          // AGGRESSIVELY remove ALL HTML - remove all children first
                                                           const textContent = e.currentTarget.textContent || '';
+                                                          while (e.currentTarget.firstChild) {
+                                                            e.currentTarget.removeChild(e.currentTarget.firstChild);
+                                                          }
+                                                          e.currentTarget.textContent = textContent;
+                                                          // Double-check - if innerHTML still has HTML, clear it
                                                           if (e.currentTarget.innerHTML !== textContent) {
+                                                            e.currentTarget.innerHTML = '';
                                                             e.currentTarget.textContent = textContent;
                                                           }
                                                         }}
                                                         onInput={(e) => {
                                                           // Prevent HTML from being inserted during editing
                                                           const target = e.currentTarget as HTMLElement;
-                                                          if (target.innerHTML !== target.textContent) {
-                                                            const textContent = target.textContent || '';
+                                                          const textContent = target.textContent || '';
+                                                          
+                                                          // If HTML detected during input, remove it immediately
+                                                          if (target.innerHTML !== textContent || target.innerHTML.includes('<') || target.children.length > 0) {
+                                                            console.error('🚨 HTML DETECTED DURING INPUT (work exp):', {
+                                                              bulletId: companyBullet.id,
+                                                              innerHTML: target.innerHTML.substring(0, 150)
+                                                            });
+                                                            // Remove all children
+                                                            while (target.firstChild) {
+                                                              target.removeChild(target.firstChild);
+                                                            }
                                                             target.textContent = textContent;
+                                                          }
+                                                        }}
+                                                        onPaste={(e) => {
+                                                          // Prevent pasting HTML
+                                                          e.preventDefault();
+                                                          const text = e.clipboardData.getData('text/plain');
+                                                          const selection = window.getSelection();
+                                                          if (selection && selection.rangeCount > 0) {
+                                                            const range = selection.getRangeAt(0);
+                                                            range.deleteContents();
+                                                            range.insertNode(document.createTextNode(text));
                                                           }
                                                         }}
                                                         onBlur={(e) => {
@@ -2993,6 +3054,14 @@ export default function VisualResumeEditor({
                                               className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                 }`}
                                               data-highlight-overlay="true"
+                                              style={{ 
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                                zIndex: 0
+                                              }}
                                             >
                                               {highlightKeywordsInText((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                             </div>
@@ -3004,46 +3073,62 @@ export default function VisualResumeEditor({
                                             data-section-id={section.id}
                                             data-bullet-id={bullet.id}
                                             key={`bullet-${bullet.id}-${bullet.text?.substring(0, 10)}`}
+                                            style={{ 
+                                              position: 'relative',
+                                              zIndex: 10,
+                                              minHeight: '1.5rem'
+                                            }}
                                             ref={(el) => {
                                               if (!el || !el.isContentEditable) return;
                                               
                                               const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
                                               
-                                              // IMMEDIATELY clear any content and set plain text
-                                              el.innerHTML = '';
-                                              el.textContent = plainText;
+                                              // Set up continuous monitoring function
+                                              const forcePlainText = () => {
+                                                if (!el || !el.isContentEditable) return;
+                                                
+                                                // ALWAYS remove all children first
+                                                while (el.firstChild) {
+                                                  el.removeChild(el.firstChild);
+                                                }
+                                                
+                                                // Then set plain text
+                                                el.textContent = plainText;
+                                                
+                                                // Final check - if innerHTML still exists, clear it
+                                                if (el.innerHTML && el.innerHTML !== plainText) {
+                                                  el.innerHTML = '';
+                                                  el.textContent = plainText;
+                                                }
+                                              };
                                               
-                                              // Use multiple timeouts to catch HTML at different stages
-                                              [0, 10, 50, 100, 200].forEach(delay => {
-                                                setTimeout(() => {
-                                                  if (!el || !el.isContentEditable) return;
-                                                  
-                                                  const currentHTML = el.innerHTML || '';
-                                                  const currentText = el.textContent || '';
-                                                  
-                                                  // Always check for HTML - be very aggressive
-                                                  if (currentHTML !== currentText || currentHTML.includes('<')) {
-                                                    console.error('🚨🚨🚨 HTML DETECTED (regular bullet):', {
-                                                      bulletId: bullet.id,
-                                                      delay,
-                                                      innerHTML: currentHTML.substring(0, 200),
-                                                      textContent: currentText.substring(0, 200),
-                                                      hasMarkTags: currentHTML.includes('<mark'),
-                                                      hasAnyHTML: currentHTML.includes('<'),
-                                                      childrenCount: el.children.length,
-                                                      firstChild: el.firstChild?.nodeName
-                                                    });
-                                                    // Aggressively remove ALL children
-                                                    while (el.firstChild) {
-                                                      el.removeChild(el.firstChild);
-                                                    }
-                                                    el.textContent = plainText;
-                                                  } else if (!el.textContent || el.textContent.trim() !== plainText) {
-                                                    // Ensure textContent matches
-                                                    el.textContent = plainText;
-                                                  }
-                                                }, delay);
+                                              // Force immediately
+                                              forcePlainText();
+                                              
+                                              // Check repeatedly at different intervals
+                                              [0, 1, 5, 10, 25, 50, 100, 200, 500].forEach(delay => {
+                                                setTimeout(forcePlainText, delay);
                                               });
+                                              
+                                              // Continuous monitoring every 50ms
+                                              const intervalId = setInterval(() => {
+                                                if (!el || !el.isContentEditable) {
+                                                  clearInterval(intervalId);
+                                                  return;
+                                                }
+                                                
+                                                const hasHTML = el.innerHTML !== el.textContent || el.innerHTML.includes('<') || el.children.length > 0;
+                                                if (hasHTML) {
+                                                  console.error('🚨 CONTINUOUS MONITOR CAUGHT HTML:', {
+                                                    bulletId: bullet.id,
+                                                    innerHTML: el.innerHTML.substring(0, 150),
+                                                    children: el.children.length
+                                                  });
+                                                  forcePlainText();
+                                                }
+                                              }, 50);
+                                              
+                                              (el as any)._forcePlainTextInterval = intervalId;
                                             }}
                                             onFocus={(e) => {
                                               // Hide overlay when focused
@@ -3053,18 +3138,47 @@ export default function VisualResumeEditor({
                                                 overlay.style.pointerEvents = 'none';
                                                 overlay.style.display = 'none';
                                               }
-                                              // Force plain text - remove any HTML
+                                              // AGGRESSIVELY remove ALL HTML - remove all children first
                                               const textContent = e.currentTarget.textContent || '';
+                                              while (e.currentTarget.firstChild) {
+                                                e.currentTarget.removeChild(e.currentTarget.firstChild);
+                                              }
                                               e.currentTarget.textContent = textContent;
+                                              // Double-check - if innerHTML still has HTML, clear it
+                                              if (e.currentTarget.innerHTML !== textContent) {
+                                                e.currentTarget.innerHTML = '';
+                                                e.currentTarget.textContent = textContent;
+                                              }
                                             }}
                                             onInput={(e) => {
                                               // Prevent HTML from being inserted during editing
                                               const target = e.currentTarget as HTMLElement;
                                               const textContent = target.textContent || '';
-                                              if (target.innerHTML !== textContent) {
+                                              
+                                              // If HTML detected during input, remove it immediately
+                                              if (target.innerHTML !== textContent || target.innerHTML.includes('<') || target.children.length > 0) {
+                                                console.error('🚨 HTML DETECTED DURING INPUT:', {
+                                                  bulletId: bullet.id,
+                                                  innerHTML: target.innerHTML.substring(0, 150)
+                                                });
+                                                // Remove all children
+                                                while (target.firstChild) {
+                                                  target.removeChild(target.firstChild);
+                                                }
                                                 target.textContent = textContent;
                                               }
                                             }}
+                                                        onPaste={(e: React.ClipboardEvent<HTMLDivElement>) => {
+                                                          // Prevent pasting HTML
+                                                          e.preventDefault();
+                                                          const text = e.clipboardData.getData('text/plain');
+                                                          const selection = window.getSelection();
+                                                          if (selection && selection.rangeCount > 0) {
+                                                            const range = selection.getRangeAt(0);
+                                                            range.deleteContents();
+                                                            range.insertNode(document.createTextNode(text));
+                                                          }
+                                                        }}
                                             onBlur={(e) => {
                                               // Show overlay when not focused (if it exists)
                                               const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
