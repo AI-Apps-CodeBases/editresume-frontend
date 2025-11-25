@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from io import BytesIO
 from typing import Optional
 
@@ -21,6 +22,50 @@ from app.utils.resume_formatting import (
 from app.utils.resume_templates import TEMPLATES
 
 logger = logging.getLogger(__name__)
+
+
+def replace_cover_letter_placeholders(content: str, payload: ExportPayload) -> str:
+    """Replace common cover letter placeholders with actual values"""
+    if not content:
+        return content
+    
+    replacements_map = {
+        '[Your Name]': payload.name or '',
+        '[Your Address]': payload.location or '',
+        '[City, State, Zip]': payload.location or '',
+        '[Your Email]': payload.email or '',
+        '[Your Phone Number]': payload.phone or '',
+        '[Date]': datetime.now().strftime('%B %d, %Y'),
+        '{{name}}': payload.name or '',
+        '{{email}}': payload.email or '',
+        '{{phone}}': payload.phone or '',
+        '{{location}}': payload.location or '',
+        '{{address}}': payload.location or '',
+        '{{date}}': datetime.now().strftime('%B %d, %Y'),
+    }
+    
+    # Also replace in different formats
+    replacements_map.update({
+        '[Your name]': payload.name or '',
+        '[Your email]': payload.email or '',
+        '[Your phone]': payload.phone or '',
+        '[your name]': payload.name or '',
+        '[your email]': payload.email or '',
+        '[your phone]': payload.phone or '',
+        '[YOUR NAME]': payload.name or '',
+        '[YOUR EMAIL]': payload.email or '',
+        '[YOUR PHONE]': payload.phone or '',
+    })
+    
+    result = content
+    for placeholder, value in replacements_map.items():
+        result = result.replace(placeholder, value)
+    
+    # Apply any additional replacements from payload.replacements
+    if payload.replacements:
+        result = apply_replacements(result, payload.replacements)
+    
+    return result
 
 
 async def export_pdf(
@@ -111,7 +156,9 @@ async def export_pdf(
         # Add cover letter if provided
         cover_letter_html = ""
         if payload.cover_letter:
-            cover_letter_content = payload.cover_letter.replace("\n", "<br>")
+            # Replace placeholders with actual values
+            cover_letter_content = replace_cover_letter_placeholders(payload.cover_letter, payload)
+            cover_letter_content = cover_letter_content.replace("\n", "<br>")
             # Use company name for title if provided, otherwise "Cover Letter"
             cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
             cover_letter_html = f"""
@@ -580,6 +627,9 @@ async def export_docx(
 
         # Add cover letter if provided
         if payload.cover_letter:
+            # Replace placeholders with actual values
+            cover_letter_content = replace_cover_letter_placeholders(payload.cover_letter, payload)
+            
             # Use company name for title if provided, otherwise "Cover Letter"
             cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
             
@@ -594,7 +644,7 @@ async def export_docx(
                 doc.add_paragraph()
 
             # Format cover letter content with better styling for cover letter only
-            cover_letter_lines = payload.cover_letter.split('\n')
+            cover_letter_lines = cover_letter_content.split('\n')
             for i, line in enumerate(cover_letter_lines):
                 if line.strip():
                     cover_letter_para = doc.add_paragraph(line.strip())

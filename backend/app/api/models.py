@@ -188,3 +188,7 @@ class JobCoverLetterUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
 
+
+class ExtractKeywordsPayload(BaseModel):
+    job_description: str
+

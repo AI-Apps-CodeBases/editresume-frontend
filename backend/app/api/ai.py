@@ -14,6 +14,7 @@ from app.api.models import (
     AIImprovementPayload,
     CoverLetterPayload,
     EnhancedATSPayload,
+    ExtractKeywordsPayload,
     ExtractSentencesPayload,
     GenerateBulletPointsPayload,
     GenerateSummaryPayload,
@@ -34,6 +35,7 @@ from app.core.dependencies import (
     grammar_agent,
     improvement_agent,
     job_matching_agent,
+    keyword_extractor,
     openai_client,
 )
 from app.core.db import get_db
@@ -626,6 +628,60 @@ async def match_job_description(
         logger.error(f"Job description matching error: {str(e)}")
         error_message = "Failed to analyze job match: " + str(e)
         raise HTTPException(status_code=500, detail=error_message)
+
+
+@router.post("/extract_job_keywords")
+async def extract_job_keywords(payload: ExtractKeywordsPayload):
+    """Extract high-intensity keywords from job description"""
+    try:
+        if not payload.job_description or not payload.job_description.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Job description cannot be empty"
+            )
+
+        job_keywords = keyword_extractor.extract_keywords(payload.job_description)
+        
+        technical_keywords = job_keywords.get("technical_keywords", [])
+        general_keywords = job_keywords.get("general_keywords", [])
+        soft_skills = job_keywords.get("soft_skills", [])
+        ats_focused = job_keywords.get("ats_focused_keywords", [])
+        high_frequency_keywords = job_keywords.get("high_frequency_keywords", [])
+
+        high_intensity_keywords = [
+            item for item in high_frequency_keywords 
+            if item.get("importance") == "high"
+        ]
+        high_intensity_keywords.sort(key=lambda x: x.get("frequency", 0), reverse=True)
+        
+        all_high_priority = set()
+        all_high_priority.update([kw.lower() for kw in technical_keywords])
+        all_high_priority.update([
+            item["keyword"].lower() 
+            for item in high_intensity_keywords[:20]
+            if isinstance(item, dict) and item.get("keyword")
+        ])
+        all_high_priority.update([kw.lower() for kw in ats_focused[:10]])
+
+        return {
+            "success": True,
+            "technical_keywords": technical_keywords,
+            "high_intensity_keywords": high_intensity_keywords[:30],
+            "high_priority_keywords": list(all_high_priority)[:40],
+            "general_keywords": general_keywords[:30],
+            "soft_skills": soft_skills[:20],
+            "ats_focused_keywords": ats_focused[:20],
+            "total_keywords": len(technical_keywords) + len(general_keywords) + len(soft_skills),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Keyword extraction error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to extract keywords: {str(e)}"
+        )
 
 
 # Content Generation Endpoints
