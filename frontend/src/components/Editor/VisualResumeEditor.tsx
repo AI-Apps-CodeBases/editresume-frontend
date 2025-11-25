@@ -7,6 +7,7 @@ import AIWorkExperience from '@/components/AI/AIWorkExperience'
 import AISectionAssistant from '@/components/AI/AISectionAssistant'
 import Comments from './Comments'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useModal } from '@/contexts/ModalContext'
 import {
   DndContext,
   closestCenter,
@@ -125,6 +126,7 @@ export default function VisualResumeEditor({
   onViewChange,
   hideSidebar = false
 }: Props) {
+  const { showAlert, showConfirm } = useModal()
   const [jdKeywords, setJdKeywords] = useState<{
     matching: string[];
     missing: string[];
@@ -1267,7 +1269,7 @@ export default function VisualResumeEditor({
     setAiWorkExperienceContext(null)
   }
 
-  const handleSectionAssistantUpdate = (sectionData: any) => {
+  const handleSectionAssistantUpdate = async (sectionData: any) => {
     console.log('=== HANDLING SECTION ASSISTANT UPDATE ===')
     console.log('Section data:', sectionData)
     console.log('Context:', aiSectionAssistantContext)
@@ -1332,7 +1334,11 @@ export default function VisualResumeEditor({
 
     } catch (error) {
       console.error('Error updating section content:', error)
-      alert('Failed to update section content: ' + (error as Error).message)
+      await showAlert({
+        type: 'error',
+        message: 'Failed to update section content: ' + (error as Error).message,
+        title: 'Error'
+      })
     }
   }
 
@@ -1568,7 +1574,11 @@ export default function VisualResumeEditor({
       }
     } catch (error) {
       console.error('Summary generation failed:', error)
-      alert('Failed to generate summary: ' + (error as Error).message)
+      await showAlert({
+        type: 'error',
+        message: 'Failed to generate summary: ' + (error as Error).message,
+        title: 'Error'
+      })
     } finally {
       setIsSummaryGenerating(false)
     }
@@ -1664,7 +1674,11 @@ export default function VisualResumeEditor({
           console.log('Bullet added successfully!')
         } else {
           console.error('API returned failure:', result)
-          alert('Failed to generate bullet point: ' + (result.error || 'Unknown error'))
+          await showAlert({
+            type: 'error',
+            message: 'Failed to generate bullet point: ' + (result.error || 'Unknown error'),
+            title: 'Error'
+          })
         }
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
@@ -1677,11 +1691,23 @@ export default function VisualResumeEditor({
       console.error('Bullet generation failed:', error)
       const errorMessage = error?.message || 'Unknown error occurred'
       if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
-        alert('Request timed out. The AI service may be slow right now. Please try again in a moment.')
+        await showAlert({
+          type: 'warning',
+          message: 'Request timed out. The AI service may be slow right now. Please try again in a moment.',
+          title: 'Timeout'
+        })
       } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
-        alert('AI service is temporarily unavailable. Please try again in a moment.')
+        await showAlert({
+          type: 'error',
+          message: 'AI service is temporarily unavailable. Please try again in a moment.',
+          title: 'Service Unavailable'
+        })
       } else {
-        alert('Bullet generation failed: ' + errorMessage)
+        await showAlert({
+          type: 'error',
+          message: 'Bullet generation failed: ' + errorMessage,
+          title: 'Error'
+        })
       }
     } finally {
       setIsGeneratingBullet(false)
@@ -2866,14 +2892,18 @@ export default function VisualResumeEditor({
                           return (
                             <button
                               key={idx}
-                              onClick={() => {
+                              onClick={async () => {
                                 const newSelected = new Set(selectedMissingKeywords)
                                 if (isSelected) {
                                   newSelected.delete(keyword)
                                 } else if (newSelected.size < 8) {
                                   newSelected.add(keyword)
                                 } else {
-                                  alert('Please select maximum 8 keywords')
+                                  await showAlert({
+                                    type: 'warning',
+                                    message: 'Please select maximum 8 keywords',
+                                    title: 'Selection Limit'
+                                  })
                                 }
                                 setSelectedMissingKeywords(newSelected)
                               }}
@@ -2898,11 +2928,19 @@ export default function VisualResumeEditor({
                       onClick={async () => {
                         if (!aiImproveContext) return
                         if (selectedMissingKeywords.size < 2) {
-                          alert('Please select at least 2 keywords (minimum 2, maximum 8)')
+                          await showAlert({
+                            type: 'warning',
+                            message: 'Please select at least 2 keywords (minimum 2, maximum 8)',
+                            title: 'Selection Required'
+                          })
                           return
                         }
                         if (selectedMissingKeywords.size > 8) {
-                          alert('Please select maximum 8 keywords')
+                          await showAlert({
+                            type: 'warning',
+                            message: 'Please select maximum 8 keywords',
+                            title: 'Selection Limit'
+                          })
                           return
                         }
 
@@ -3054,11 +3092,23 @@ export default function VisualResumeEditor({
                           console.error('Failed to generate AI bullet:', error)
                           const errorMessage = error?.message || 'Unknown error occurred'
                           if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
-                            alert('Request timed out. The AI service may be slow right now. Please try again in a moment or reduce the number of keywords.')
+                            await showAlert({
+                              type: 'warning',
+                              message: 'Request timed out. The AI service may be slow right now. Please try again in a moment or reduce the number of keywords.',
+                              title: 'Timeout'
+                            })
                           } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
-                            alert('AI service is temporarily unavailable. Please try again in a moment.')
+                            await showAlert({
+                              type: 'error',
+                              message: 'AI service is temporarily unavailable. Please try again in a moment.',
+                              title: 'Service Unavailable'
+                            })
                           } else {
-                            alert(`Failed to generate bullet: ${errorMessage}`)
+                            await showAlert({
+                              type: 'error',
+                              message: `Failed to generate bullet: ${errorMessage}`,
+                              title: 'Error'
+                            })
                           }
                         } finally {
                           setIsGeneratingBullets(false)
@@ -3212,16 +3262,24 @@ export default function VisualResumeEditor({
                         <div className="flex flex-col sm:flex-row gap-3">
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               if (!aiImproveContext) return
                               if (selectedBullets.size === 0) {
-                                alert('Please select a bullet to insert')
+                                await showAlert({
+                                  type: 'warning',
+                                  message: 'Please select a bullet to insert',
+                                  title: 'Selection Required'
+                                })
                                 return
                               }
                               const selectedIndex = Array.from(selectedBullets)[0]
                               const chosen = generatedBulletOptions[selectedIndex]
                               if (!chosen) {
-                                alert('Selected bullet is unavailable')
+                                await showAlert({
+                                  type: 'error',
+                                  message: 'Selected bullet is unavailable',
+                                  title: 'Error'
+                                })
                                 return
                               }
                               const sanitizedChoice = chosen.replace(/^[-•*]+\s*/, '').trim()
@@ -3388,6 +3446,7 @@ function SortableSectionCard({
   onToggleVisibility?: () => void
   onRemove?: () => void
 }) {
+  const { showConfirm } = useModal()
   const {
     attributes,
     listeners,
@@ -3461,10 +3520,15 @@ function SortableSectionCard({
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {onRemove && (
             <button
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation()
                 e.preventDefault()
-                if (confirm(`Are you sure you want to delete the "${title}" section?`)) {
+                const confirmed = await showConfirm({
+                  title: 'Delete Section',
+                  message: `Are you sure you want to delete the "${title}" section?`,
+                  type: 'danger'
+                })
+                if (confirmed) {
                   // Immediately call remove - no other operations
                   onRemove()
                 }

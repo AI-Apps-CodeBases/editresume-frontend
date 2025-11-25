@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import config from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { shouldPromptAuthentication } from '@/lib/guestAuth';
+import { useModal } from '@/contexts/ModalContext';
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -956,6 +957,7 @@ const normalizeMatchResult = (result: JobMatchResult | null): JobMatchResult | n
 
 export default function JobDescriptionMatcher({ resumeData, onMatchResult, onResumeUpdate, onClose, standalone = true, initialJobDescription, onSelectJobDescriptionId, currentJobDescriptionId }: JobDescriptionMatcherProps) {
   const { user, isAuthenticated } = useAuth();
+  const { showAlert } = useModal();
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [selectedJobMetadata, setSelectedJobMetadata] = useState<JobMetadata | null>(null);
   const [currentJDInfo, setCurrentJDInfo] = useState<{ company?: string, title?: string, easy_apply_url?: string } | null>(null);
@@ -1957,16 +1959,32 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       if (remainingCount === 0) {
         // All bullets assigned
         if (assignmentResults.length) {
-          alert(`✅ ${assignmentResults.join('; ')}`);
+          await showAlert({
+            type: 'success',
+            message: assignmentResults.join('; '),
+            title: 'Success'
+          });
         } else {
-          alert('✅ All bullet points added to your resume!');
+          await showAlert({
+            type: 'success',
+            message: 'All bullet points added to your resume!',
+            title: 'Success'
+          });
         }
       } else {
         // Some bullets remaining
         if (assignmentResults.length) {
-          alert(`✅ ${assignmentResults.join('; ')}\n\n${remainingCount} bullet${remainingCount > 1 ? 's' : ''} remaining - assign them or close the window.`);
+          await showAlert({
+            type: 'success',
+            message: `${assignmentResults.join('; ')}\n\n${remainingCount} bullet${remainingCount > 1 ? 's' : ''} remaining - assign them or close the window.`,
+            title: 'Bullets Added'
+          });
         } else {
-          alert(`✅ ${assignedCount} bullet point${assignedCount > 1 ? 's' : ''} added! ${remainingCount} remaining.`);
+          await showAlert({
+            type: 'success',
+            message: `${assignedCount} bullet point${assignedCount > 1 ? 's' : ''} added! ${remainingCount} remaining.`,
+            title: 'Success'
+          });
         }
       }
     },
@@ -1989,7 +2007,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   // Removed auto-apply useEffect - assignments now happen on button click
 
   const addKeywordsToSkillsSection = useCallback(
-    (keywords: string[]) => {
+    async (keywords: string[]) => {
       if (!onResumeUpdate || !Array.isArray(resumeData.sections)) return;
 
       const normalizedKeywords = keywords
@@ -2029,7 +2047,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }));
 
       if (!newBullets.length) {
-        alert('All selected keywords already exist in your Skills section.');
+        await showAlert({
+          type: 'info',
+          message: 'All selected keywords already exist in your Skills section.',
+          title: 'Info'
+        });
         return;
       }
 
@@ -2048,10 +2070,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       });
 
       setSelectedKeywords(new Set());
-      alert(
-        `✅ Added ${newBullets.length} keyword${newBullets.length > 1 ? 's' : ''
-        } to your Skills section.`
-      );
+      await showAlert({
+        type: 'success',
+        message: `Added ${newBullets.length} keyword${newBullets.length > 1 ? 's' : ''} to your Skills section.`,
+        title: 'Success'
+      });
     },
     [onResumeUpdate, resumeData, setSelectedKeywords]
   );
@@ -2070,14 +2093,22 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
   const handleSaveJobDescription = async (): Promise<number | null> => {
     if (!jobDescription || !jobDescription.trim()) {
-      alert('Please enter a job description to save.');
+      await showAlert({
+        type: 'warning',
+        message: 'Please enter a job description to save.',
+        title: 'Required Field'
+      });
       return null;
     }
 
     if (!isAuthenticated || !user?.email) {
       const requireAuth = shouldPromptAuthentication('saveJobDescription', isAuthenticated)
       if (requireAuth) {
-        alert('Please sign in to save job descriptions');
+        await showAlert({
+          type: 'warning',
+          message: 'Please sign in to save job descriptions',
+          title: 'Authentication Required'
+        });
         return null;
       }
       return saveGuestJobDescriptionLocally();
@@ -2213,7 +2244,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     } catch (error) {
       console.error('Failed to save job description:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to save job description: ${errorMessage}`);
+      await showAlert({
+        type: 'error',
+        message: `Failed to save job description: ${errorMessage}`,
+        title: 'Error'
+      });
 
       // Restore button state on error
       const saveButton = document.querySelector('[data-save-job-btn]') as HTMLButtonElement;
@@ -2233,14 +2268,22 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     const trimmedName = rawName?.trim();
 
     if (!trimmedName) {
-      alert('Please enter a resume name.');
+      await showAlert({
+        type: 'warning',
+        message: 'Please enter a resume name.',
+        title: 'Required Field'
+      });
       return null;
     }
 
     const resumePayload = options?.resumeOverride ?? updatedResumeData ?? resumeData;
 
     if (!resumePayload) {
-      alert('No resume data to save');
+      await showAlert({
+        type: 'error',
+        message: 'No resume data to save',
+        title: 'Error'
+      });
       return null;
     }
 
@@ -2248,7 +2291,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       const requireAuth = shouldPromptAuthentication('saveResume', isAuthenticated)
       setResumeSaveName(trimmedName);
       if (requireAuth) {
-        alert('Please sign in to save resumes to your profile');
+        await showAlert({
+          type: 'warning',
+          message: 'Please sign in to save resumes to your profile',
+          title: 'Authentication Required'
+        });
         return null;
       }
       saveGuestResumeLocally(trimmedName, resumePayload);
@@ -2414,7 +2461,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           });
         } catch (matchError) {
           console.error('Failed to create match session:', matchError);
-          alert(`Resume saved, but failed to link with job description: ${matchError instanceof Error ? matchError.message : 'Unknown error'}`);
+          await showAlert({
+            type: 'warning',
+            message: `Resume saved, but failed to link with job description: ${matchError instanceof Error ? matchError.message : 'Unknown error'}`,
+            title: 'Partial Success'
+          });
         }
       } else {
         console.log('Saving master resume without JD match');
@@ -2460,7 +2511,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     } catch (error) {
       console.error('Failed to save resume:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to save resume: ${errorMessage}`);
+      await showAlert({
+        type: 'error',
+        message: `Failed to save resume: ${errorMessage}`,
+        title: 'Error'
+      });
       return null;
     }
   };
@@ -3413,7 +3468,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       </p>
                     </div>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         const currentSkills = new Set<string>()
                         resumeData.sections?.forEach((section: any) => {
                           const sectionType = section.title?.toLowerCase()
@@ -3469,7 +3524,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                           onResumeUpdate(updatedResume)
                         }
 
-                        alert(`✅ Added ${skillsToAdd.length} missing skill${skillsToAdd.length > 1 ? 's' : ''} to your resume!`)
+                        await showAlert({
+                          type: 'success',
+                          message: `Added ${skillsToAdd.length} missing skill${skillsToAdd.length > 1 ? 's' : ''} to your resume!`,
+                          title: 'Success'
+                        })
                       }}
                       className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
@@ -3566,7 +3625,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   <button
                     onClick={async () => {
                       if (!isAuthenticated || !user?.email) {
-                        alert('Please sign in to save resumes to your profile');
+                        await showAlert({
+                          type: 'warning',
+                          message: 'Please sign in to save resumes to your profile',
+                          title: 'Authentication Required'
+                        });
                         return;
                       }
 
@@ -3775,7 +3838,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               <button
                 onClick={async () => {
                   if (!selectedWorkExpSection) {
-                    alert('Please select a work experience section');
+                    await showAlert({
+                      type: 'warning',
+                      message: 'Please select a work experience section',
+                      title: 'Selection Required'
+                    });
                     return;
                   }
 
@@ -3907,7 +3974,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
                       if (generatedBulletsList.length === 0) {
                         // All keywords found, just show success message
-                        alert(summary);
+                        await showAlert({
+                          type: 'success',
+                          message: summary,
+                          title: 'Success'
+                        });
                         setShowBulletGenerator(false);
                         setSelectedKeywords(new Set());
                         setSelectedWorkExpSection('');
@@ -3980,7 +4051,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             });
 
                           if (sanitizedBullets.length === 0) {
-                            alert('All generated bullet points already exist in this section – nothing new to add.');
+                            await showAlert({
+                              type: 'info',
+                              message: 'All generated bullet points already exist in this section – nothing new to add.',
+                              title: 'Info'
+                            });
                             setShowBulletGenerator(false);
                             setSelectedKeywords(new Set());
                             setSelectedWorkExpSection('');
@@ -4034,10 +4109,18 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             ? `✅ Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} and added ${sanitizedBullets.length} new bullet point${sanitizedBullets.length > 1 ? 's' : ''} to ${selectedSection.title}!`
                             : `✅ Successfully generated and added ${sanitizedBullets.length} bullet point${sanitizedBullets.length > 1 ? 's' : ''} to ${selectedSection.title}!`;
 
-                          alert(successMsg);
+                          await showAlert({
+                            type: 'success',
+                            message: successMsg,
+                            title: 'Success'
+                          });
                         } else if (markedBullets.length > 0) {
                           // Only marked existing bullets, no new ones generated
-                          alert(`✅ Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} - all keywords found in your resume!`);
+                          await showAlert({
+                            type: 'success',
+                            message: `Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} - all keywords found in your resume!`,
+                            title: 'Success'
+                          });
                         }
 
                         setShowBulletGenerator(false);
@@ -4074,7 +4157,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     }
                   } catch (error) {
                     console.error('Error generating bullet points:', error);
-                    alert('Failed to generate bullet points: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                    await showAlert({
+                      type: 'error',
+                      message: 'Failed to generate bullet points: ' + (error instanceof Error ? error.message : 'Unknown error'),
+                      title: 'Error'
+                    });
                   } finally {
                     setIsGeneratingBullets(false);
                   }
@@ -4278,7 +4365,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                                   (idx) => !bulletAssignments.has(idx)
                                 );
                                 if (!unassignedSelected.length) {
-                                  alert('Please select at least one unassigned bullet point');
+                                  await showAlert({
+                                    type: 'warning',
+                                    message: 'Please select at least one unassigned bullet point',
+                                    title: 'Selection Required'
+                                  });
                                   return;
                                 }
 
