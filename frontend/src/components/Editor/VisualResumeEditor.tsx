@@ -2431,7 +2431,7 @@ export default function VisualResumeEditor({
                                                           const text = e.currentTarget.textContent || '';
                                                           updateBullet(section.id, companyBullet.id, text);
                                                         }}
-                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700' : 'text-gray-700'}`}
                                                         style={{ position: 'relative', zIndex: 10 }}
                                                       >
                                                         {(companyBullet.text || '').replace(/^•\s*/, '')}
@@ -2680,7 +2680,7 @@ export default function VisualResumeEditor({
                                               const text = e.currentTarget.textContent || '';
                                               updateBullet(section.id, bullet.id, text);
                                             }}
-                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700' : 'text-gray-700'}`}
                                             style={{ position: 'relative', zIndex: 10 }}
                                           >
                                             {(bullet.text || '').replace(/^•\s*/, '')}
