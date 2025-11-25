@@ -159,8 +159,6 @@ export default function VisualResumeEditor({
     }
     return new Set();
   });
-  const [editingBullet, setEditingBullet] = useState<{ sectionId: string; bulletId: string } | null>(null);
-  const [editValue, setEditValue] = useState('');
 
   // Update localStorage when openSections changes
   useEffect(() => {
@@ -2438,54 +2436,17 @@ export default function VisualResumeEditor({
                                                           {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                                         </div>
                                                       )}
-                                                      {(() => {
-                                                        const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
-                                                        const isEditing = editingBullet?.sectionId === section.id && editingBullet?.bulletId === companyBullet.id;
-                                                        
-                                                        return (
-                                                          <>
-                                                            {!isEditing ? (
-                                                              <div
-                                                                onClick={() => {
-                                                                  setEditValue(plainText);
-                                                                  setEditingBullet({ sectionId: section.id, bulletId: companyBullet.id });
-                                                                }}
-                                                                className={`text-sm leading-relaxed outline-none hover:bg-blue-50 rounded transition-colors cursor-text relative z-10 min-h-[1.5rem] ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
-                                                              >
-                                                                {plainText || '\u00A0'}
-                                                              </div>
-                                                            ) : (
-                                                              <textarea
-                                                                autoFocus
-                                                                value={editValue}
-                                                                onChange={(e) => setEditValue(e.target.value)}
-                                                                onBlur={() => {
-                                                                  const text = editValue.trim();
-                                                                  updateBullet(section.id, companyBullet.id, text);
-                                                                  setEditingBullet(null);
-                                                                  if (typeof window !== 'undefined') {
-                                                                    window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
-                                                                      detail: { resumeData: { ...data, sections: data.sections.map(s => s.id === section.id ? { ...s, bullets: s.bullets.map(b => b.id === companyBullet.id ? { ...b, text } : b) } : s) } }
-                                                                    }));
-                                                                  }
-                                                                }}
-                                                                onKeyDown={(e) => {
-                                                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                                                    e.preventDefault();
-                                                                    (e.target as HTMLTextAreaElement).blur();
-                                                                  }
-                                                                  if (e.key === 'Escape') {
-                                                                    setEditingBullet(null);
-                                                                  }
-                                                                }}
-                                                                className="text-sm leading-relaxed outline-none bg-blue-50 rounded transition-colors relative z-10 w-full resize-none min-h-[1.5rem]"
-                                                                style={{ fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
-                                                                rows={Math.max(1, editValue.split('\n').length)}
-                                                              />
-                                                            )}
-                                                          </>
-                                                        );
-                                                      })()}
+                                                      <div
+                                                        contentEditable
+                                                        suppressContentEditableWarning
+                                                        onBlur={(e) => {
+                                                          const text = e.currentTarget.textContent || '';
+                                                          updateBullet(section.id, companyBullet.id, text);
+                                                        }}
+                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                                      >
+                                                        {(companyBullet.text || '').replace(/^•\s*/, '')}
+                                                      </div>
                                                     </div>
                                                   </div>
 
@@ -2721,54 +2682,17 @@ export default function VisualResumeEditor({
                                               {highlightKeywordsInText((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                             </div>
                                           )}
-                                          {(() => {
-                                            const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
-                                            const isEditing = editingBullet?.sectionId === section.id && editingBullet?.bulletId === bullet.id;
-                                            
-                                            return (
-                                              <>
-                                                {!isEditing ? (
-                                                  <div
-                                                    onClick={() => {
-                                                      setEditValue(plainText);
-                                                      setEditingBullet({ sectionId: section.id, bulletId: bullet.id });
-                                                    }}
-                                                    className={`text-sm leading-relaxed outline-none hover:bg-blue-50 rounded transition-colors cursor-text relative z-10 min-h-[1.5rem] ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
-                                                  >
-                                                    {plainText || '\u00A0'}
-                                                  </div>
-                                                ) : (
-                                                  <textarea
-                                                    autoFocus
-                                                    value={editValue}
-                                                    onChange={(e) => setEditValue(e.target.value)}
-                                                    onBlur={() => {
-                                                      const text = editValue.trim();
-                                                      updateBullet(section.id, bullet.id, text);
-                                                      setEditingBullet(null);
-                                                      if (typeof window !== 'undefined') {
-                                                        window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
-                                                          detail: { resumeData: { ...data, sections: data.sections.map(s => s.id === section.id ? { ...s, bullets: s.bullets.map(b => b.id === bullet.id ? { ...b, text } : b) } : s) } }
-                                                        }));
-                                                      }
-                                                    }}
-                                                    onKeyDown={(e) => {
-                                                      if (e.key === 'Enter' && !e.shiftKey) {
-                                                        e.preventDefault();
-                                                        (e.target as HTMLTextAreaElement).blur();
-                                                      }
-                                                      if (e.key === 'Escape') {
-                                                        setEditingBullet(null);
-                                                      }
-                                                    }}
-                                                    className="text-sm leading-relaxed outline-none bg-blue-50 rounded transition-colors relative z-10 w-full resize-none min-h-[1.5rem]"
-                                                    style={{ fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
-                                                    rows={Math.max(1, editValue.split('\n').length)}
-                                                  />
-                                                )}
-                                              </>
-                                            );
-                                          })()}
+                                          <div
+                                            contentEditable
+                                            suppressContentEditableWarning
+                                            onBlur={(e) => {
+                                              const text = e.currentTarget.textContent || '';
+                                              updateBullet(section.id, bullet.id, text);
+                                            }}
+                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                          >
+                                            {(bullet.text || '').replace(/^•\s*/, '')}
+                                          </div>
                                         </div>
                                       </div>
 
