@@ -26,9 +26,10 @@ function AutoHideNavbar() {
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | undefined
+    let scrollTimeoutId: NodeJS.Timeout | undefined
+    let lastScrollY = window.scrollY
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Show navbar when mouse is in top 50px of screen
       if (e.clientY <= 50) {
         setIsVisible(true)
         if (timeoutId) {
@@ -36,7 +37,6 @@ function AutoHideNavbar() {
           timeoutId = undefined
         }
       } else if (e.clientY > 80 && isVisible && !open) {
-        // Hide navbar after 1 second when mouse leaves top area
         if (timeoutId) {
           clearTimeout(timeoutId)
         }
@@ -46,12 +46,46 @@ function AutoHideNavbar() {
       }
     }
 
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      
+      if (currentScrollY < lastScrollY && currentScrollY < 100) {
+        setIsVisible(true)
+      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setIsVisible(false)
+      }
+      
+      lastScrollY = currentScrollY
+      
+      if (scrollTimeoutId) {
+        clearTimeout(scrollTimeoutId)
+      }
+      scrollTimeoutId = setTimeout(() => {
+        if (currentScrollY < 50) {
+          setIsVisible(true)
+        }
+      }, 150)
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches[0].clientY <= 50) {
+        setIsVisible(true)
+      }
+    }
+
     document.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    document.addEventListener('touchstart', handleTouchStart, { passive: true })
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('scroll', handleScroll)
+      document.removeEventListener('touchstart', handleTouchStart)
       if (timeoutId) {
         clearTimeout(timeoutId)
+      }
+      if (scrollTimeoutId) {
+        clearTimeout(scrollTimeoutId)
       }
     }
   }, [isVisible, open])

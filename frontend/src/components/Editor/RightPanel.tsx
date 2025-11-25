@@ -295,14 +295,14 @@ export default function RightPanel({
           <button
             key={tab.id}
             onClick={() => onTabChange?.(tab.id)}
-            className={`flex-1 flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium transition-colors ${
+            className={`flex-1 flex flex-col items-center gap-1 px-2 sm:px-3 py-2 sm:py-2 text-xs font-medium transition-colors touch-target ${
               activeTab === tab.id
                 ? 'text-blue-600 bg-white border-b-2 border-blue-600'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
             <span>{tab.icon}</span>
-            <span>{tab.label}</span>
+            <span className="hidden sm:inline">{tab.label}</span>
           </button>
         ))}
       </div>
