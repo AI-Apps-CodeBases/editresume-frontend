@@ -53,7 +53,9 @@ const GUEST_RESUME_STORAGE_KEY = 'guestSavedResumes';
 const extractJobType = (text: string): string | null => {
   if (!text) return null;
   const lowerText = text.toLowerCase();
-  if (/contractor|contract-to-hire|contract basis/i.test(lowerText)) return 'Contractor';
+  // Check for contract-to-hire patterns first (CTH, Contract to Hire, etc.)
+  if (/cth\b|contract.?to.?hire|contract-to-hire/i.test(lowerText)) return 'Contractor';
+  if (/contractor|contract basis/i.test(lowerText)) return 'Contractor';
   if (/contract|temporary|temp/i.test(lowerText)) return 'Contractor';
   if (/part.?time|pt\b/i.test(lowerText)) return 'Part-time';
   if (/intern|internship/i.test(lowerText)) return 'Internship';
@@ -67,9 +69,20 @@ const extractWorkType = (text: string, locationText: string = ''): string | null
   // Combine text and location for analysis
   const combinedText = ((text || '') + ' ' + (locationText || '')).toLowerCase();
 
-  // Check for explicit patterns like "(Remote)", "(Hybrid)", "(On-site)" in location text
+  // Check if location text itself is a work type keyword (e.g., "Location: Remote")
   if (locationText) {
-    const locationLower = locationText.toLowerCase();
+    const locationLower = locationText.toLowerCase().trim();
+    // If location is just "Remote", "Hybrid", or "Onsite", treat it as work type
+    if (locationLower === 'remote' || locationLower === 'remote work') {
+      return 'Remote';
+    }
+    if (locationLower === 'hybrid' || locationLower === 'hybrid work') {
+      return 'Hybrid';
+    }
+    if (locationLower === 'onsite' || locationLower === 'on-site' || locationLower === 'on site') {
+      return 'Onsite';
+    }
+    // Check for explicit patterns like "(Remote)", "(Hybrid)", "(On-site)" in location text
     if (locationLower.includes('(remote)') || locationLower.match(/\(remote\)/i)) {
       return 'Remote';
     }
@@ -763,12 +776,42 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
     /(?:location|based in|located)\s*[:\-]\s*([^\n]+)/i,
     /(?:location)\s*\|\s*([^\n]+)/i,
   ], normalized);
+  
+  // Check if the extracted location is actually a work type keyword
   if (locationFromLabel) {
-    metadata.location = locationFromLabel;
+    const locationLower = locationFromLabel.toLowerCase().trim();
+    const isWorkTypeKeyword = locationLower === 'remote' || 
+                              locationLower === 'remote work' ||
+                              locationLower === 'hybrid' || 
+                              locationLower === 'hybrid work' ||
+                              locationLower === 'onsite' || 
+                              locationLower === 'on-site' ||
+                              locationLower === 'on site';
+    
+    if (isWorkTypeKeyword) {
+      // Don't set as location, it will be handled as work type
+      metadata.location = '';
+    } else {
+      metadata.location = locationFromLabel;
+    }
+  }
+
+  // Extract work type first (it may use location info)
+  metadata.remoteStatus = extractWorkType(normalized, locationFromLabel ?? '');
+  
+  // If location was a work type keyword, try to find actual location elsewhere
+  if (!metadata.location || metadata.location.trim() === '') {
+    // Try to extract location from other patterns
+    const alternativeLocation = extractLineValue([
+      /(?:based in|located in|headquarters|office)\s*[:\-]\s*([^\n]+)/i,
+      /(?:city|state|country)\s*[:\-]\s*([^\n]+)/i,
+    ], normalized);
+    if (alternativeLocation && alternativeLocation.toLowerCase().trim() !== metadata.remoteStatus?.toLowerCase()) {
+      metadata.location = alternativeLocation;
+    }
   }
 
   metadata.jobType = extractJobType(normalized);
-  metadata.remoteStatus = extractWorkType(normalized, metadata.location ?? '');
   metadata.budget = extractBudget(normalized);
   metadata.skills = extractSkills(normalized);
   metadata.keywords = extractTopKeywords(normalized);
