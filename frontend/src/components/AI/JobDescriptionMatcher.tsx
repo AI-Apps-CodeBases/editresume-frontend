@@ -820,6 +820,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [selectedJobMetadata, setSelectedJobMetadata] = useState<JobMetadata | null>(null);
   const [currentJDInfo, setCurrentJDInfo] = useState<{ company?: string, title?: string, easy_apply_url?: string } | null>(null);
+  const [extractedKeywords, setExtractedKeywords] = useState<any>(null);
+  const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
+  const [keywordComparison, setKeywordComparison] = useState<{matched: string[], missing: string[]} | null>(null);
 
   // Load job description from localStorage if not provided via prop
   useEffect(() => {
@@ -878,6 +881,90 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     const extracted = deriveJobMetadataFromText(jobDescription);
     setSelectedJobMetadata((prev) => mergeMetadata(prev, extracted));
   }, [jobDescription]);
+
+  // Auto-extract keywords when JD is pasted/updated (debounced)
+  useEffect(() => {
+    if (!jobDescription?.trim() || jobDescription.length < 50) {
+      setExtractedKeywords(null);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setIsExtractingKeywords(true);
+      try {
+        const response = await fetch(`${config.apiBase}/api/ai/extract_job_keywords`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_description: jobDescription }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setExtractedKeywords(result);
+          
+          // Update metadata with extracted keywords
+          if (result.high_intensity_keywords || result.technical_keywords) {
+            setSelectedJobMetadata((prev) => mergeMetadata(prev, {
+              keywords: result.high_priority_keywords?.slice(0, 15) || [],
+              high_frequency_keywords: result.high_intensity_keywords || [],
+              skills: result.technical_keywords || [],
+              soft_skills: result.soft_skills || [],
+            }));
+          }
+
+          // Compare extracted keywords with resume
+          if (resumeData && (result.high_priority_keywords?.length > 0 || result.technical_keywords?.length > 0)) {
+            const resumeFragments: string[] = [];
+            const appendText = (value?: string) => {
+              const normalized = normalizeTextForATS(value);
+              if (normalized) {
+                resumeFragments.push(normalized.toLowerCase());
+              }
+            };
+
+            appendText(resumeData.title);
+            appendText(resumeData.summary);
+            if (resumeData.sections && Array.isArray(resumeData.sections)) {
+              resumeData.sections.forEach((section: any) => {
+                appendText(section.title);
+                if (section.bullets && Array.isArray(section.bullets)) {
+                  section.bullets
+                    .filter((bullet: any) => bullet?.params?.visible !== false)
+                    .forEach((bullet: any) => appendText(bullet?.text));
+                }
+              });
+            }
+
+            const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
+            
+            const allKeywords = new Set<string>();
+            (result.high_priority_keywords || []).forEach((kw: string) => allKeywords.add(kw.toLowerCase()));
+            (result.technical_keywords || []).forEach((kw: string) => allKeywords.add(kw.toLowerCase()));
+
+            const matched: string[] = [];
+            const missing: string[] = [];
+
+            allKeywords.forEach((keyword) => {
+              const pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+              if (pattern.test(resumeText)) {
+                matched.push(keyword);
+              } else {
+                missing.push(keyword);
+              }
+            });
+
+            setKeywordComparison({ matched, missing });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to extract keywords:', error);
+      } finally {
+        setIsExtractingKeywords(false);
+      }
+    }, 1000); // Debounce 1 second
+
+    return () => clearTimeout(timeoutId);
+  }, [jobDescription, resumeData]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [matchResult, setMatchResult] = useState<JobMatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -2395,10 +2482,127 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
   const content = (
     <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-      <div className="mb-6">
-        <p className="text-gray-600 text-sm">
-          Paste a job description to see how well your resume matches and get improvement suggestions.
-        </p>
+      {/* Job Description Paste Area */}
+      <div className="mb-6 space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            📋 Job Description
+          </label>
+          <textarea
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            onPaste={() => {
+              setTimeout(() => {
+                // Keywords will be extracted via useEffect
+              }, 100);
+            }}
+            placeholder="Paste the job description here... Keywords will be automatically extracted to help improve your ATS score."
+            rows={8}
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm resize-y"
+          />
+          {isExtractingKeywords && (
+            <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+              <span className="animate-spin">⏳</span> Extracting high-intensity keywords...
+            </p>
+          )}
+        </div>
+        
+        {/* High-Intensity Keywords Display */}
+        {extractedKeywords && extractedKeywords.success && (
+          <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                🔥 High-Intensity Keywords Extracted
+              </h3>
+              <span className="text-xs text-gray-600">
+                {extractedKeywords.high_intensity_keywords?.length || 0} keywords
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {extractedKeywords.high_intensity_keywords?.slice(0, 20).map((item: any, idx: number) => (
+                <span
+                  key={idx}
+                  className={`px-3 py-1 rounded-full text-xs font-medium text-white ${
+                    item.importance === 'high'
+                      ? 'bg-gradient-to-r from-red-500 to-red-600'
+                      : 'bg-gradient-to-r from-orange-500 to-orange-600'
+                  }`}
+                  title={`Frequency: ${item.frequency} times`}
+                >
+                  {item.keyword} ({item.frequency})
+                </span>
+              ))}
+            </div>
+            <p className="text-xs text-gray-700 mt-2">
+              <strong>💡 Tip:</strong> These keywords appear most frequently in the job description. 
+              Including them in your resume will significantly improve your ATS score.
+            </p>
+          </div>
+        )}
+
+        {/* Keyword Comparison with Resume */}
+        {keywordComparison && resumeData && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                📊 Keyword Comparison with Your Resume
+              </h3>
+              <span className="text-xs text-gray-600">
+                {keywordComparison.matched.length} / {keywordComparison.matched.length + keywordComparison.missing.length} matched
+              </span>
+            </div>
+            
+            {keywordComparison.missing.length > 0 && (
+              <div className="mb-3">
+                <div className="text-xs font-semibold text-red-700 mb-2">
+                  ⚠️ Missing Keywords ({keywordComparison.missing.length}) - Add these to improve ATS score:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {keywordComparison.missing.slice(0, 15).map((keyword: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                  {keywordComparison.missing.length > 15 && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">
+                      +{keywordComparison.missing.length - 15} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {keywordComparison.matched.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-green-700 mb-2">
+                  ✅ Matched Keywords ({keywordComparison.matched.length}):
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {keywordComparison.matched.slice(0, 10).map((keyword: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-300"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                  {keywordComparison.matched.length > 10 && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-600 border border-green-200">
+                      +{keywordComparison.matched.length - 10} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-700 mt-3 pt-3 border-t border-gray-300">
+              <strong>🎯 Next Step:</strong> Click "Analyze Match" below for a detailed ATS score and personalized improvement suggestions.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Easy Apply Button - Always visible when JD is loaded */}
