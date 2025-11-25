@@ -2661,9 +2661,33 @@ export default function VisualResumeEditor({
                                                           // This prevents HTML from being rendered as children
                                                           if (el && el.isContentEditable) {
                                                             // Strip HTML and set textContent immediately
-                                                            const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                            const originalText = companyBullet.text || '';
+                                                            const plainText = originalText.replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                            
+                                                            // DEBUG: Log if HTML is detected
+                                                            if (originalText !== plainText || originalText.includes('<')) {
+                                                              console.warn('🚨 HTML DETECTED IN WORK EXP BULLET:', {
+                                                                bulletId: companyBullet.id,
+                                                                original: originalText.substring(0, 100),
+                                                                hasHTML: originalText.includes('<'),
+                                                                innerHTML: el.innerHTML.substring(0, 100),
+                                                                textContent: el.textContent?.substring(0, 100)
+                                                              });
+                                                            }
+                                                            
                                                             // Force textContent - don't check, just set it
                                                             el.textContent = plainText;
+                                                            
+                                                            // Force innerHTML to be empty
+                                                            if (el.innerHTML && el.innerHTML !== plainText) {
+                                                              console.warn('🚨 FORCING innerHTML cleanup (work exp):', {
+                                                                bulletId: companyBullet.id,
+                                                                before: el.innerHTML.substring(0, 100),
+                                                                after: plainText.substring(0, 100)
+                                                              });
+                                                              el.innerHTML = '';
+                                                              el.textContent = plainText;
+                                                            }
                                                           }
                                                         }}
                                                         dangerouslySetInnerHTML={{ __html: '' }}
@@ -2905,9 +2929,33 @@ export default function VisualResumeEditor({
                                               // Use ref to set textContent directly, bypassing React rendering
                                               if (el && el.isContentEditable) {
                                                 // Strip HTML and set textContent immediately
-                                                const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                const originalText = bullet.text || '';
+                                                const plainText = originalText.replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                
+                                                // DEBUG: Log if HTML is detected
+                                                if (originalText !== plainText || originalText.includes('<')) {
+                                                  console.warn('🚨 HTML DETECTED IN BULLET TEXT:', {
+                                                    bulletId: bullet.id,
+                                                    original: originalText.substring(0, 100),
+                                                    hasHTML: originalText.includes('<'),
+                                                    innerHTML: el.innerHTML.substring(0, 100),
+                                                    textContent: el.textContent?.substring(0, 100)
+                                                  });
+                                                }
+                                                
                                                 // Force textContent - don't check, just set it
                                                 el.textContent = plainText;
+                                                
+                                                // Force innerHTML to be empty
+                                                if (el.innerHTML && el.innerHTML !== plainText) {
+                                                  console.warn('🚨 FORCING innerHTML cleanup:', {
+                                                    bulletId: bullet.id,
+                                                    before: el.innerHTML.substring(0, 100),
+                                                    after: plainText.substring(0, 100)
+                                                  });
+                                                  el.innerHTML = '';
+                                                  el.textContent = plainText;
+                                                }
                                               }
                                             }}
                                             dangerouslySetInnerHTML={{ __html: '' }}
