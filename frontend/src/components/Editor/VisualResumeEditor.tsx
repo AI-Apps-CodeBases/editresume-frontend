@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import config from '@/lib/config';
 import InlineGrammarChecker from '@/components/AI/InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
@@ -159,6 +159,8 @@ export default function VisualResumeEditor({
     }
     return new Set();
   });
+  const [editingBullet, setEditingBullet] = useState<{ sectionId: string; bulletId: string } | null>(null);
+  const [editValue, setEditValue] = useState('');
 
   // Update localStorage when openSections changes
   useEffect(() => {
@@ -717,260 +719,29 @@ export default function VisualResumeEditor({
   }, []);
 
   // Update highlighting when keywords change (client-side only to avoid hydration errors)
-  // Aggressive cleanup function to ensure bullets are plain text
-  const cleanupBulletHTML = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    
-    document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
-      const bulletEl = el as HTMLElement;
-      
-      // Skip if currently focused/editing
-      if (bulletEl.matches(':focus')) return;
-      
-      // Force plain text - remove any HTML
-      if (bulletEl.isContentEditable) {
-        const textContent = bulletEl.textContent || '';
-        if (bulletEl.innerHTML !== textContent) {
-          bulletEl.textContent = textContent;
-        }
-      }
-      
-      // Ensure overlay is visible if not focused
-      const overlay = bulletEl.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
-      if (overlay && !bulletEl.matches(':focus')) {
-        overlay.style.opacity = '';
-        overlay.style.pointerEvents = 'none';
-        overlay.style.display = '';
-      }
-    });
-  }, []);
-
   useEffect(() => {
-    if (!isHydrated) return; // Wait for hydration to complete
-    if (typeof window === 'undefined') return; // Skip on server
-    if (!jdKeywords?.matching?.length) {
-      // Even without keywords, clean up any HTML
-      cleanupBulletHTML();
-      return;
+    if (!isHydrated) return;
+    if (typeof window === 'undefined') return;
+    if (!jdKeywords?.matching?.length) return;
+
+    // Update summary highlighting
+    const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
+    if (summaryField && data.summary && !summaryField.matches(':focus')) {
+      try {
+        const summaryMatches = getTextMatches(data.summary);
+        if (summaryMatches.matchedKeywords.length > 0) {
+          const currentText = summaryField.textContent || '';
+          const normalizedCurrent = currentText.trim();
+          const normalizedData = data.summary.trim();
+          if (normalizedCurrent === normalizedData || !normalizedCurrent) {
+            summaryField.innerHTML = highlightKeywordsInHTML(data.summary, summaryMatches.matchedKeywords);
+          }
+        }
+      } catch (e) {
+        console.warn('Error highlighting summary:', e);
+      }
     }
-
-    // Immediate cleanup first
-    cleanupBulletHTML();
-
-    // Use requestAnimationFrame to ensure DOM is fully ready
-    const frameId = requestAnimationFrame(() => {
-      // Update summary highlighting
-      const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
-      if (summaryField && data.summary && !summaryField.matches(':focus')) {
-        try {
-          const summaryMatches = getTextMatches(data.summary);
-          if (summaryMatches.matchedKeywords.length > 0) {
-            const currentText = summaryField.textContent || '';
-            const normalizedCurrent = currentText.trim();
-            const normalizedData = data.summary.trim();
-            // Only update if text matches exactly (avoid overwriting user edits or hydration mismatches)
-            if (normalizedCurrent === normalizedData || !normalizedCurrent) {
-              summaryField.innerHTML = highlightKeywordsInHTML(data.summary, summaryMatches.matchedKeywords);
-            }
-          }
-        } catch (e) {
-          console.warn('Error highlighting summary:', e);
-        }
-      }
-
-      // Clean up again after potential DOM updates
-      cleanupBulletHTML();
-    });
-
-    // Set up MutationObserver to catch any HTML insertion
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList' || mutation.type === 'characterData') {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const el = node as HTMLElement;
-              if (el.hasAttribute && el.hasAttribute('data-editable-type') && el.getAttribute('data-editable-type') === 'bullet') {
-                cleanupBulletHTML();
-              }
-              // Also check if any contentEditable bullets were modified
-              const bullets = el.querySelectorAll?.('[data-editable-type="bullet"]');
-              if (bullets && bullets.length > 0) {
-                cleanupBulletHTML();
-              }
-            }
-          });
-        }
-        // Check if innerHTML was modified
-        if (mutation.type === 'childList' && mutation.target && mutation.target instanceof HTMLElement) {
-          const target = mutation.target as HTMLElement;
-          if (target.getAttribute && target.getAttribute('data-editable-type') === 'bullet' && target.isContentEditable) {
-            const textContent = target.textContent || '';
-            if (target.innerHTML !== textContent) {
-              target.textContent = textContent;
-            }
-          }
-        }
-      });
-    });
-
-    // Observe all bullet elements
-    document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
-      observer.observe(el, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-        attributes: false
-      });
-    });
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      observer.disconnect();
-    };
-  }, [isHydrated, jdKeywords, data.summary, data.sections, cleanupBulletHTML]);
-
-  // Aggressive cleanup on every render - ensures bullets are always plain text
-  useEffect(() => {
-    if (!isHydrated || typeof window === 'undefined') return;
-    
-    // Run cleanup immediately and synchronously
-    cleanupBulletHTML();
-    
-    // Use requestAnimationFrame to ensure DOM is ready
-    const frameId = requestAnimationFrame(() => {
-      cleanupBulletHTML();
-    });
-    
-    // Also run after a short delay to catch any async updates
-    const timeoutId = setTimeout(() => {
-      cleanupBulletHTML();
-    }, 50);
-    
-    return () => {
-      cancelAnimationFrame(frameId);
-      clearTimeout(timeoutId);
-    };
-  }, [isHydrated, data.sections, cleanupBulletHTML]);
-
-  // Expose debug function to window for manual inspection
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    (window as any).debugBulletHTML = () => {
-      const results: any[] = [];
-      document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
-        const bulletEl = el as HTMLElement;
-        const html = bulletEl.innerHTML || '';
-        const text = bulletEl.textContent || '';
-        if (html !== text || html.includes('<')) {
-          results.push({
-            id: bulletEl.getAttribute('data-bullet-id'),
-            innerHTML: html.substring(0, 200),
-            textContent: text.substring(0, 200),
-            hasHTML: html.includes('<'),
-            children: Array.from(bulletEl.children).map(c => ({
-              tagName: c.tagName,
-              innerHTML: c.innerHTML.substring(0, 100)
-            }))
-          });
-        }
-      });
-      console.table(results);
-      return results;
-    };
-    return () => {
-      delete (window as any).debugBulletHTML;
-    };
-  }, []);
-
-  // Immediate cleanup when component updates - runs synchronously BEFORE paint
-  useLayoutEffect(() => {
-    if (!isHydrated || typeof window === 'undefined') return;
-    
-    // Force immediate cleanup of all bullets - runs synchronously before browser paints
-    document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
-      const bulletEl = el as HTMLElement;
-      if (bulletEl.isContentEditable) {
-        // Get plain text from data attribute or textContent
-        const sectionId = bulletEl.getAttribute('data-section-id');
-        const bulletId = bulletEl.getAttribute('data-bullet-id');
-        let plainText = bulletEl.textContent || '';
-        
-        // Try to get clean text from data if available - use DOM method to strip HTML
-        if (sectionId && bulletId) {
-          const section = data.sections.find(s => String(s.id) === sectionId);
-          if (section) {
-            const bullet = section.bullets.find(b => String(b.id) === bulletId);
-            if (bullet?.text) {
-              // Use DOM method to extract plain text (more reliable than regex)
-              const tempDiv = document.createElement('div');
-              tempDiv.innerHTML = bullet.text;
-              plainText = (tempDiv.textContent || tempDiv.innerText || bullet.text).replace(/^•\s*/, '').trim();
-            }
-          }
-        }
-        
-        // Force plain text - remove any HTML immediately
-        bulletEl.textContent = plainText;
-        
-        // Also ensure innerHTML is empty or matches textContent (no HTML)
-        if (bulletEl.innerHTML !== plainText) {
-          bulletEl.innerHTML = '';
-          bulletEl.textContent = plainText;
-        }
-        
-        // Set up MutationObserver to catch HTML insertion AFTER React renders
-        const observer = new MutationObserver(() => {
-          const currentHTML = bulletEl.innerHTML || '';
-          const currentText = bulletEl.textContent || '';
-          
-          // If HTML detected, remove it immediately
-          if (currentHTML !== currentText && currentHTML.includes('<')) {
-            console.warn('🚨 HTML INSERTED INTO DOM - Removing:', {
-              bulletId,
-              innerHTML: currentHTML.substring(0, 100)
-            });
-            bulletEl.innerHTML = '';
-            bulletEl.textContent = plainText || currentText;
-          }
-        });
-        
-        observer.observe(bulletEl, {
-          childList: true,
-          subtree: true,
-          characterData: true
-        });
-        
-        // Store observer for cleanup (we'll use a WeakMap or cleanup in return)
-        (bulletEl as any)._htmlObserver = observer;
-      }
-    });
-    
-    return () => {
-      // Cleanup observers and intervals
-      document.querySelectorAll('[data-editable-type="bullet"]').forEach((el) => {
-        const observer = (el as any)._htmlObserver;
-        if (observer) {
-          observer.disconnect();
-          delete (el as any)._htmlObserver;
-        }
-        const interval = (el as any)._htmlInterval;
-        if (interval) {
-          clearInterval(interval);
-          delete (el as any)._htmlInterval;
-        }
-        const cleanupInterval = (el as any)._cleanupInterval;
-        if (cleanupInterval) {
-          clearInterval(cleanupInterval);
-          delete (el as any)._cleanupInterval;
-        }
-        const forcePlainTextInterval = (el as any)._forcePlainTextInterval;
-        if (forcePlainTextInterval) {
-          clearInterval(forcePlainTextInterval);
-          delete (el as any)._forcePlainTextInterval;
-        }
-      });
-    };
-  });
+  }, [isHydrated, jdKeywords, data.summary]);
 
   // Add page break styles
   useEffect(() => {
@@ -2667,175 +2438,56 @@ export default function VisualResumeEditor({
                                                           {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                                         </div>
                                                       )}
-                                                      <div
-                                                        contentEditable
-                                                        suppressContentEditableWarning
-                                                        data-editable-type="bullet"
-                                                        data-section-id={section.id}
-                                                        data-bullet-id={companyBullet.id}
-                                                        data-is-work-exp="true"
-                                                        key={`bullet-we-${companyBullet.id}-${companyBullet.text?.substring(0, 10)}`}
-                                                        style={{ 
-                                                          position: 'relative',
-                                                          zIndex: 10,
-                                                          minHeight: '1.5rem'
-                                                        }}
-                                                        dangerouslySetInnerHTML={undefined}
-                                                        children={undefined}
-                                                        ref={(el) => {
-                                                          if (!el || !el.isContentEditable) return;
-                                                          
-                                                          const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
-                                                          
-                                                          // IMMEDIATELY clear everything and set plain text
-                                                          const forcePlainText = () => {
-                                                            if (!el || !el.isContentEditable) return;
-                                                            
-                                                            // Remove ALL nodes (text nodes and element nodes)
-                                                            while (el.firstChild) {
-                                                              el.removeChild(el.firstChild);
-                                                            }
-                                                            
-                                                            // Clear innerHTML completely
-                                                            el.innerHTML = '';
-                                                            
-                                                            // Set ONLY text content
-                                                            const textNode = document.createTextNode(plainText);
-                                                            el.appendChild(textNode);
-                                                          };
-                                                          
-                                                          // Force immediately - use requestAnimationFrame to ensure DOM is ready
-                                                          requestAnimationFrame(() => {
-                                                            forcePlainText();
-                                                            // Also force after a tiny delay
-                                                            setTimeout(forcePlainText, 0);
-                                                          });
-                                                          
-                                                          // Continuous aggressive monitoring every 16ms (60fps)
-                                                          const intervalId = setInterval(() => {
-                                                            if (!el || !el.isContentEditable) {
-                                                              clearInterval(intervalId);
-                                                              return;
-                                                            }
-                                                            
-                                                            // Check for ANY non-text content
-                                                            const hasNonTextNodes = Array.from(el.childNodes).some(node => 
-                                                              node.nodeType !== Node.TEXT_NODE
-                                                            );
-                                                            
-                                                            if (hasNonTextNodes || el.innerHTML !== plainText || el.children.length > 0) {
-                                                              console.error('🚨 HTML DETECTED (work exp) - FORCING PLAIN TEXT:', {
-                                                                bulletId: companyBullet.id,
-                                                                innerHTML: el.innerHTML.substring(0, 100),
-                                                                children: el.children.length,
-                                                                childNodes: el.childNodes.length,
-                                                                nodeTypes: Array.from(el.childNodes).map(n => n.nodeType)
-                                                              });
-                                                              forcePlainText();
-                                                            }
-                                                          }, 16);
-                                                          
-                                                          (el as any)._forcePlainTextInterval = intervalId;
-                                                        }}
-                                                        onFocus={(e) => {
-                                                          // Hide overlay when focused
-                                                          const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
-                                                          if (overlay) {
-                                                            overlay.style.opacity = '0';
-                                                            overlay.style.pointerEvents = 'none';
-                                                            overlay.style.display = 'none';
-                                                          }
-                                                          // AGGRESSIVELY remove ALL HTML - remove all children first
-                                                          const textContent = e.currentTarget.textContent || '';
-                                                          while (e.currentTarget.firstChild) {
-                                                            e.currentTarget.removeChild(e.currentTarget.firstChild);
-                                                          }
-                                                          e.currentTarget.textContent = textContent;
-                                                          // Double-check - if innerHTML still has HTML, clear it
-                                                          if (e.currentTarget.innerHTML !== textContent) {
-                                                            e.currentTarget.innerHTML = '';
-                                                            e.currentTarget.textContent = textContent;
-                                                          }
-                                                        }}
-                                                        onInput={(e) => {
-                                                          // Prevent HTML from being inserted during editing
-                                                          const target = e.currentTarget as HTMLElement;
-                                                          const textContent = target.textContent || '';
-                                                          
-                                                          // If HTML detected during input, remove it immediately
-                                                          if (target.innerHTML !== textContent || target.innerHTML.includes('<') || target.children.length > 0) {
-                                                            console.error('🚨 HTML DETECTED DURING INPUT (work exp):', {
-                                                              bulletId: companyBullet.id,
-                                                              innerHTML: target.innerHTML.substring(0, 150)
-                                                            });
-                                                            // Remove all children
-                                                            while (target.firstChild) {
-                                                              target.removeChild(target.firstChild);
-                                                            }
-                                                            target.textContent = textContent;
-                                                          }
-                                                        }}
-                                                        onPaste={(e) => {
-                                                          // Prevent pasting HTML
-                                                          e.preventDefault();
-                                                          const text = e.clipboardData.getData('text/plain');
-                                                          const selection = window.getSelection();
-                                                          if (selection && selection.rangeCount > 0) {
-                                                            const range = selection.getRangeAt(0);
-                                                            range.deleteContents();
-                                                            range.insertNode(document.createTextNode(text));
-                                                          }
-                                                        }}
-                                                        onBlur={(e) => {
-                                                          // Show overlay when not focused (if it exists)
-                                                          const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
-                                                          if (overlay && hasMatch && bulletMatch.matchedKeywords.length > 0) {
-                                                            overlay.style.opacity = '1';
-                                                            overlay.style.display = 'block';
-                                                          }
-                                                          // Ensure plain text before saving
-                                                          const textContent = e.currentTarget.textContent || '';
-                                                          if (e.currentTarget.innerHTML !== textContent) {
-                                                            e.currentTarget.textContent = textContent;
-                                                          }
-                                                          updateBullet(section.id, companyBullet.id, textContent)
-                                                          if (typeof window !== 'undefined') {
-                                                            window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
-                                                              detail: {
-                                                                resumeData: {
-                                                                  ...data,
-                                                                  sections: data.sections.map(s =>
-                                                                    s.id === section.id
-                                                                      ? {
-                                                                        ...s,
-                                                                        bullets: s.bullets.map(b =>
-                                                                          b.id === companyBullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
-                                                                        )
-                                                                      }
-                                                                      : s
-                                                                  )
-                                                                }
-                                                              }
-                                                            }))
-                                                          }
-                                                        }}
-                                                        onMouseDown={(e) => {
-                                                          e.stopPropagation()
-                                                          e.currentTarget.focus()
-                                                        }}
-                                                        onClick={(e) => {
-                                                          e.stopPropagation()
-                                                          e.currentTarget.focus()
-                                                          const range = document.createRange()
-                                                          const sel = window.getSelection()
-                                                          range.selectNodeContents(e.currentTarget)
-                                                          range.collapse(false)
-                                                          sel?.removeAllRanges()
-                                                          sel?.addRange(range)
-                                                        }}
-                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                                                          }`}
-                                                      />
+                                                      {(() => {
+                                                        const textareaRef = useRef<HTMLTextAreaElement>(null);
+                                                        const plainText = (companyBullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                                        const isEditing = editingBullet?.sectionId === section.id && editingBullet?.bulletId === companyBullet.id;
+                                                        
+                                                        return (
+                                                          <>
+                                                            {!isEditing ? (
+                                                              <div
+                                                                onClick={() => {
+                                                                  setEditValue(plainText);
+                                                                  setEditingBullet({ sectionId: section.id, bulletId: companyBullet.id });
+                                                                  setTimeout(() => textareaRef.current?.focus(), 0);
+                                                                }}
+                                                                className={`text-sm leading-relaxed outline-none hover:bg-blue-50 rounded transition-colors cursor-text relative z-10 min-h-[1.5rem] ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                                              >
+                                                                {plainText || '\u00A0'}
+                                                              </div>
+                                                            ) : (
+                                                              <textarea
+                                                                ref={textareaRef}
+                                                                value={editValue}
+                                                                onChange={(e) => setEditValue(e.target.value)}
+                                                                onBlur={() => {
+                                                                  const text = editValue.trim();
+                                                                  updateBullet(section.id, companyBullet.id, text);
+                                                                  setEditingBullet(null);
+                                                                  if (typeof window !== 'undefined') {
+                                                                    window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
+                                                                      detail: { resumeData: { ...data, sections: data.sections.map(s => s.id === section.id ? { ...s, bullets: s.bullets.map(b => b.id === companyBullet.id ? { ...b, text } : b) } : s) } }
+                                                                    }));
+                                                                  }
+                                                                }}
+                                                                onKeyDown={(e) => {
+                                                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                                                    e.preventDefault();
+                                                                    textareaRef.current?.blur();
+                                                                  }
+                                                                  if (e.key === 'Escape') {
+                                                                    setEditingBullet(null);
+                                                                  }
+                                                                }}
+                                                                className="text-sm leading-relaxed outline-none bg-blue-50 rounded transition-colors relative z-10 w-full resize-none min-h-[1.5rem]"
+                                                                style={{ fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
+                                                                rows={Math.max(1, editValue.split('\n').length)}
+                                                              />
+                                                            )}
+                                                          </>
+                                                        );
+                                                      })()}
                                                     </div>
                                                   </div>
 
@@ -3071,167 +2723,56 @@ export default function VisualResumeEditor({
                                               {highlightKeywordsInText((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                             </div>
                                           )}
-                                          <div
-                                            contentEditable
-                                            suppressContentEditableWarning
-                                            data-editable-type="bullet"
-                                            data-section-id={section.id}
-                                            data-bullet-id={bullet.id}
-                                            key={`bullet-${bullet.id}-${bullet.text?.substring(0, 10)}`}
-                                            style={{ 
-                                              position: 'relative',
-                                              zIndex: 10,
-                                              minHeight: '1.5rem'
-                                            }}
-                                            ref={(el) => {
-                                              if (!el || !el.isContentEditable) return;
-                                              
-                                              const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
-                                              
-                                              // IMMEDIATELY clear everything and set plain text
-                                              const forcePlainText = () => {
-                                                if (!el || !el.isContentEditable) return;
-                                                
-                                                // Remove ALL nodes (text nodes and element nodes)
-                                                while (el.firstChild) {
-                                                  el.removeChild(el.firstChild);
-                                                }
-                                                
-                                                // Clear innerHTML completely
-                                                el.innerHTML = '';
-                                                
-                                                // Set ONLY text content
-                                                const textNode = document.createTextNode(plainText);
-                                                el.appendChild(textNode);
-                                              };
-                                              
-                                              // Force immediately - use requestAnimationFrame to ensure DOM is ready
-                                              requestAnimationFrame(() => {
-                                                forcePlainText();
-                                                // Also force after a tiny delay
-                                                setTimeout(forcePlainText, 0);
-                                              });
-                                              
-                                              // Continuous aggressive monitoring every 16ms (60fps)
-                                              const intervalId = setInterval(() => {
-                                                if (!el || !el.isContentEditable) {
-                                                  clearInterval(intervalId);
-                                                  return;
-                                                }
-                                                
-                                                // Check for ANY non-text content
-                                                const hasNonTextNodes = Array.from(el.childNodes).some(node => 
-                                                  node.nodeType !== Node.TEXT_NODE
-                                                );
-                                                
-                                                if (hasNonTextNodes || el.innerHTML !== plainText || el.children.length > 0) {
-                                                  console.error('🚨 HTML DETECTED - FORCING PLAIN TEXT:', {
-                                                    bulletId: bullet.id,
-                                                    innerHTML: el.innerHTML.substring(0, 100),
-                                                    children: el.children.length,
-                                                    childNodes: el.childNodes.length,
-                                                    nodeTypes: Array.from(el.childNodes).map(n => n.nodeType)
-                                                  });
-                                                  forcePlainText();
-                                                }
-                                              }, 16);
-                                              
-                                              (el as any)._forcePlainTextInterval = intervalId;
-                                            }}
-                                            onFocus={(e) => {
-                                              // Hide overlay when focused
-                                              const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
-                                              if (overlay) {
-                                                overlay.style.opacity = '0';
-                                                overlay.style.pointerEvents = 'none';
-                                                overlay.style.display = 'none';
-                                              }
-                                              // AGGRESSIVELY remove ALL HTML - remove all children first
-                                              const textContent = e.currentTarget.textContent || '';
-                                              while (e.currentTarget.firstChild) {
-                                                e.currentTarget.removeChild(e.currentTarget.firstChild);
-                                              }
-                                              e.currentTarget.textContent = textContent;
-                                              // Double-check - if innerHTML still has HTML, clear it
-                                              if (e.currentTarget.innerHTML !== textContent) {
-                                                e.currentTarget.innerHTML = '';
-                                                e.currentTarget.textContent = textContent;
-                                              }
-                                            }}
-                                            onInput={(e) => {
-                                              // Prevent HTML from being inserted during editing
-                                              const target = e.currentTarget as HTMLElement;
-                                              const textContent = target.textContent || '';
-                                              
-                                              // If HTML detected during input, remove it immediately
-                                              if (target.innerHTML !== textContent || target.innerHTML.includes('<') || target.children.length > 0) {
-                                                console.error('🚨 HTML DETECTED DURING INPUT:', {
-                                                  bulletId: bullet.id,
-                                                  innerHTML: target.innerHTML.substring(0, 150)
-                                                });
-                                                // Remove all children
-                                                while (target.firstChild) {
-                                                  target.removeChild(target.firstChild);
-                                                }
-                                                target.textContent = textContent;
-                                              }
-                                            }}
-                                                        onPaste={(e: React.ClipboardEvent<HTMLDivElement>) => {
-                                                          // Prevent pasting HTML
-                                                          e.preventDefault();
-                                                          const text = e.clipboardData.getData('text/plain');
-                                                          const selection = window.getSelection();
-                                                          if (selection && selection.rangeCount > 0) {
-                                                            const range = selection.getRangeAt(0);
-                                                            range.deleteContents();
-                                                            range.insertNode(document.createTextNode(text));
-                                                          }
-                                                        }}
-                                            onBlur={(e) => {
-                                              // Show overlay when not focused (if it exists)
-                                              const overlay = e.currentTarget.parentElement?.querySelector('[data-highlight-overlay="true"]') as HTMLElement;
-                                              if (overlay && hasMatch && bulletMatch.matchedKeywords.length > 0) {
-                                                overlay.style.opacity = '1';
-                                                overlay.style.display = 'block';
-                                              }
-                                              // Force plain text before saving
-                                              const textContent = e.currentTarget.textContent || '';
-                                              e.currentTarget.textContent = textContent;
-                                              updateBullet(section.id, bullet.id, textContent)
-                                              if (typeof window !== 'undefined') {
-                                                window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
-                                                  detail: {
-                                                    resumeData: {
-                                                      ...data, sections: data.sections.map(s =>
-                                                        s.id === section.id ? {
-                                                          ...s, bullets: s.bullets.map(b =>
-                                                            b.id === bullet.id ? { ...b, text: e.currentTarget.textContent || '' } : b
-                                                          )
-                                                        } : s
-                                                      )
-                                                    }
-                                                  }
-                                                }));
-                                              }
-                                            }}
-                                            onMouseDown={(e) => {
-                                              e.stopPropagation()
-                                              e.currentTarget.focus()
-                                            }}
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              e.currentTarget.focus()
-                                              const range = document.createRange()
-                                              const sel = window.getSelection()
-                                              range.selectNodeContents(e.currentTarget)
-                                              range.collapse(false)
-                                              sel?.removeAllRanges()
-                                              sel?.addRange(range)
-                                            }}
-                                            suppressHydrationWarning
-                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
-                                              }`}
-                                          />
+                                          {(() => {
+                                            const textareaRef = useRef<HTMLTextAreaElement>(null);
+                                            const plainText = (bullet.text || '').replace(/^•\s*/, '').replace(/<[^>]*>/g, '').trim();
+                                            const isEditing = editingBullet?.sectionId === section.id && editingBullet?.bulletId === bullet.id;
+                                            
+                                            return (
+                                              <>
+                                                {!isEditing ? (
+                                                  <div
+                                                    onClick={() => {
+                                                      setEditValue(plainText);
+                                                      setEditingBullet({ sectionId: section.id, bulletId: bullet.id });
+                                                      setTimeout(() => textareaRef.current?.focus(), 0);
+                                                    }}
+                                                    className={`text-sm leading-relaxed outline-none hover:bg-blue-50 rounded transition-colors cursor-text relative z-10 min-h-[1.5rem] ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                                  >
+                                                    {plainText || '\u00A0'}
+                                                  </div>
+                                                ) : (
+                                                  <textarea
+                                                    ref={textareaRef}
+                                                    value={editValue}
+                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                    onBlur={() => {
+                                                      const text = editValue.trim();
+                                                      updateBullet(section.id, bullet.id, text);
+                                                      setEditingBullet(null);
+                                                      if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
+                                                          detail: { resumeData: { ...data, sections: data.sections.map(s => s.id === section.id ? { ...s, bullets: s.bullets.map(b => b.id === bullet.id ? { ...b, text } : b) } : s) } }
+                                                        }));
+                                                      }
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                                        e.preventDefault();
+                                                        textareaRef.current?.blur();
+                                                      }
+                                                      if (e.key === 'Escape') {
+                                                        setEditingBullet(null);
+                                                      }
+                                                    }}
+                                                    className="text-sm leading-relaxed outline-none bg-blue-50 rounded transition-colors relative z-10 w-full resize-none min-h-[1.5rem]"
+                                                    style={{ fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
+                                                    rows={Math.max(1, editValue.split('\n').length)}
+                                                  />
+                                                )}
+                                              </>
+                                            );
+                                          })()}
                                         </div>
                                       </div>
 
