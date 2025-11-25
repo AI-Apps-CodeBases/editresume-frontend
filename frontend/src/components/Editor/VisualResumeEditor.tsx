@@ -2227,6 +2227,8 @@ export default function VisualResumeEditor({
                                               <div
                                                 contentEditable
                                                 suppressContentEditableWarning
+                                                spellCheck={false}
+                                                autoComplete="off"
                                                 data-editable-type="company-name"
                                                 data-section-id={section.id}
                                                 data-bullet-id={headerBullet.id}
@@ -2246,6 +2248,8 @@ export default function VisualResumeEditor({
                                               <div
                                                 contentEditable
                                                 suppressContentEditableWarning
+                                                spellCheck={false}
+                                                autoComplete="off"
                                                 data-editable-type="location"
                                                 data-section-id={section.id}
                                                 data-bullet-id={headerBullet.id}
@@ -2264,6 +2268,8 @@ export default function VisualResumeEditor({
                                               <div
                                                 contentEditable
                                                 suppressContentEditableWarning
+                                                spellCheck={false}
+                                                autoComplete="off"
                                                 data-editable-type="job-title"
                                                 data-section-id={section.id}
                                                 data-bullet-id={headerBullet.id}
@@ -2280,6 +2286,8 @@ export default function VisualResumeEditor({
                                               <div
                                                 contentEditable
                                                 suppressContentEditableWarning
+                                                spellCheck={false}
+                                                autoComplete="off"
                                                 data-editable-type="date-range"
                                                 data-section-id={section.id}
                                                 data-bullet-id={headerBullet.id}
@@ -2419,6 +2427,20 @@ export default function VisualResumeEditor({
                                                   />
                                                   <div className="flex-1 min-w-0">
                                                     <div className="relative flex-1 group">
+                                                      <div
+                                                        contentEditable
+                                                        suppressContentEditableWarning
+                                                        spellCheck={false}
+                                                        autoComplete="off"
+                                                        onBlur={(e) => {
+                                                          const text = e.currentTarget.textContent || '';
+                                                          updateBullet(section.id, companyBullet.id, text);
+                                                        }}
+                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                                        style={{ position: 'relative', zIndex: 10 }}
+                                                      >
+                                                        {(companyBullet.text || '').replace(/^•\s*/, '')}
+                                                      </div>
                                                       {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
                                                         <div
                                                           className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
@@ -2430,23 +2452,13 @@ export default function VisualResumeEditor({
                                                             left: 0,
                                                             right: 0,
                                                             bottom: 0,
-                                                            zIndex: 0
+                                                            zIndex: 0,
+                                                            pointerEvents: 'none'
                                                           }}
                                                         >
                                                           {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                                         </div>
                                                       )}
-                                                      <div
-                                                        contentEditable
-                                                        suppressContentEditableWarning
-                                                        onBlur={(e) => {
-                                                          const text = e.currentTarget.textContent || '';
-                                                          updateBullet(section.id, companyBullet.id, text);
-                                                        }}
-                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
-                                                      >
-                                                        {(companyBullet.text || '').replace(/^•\s*/, '')}
-                                                      </div>
                                                     </div>
                                                   </div>
 
@@ -2665,6 +2677,20 @@ export default function VisualResumeEditor({
                                       />
                                       <div className="flex-1 min-w-0">
                                         <div className="relative flex-1 group">
+                                          <div
+                                            contentEditable
+                                            suppressContentEditableWarning
+                                            spellCheck={false}
+                                            autoComplete="off"
+                                            onBlur={(e) => {
+                                              const text = e.currentTarget.textContent || '';
+                                              updateBullet(section.id, bullet.id, text);
+                                            }}
+                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                            style={{ position: 'relative', zIndex: 10 }}
+                                          >
+                                            {(bullet.text || '').replace(/^•\s*/, '')}
+                                          </div>
                                           {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
                                             <div
                                               className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
@@ -2676,23 +2702,13 @@ export default function VisualResumeEditor({
                                                 left: 0,
                                                 right: 0,
                                                 bottom: 0,
-                                                zIndex: 0
+                                                zIndex: 0,
+                                                pointerEvents: 'none'
                                               }}
                                             >
                                               {highlightKeywordsInText((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                             </div>
                                           )}
-                                          <div
-                                            contentEditable
-                                            suppressContentEditableWarning
-                                            onBlur={(e) => {
-                                              const text = e.currentTarget.textContent || '';
-                                              updateBullet(section.id, bullet.id, text);
-                                            }}
-                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}
-                                          >
-                                            {(bullet.text || '').replace(/^•\s*/, '')}
-                                          </div>
                                         </div>
                                       </div>
 
