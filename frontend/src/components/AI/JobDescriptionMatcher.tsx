@@ -53,13 +53,33 @@ const GUEST_RESUME_STORAGE_KEY = 'guestSavedResumes';
 const extractJobType = (text: string): string | null => {
   if (!text) return null;
   const lowerText = text.toLowerCase();
-  // Check for contract-to-hire patterns first (CTH, Contract to Hire, etc.)
-  if (/cth\b|contract.?to.?hire|contract-to-hire/i.test(lowerText)) return 'Contractor';
-  if (/contractor|contract basis/i.test(lowerText)) return 'Contractor';
-  if (/contract|temporary|temp/i.test(lowerText)) return 'Contractor';
-  if (/part.?time|pt\b/i.test(lowerText)) return 'Part-time';
-  if (/intern|internship/i.test(lowerText)) return 'Internship';
-  if (/full.?time|ft\b|permanent/i.test(lowerText)) return 'Full Time';
+  
+  // Check for explicit "Full-time" or "Full time" first (most common)
+  // Use word boundaries to avoid false matches
+  if (/\bfull[-\s]?time\b|\bft\b|permanent\b/i.test(lowerText)) {
+    // Double-check it's not part of "part-time" or "full-time equivalent"
+    if (!/\bpart[-\s]?time\b/i.test(lowerText)) {
+      return 'Full Time';
+    }
+  }
+  
+  // Check for contract-to-hire patterns
+  if (/\bcth\b|contract[-\s]?to[-\s]?hire|contract-to-hire/i.test(lowerText)) return 'Contractor';
+  if (/\bcontractor\b|contract\s+basis\b/i.test(lowerText)) return 'Contractor';
+  if (/\bcontract\b|temporary\b|temp\b/i.test(lowerText)) {
+    // Make sure it's not "contract-to-hire" which we already checked
+    if (!/\bcontract[-\s]?to[-\s]?hire/i.test(lowerText)) {
+      return 'Contractor';
+    }
+  }
+  
+  // Check for part-time (must be explicit, not just "part" + "time" separately)
+  if (/\bpart[-\s]?time\b|\bpt\b/i.test(lowerText)) return 'Part-time';
+  
+  // Check for internship
+  if (/\bintern\b|internship\b/i.test(lowerText)) return 'Internship';
+  
+  // Default to Full Time if nothing matches
   return 'Full Time';
 };
 
@@ -723,9 +743,10 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
     return false;
   };
 
+  // Try to extract title from common patterns first
   let titleFromLabel = extractLineValue([
-    /(?:position|job title|title)\s*[:\-]\s*([^\n]+)/i,
-    /role\s*[:\-]\s*([^\n]+)/i,
+    /(?:position|job title|title|role)\s*[:\-]\s*([^\n]+)/i,
+    /(?:hiring|seeking|looking for)\s+(?:a|an)?\s*([A-Z][^\n]{3,80})/i,
   ], normalized);
 
   if (titleFromLabel && GENERIC_HEADINGS.has(titleFromLabel.toLowerCase())) {
@@ -741,7 +762,71 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
     /(?:at|@)\s*([A-Z][\w\s&.,'-]{2,70})/i,
   ], normalized);
 
-  if (lines.length > 0 && !metadata.title) {
+  // Look for title patterns in the first few lines
+  // Common pattern: "Senior Dev Ops Engineer" or "Senior DevOps Engineer" at start
+  if (!metadata.title && lines.length > 0) {
+    // Check first 10 lines for title-like patterns (in case there are logos/headers)
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+      const line = lines[i];
+      if (!line || line.length < 5) continue;
+      
+      // Skip generic headings and common non-title lines
+      const lineLower = line.toLowerCase();
+      if (GENERIC_HEADINGS.has(lineLower)) continue;
+      if (/^(logo|show more|apply|save|reposted|people|company|alumni)/i.test(line)) continue;
+      if (/^\$[\d,]+/i.test(line)) continue; // Skip salary lines
+      if (/^\d+\s*(days?|hours?|weeks?|months?)\s+ago/i.test(line)) continue; // Skip time stamps
+      
+      // Pattern 1: Senior/Lead/etc + Tech words (Dev Ops, DevOps, etc.) + Engineer/Developer/etc
+      // This catches "Senior Dev Ops Engineer", "Senior DevOps Engineer", etc.
+      const seniorTitlePattern = /^(Senior|Lead|Principal|Staff|Junior|Mid-level|Mid|Entry-level|Entry|Associate|Assistant)\s+([A-Z][A-Za-z\s/&-]{2,80}(?:Engineer|Developer|Architect|Manager|Analyst|Specialist|Consultant|Designer|Scientist|Administrator|Coordinator|Director|Executive|Officer|Representative|Technician|Technologist|Advisor|Strategist|Planner|Supervisor|Head|Chief|VP|Vice President|President|CEO|CTO|CFO|COO))(?:\s+at\s+[A-Z][^\n]*)?$/i;
+      const seniorMatch = line.match(seniorTitlePattern);
+      if (seniorMatch) {
+        const fullTitle = seniorMatch[0].replace(/\s+at\s+.*$/i, '').trim();
+        if (assignTitleFromCandidate(fullTitle)) {
+          break;
+        }
+      }
+      
+      // Pattern 2: Direct job title with Engineer/Developer/etc (without senior/lead prefix)
+      const directTitlePattern = /^([A-Z][A-Za-z\s/&-]{3,80}(?:Engineer|Developer|Architect|Manager|Analyst|Specialist|Consultant|Designer|Scientist|Administrator|Coordinator|Director|Executive|Officer|Representative|Associate|Assistant|Technician|Technologist|Advisor|Strategist|Planner|Coordinator|Supervisor|Lead|Head|Chief|VP|Vice President|President|CEO|CTO|CFO|COO))(?:\s+at\s+[A-Z][^\n]*)?$/i;
+      const directMatch = line.match(directTitlePattern);
+      if (directMatch) {
+        const fullTitle = directMatch[1].trim();
+        // Make sure it's not just a single word
+        if (fullTitle.split(/\s+/).length >= 2) {
+          if (assignTitleFromCandidate(fullTitle)) {
+            break;
+          }
+        }
+      }
+      
+      // Pattern 3: Look for lines that start with capital words and contain job-related terms
+      // This catches titles like "Dev Ops Engineer" even if not at the very start
+      if (/^[A-Z][a-z]+(\s+[A-Z][a-z]+)+\s+(Engineer|Developer|Architect|Manager|Analyst|Specialist|Consultant|Designer|Scientist|Administrator|Coordinator|Director|Executive|Officer|Representative|Associate|Assistant|Technician|Technologist|Advisor|Strategist|Planner|Coordinator|Supervisor|Lead|Head|Chief)/i.test(line)) {
+        const words = line.split(/\s+/);
+        // Find where the job type word starts (Engineer, Developer, etc.)
+        let jobTypeIndex = -1;
+        for (let j = 0; j < words.length; j++) {
+          if (/^(Engineer|Developer|Architect|Manager|Analyst|Specialist|Consultant|Designer|Scientist|Administrator|Coordinator|Director|Executive|Officer|Representative|Associate|Assistant|Technician|Technologist|Advisor|Strategist|Planner|Coordinator|Supervisor|Lead|Head|Chief)/i.test(words[j])) {
+            jobTypeIndex = j;
+            break;
+          }
+        }
+        if (jobTypeIndex > 0 && jobTypeIndex < words.length) {
+          const titleCandidate = words.slice(0, jobTypeIndex + 1).join(' ').replace(/\s+at\s+.*$/i, '').trim();
+          if (titleCandidate.length >= 5 && titleCandidate.length <= 80) {
+            if (assignTitleFromCandidate(titleCandidate)) {
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback: try first line if no title found yet
+  if (!metadata.title && lines.length > 0) {
     const firstLine = lines[0];
     const titleCompanyMatch = firstLine.match(/^([^@\-•]{3,120}?)(?:\s+(?:at|@)\s+(.+))?$/i);
     if (titleCompanyMatch) {
@@ -773,8 +858,10 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
   }
 
   const locationFromLabel = extractLineValue([
-    /(?:location|based in|located)\s*[:\-]\s*([^\n]+)/i,
+    /(?:location|based in|located|city|office location)\s*[:\-]\s*([^\n]+)/i,
     /(?:location)\s*\|\s*([^\n]+)/i,
+    // Pattern for "City, State" format (e.g., "Atlanta, GA")
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})\b/i,
   ], normalized);
   
   // Check if the extracted location is actually a work type keyword
