@@ -89,6 +89,13 @@ export default function ModernLeftSidebar({
       description: 'Real-time collab',
       requiresAuth: false,
     },
+    {
+      id: 'templates',
+      title: 'Templates',
+      icon: '🎨',
+      description: 'Resume templates',
+      requiresAuth: false,
+    },
   ]
 
   const aiTools = [
@@ -122,11 +129,7 @@ export default function ModernLeftSidebar({
     },
   ]
 
-  const secondaryItems = [
-    { id: 'templates', title: 'Templates', icon: '🎨' },
-    { id: 'design', title: 'Design', icon: '✨' },
-    { id: 'settings', title: 'Settings', icon: '⚙️' },
-  ]
+  const secondaryItems: Array<{ id: string; title: string; icon: string }> = []
 
   const handleItemClick = (itemId: string) => {
     if (itemId === 'editor') {
@@ -210,23 +213,25 @@ export default function ModernLeftSidebar({
                   ))}
                 </div>
               </div>
-              <div className="mt-6 px-3">
-                <div className="px-3 mb-2">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">More</p>
+              {secondaryItems.length > 0 && (
+                <div className="mt-6 px-3">
+                  <div className="px-3 mb-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">More</p>
+                  </div>
+                  <div className="space-y-1">
+                    {secondaryItems.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => handleItemClick(item.id)}
+                        className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors touch-target"
+                      >
+                        <span className="text-base">{item.icon}</span>
+                        <span>{item.title}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  {secondaryItems.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleItemClick(item.id)}
-                      className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors touch-target"
-                    >
-                      <span className="text-base">{item.icon}</span>
-                      <span>{item.title}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
             <div className="border-t border-gray-200 p-3 bg-gray-50" ref={profileMenuRef}>
               <div className="relative">
@@ -434,24 +439,25 @@ export default function ModernLeftSidebar({
           </div>
         </div>
 
-        {/* Secondary Section */}
-        <div className="mt-6 px-3">
-          <div className="px-3 mb-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">More</p>
+        {secondaryItems.length > 0 && (
+          <div className="mt-6 px-3">
+            <div className="px-3 mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">More</p>
+            </div>
+            <div className="space-y-1">
+              {secondaryItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleItemClick(item.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors touch-target"
+                >
+                  <span className="text-base">{item.icon}</span>
+                  <span>{item.title}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="space-y-1">
-            {secondaryItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleItemClick(item.id)}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors touch-target"
-              >
-                <span className="text-base">{item.icon}</span>
-                <span>{item.title}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Profile Section */}
