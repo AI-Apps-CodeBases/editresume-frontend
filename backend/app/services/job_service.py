@@ -649,7 +649,17 @@ def get_job_description_detail(
     """Get a specific job description"""
     jd, _ = safe_get_job_description(jd_id, db)
     if not jd:
+        logger.warning(f"Job description {jd_id} not found in database")
         raise HTTPException(status_code=404, detail="Job description not found")
+    
+    if user_email:
+        user = db.query(User).filter(User.email == user_email).first()
+        if user:
+            if jd.user_id != user.id:
+                logger.warning(f"Job description {jd_id} belongs to user {jd.user_id}, but requested by user {user.id}")
+                raise HTTPException(status_code=404, detail="Job description not found")
+        else:
+            logger.warning(f"User with email {user_email} not found")
 
     # Handle JSON fields safely
     extracted_kw = jd.extracted_keywords

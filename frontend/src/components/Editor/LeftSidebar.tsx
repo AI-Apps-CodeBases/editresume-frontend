@@ -77,7 +77,16 @@ export default function LeftSidebar({
     
     try {
       if (activeSection === 'jobs') {
-        const res = await fetch(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
+        const { auth } = await import('@/lib/firebaseClient')
+        const currentUser = auth.currentUser
+        const token = currentUser ? await currentUser.getIdToken() : null
+        const headers: HeadersInit = { 'Content-Type': 'application/json' }
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+        const res = await fetch(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+          headers
+        })
         if (res.ok) {
           const data = await res.json()
           setSavedJDs(Array.isArray(data) ? data : data.results || [])

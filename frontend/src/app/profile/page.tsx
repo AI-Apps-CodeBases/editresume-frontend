@@ -213,7 +213,15 @@ function ProfilePageContent() {
     setJobsLoading(true)
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
-      const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
+      const currentUser = auth.currentUser
+      const token = currentUser ? await currentUser.getIdToken() : null
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+        headers
+      })
       if (res.ok) {
         const data = await res.json()
         const jds = Array.isArray(data) ? data : data.results || []
