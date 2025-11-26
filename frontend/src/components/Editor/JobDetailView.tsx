@@ -5,6 +5,7 @@ import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config'
 import UploadResume from './UploadResume'
 import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
+import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, StarIcon, FireIcon, DiamondIcon, RocketIcon, TargetIcon, SparklesIcon, TrophyIcon, MailIcon, DocumentIcon, ChartIcon, BrainIcon } from '@/components/Icons'
 
 interface JobResumeSummary {
   id: number
@@ -72,16 +73,25 @@ interface Props {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'bookmarked', label: '📌 Bookmarked', color: 'bg-gray-100 text-gray-700' },
-  { value: 'applied', label: '📝 Applied', color: 'bg-blue-100 text-blue-700' },
-  { value: 'interview_set', label: '📅 Interview Set', color: 'bg-purple-100 text-purple-700' },
-  { value: 'interviewing', label: '💼 Interviewing', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'negotiating', label: '🤝 Negotiating', color: 'bg-orange-100 text-orange-700' },
-  { value: 'accepted', label: '✅ Accepted', color: 'bg-green-100 text-green-700' },
-  { value: 'rejected', label: '❌ Rejected', color: 'bg-red-100 text-red-700' },
+  { value: 'bookmarked', label: 'Bookmarked', icon: BookmarkIcon, color: 'bg-gray-100 text-gray-700' },
+  { value: 'applied', label: 'Applied', icon: EditIcon, color: 'bg-primary-100 text-primary-700' },
+  { value: 'interview_set', label: 'Interview Set', icon: CalendarIcon, color: 'bg-purple-100 text-purple-700' },
+  { value: 'interviewing', label: 'Interviewing', icon: BriefcaseIcon, color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'negotiating', label: 'Negotiating', icon: HandshakeIcon, color: 'bg-orange-100 text-orange-700' },
+  { value: 'accepted', label: 'Accepted', icon: CheckIcon, color: 'bg-green-100 text-green-700' },
+  { value: 'rejected', label: 'Rejected', icon: XIcon, color: 'bg-red-100 text-red-700' },
 ]
 
-const EMOJI_OPTIONS = ['⭐', '🔥', '💎', '🚀', '💼', '🎯', '✨', '🏆', '💪', '🎉']
+const IMPORTANT_ICON_OPTIONS = [
+  { emoji: '⭐', icon: StarIcon },
+  { emoji: '🔥', icon: FireIcon },
+  { emoji: '💎', icon: DiamondIcon },
+  { emoji: '🚀', icon: RocketIcon },
+  { emoji: '💼', icon: BriefcaseIcon },
+  { emoji: '🎯', icon: TargetIcon },
+  { emoji: '✨', icon: SparklesIcon },
+  { emoji: '🏆', icon: TrophyIcon },
+]
 
 export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const { user, isAuthenticated } = useAuth()
@@ -662,7 +672,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="text-6xl mb-4">❌</div>
+          <div className="flex justify-center mb-4">
+            <XIcon size={64} color="#ef4444" />
+          </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Job Not Found</h2>
           <button
             onClick={onBack}
@@ -812,7 +824,11 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  {job.important_emoji && <span className="text-3xl">{job.important_emoji}</span>}
+                  {job.important_emoji && (() => {
+                    const iconOption = IMPORTANT_ICON_OPTIONS.find(opt => opt.emoji === job.important_emoji)
+                    const IconComponent = iconOption?.icon || StarIcon
+                    return <IconComponent size={24} color="#0f62fe" className="inline-block" />
+                  })()}
                   {job.title}
                 </h1>
                 <p className="text-gray-600 mt-1">
@@ -836,21 +852,27 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               onChange={(e) => updateJobField('status', e.target.value)}
               className="px-4 py-2 border rounded-lg font-semibold"
             >
-              {STATUS_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+              {STATUS_OPTIONS.map(opt => {
+                const IconComponent = opt.icon
+                return (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                )
+              })}
             </select>
             
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Important:</span>
               <div className="flex gap-1">
-                {EMOJI_OPTIONS.map(emoji => (
+                {IMPORTANT_ICON_OPTIONS.map(({ emoji, icon: IconComponent }) => (
                   <button
                     key={emoji}
                     onClick={() => updateJobField('important_emoji', job.important_emoji === emoji ? null : emoji)}
-                    className={`text-2xl p-1 rounded ${job.important_emoji === emoji ? 'bg-yellow-100 ring-2 ring-yellow-400' : 'hover:bg-gray-100'}`}
+                    className={`p-2 rounded transition-colors ${job.important_emoji === emoji ? 'bg-primary-100 ring-2 ring-primary-400' : 'hover:bg-gray-100'}`}
+                    title={emoji}
                   >
-                    {emoji}
+                    <IconComponent size={20} color={job.important_emoji === emoji ? '#0f62fe' : '#6b7280'} />
                   </button>
                 ))}
               </div>
@@ -869,24 +891,28 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
           <div className="flex gap-2 border-b">
             {[
-              { id: 'overview', label: '📋 Overview' },
-              { id: 'notes', label: '📝 Notes' },
-              { id: 'resume', label: '📄 Resume' },
-              { id: 'analysis', label: '📊 Analysis' },
-              { id: 'coverLetters', label: '✉️ Cover Letters' },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 font-semibold border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+              { id: 'overview', label: 'Overview', icon: DocumentIcon },
+              { id: 'notes', label: 'Notes', icon: EditIcon },
+              { id: 'resume', label: 'Resume', icon: DocumentIcon },
+              { id: 'analysis', label: 'Analysis', icon: ChartIcon },
+              { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
+            ].map(tab => {
+              const IconComponent = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`inline-flex items-center gap-2 px-4 py-2 font-semibold border-b-2 transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-primary-600 text-primary-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <IconComponent size={18} color={activeTab === tab.id ? '#0f62fe' : 'currentColor'} />
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -1457,7 +1483,10 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
                 <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">✉️ Cover Letters</h2>
+                    <div className="flex items-center gap-2 mb-2">
+                      <MailIcon size={28} color="#0f62fe" />
+                      <h2 className="text-2xl font-bold text-gray-900">Cover Letters</h2>
+                    </div>
                     <p className="text-gray-600">
                       Generate cover letters using AI or manage your saved versions. Each version is saved separately and can be exported.
                   </p>
@@ -1476,7 +1505,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 <div className="flex items-center justify-between border-b-2 border-gray-300 pb-4 mb-4">
                   <div>
                     <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                      <span>📋</span>
+                      <DocumentIcon size={24} color="#0f62fe" />
                       <span>Saved Cover Letters</span>
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">Click on any cover letter to select it for export</p>
@@ -1490,7 +1519,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               <div className="space-y-4">
                   {!coverLetters || !Array.isArray(coverLetters) || coverLetters.length === 0 ? (
                     <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300">
-                      <div className="text-6xl mb-4">📝</div>
+                      <div className="flex justify-center mb-4">
+                        <EditIcon size={64} color="#0f62fe" className="opacity-60" />
+                      </div>
                       <p className="text-gray-600 font-semibold text-lg mb-1">No cover letters saved yet</p>
                       <p className="text-sm text-gray-500 mt-1">Click "Generate Cover Letter with AI" above to create your first cover letter</p>
                   </div>

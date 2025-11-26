@@ -1,4 +1,5 @@
 'use client'
+import { SparklesIcon } from '@/components/Icons'
 
 import { Suspense, useState } from 'react'
 import Link from 'next/link'
@@ -79,7 +80,9 @@ function SignupPageContent() {
   return (
     <div className="w-full rounded-[32px] border border-border-subtle bg-white p-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
       <div className="mb-8 text-center">
-        <div className="mb-4 text-4xl">✨</div>
+        <div className="flex justify-center mb-4">
+          <SparklesIcon size={48} color="#0f62fe" />
+        </div>
         <h1 className="text-3xl font-semibold text-text-primary">Create your account</h1>
         <p className="mt-2 text-sm text-text-muted">Build resumes that actually convert and track every send.</p>
       </div>
@@ -193,7 +196,9 @@ export default function SignupPage() {
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-body-gradient">
           <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
-            <div className="mb-4 text-3xl">✨</div>
+            <div className="flex justify-center mb-4">
+              <SparklesIcon size={36} color="#0f62fe" />
+            </div>
             <p className="text-sm font-semibold text-text-muted">Preparing signup form…</p>
           </div>
         </div>
