@@ -100,7 +100,7 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
         return cleaned
       }
 
-      const cleanedBullets = (result.bullets || []).map(cleanBullet).filter(text => text.length > 0)
+      const cleanedBullets = (result.bullets || []).map(cleanBullet).filter((text: string) => text.length > 0)
       
       setGeneratedData({
         companyName: (result.companyName || formData.companyName || '').trim(),
