@@ -1117,14 +1117,70 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     return () => clearTimeout(timeoutId);
   }, [jobDescription, resumeData]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [matchResult, setMatchResult] = useState<JobMatchResult | null>(null);
+  const [matchResult, setMatchResult] = useState<JobMatchResult | null>(() => {
+    // Restore match result from localStorage on mount
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('currentMatchResult');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // Verify it matches current JD
+          const savedJD = localStorage.getItem('currentJDText');
+          if (savedJD === jobDescription || savedJD === initialJobDescription) {
+            return normalizeMatchResult(parsed);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to restore match result:', e);
+      }
+    }
+    return null;
+  });
   const [error, setError] = useState<string | null>(null);
 
-  const [currentATSScore, setCurrentATSScore] = useState<number | null>(null);
+  const [currentATSScore, setCurrentATSScore] = useState<number | null>(() => {
+    // Restore ATS score from localStorage on mount
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('currentMatchResult');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const score = parsed?.match_analysis?.similarity_score ?? null;
+          return roundScoreValue(score);
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    return null;
+  });
   const [updatedATSScore, setUpdatedATSScore] = useState<number | null>(null);
   const [isCalculatingATS, setIsCalculatingATS] = useState(false);
   const [previousATSScore, setPreviousATSScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
+
+  // Restore match result when job description or component mounts
+  useEffect(() => {
+    if (typeof window === 'undefined' || !jobDescription?.trim()) return;
+    
+    try {
+      const saved = localStorage.getItem('currentMatchResult');
+      const savedJD = localStorage.getItem('currentJDText');
+      
+      // Only restore if JD matches
+      if (saved && savedJD === jobDescription) {
+        const parsed = JSON.parse(saved);
+        const normalized = normalizeMatchResult(parsed);
+        setMatchResult(normalized);
+        
+        // Restore ATS score
+        const score = normalized?.match_analysis?.similarity_score ?? null;
+        setCurrentATSScore(roundScoreValue(score));
+      }
+    } catch (e) {
+      console.error('Failed to restore match result:', e);
+    }
+  }, [jobDescription]);
 
   const showGuestNotification = useCallback((title: string, message: string) => {
     if (typeof window === 'undefined') return
