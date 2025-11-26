@@ -1708,64 +1708,38 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       )}
 
       {showCoverLetterGenerator && resumeDataForCoverLetter && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10010] flex items-center justify-center p-4"
-          onClick={() => setShowCoverLetterGenerator(false)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-xl font-bold">AI Cover Letter Generator</h2>
-              <button
-                onClick={() => setShowCoverLetterGenerator(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <CoverLetterGenerator
-                resumeData={resumeDataForCoverLetter}
-                onClose={() => setShowCoverLetterGenerator(false)}
-                onCoverLetterChange={handleCoverLetterGenerated}
-                initialJobDescription={job?.content || ''}
-                initialCompanyName={job?.company || ''}
-                initialPositionTitle={job?.title || ''}
-                jobId={jobId}
-                onSaveSuccess={(savedLetter) => {
-                  console.log('Cover letter saved successfully:', savedLetter)
-                  // Close modal
-                  setShowCoverLetterGenerator(false)
-                  
-                  // Update state directly instead of refetching to avoid race condition
-                  if (savedLetter && savedLetter.id) {
-                    setCoverLetters((prev) => {
-                      // Check if letter already exists (update) or add new
-                      const exists = prev.find(cl => cl.id === savedLetter.id)
-                      if (exists) {
-                        return prev.map(cl => cl.id === savedLetter.id ? savedLetter : cl)
-                      } else {
-                        return [savedLetter, ...prev]
-                      }
-                    })
-                    
-                    // Auto-select the newly saved letter
-                    handleSelectCoverLetter(savedLetter)
-                  } else {
-                    // If no savedLetter provided, refresh after a delay
-                    setTimeout(() => {
-                  fetchJobDetails()
-                    }, 500)
-                  }
-                  
-                  if (onUpdate) onUpdate()
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <CoverLetterGenerator
+          resumeData={resumeDataForCoverLetter}
+          onClose={() => setShowCoverLetterGenerator(false)}
+          onCoverLetterChange={handleCoverLetterGenerated}
+          initialJobDescription={job?.content || ''}
+          initialCompanyName={job?.company || ''}
+          initialPositionTitle={job?.title || ''}
+          jobId={jobId}
+          onSaveSuccess={(savedLetter) => {
+            console.log('Cover letter saved successfully:', savedLetter)
+            setShowCoverLetterGenerator(false)
+            
+            if (savedLetter && savedLetter.id) {
+              setCoverLetters((prev) => {
+                const exists = prev.find(cl => cl.id === savedLetter.id)
+                if (exists) {
+                  return prev.map(cl => cl.id === savedLetter.id ? savedLetter : cl)
+                } else {
+                  return [savedLetter, ...prev]
+                }
+              })
+              
+              handleSelectCoverLetter(savedLetter)
+            } else {
+              setTimeout(() => {
+                fetchJobDetails()
+              }, 500)
+            }
+            
+            if (onUpdate) onUpdate()
+          }}
+        />
       )}
     </div>
   )

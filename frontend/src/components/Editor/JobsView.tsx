@@ -203,8 +203,8 @@ export default function JobsView({ onBack }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
-      <div className="bg-white border-b shadow-sm sticky top-0 z-20">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex flex-col overflow-hidden">
+      <div className="bg-white border-b shadow-sm sticky top-0 z-20 flex-shrink-0">
         <div className="w-full px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -232,7 +232,7 @@ export default function JobsView({ onBack }: Props) {
         </div>
       </div>
 
-      <div className="w-full px-6 py-8">
+      <div className="w-full px-6 py-8 flex-1 overflow-y-auto">
         <div className="bg-white rounded-2xl shadow-lg p-8">
           {savedJDs.length === 0 ? (
             <div className="text-center py-12">

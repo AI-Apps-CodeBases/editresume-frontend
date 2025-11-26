@@ -25,18 +25,18 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-[0_12px_20px_rgba(15,23,42,0.06)]">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-4">
-          <Link href="/" className="flex items-center">
-            <Image 
-              src="/logo.jpg" 
-              alt="editresume.io" 
-              width={480} 
-              height={240}
-              className="h-24 w-auto"
-              priority
-            />
-          </Link>
+      <div className="flex items-center justify-between py-4">
+        <Link href="/" className="flex items-center -ml-0">
+          <Image 
+            src="/logo.jpg" 
+            alt="editresume.io" 
+            width={480} 
+            height={240}
+            className="h-20 w-auto"
+            priority
+          />
+        </Link>
+        <div className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-end">
 
           <nav className="hidden items-center gap-6 lg:flex">
             {primaryNav.map((item) => (
@@ -54,7 +54,6 @@ export default function Navbar() {
               </Link>
             ))}
           </nav>
-
 
           <button
             type="button"
@@ -74,10 +73,21 @@ export default function Navbar() {
             </svg>
           </button>
         </div>
+      </div>
 
         {open && (
           <div className="pb-6 lg:hidden">
             <nav className="flex flex-col gap-1 rounded-2xl border border-border-subtle bg-white p-4 shadow-[0_18px_30px_rgba(15,23,42,0.06)]">
+              <Link href="/" className="flex items-center mb-2" onClick={() => setOpen(false)}>
+                <Image 
+                  src="/logo.jpg" 
+                  alt="editresume.io" 
+                  width={480} 
+                  height={240}
+                  className="h-20 w-auto"
+                  priority
+                />
+              </Link>
               {primaryNav.map((item) => (
                 <Link
                   key={item.label}
