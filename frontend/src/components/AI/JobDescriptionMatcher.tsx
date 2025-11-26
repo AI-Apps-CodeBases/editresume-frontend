@@ -266,6 +266,35 @@ interface JobMetadata {
 const roundScoreValue = (value?: number | null) =>
   typeof value === 'number' && !Number.isNaN(value) ? Math.round(value) : null;
 
+type TechnicalKeywordOption = {
+  keyword: string;
+  source: 'ats' | 'jd' | 'extension';
+};
+
+const TECH_KEYWORD_SOURCE_PRIORITY: Record<TechnicalKeywordOption['source'], number> = {
+  ats: 0,
+  jd: 1,
+  extension: 2,
+};
+
+const TECH_KEYWORD_CHIP_CLASS: Record<TechnicalKeywordOption['source'], string> = {
+  ats: 'bg-red-50 text-red-700 border-red-200 hover:border-red-300',
+  jd: 'bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-300',
+  extension: 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-300',
+};
+
+const TECH_KEYWORD_BADGE_CLASS: Record<TechnicalKeywordOption['source'], string> = {
+  ats: 'bg-red-100 text-red-700',
+  jd: 'bg-blue-100 text-blue-700',
+  extension: 'bg-purple-100 text-purple-700',
+};
+
+const TECH_KEYWORD_SOURCE_LABEL: Record<TechnicalKeywordOption['source'], string> = {
+  ats: 'ATS Missing',
+  jd: 'JD Extract',
+  extension: 'Extension',
+};
+
 // Highlight missing keywords in generated bullet text
 const highlightMissingKeywords = (text: string, missingKeywords: string[]): React.ReactNode => {
   if (!missingKeywords.length || !text) return text;
@@ -1137,6 +1166,49 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     return null;
   });
   const [error, setError] = useState<string | null>(null);
+
+  const technicalKeywordOptions = useMemo(() => {
+    const options = new Map<string, TechnicalKeywordOption>();
+    const register = (value?: string | null, source: TechnicalKeywordOption['source'] = 'ats') => {
+      if (!value || typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      const existing = options.get(key);
+      if (existing) {
+        if (TECH_KEYWORD_SOURCE_PRIORITY[source] < TECH_KEYWORD_SOURCE_PRIORITY[existing.source]) {
+          options.set(key, { keyword: trimmed, source });
+        }
+        return;
+      }
+      options.set(key, { keyword: trimmed, source });
+    };
+
+    (matchResult?.match_analysis?.technical_missing || []).forEach((kw) => register(kw, 'ats'));
+    if (Array.isArray(extractedKeywords?.technical_keywords)) {
+      extractedKeywords.technical_keywords.forEach((kw: any) => {
+        if (typeof kw === 'string') {
+          register(kw, 'jd');
+        } else if (kw && typeof kw.keyword === 'string') {
+          register(kw.keyword, 'jd');
+        }
+      });
+    }
+    if (Array.isArray(selectedJobMetadata?.skills)) {
+      selectedJobMetadata.skills.forEach((kw: any) => {
+        if (typeof kw === 'string') {
+          register(kw, 'extension');
+        }
+      });
+    }
+
+    return Array.from(options.values()).sort((a, b) => {
+      const priorityDelta =
+        TECH_KEYWORD_SOURCE_PRIORITY[a.source] - TECH_KEYWORD_SOURCE_PRIORITY[b.source];
+      if (priorityDelta !== 0) return priorityDelta;
+      return a.keyword.localeCompare(b.keyword);
+    });
+  }, [matchResult, extractedKeywords, selectedJobMetadata]);
 
   const [currentATSScore, setCurrentATSScore] = useState<number | null>(() => {
     // Restore ATS score from localStorage on mount
@@ -3512,164 +3584,93 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               )}
 
               {/* Technical Skills */}
-              {matchResult.match_analysis.technical_missing.length > 0 && (
+              {technicalKeywordOptions.length > 0 && (
                 <div className="border-t border-gray-200 pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+                    <div className="space-y-1">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        Missing Technical Skills
+                        Technical Keywords & Skills
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Add these skills to your resume ({matchResult.match_analysis.technical_missing.length} missing)
+                      <p className="text-sm text-gray-500">
+                        Includes missing ATS skills plus technical keywords scraped from the JD and your browser extension.
                       </p>
                     </div>
-                    <button
-                      onClick={async () => {
-                        const currentSkills = new Set<string>()
-                        resumeData.sections?.forEach((section: any) => {
-                          const sectionType = section.title?.toLowerCase()
-                          if (sectionType?.includes('skill') || sectionType?.includes('technical')) {
-                            section.bullets?.forEach((bullet: any) => {
-                              const skillText = bullet.text?.replace(/^•\s*/, '').trim()
-                              if (skillText) {
-                                currentSkills.add(skillText.toLowerCase())
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                      {selectedKeywords.size > 0 && (
+                        <>
+                          <button
+                            onClick={() => {
+                              const workExpSections = resumeData.sections.filter((s: any) =>
+                                s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')
+                              );
+                              if (workExpSections.length > 0) {
+                                setSelectedWorkExpSection(workExpSections[0].id);
                               }
-                            })
-                          }
-                        })
-
-                        let skillsSection = resumeData.sections?.find((s: any) => {
-                          const title = s.title?.toLowerCase()
-                          return title?.includes('skill') || title?.includes('technical')
-                        })
-
-                        if (!skillsSection) {
-                          skillsSection = {
-                            id: `skill-${Date.now()}`,
-                            title: 'Skills',
-                            bullets: []
-                          }
-                        }
-
-                        const skillsToAdd = matchResult.match_analysis.technical_missing.filter(
-                          (skill: string) => !currentSkills.has(skill.toLowerCase())
-                        )
-
-                        const newSkills = skillsToAdd.map((skill: string) => ({
-                          id: `skill-${Date.now()}-${Math.random()}`,
-                          text: skill,
-                          params: { visible: true }
-                        }))
-
-                        const updatedSections = resumeData.sections?.map((s: any) =>
-                          s.id === skillsSection.id
-                            ? { ...s, bullets: [...s.bullets, ...newSkills] }
-                            : s
-                        ) || []
-
-                        if (!resumeData.sections?.find((s: any) => s.id === skillsSection.id)) {
-                          updatedSections.push(skillsSection)
-                        }
-
-                        const updatedResume = {
-                          ...resumeData,
-                          sections: updatedSections
-                        }
-
-                        if (onResumeUpdate) {
-                          onResumeUpdate(updatedResume)
-                        }
-
-                        await showAlert({
-                          type: 'success',
-                          message: `Added ${skillsToAdd.length} missing skill${skillsToAdd.length > 1 ? 's' : ''} to your resume!`,
-                          title: 'Success'
-                        })
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Add All Missing Skills
-                    </button>
+                              setShowBulletGenerator(true);
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Create Bullets ({selectedKeywords.size})
+                          </button>
+                          <button
+                            onClick={() => addKeywordsToSkillsSection(Array.from(selectedKeywords))}
+                            className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add to Skills ({selectedKeywords.size})
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => addKeywordsToSkillsSection(technicalKeywordOptions.map((option) => option.keyword))}
+                        className="px-4 py-2 bg-blue-100 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add All Tech Keywords
+                      </button>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {matchResult.match_analysis.technical_missing.map((skill, index) => {
-                      // Check if skill already exists in resume
-                      const skillExists = resumeData.sections?.some((section: any) => {
-                        const sectionType = section.title?.toLowerCase()
-                        if (sectionType?.includes('skill') || sectionType?.includes('technical')) {
-                          return section.bullets?.some((bullet: any) =>
-                            bullet.text?.replace(/^•\s*/, '').trim().toLowerCase() === skill.toLowerCase()
-                          )
-                        }
-                        return false
-                      })
+                    {technicalKeywordOptions.map(({ keyword, source }, index) => {
+                      const isSelected = selectedKeywords.has(keyword);
+                      const chipClass = isSelected
+                        ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                        : TECH_KEYWORD_CHIP_CLASS[source];
 
                       return (
                         <label
-                          key={index}
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer border-2 transition-all ${skillExists
-                            ? 'bg-green-100 text-green-700 border-green-300'
-                            : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
-                            }`}
+                          key={`${keyword}-${source}-${index}`}
+                          className={`inline-flex flex-col gap-1 px-3 py-2 rounded-lg text-sm cursor-pointer border-2 transition-all min-w-[180px] ${chipClass}`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={false}
-                            onChange={(e) => {
-                              if (e.target.checked && !skillExists) {
-                                // Find or create skills section
-                                let skillsSection = resumeData.sections?.find((s: any) => {
-                                  const title = s.title?.toLowerCase()
-                                  return title?.includes('skill') || title?.includes('technical')
-                                })
-
-                                if (!skillsSection) {
-                                  skillsSection = {
-                                    id: `skill-${Date.now()}`,
-                                    title: 'Skills',
-                                    bullets: []
-                                  }
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const newSelected = new Set(selectedKeywords);
+                                if (e.target.checked) {
+                                  newSelected.add(keyword);
+                                } else {
+                                  newSelected.delete(keyword);
                                 }
-
-                                const newSkill = {
-                                  id: `skill-${Date.now()}-${Math.random()}`,
-                                  text: skill,
-                                  params: { visible: true }
-                                }
-
-                                const updatedSections = resumeData.sections?.map((s: any) =>
-                                  s.id === skillsSection.id
-                                    ? { ...s, bullets: [...s.bullets, newSkill] }
-                                    : s
-                                ) || []
-
-                                if (!resumeData.sections?.find((s: any) => s.id === skillsSection.id)) {
-                                  updatedSections.push({ ...skillsSection, bullets: [newSkill] })
-                                }
-
-                                const updatedResume = {
-                                  ...resumeData,
-                                  sections: updatedSections
-                                }
-
-                                if (onResumeUpdate) {
-                                  onResumeUpdate(updatedResume)
-                                }
-
-                                // Uncheck the checkbox after adding
-                                e.target.checked = false
-                              }
-                            }}
-                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            disabled={skillExists}
-                          />
-                          <span>{skill}</span>
-                          {skillExists && <span className="text-xs">✓</span>}
+                                setSelectedKeywords(newSelected);
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <span className="font-medium">{keyword}</span>
+                          </div>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${TECH_KEYWORD_BADGE_CLASS[source]}`}>
+                            {TECH_KEYWORD_SOURCE_LABEL[source]}
+                          </span>
                         </label>
-                      )
+                      );
                     })}
                   </div>
                 </div>
