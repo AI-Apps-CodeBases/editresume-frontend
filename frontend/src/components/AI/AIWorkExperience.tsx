@@ -82,11 +82,31 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
       }
 
       const result = await response.json()
+      
+      // Clean bullets: remove quotes and special characters
+      const cleanBullet = (text: string): string => {
+        if (!text) return ""
+        let cleaned = text.trim()
+        // Remove surrounding quotes
+        if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+          cleaned = cleaned.slice(1, -1)
+        }
+        // Remove any remaining quotes
+        cleaned = cleaned.trim().replace(/^["']+|["']+$/g, '')
+        // Remove bullet markers if present
+        cleaned = cleaned.replace(/^[•\-\*]\s*/, '').trim()
+        // Remove JSON escape characters
+        cleaned = cleaned.replace(/\\"/g, '"').replace(/\\'/g, "'")
+        return cleaned
+      }
+
+      const cleanedBullets = (result.bullets || []).map(cleanBullet).filter(text => text.length > 0)
+      
       setGeneratedData({
-        companyName: result.companyName || formData.companyName,
-        jobTitle: result.jobTitle || formData.jobTitle,
-        dateRange: result.dateRange || formData.dateRange,
-        bullets: result.bullets || []
+        companyName: (result.companyName || formData.companyName || '').trim(),
+        jobTitle: (result.jobTitle || formData.jobTitle || '').trim(),
+        dateRange: (result.dateRange || formData.dateRange || '').trim(),
+        bullets: cleanedBullets
       })
     } catch (error) {
       console.error('Error generating work experience:', error)

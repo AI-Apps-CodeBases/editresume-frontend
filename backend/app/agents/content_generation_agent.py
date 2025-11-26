@@ -720,9 +720,27 @@ class ContentGenerationAgent:
                     if line.strip() and not line.strip().startswith(("#", "-"))
                 ]
 
+            # Clean bullets: remove quotes, special characters, and extra whitespace
+            def clean_bullet(bullet: str) -> str:
+                if not bullet:
+                    return ""
+                # Remove surrounding quotes (both single and double)
+                bullet = bullet.strip()
+                if (bullet.startswith('"') and bullet.endswith('"')) or (bullet.startswith("'") and bullet.endswith("'")):
+                    bullet = bullet[1:-1]
+                # Remove any remaining quotes at start/end
+                bullet = bullet.strip('"').strip("'")
+                # Remove bullet markers if present
+                bullet = bullet.lstrip("•").lstrip("-").lstrip("*").strip()
+                # Remove any JSON escape characters
+                bullet = bullet.replace('\\"', '"').replace("\\'", "'")
+                return bullet.strip()
+
+            cleaned_bullets = [clean_bullet(str(bullet)) for bullet in bullets if clean_bullet(str(bullet))]
+
             return {
                 "success": True,
-                "bullets": bullets,
+                "bullets": cleaned_bullets,
                 "tokens_used": result.get("usage", {}).get("total_tokens", 0),
             }
 

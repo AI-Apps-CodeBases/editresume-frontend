@@ -1218,10 +1218,13 @@ export default function VisualResumeEditor({
         const updatedBullets = (section.bullets || []).map(bullet => {
           if (bullet.id === bulletId) {
             // Update the company header with new information
-            const location = updateData.location || 'Location'
+            const companyName = (updateData.companyName || '').trim() || 'New Company'
+            const location = (updateData.location || 'Location').trim()
+            const jobTitle = (updateData.jobTitle || '').trim() || 'New Role'
+            const dateRange = (updateData.dateRange || '').trim() || 'Date Range'
             return {
               ...bullet,
-              text: `**${updateData.companyName} / ${location} / ${updateData.jobTitle} / ${updateData.dateRange}**`
+              text: `**${companyName} / ${location} / ${jobTitle} / ${dateRange}**`
             }
           }
           return bullet
@@ -1245,12 +1248,31 @@ export default function VisualResumeEditor({
         // Remove old bullets
         const filteredBullets = updatedBullets.filter(bullet => !companyBulletIds.includes(bullet.id))
 
-        // Add new bullets after the company header
-        const newBullets = updateData.bullets.map((bulletText, index) => ({
-          id: `bullet-${Date.now()}-${index}`,
-          text: `• ${bulletText}`,
-          params: {}
-        }))
+        // Clean and add new bullets after the company header
+        const cleanBulletText = (text: string): string => {
+          if (!text) return ""
+          // Remove surrounding quotes
+          let cleaned = text.trim()
+          if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+            cleaned = cleaned.slice(1, -1)
+          }
+          // Remove any remaining quotes
+          cleaned = cleaned.trim().replace(/^["']+|["']+$/g, '')
+          // Remove bullet markers if present
+          cleaned = cleaned.replace(/^[•\-\*]\s*/, '').trim()
+          // Remove JSON escape characters
+          cleaned = cleaned.replace(/\\"/g, '"').replace(/\\'/g, "'")
+          return cleaned
+        }
+
+        const newBullets = updateData.bullets
+          .map(cleanBulletText)
+          .filter(text => text.length > 0)
+          .map((bulletText, index) => ({
+            id: `bullet-${Date.now()}-${index}`,
+            text: `• ${bulletText}`,
+            params: {}
+          }))
 
         // Insert new bullets after the company header
         const newHeaderIndex = filteredBullets.findIndex(b => b.id === bulletId)
