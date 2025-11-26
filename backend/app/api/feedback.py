@@ -1,0 +1,87 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from app.core.db import get_db
+from app.models.feedback import Feedback
+from app.models.user import User
+from app.services.email_service import send_feedback_notification
+from pydantic import BaseModel
+from typing import Optional, List
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/feedback", tags=["feedback"])
+
+
+class FeedbackCreate(BaseModel):
+    rating: Optional[int] = None
+    feedback: str
+    category: str = "general"
+    page_url: Optional[str] = None
+    user_email: Optional[str] = None
+
+
+class FeedbackResponse(BaseModel):
+    id: int
+    user_email: Optional[str]
+    rating: Optional[int]
+    feedback: str
+    category: str
+    page_url: Optional[str]
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+@router.post("", response_model=dict)
+async def create_feedback(
+    payload: FeedbackCreate,
+    db: Session = Depends(get_db)
+):
+    user = None
+    if payload.user_email:
+        user = db.query(User).filter(User.email == payload.user_email).first()
+    
+    feedback = Feedback(
+        user_id=user.id if user else None,
+        user_email=payload.user_email,
+        rating=payload.rating,
+        feedback=payload.feedback,
+        category=payload.category,
+        page_url=payload.page_url
+    )
+    
+    db.add(feedback)
+    db.commit()
+    db.refresh(feedback)
+
+    send_feedback_notification(
+        feedback_text=payload.feedback,
+        category=payload.category,
+        rating=payload.rating,
+        user_email=payload.user_email,
+        page_url=payload.page_url,
+    )
+    
+    return {"success": True, "id": feedback.id}
+
+
+@router.get("", response_model=List[FeedbackResponse])
+async def get_feedback(
+    user_email: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    user = db.query(User).filter(User.email == user_email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not user.is_premium:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
+    return feedbacks
+
