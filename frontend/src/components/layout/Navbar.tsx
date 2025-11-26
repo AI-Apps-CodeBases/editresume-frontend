@@ -75,35 +75,34 @@ export default function Navbar() {
         </div>
       </div>
 
-        {open && (
-          <div className="pb-6 lg:hidden">
-            <nav className="flex flex-col gap-1 rounded-2xl border border-border-subtle bg-white p-4 shadow-[0_18px_30px_rgba(15,23,42,0.06)]">
-              <Link href="/" className="flex items-center mb-2" onClick={() => setOpen(false)}>
-                <Image 
-                  src="/logo.jpg" 
-                  alt="editresume.io" 
-                  width={480} 
-                  height={240}
-                  className="h-20 w-auto"
-                  priority
-                />
+      {open && (
+        <div className="pb-6 lg:hidden px-4 sm:px-6 lg:px-8">
+          <nav className="flex flex-col gap-1 rounded-2xl border border-border-subtle bg-white p-4 shadow-[0_18px_30px_rgba(15,23,42,0.06)]">
+            <Link href="/" className="flex items-center mb-2" onClick={() => setOpen(false)}>
+              <Image 
+                src="/logo.jpg" 
+                alt="editresume.io" 
+                width={480} 
+                height={240}
+                className="h-20 w-auto"
+                priority
+              />
+            </Link>
+            {primaryNav.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                  isActive(item.href) ? 'bg-primary-50 text-primary-700' : 'text-text-muted hover:bg-primary-50/50'
+                }`}
+              >
+                {item.label}
               </Link>
-              {primaryNav.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                    isActive(item.href) ? 'bg-primary-50 text-primary-700' : 'text-text-muted hover:bg-primary-50/50'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        )}
-      </div>
+            ))}
+          </nav>
+        </div>
+      )}
     </header>
   )
 }
