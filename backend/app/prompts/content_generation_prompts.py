@@ -291,6 +291,8 @@ def get_work_experience_prompt(
     current_bullets: list[str],
     tone: str,
     skills: str | None = None,
+    projects: str | None = None,
+    job_description: str | None = None,
 ) -> str:
     """Generate work experience entry prompt."""
     tone_instructions = {
@@ -303,7 +305,21 @@ def get_work_experience_prompt(
     tone_instruction = tone_instructions.get(tone, tone_instructions["professional"])
 
     bullets_text = "\n".join([f"- {b}" for b in current_bullets]) if current_bullets else "None"
-    skills_text = f"\nSkills: {skills}" if skills else ""
+    skills_text = f"\nSkills/Experience Description: {skills}" if skills else ""
+    projects_text = f"\nProjects Worked On: {projects}" if projects else ""
+    
+    jd_section = ""
+    if job_description:
+        jd_section = f"""
+TARGET JOB DESCRIPTION (CRITICAL - Match keywords and requirements from this):
+{job_description[:2000]}
+
+IMPORTANT: Your generated bullet points MUST:
+- Include keywords and technologies mentioned in the job description
+- Match the requirements and responsibilities from the job description
+- Use terminology that aligns with the job description
+- Highlight experiences that directly relate to what the job is looking for
+"""
 
     return f"""Generate professional resume bullet points for this work experience entry:
 
@@ -312,7 +328,7 @@ Company: {company}
 Date Range: {date_range}
 Current Bullets:
 {bullets_text}
-{skills_text}
+{skills_text}{projects_text}{jd_section}
 
 Requirements:
 - Generate 4-6 professional bullet points
@@ -320,9 +336,10 @@ Requirements:
 - Use strong action verbs
 - Focus on achievements and impact
 - {tone_instruction}
-- ATS-friendly format
+- ATS-friendly format optimized for the target job description
 - Each bullet should be 1-2 lines
 - Make them diverse and cover different aspects of the role
+- Prioritize matching keywords and requirements from the job description
 
 Return ONLY a JSON array of bullet point strings, e.g. ["Bullet 1", "Bullet 2"]."""
 

@@ -787,12 +787,14 @@ async def generate_work_experience(payload: WorkExperienceRequest):
 
         # Use content generation agent
         result = await content_generation_agent.generate_work_experience(
-            role=payload.currentJobTitle or "Software Engineer",
-            company=payload.currentCompany or "Tech Company",
-            date_range=payload.currentDateRange or "2020-2023",
+            role=payload.currentJobTitle or payload.role or "Software Engineer",
+            company=payload.currentCompany or payload.company or "Tech Company",
+            date_range=payload.currentDateRange or payload.duration or "2020-2023",
             current_bullets=[],
-            tone="professional",
-            skills=payload.experienceDescription,
+            tone=payload.tone or "professional",
+            skills=payload.experienceDescription or payload.achievements,
+            projects=payload.projects,
+            job_description=payload.jobDescription,
         )
 
         # Parse bullets and return in expected format
