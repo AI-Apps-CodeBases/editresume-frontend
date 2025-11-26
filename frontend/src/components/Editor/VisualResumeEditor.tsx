@@ -1269,10 +1269,10 @@ export default function VisualResumeEditor({
           .map(cleanBulletText)
           .filter(text => text.length > 0)
           .map((bulletText, index) => ({
-            id: `bullet-${Date.now()}-${index}`,
-            text: `• ${bulletText}`,
-            params: {}
-          }))
+          id: `bullet-${Date.now()}-${index}`,
+          text: `• ${bulletText}`,
+          params: {}
+        }))
 
         // Insert new bullets after the company header
         const newHeaderIndex = filteredBullets.findIndex(b => b.id === bulletId)

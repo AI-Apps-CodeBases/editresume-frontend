@@ -1626,10 +1626,10 @@ const EditorPageContent = () => {
               .map(cleanBulletText)
               .filter((text: string) => text.length > 0)
               .map((bulletText: string, index: number) => ({
-                id: `bullet-${Date.now()}-${index}`,
-                text: `• ${bulletText}`,
-                params: {}
-              }))
+              id: `bullet-${Date.now()}-${index}`,
+              text: `• ${bulletText}`,
+              params: {}
+            }))
             
             // Insert new bullets after the company header
             const headerIndex = updatedBullets.findIndex(b => b.id === bulletId)
