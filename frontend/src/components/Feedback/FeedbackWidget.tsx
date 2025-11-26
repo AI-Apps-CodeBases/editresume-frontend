@@ -1,29 +1,13 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import FeedbackModal from './FeedbackModal'
 
 export default function FeedbackWidget() {
   const [isOpen, setIsOpen] = useState(false)
-  const [hasSubmitted, setHasSubmitted] = useState(false)
-
-  useEffect(() => {
-    const submitted = localStorage.getItem('feedback_submitted')
-    if (submitted) {
-      const submittedDate = new Date(submitted)
-      const daysSince = (Date.now() - submittedDate.getTime()) / (1000 * 60 * 60 * 24)
-      if (daysSince < 30) {
-        setHasSubmitted(true)
-      } else {
-        localStorage.removeItem('feedback_submitted')
-      }
-    }
-  }, [])
-
-  if (hasSubmitted) return null
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-50 group">
+      <div className="fixed bottom-6 right-6 z-[10002] group">
         <button
           onClick={() => setIsOpen(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all hover:scale-110 relative"
@@ -33,8 +17,8 @@ export default function FeedbackWidget() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
           </svg>
         </button>
-        <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-          <div className="bg-gray-900 text-white text-sm px-3 py-2 rounded-lg shadow-lg whitespace-nowrap">
+        <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+          <div className="bg-gray-900 text-white text-sm px-3 py-2 rounded-lg shadow-lg">
             Add a Feedback
             <div className="absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent border-l-gray-900"></div>
           </div>

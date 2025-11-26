@@ -39,7 +39,6 @@ export default function FeedbackModal({ isOpen, onClose }: Props) {
       })
 
       if (response.ok) {
-        localStorage.setItem('feedback_submitted', new Date().toISOString())
         await showAlert({
           message: 'Thank you for your feedback!',
           type: 'success',
