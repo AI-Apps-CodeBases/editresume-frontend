@@ -1593,17 +1593,39 @@ const EditorPageContent = () => {
           const updatedBullets = section.bullets.map(bullet => {
             if (bullet.id === bulletId) {
               // Update the company header with new information
+              const finalCompanyName = (content.companyName || companyName || '').trim() || 'New Company'
+              const finalJobTitle = (content.jobTitle || jobTitle || '').trim() || 'New Role'
+              const finalDateRange = (content.dateRange || dateRange || '').trim() || 'Date Range'
               return {
                 ...bullet,
-                text: `**${content.companyName || companyName} / ${content.jobTitle || jobTitle} / ${content.dateRange || dateRange}**`
+                text: `**${finalCompanyName} / Location / ${finalJobTitle} / ${finalDateRange}**`
               }
             }
             return bullet
           })
           
-          // Add new bullet points after the company header
+          // Clean and add new bullet points after the company header
+          const cleanBulletText = (text: string): string => {
+            if (!text) return ""
+            let cleaned = text.trim()
+            // Remove surrounding quotes
+            if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+              cleaned = cleaned.slice(1, -1)
+            }
+            // Remove any remaining quotes
+            cleaned = cleaned.trim().replace(/^["']+|["']+$/g, '')
+            // Remove bullet markers if present
+            cleaned = cleaned.replace(/^[•\-\*]\s*/, '').trim()
+            // Remove JSON escape characters
+            cleaned = cleaned.replace(/\\"/g, '"').replace(/\\'/g, "'")
+            return cleaned
+          }
+
           if (content.bullets && content.bullets.length > 0) {
-            const newBullets = content.bullets.map((bulletText: string, index: number) => ({
+            const newBullets = content.bullets
+              .map(cleanBulletText)
+              .filter((text: string) => text.length > 0)
+              .map((bulletText: string, index: number) => ({
               id: `bullet-${Date.now()}-${index}`,
               text: `• ${bulletText}`,
               params: {}
