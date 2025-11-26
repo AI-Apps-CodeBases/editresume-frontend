@@ -675,10 +675,16 @@ export default function VisualResumeEditor({
   const highlightKeywordsInHTML = (text: string, matchedKeywords: string[]): string => {
     if (!matchedKeywords.length || !text || typeof text !== 'string') return text || '';
 
-    // First, decode any existing HTML entities to avoid double-encoding
+    // ALWAYS extract plain text first - strip any existing HTML/markup to prevent nested highlights
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = text;
-    let cleanText = tempDiv.textContent || tempDiv.innerText || text;
+    if (text.includes('<mark') || text.includes('<')) {
+      tempDiv.innerHTML = text;
+    } else {
+      tempDiv.textContent = text;
+    }
+    const cleanText = tempDiv.textContent || tempDiv.innerText || text;
+
+    if (!cleanText || cleanText.trim().length === 0) return cleanText;
 
     let highlightedText = cleanText;
     const sortedKeywords = [...matchedKeywords]
@@ -704,22 +710,26 @@ export default function VisualResumeEditor({
           regex = new RegExp(`\\b(${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
         }
         
-        highlightedText = highlightedText.replace(regex, (match) => {
-          if (!match) return match;
-          // Properly escape HTML entities for the title attribute
-          const escapedKeyword = keyword
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-          // Escape the match text itself for HTML
-          const escapedMatch = match
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-          return `<mark class="bg-green-200 text-green-900 font-semibold underline" title="JD Keyword: ${escapedKeyword}">${escapedMatch}</mark>`;
-        });
+        // Only highlight if the keyword exists in the clean text (prevent double highlighting)
+        if (regex.test(highlightedText)) {
+          highlightedText = highlightedText.replace(regex, (match) => {
+            if (!match) return match;
+            // Check if match is already inside a mark tag by checking the current HTML structure
+            // Since we're working on clean text now, we don't need to worry about this
+            const escapedKeyword = keyword
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+            // Escape the match text itself for HTML
+            const escapedMatch = match
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+            return `<mark class="bg-green-200 text-green-900 font-semibold underline" title="JD Keyword: ${escapedKeyword}">${escapedMatch}</mark>`;
+          });
+        }
       } catch (e) {
         console.warn('Error highlighting keyword in HTML:', keyword, e);
       }
@@ -779,13 +789,13 @@ export default function VisualResumeEditor({
   // Track previous summary text to prevent unnecessary updates
   const previousSummaryRef = useRef<string>('');
   const previousKeywordsRef = useRef<string>('');
+  const shouldRehighlightRef = useRef<boolean>(false);
 
   // Update highlighting when keywords change (client-side only to avoid hydration errors)
   useEffect(() => {
     if (!isHydrated) return;
     if (typeof window === 'undefined') return;
     if (!jdKeywords?.matching?.length) return;
-    if (summaryHighlightingRef.current) return;
 
     // Update summary highlighting
     const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
@@ -796,61 +806,67 @@ export default function VisualResumeEditor({
       return;
     }
 
+    // Skip if currently highlighting (unless explicitly requested)
+    if (summaryHighlightingRef.current && !shouldRehighlightRef.current) {
+      return;
+    }
+
     const currentSummary = data.summary || '';
     const cleanText = summaryField.textContent || currentSummary || '';
     const keywordsHash = JSON.stringify(jdKeywords.matching);
     
-    // Only proceed if summary text or keywords have actually changed
-    const summaryChanged = cleanText.trim() !== previousSummaryRef.current.trim();
-    const keywordsChanged = keywordsHash !== previousKeywordsRef.current;
+    // Always get plain text from field (strips any existing HTML)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = summaryField.innerHTML || '';
+    const plainText = tempDiv.textContent || cleanText || '';
     
-    if (!summaryChanged && !keywordsChanged && summaryField.innerHTML.includes('<mark')) {
+    // Check if we need to update
+    const summaryChanged = plainText.trim() !== previousSummaryRef.current.trim();
+    const keywordsChanged = keywordsHash !== previousKeywordsRef.current;
+    const needsHighlight = shouldRehighlightRef.current || summaryChanged || keywordsChanged;
+    
+    if (!needsHighlight && summaryField.innerHTML.includes('<mark')) {
       return;
     }
 
-    if (currentSummary) {
+    if (currentSummary && plainText.trim()) {
       try {
         summaryHighlightingRef.current = true;
-        previousSummaryRef.current = cleanText;
+        previousSummaryRef.current = plainText.trim();
         previousKeywordsRef.current = keywordsHash;
+        shouldRehighlightRef.current = false;
         
-        // Get clean text content (strip any existing HTML)
-        const currentInnerHTML = summaryField.innerHTML || '';
-        
-        // Strip any existing HTML to get clean text
-        const tempDiv = document.createElement('div');
-        if (currentInnerHTML) {
-          tempDiv.innerHTML = currentInnerHTML;
-        }
-        const strippedText = tempDiv.textContent || cleanText;
-        
-        const summaryMatches = getTextMatches(strippedText);
+        const summaryMatches = getTextMatches(plainText);
         
         if (summaryMatches.matchedKeywords.length > 0) {
-          // Only update if we haven't already highlighted this exact content
-          const hasExistingHighlights = currentInnerHTML.includes('<mark');
+          // Always highlight from clean plain text to prevent nested highlights
+          const highlighted = highlightKeywordsInHTML(plainText, summaryMatches.matchedKeywords);
+          const currentHTML = summaryField.innerHTML || '';
           
-          if (!hasExistingHighlights || keywordsChanged) {
-            const highlighted = highlightKeywordsInHTML(strippedText, summaryMatches.matchedKeywords);
-            // Only set if different to prevent loops
-            if (highlighted !== currentInnerHTML) {
-              summaryField.innerHTML = highlighted;
-            }
+          // Only update if different (compare plain text portions)
+          const tempDivCurrent = document.createElement('div');
+          tempDivCurrent.innerHTML = currentHTML;
+          const currentPlainText = tempDivCurrent.textContent || '';
+          
+          if (highlighted !== currentHTML && plainText.trim() === currentPlainText.trim()) {
+            summaryField.innerHTML = highlighted;
           }
-        } else if (currentInnerHTML.includes('<mark') && strippedText) {
+        } else {
           // Remove highlighting if no matches
-          summaryField.textContent = strippedText;
+          if (summaryField.innerHTML.includes('<mark')) {
+            summaryField.textContent = plainText;
+          }
         }
       } catch (e) {
         console.warn('Error highlighting summary:', e);
       } finally {
-        // Reset flag after a short delay to allow updates when needed
+        // Reset flag after highlighting completes
         setTimeout(() => {
           summaryHighlightingRef.current = false;
-        }, 200);
+        }, 100);
       }
     }
-  }, [isHydrated, jdKeywords]);
+  }, [isHydrated, jdKeywords, data.summary]);
 
   // Add page break styles
   useEffect(() => {
@@ -2121,19 +2137,29 @@ export default function VisualResumeEditor({
                               data-editable-type="field"
                               data-field="summary"
                               onFocus={(e) => {
-                                // Remove highlighting when user starts editing
+                                // Remove highlighting when user starts editing to allow clean editing
                                 const textContent = e.currentTarget.textContent || '';
                                 if (e.currentTarget.innerHTML !== textContent) {
                                   e.currentTarget.textContent = textContent;
                                 }
+                                shouldRehighlightRef.current = false;
                               }}
                               onBlur={(e) => {
                                 const textContent = e.currentTarget.textContent || '';
                                 updateField('summary', textContent);
-                                // Re-apply highlighting after blur (will be handled by useEffect)
+                                // Trigger re-highlighting after blur
+                                shouldRehighlightRef.current = true;
+                                summaryHighlightingRef.current = false;
+                                // Force effect to run by updating a dependency
+                                // The effect will check shouldRehighlightRef and re-apply highlights
                                 setTimeout(() => {
-                                  summaryHighlightingRef.current = false;
-                                }, 200);
+                                  // Small delay to ensure updateField has completed
+                                  const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
+                                  if (summaryField && !summaryField.matches(':focus')) {
+                                    // Trigger re-highlight by resetting refs
+                                    previousSummaryRef.current = '';
+                                  }
+                                }, 100);
                               }}
                               className="text-sm text-gray-700 leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200"
                             >
