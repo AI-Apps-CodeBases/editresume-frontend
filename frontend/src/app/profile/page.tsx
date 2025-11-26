@@ -1,5 +1,6 @@
 'use client'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import SettingsPanel from '@/components/SettingsPanel'
@@ -38,6 +39,7 @@ interface CheckoutSessionResponse {
 
 function ProfilePageContent() {
   const { user, isAuthenticated, logout } = useAuth()
+  const { showAlert, showConfirm } = useModal()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
@@ -287,8 +289,13 @@ function ProfilePageContent() {
     }
   }, [activeTab, isAuthenticated, user?.email, savedJDs.length, savedResumes.length, jobsLoading, resumesLoading, fetchJobDescriptions, fetchSavedResumes])
 
-  const handleDeleteAccount = () => {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+  const handleDeleteAccount = async () => {
+    const confirmed = await showConfirm({
+      title: 'Delete Account',
+      message: 'Are you sure you want to delete your account? This action cannot be undone.',
+      type: 'danger'
+    })
+    if (confirmed) {
       logout()
       router.push('/')
     }
@@ -299,7 +306,11 @@ function ProfilePageContent() {
 
     const currentUser = auth.currentUser
     if (!currentUser) {
-      alert('Unable to start checkout. Please sign in again.')
+      await showAlert({
+        type: 'warning',
+        message: 'Unable to start checkout. Please sign in again.',
+        title: 'Authentication Required'
+      })
       return
     }
 
@@ -335,7 +346,11 @@ function ProfilePageContent() {
       }
     } catch (error) {
       console.error('Checkout error', error)
-      alert(error instanceof Error ? error.message : 'Failed to start checkout. Please try again.')
+      await showAlert({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to start checkout. Please try again.',
+        title: 'Checkout Failed'
+      })
     } finally {
       setCheckoutLoading(false)
     }
@@ -732,7 +747,11 @@ function ProfilePageContent() {
                                     }
                                   } catch (error) {
                                     console.error('Failed to export resume:', error)
-                                    alert(`Failed to export resume: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                                    await showAlert({
+                                      type: 'error',
+                                      message: `Failed to export resume: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                      title: 'Export Failed'
+                                    })
                                   } finally {
                                     exportBtn.disabled = false
                                     exportBtn.textContent = originalText
@@ -746,7 +765,12 @@ function ProfilePageContent() {
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation()
-                                    if (!confirm(`Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`)) return
+                                    const confirmed = await showConfirm({
+                                      title: 'Delete Resume',
+                                      message: `Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`,
+                                      type: 'danger'
+                                    })
+                                    if (!confirmed) return
                                     
                                     const deleteBtn = e.currentTarget
                                     const originalText = deleteBtn.textContent
@@ -775,13 +799,21 @@ function ProfilePageContent() {
                                         }, 3000)
                                       } else {
                                         const errorData = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
-                                        alert(`Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`)
+                                        await showAlert({
+                                          type: 'error',
+                                          message: `Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`,
+                                          title: 'Delete Failed'
+                                        })
                                         deleteBtn.disabled = false
                                         deleteBtn.textContent = originalText
                                       }
                                     } catch (error) {
                                       console.error('Failed to delete resume:', error)
-                                      alert(`Failed to delete resume: ${error instanceof Error ? error.message : 'Network error'}`)
+                                      await showAlert({
+                                        type: 'error',
+                                        message: `Failed to delete resume: ${error instanceof Error ? error.message : 'Network error'}`,
+                                        title: 'Delete Failed'
+                                      })
                                       deleteBtn.disabled = false
                                       deleteBtn.textContent = originalText
                                     }
@@ -1017,7 +1049,12 @@ function ProfilePageContent() {
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation()
-                                    if (!confirm(`Are you sure you want to delete "${jd.title}"? This action cannot be undone.`)) return
+                                    const confirmed = await showConfirm({
+                                      title: 'Delete Job Description',
+                                      message: `Are you sure you want to delete "${jd.title}"? This action cannot be undone.`,
+                                      type: 'danger'
+                                    })
+                                    if (!confirmed) return
                                     
                                     const deleteBtn = e.currentTarget
                                     const originalText = deleteBtn.textContent
@@ -1046,13 +1083,21 @@ function ProfilePageContent() {
                                         }, 3000)
                                       } else {
                                         const errorData = await res.json().catch(() => ({ detail: 'Failed to delete job description' }))
-                                        alert(`Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`)
+                                        await showAlert({
+                                          type: 'error',
+                                          message: `Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`,
+                                          title: 'Delete Failed'
+                                        })
                                         deleteBtn.disabled = false
                                         deleteBtn.textContent = originalText
                                       }
                                     } catch (e) {
                                       console.error('Failed to delete job description:', e)
-                                      alert(`Failed to delete job description: ${e instanceof Error ? e.message : 'Network error'}`)
+                                      await showAlert({
+                                        type: 'error',
+                                        message: `Failed to delete job description: ${e instanceof Error ? e.message : 'Network error'}`,
+                                        title: 'Delete Failed'
+                                      })
                                       deleteBtn.disabled = false
                                       deleteBtn.textContent = originalText
                                     }
@@ -1134,7 +1179,13 @@ function ProfilePageContent() {
                     <button
                       type="button"
                       className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold"
-                      onClick={() => alert('To manage or cancel your subscription, please contact support@editresume.io.')}
+                      onClick={async () => {
+                        await showAlert({
+                          type: 'info',
+                          message: 'To manage or cancel your subscription, please contact support@editresume.io.',
+                          title: 'Manage Subscription'
+                        })
+                      }}
                     >
                       Manage Subscription
                     </button>

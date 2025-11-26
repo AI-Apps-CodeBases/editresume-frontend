@@ -638,6 +638,8 @@ class ContentGenerationAgent:
         current_bullets: list[str],
         tone: str,
         skills: str | None = None,
+        projects: str | None = None,
+        job_description: str | None = None,
     ) -> dict:
         """Generate work experience entry."""
         if not self.openai_client:
@@ -653,6 +655,8 @@ class ContentGenerationAgent:
                 current_bullets=current_bullets,
                 tone=tone,
                 skills=skills,
+                projects=projects,
+                job_description=job_description,
             )
 
             headers = {
