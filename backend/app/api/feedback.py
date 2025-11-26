@@ -56,7 +56,7 @@ async def create_feedback(
     db.commit()
     db.refresh(feedback)
 
-    send_feedback_notification(
+    email_sent = send_feedback_notification(
         feedback_text=payload.feedback,
         category=payload.category,
         rating=payload.rating,
@@ -64,7 +64,10 @@ async def create_feedback(
         page_url=payload.page_url,
     )
     
-    return {"success": True, "id": feedback.id}
+    if not email_sent:
+        logger.warning(f"Feedback saved (ID: {feedback.id}) but email notification failed. Check logs for details.")
+    
+    return {"success": True, "id": feedback.id, "email_sent": email_sent}
 
 
 @router.get("", response_model=List[FeedbackResponse])
