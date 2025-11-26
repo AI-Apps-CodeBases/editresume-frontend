@@ -353,18 +353,26 @@ class EnhancedATSChecker:
             if not found:
                 missing_sections.append(section_type)
 
-        # Calculate structure score with improved scaling
-        base_section_score = len(found_sections) * 20  # 20 points per section
+        # Improved scoring: More generous base score and better scaling
+        found_count = sum(1 for found in found_sections.values() if found)
+        base_section_score = found_count * 25  # Increased from 20 to 25 per section
         
         # Bonus for having contact info
-        contact_bonus = 10 if bool(
+        contact_bonus = 15 if bool(
             resume_data.get("email") or resume_data.get("phone")
         ) else 0
         
         # Bonus for having multiple sections (encourages completeness)
-        section_count_bonus = min(20, len(resume_data.get("sections", [])) * 2)
+        section_count_bonus = min(30, len(resume_data.get("sections", [])) * 3)  # Increased from 2 to 3
         
-        section_score = min(100, base_section_score + contact_bonus + section_count_bonus)
+        # Additional bonus for having summary/objective
+        summary_bonus = 10 if resume_data.get("summary") else 0
+        
+        section_score = min(100, base_section_score + contact_bonus + section_count_bonus + summary_bonus)
+        
+        # Ensure minimum score if resume has any content
+        if len(resume_data.get("sections", [])) > 0:
+            section_score = max(30, section_score)  # Minimum 30 if has sections
 
         return {
             "found_sections": found_sections,
@@ -452,15 +460,17 @@ class EnhancedATSChecker:
         if leadership_density < 0.2:
             suggestions.append("Include leadership and team collaboration keywords")
 
-        # Calculate keyword score with improved scaling (removed hard caps)
-        base_score = 40
-        # Use logarithmic scaling to allow continued improvement without hard caps
-        action_bonus = min(25, 20 + (action_density * 2.5))
-        technical_bonus = min(25, 15 + (technical_density * 4))
-        metrics_bonus = min(25, 15 + (metrics_density * 5))
-        leadership_bonus = min(20, 10 + (leadership_density * 6))
+        # Improved scoring: Higher base score and better scaling
+        base_score = 50  # Increased from 40 to 50
+        
+        # Improved bonus calculations with better scaling
+        action_bonus = min(30, 15 + (action_density * 3))  # Increased max from 25 to 30
+        technical_bonus = min(30, 20 + (technical_density * 5))  # Increased max from 25 to 30
+        metrics_bonus = min(30, 20 + (metrics_density * 6))  # Increased max from 25 to 30
+        leadership_bonus = min(25, 15 + (leadership_density * 7))  # Increased max from 20 to 25
+        
         # Job match bonus scales better
-        job_bonus = min(30, job_match_score * 0.3) if job_description else 0
+        job_bonus = min(40, job_match_score * 0.4) if job_description else 0  # Increased max from 30 to 40
 
         keyword_score = min(
             100,
@@ -471,6 +481,10 @@ class EnhancedATSChecker:
             + leadership_bonus
             + job_bonus,
         )
+        
+        # Ensure minimum score if resume has keywords
+        if action_verb_count > 0 or technical_count > 0:
+            keyword_score = max(40, keyword_score)  # Minimum 40 if has keywords
 
         return {
             "score": keyword_score,
@@ -534,22 +548,26 @@ class EnhancedATSChecker:
             1 for word in buzzwords if word.lower() in text_content.lower()
         )
 
-        # Calculate quality score
-        quality_score = 50  # Base score
+        # Improved quality score calculation: Higher base and better rewards
+        quality_score = 60  # Increased from 50 to 60
 
         if quantified_achievements > 0:
-            quality_score += min(30, quantified_achievements * 5)
+            quality_score += min(35, quantified_achievements * 6)  # Increased from 30 to 35, better scaling
 
         if strong_verb_count > 0:
-            quality_score += min(20, strong_verb_count * 3)
+            quality_score += min(25, strong_verb_count * 4)  # Increased from 20 to 25, better scaling
 
         if vague_count > 0:
-            quality_score -= min(20, vague_count * 5)
+            quality_score -= min(15, vague_count * 3)  # Reduced penalty from 20 to 15
 
         if buzzword_count > 3:
-            quality_score -= min(10, (buzzword_count - 3) * 2)
+            quality_score -= min(8, (buzzword_count - 3) * 1.5)  # Reduced penalty from 10 to 8
 
         quality_score = max(0, min(100, quality_score))
+        
+        # Ensure minimum score if resume has content
+        if text_content.strip():
+            quality_score = max(45, quality_score)  # Minimum 45 if has content
 
         suggestions = []
         if vague_count > 0:
@@ -1084,14 +1102,17 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         formatting_analysis = self.check_formatting_compatibility(resume_data)
 
-        # Calculate weighted overall score with improved weights
-        # Increased section and quality weights to allow more improvement
+        # Improved weighted scoring: Better balance to allow higher scores
         overall_score = (
-            structure_analysis["section_score"] * 0.28
-            + keyword_analysis["score"] * 0.32
-            + quality_analysis["score"] * 0.25
-            + formatting_analysis["score"] * 0.15
+            structure_analysis["section_score"] * 0.25  # Reduced from 0.28
+            + keyword_analysis["score"] * 0.35  # Increased from 0.32
+            + quality_analysis["score"] * 0.28  # Increased from 0.25
+            + formatting_analysis["score"] * 0.12  # Reduced from 0.15
         )
+        
+        # Ensure minimum score if resume has meaningful content
+        if resume_text.strip() and len(resume_data.get("sections", [])) > 0:
+            overall_score = max(35, overall_score)  # Minimum 35 if has content
 
         # Generate AI improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)

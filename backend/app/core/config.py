@@ -9,9 +9,9 @@ usage across the app without scattering ``os.getenv`` calls.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Optional, Union
 
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,8 +30,8 @@ class Settings(BaseSettings):
 
     database_url: Optional[str] = Field(default=None, env="DATABASE_URL")
 
-    additional_cors_origins: List[str] = Field(
-        default_factory=list, env="ADDITIONAL_CORS_ORIGINS"
+    additional_cors_origins: Union[str, List[str]] = Field(
+        default="", env="ADDITIONAL_CORS_ORIGINS"
     )
 
     firebase_project_id: Optional[str] = Field(default=None, env="FIREBASE_PROJECT_ID")
@@ -62,14 +62,19 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @validator("additional_cors_origins", pre=True)
-    def split_cors_origins(cls, value: str | List[str]):  # noqa: D401, N805
+    @field_validator("additional_cors_origins", mode="before")
+    @classmethod
+    def split_cors_origins(cls, value: str | List[str] | None):  # noqa: D401, N805
         """Split comma-separated origins into a list."""
-        if not value:
+        if value is None:
             return []
         if isinstance(value, list):
             return value
-        return [origin.strip() for origin in value.split(",") if origin.strip()]
+        if isinstance(value, str):
+            if not value.strip():
+                return []
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return []
 
     @property
     def base_allowed_origins(self) -> List[str]:
@@ -90,7 +95,11 @@ class Settings(BaseSettings):
     def allowed_origins(self) -> List[str]:
         """Union of default and environment-provided CORS origins."""
         merged = [str(origin) for origin in self.base_allowed_origins]
-        merged.extend(self.additional_cors_origins)
+        if isinstance(self.additional_cors_origins, str):
+            cors_origins = [origin.strip() for origin in self.additional_cors_origins.split(",") if origin.strip()]
+        else:
+            cors_origins = self.additional_cors_origins
+        merged.extend(cors_origins)
         # Remove duplicates while preserving order
         seen: set[str] = set()
         unique: List[str] = []

@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface TopNavigationBarProps {
@@ -44,7 +45,7 @@ export default function TopNavigationBar({
 
   return (
     <div className="fixed top-16 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div className="flex items-center justify-between h-14 px-3 sm:px-6">
+      <div className="flex items-center justify-between h-14">
         {/* Left: Logo + Mobile Menu */}
         <div className="flex items-center gap-2 sm:gap-3">
           <button
@@ -56,18 +57,20 @@ export default function TopNavigationBar({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <Image 
-            src="/logo.jpg" 
-            alt="editresume.io" 
-            width={180} 
-            height={60}
-            className="h-10 sm:h-14 w-auto"
-            priority
-          />
+          <Link href="/" className="flex items-center -ml-0">
+            <Image 
+              src="/logo.jpg" 
+              alt="editresume.io" 
+              width={480} 
+              height={240}
+              className="h-20 w-auto"
+              priority
+            />
+          </Link>
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-3 pr-3 sm:pr-6">
           {/* New Resume - Hidden on mobile */}
           {onNewResume && (
             <button

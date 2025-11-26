@@ -9,6 +9,7 @@ import { auth } from '@/lib/firebaseClient'
 import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { StatsPanel } from '@/components/home/StatsPanel'
+import { DocumentIcon, DownloadIcon, ClockIcon, FolderIcon, DiamondIcon, EditIcon } from '@/components/Icons'
 
 interface ResumeHistory {
   id: string
@@ -213,7 +214,15 @@ function ProfilePageContent() {
     setJobsLoading(true)
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
-      const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
+      const currentUser = auth.currentUser
+      const token = currentUser ? await currentUser.getIdToken() : null
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+        headers
+      })
       if (res.ok) {
         const data = await res.json()
         const jds = Array.isArray(data) ? data : data.results || []
@@ -360,7 +369,9 @@ function ProfilePageContent() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-body-gradient">
         <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
-          <div className="mb-4 text-4xl animate-pulse">📄</div>
+          <div className="flex justify-center mb-4">
+            <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+          </div>
           <p className="text-sm font-semibold text-text-muted">Loading profile…</p>
         </div>
       </div>
@@ -453,17 +464,23 @@ function ProfilePageContent() {
                 <h2 className="text-2xl font-bold text-gray-900">Account Overview</h2>
                 <div className="grid grid-cols-3 gap-6">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border-2 border-blue-200">
-                    <div className="text-blue-600 text-3xl mb-2">📄</div>
+                    <div className="mb-2">
+                      <DocumentIcon size={32} color="#2563eb" />
+                    </div>
                     <div className="text-3xl font-bold text-blue-900">{stats.resumesCreated}</div>
                     <div className="text-sm text-blue-700 font-medium">Resumes Created</div>
                   </div>
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border-2 border-purple-200">
-                    <div className="text-purple-600 text-3xl mb-2">📥</div>
+                    <div className="mb-2">
+                      <DownloadIcon size={32} color="#9333ea" />
+                    </div>
                     <div className="text-3xl font-bold text-purple-900">{stats.exportsThisMonth}</div>
                     <div className="text-sm text-purple-700 font-medium">Exports This Month</div>
                   </div>
                   <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-6 border-2 border-pink-200">
-                    <div className="text-pink-600 text-3xl mb-2">⏱️</div>
+                    <div className="mb-2">
+                      <ClockIcon size={32} color="#ec4899" />
+                    </div>
                     <div className="text-lg font-bold text-pink-900">{stats.accountAge}</div>
                     <div className="text-sm text-pink-700 font-medium">Account Age</div>
                   </div>
@@ -476,7 +493,7 @@ function ProfilePageContent() {
                       href="/editor?new=true"
                       className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all"
                     >
-                      <span className="text-2xl">✏️</span>
+                      <EditIcon size={24} color="currentColor" />
                       <div>
                         <div className="font-semibold text-gray-900">Create Resume</div>
                         <div className="text-xs text-gray-600">Start a new resume</div>
@@ -504,7 +521,9 @@ function ProfilePageContent() {
 
                 {resumeHistory.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="text-6xl mb-4">📄</div>
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No resumes yet</h3>
                     <p className="text-gray-600 mb-6">Create your first resume to see it here</p>
                     <a
@@ -557,12 +576,16 @@ function ProfilePageContent() {
 
                 {resumesLoading && savedResumes.length === 0 ? (
                   <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
-                    <div className="text-4xl mb-4 animate-pulse">📄</div>
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+                    </div>
                     <p className="text-gray-600">Loading resumes...</p>
                   </div>
                 ) : savedResumes.length === 0 ? (
                   <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
-                    <div className="text-6xl mb-4">📄</div>
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No saved resumes yet</h3>
                     <p className="text-gray-600 mb-6">Save your resume from the editor to create a master resume that you can match with job descriptions.</p>
                     <a
@@ -642,7 +665,9 @@ function ProfilePageContent() {
 
                   {savedResumes.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-gray-200">
-                      <div className="text-4xl mb-3">📄</div>
+                      <div className="flex justify-center mb-3">
+                        <DocumentIcon size={48} color="#0f62fe" className="opacity-60" />
+                      </div>
                       <h3 className="text-lg font-bold text-gray-900 mb-2">No saved resumes yet</h3>
                       <p className="text-gray-600 mb-4">Save your resume after creating or editing it in the editor.</p>
                       <a
@@ -922,7 +947,9 @@ function ProfilePageContent() {
                   </div>
                 ) : savedJDs.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="text-6xl mb-4">🗂️</div>
+                    <div className="flex justify-center mb-4">
+                      <FolderIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No saved jobs yet</h3>
                     <p className="text-gray-600">Use the browser extension to save LinkedIn jobs.</p>
                   </div>
@@ -1192,7 +1219,9 @@ function ProfilePageContent() {
                   </>
                 ) : (
                   <div className="text-center py-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
-                    <div className="text-6xl mb-4">💎</div>
+                    <div className="flex justify-center mb-4">
+                      <DiamondIcon size={64} color="#0f62fe" />
+                    </div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">Upgrade to Premium</h3>
                     <p className="text-gray-600 mb-6 max-w-md mx-auto">
                       Get unlimited exports, premium templates, and priority support
@@ -1245,7 +1274,9 @@ export default function ProfilePage() {
         fallback={
           <div className="flex min-h-screen items-center justify-center bg-body-gradient">
             <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
-              <div className="mb-4 text-4xl animate-pulse">📄</div>
+              <div className="flex justify-center mb-4">
+                <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+              </div>
               <p className="text-sm font-semibold text-text-muted">Loading profile…</p>
             </div>
           </div>

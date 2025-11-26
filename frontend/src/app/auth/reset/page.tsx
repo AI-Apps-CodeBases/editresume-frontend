@@ -1,4 +1,5 @@
 'use client'
+import { MailIcon } from '@/components/Icons'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -48,7 +49,9 @@ export default function ResetPage() {
   return (
     <div className="w-full rounded-[32px] border border-border-subtle bg-white p-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
       <div className="mb-8 text-center">
-        <div className="mb-4 text-4xl">📮</div>
+        <div className="flex justify-center mb-4">
+          <MailIcon size={48} color="#0f62fe" />
+        </div>
         <h1 className="text-3xl font-semibold text-text-primary">Reset your password</h1>
         <p className="mt-2 text-sm text-text-muted">
           Enter your email and we’ll send a fresh reset link.

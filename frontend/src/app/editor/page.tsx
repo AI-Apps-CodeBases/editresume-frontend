@@ -2154,29 +2154,14 @@ const EditorPageContent = () => {
       )}
 
       {showCoverLetterGenerator && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-xl font-bold">Cover Letter Generator</h2>
-              <button
-                onClick={() => setShowCoverLetterGenerator(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <CoverLetterGenerator
-                resumeData={resumeData}
-                onClose={() => setShowCoverLetterGenerator(false)}
-                onCoverLetterChange={(letter: string | null) => {
-                  setLatestCoverLetter(letter)
-                  setShowCoverLetterGenerator(false)
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <CoverLetterGenerator
+          resumeData={resumeData}
+          onClose={() => setShowCoverLetterGenerator(false)}
+          onCoverLetterChange={(letter: string | null) => {
+            setLatestCoverLetter(letter)
+            setShowCoverLetterGenerator(false)
+          }}
+        />
       )}
 
       {showVersionControl && currentResumeId && (

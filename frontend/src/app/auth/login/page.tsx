@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FirebaseError } from 'firebase/app'
 import { useAuth } from '@/contexts/AuthContext'
+import { LockIcon } from '@/components/Icons'
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof FirebaseError) {
@@ -78,7 +79,9 @@ function LoginPageContent() {
   return (
     <div className="w-full rounded-[32px] border border-border-subtle bg-white p-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
       <div className="mb-8 text-center">
-        <div className="mb-4 text-4xl">🔐</div>
+        <div className="flex justify-center mb-4">
+          <LockIcon size={48} color="#0f62fe" />
+        </div>
         <h1 className="text-3xl font-semibold text-text-primary">Welcome back</h1>
         <p className="mt-2 text-sm text-text-muted">Sign in to continue building magnetic resumes.</p>
       </div>
@@ -174,7 +177,9 @@ export default function LoginPage() {
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-body-gradient">
           <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
-            <div className="mb-4 text-3xl">🔐</div>
+            <div className="flex justify-center mb-4">
+              <LockIcon size={36} color="#0f62fe" />
+            </div>
             <p className="text-sm font-semibold text-text-muted">Preparing login form…</p>
           </div>
         </div>
