@@ -6,7 +6,7 @@ services:
     container_name: editresume_frontend
     working_dir: /app
     volumes:
-      - .:/app
+      - ./frontend:/app
     command: sh -c "npm install && npm run dev"
     environment:
       - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-https://editresume-staging.onrender.com}

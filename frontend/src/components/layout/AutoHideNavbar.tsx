@@ -48,15 +48,15 @@ function AutoHideNavbar() {
 
     const handleScroll = () => {
       const currentScrollY = window.scrollY
-      
+
       if (currentScrollY < lastScrollY && currentScrollY < 100) {
         setIsVisible(true)
       } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
         setIsVisible(false)
       }
-      
+
       lastScrollY = currentScrollY
-      
+
       if (scrollTimeoutId) {
         clearTimeout(scrollTimeoutId)
       }
@@ -90,11 +90,13 @@ function AutoHideNavbar() {
     }
   }, [isVisible, open])
 
+  // Hide navbar on dashboard pages
+  if (pathname?.startsWith('/dashboard')) return null
+
   return (
-    <header 
-      className={`fixed top-0 left-0 right-0 z-[100] bg-white shadow-[0_12px_20px_rgba(15,23,42,0.06)] transition-transform duration-300 ${
-        isVisible ? 'translate-y-0' : '-translate-y-full'
-      }`}
+    <header
+      className={`fixed top-0 left-0 right-0 z-[100] bg-white shadow-[0_12px_20px_rgba(15,23,42,0.06)] transition-transform duration-300 ${isVisible ? 'translate-y-0' : '-translate-y-full'
+        }`}
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => {
         if (!open) {
@@ -105,10 +107,10 @@ function AutoHideNavbar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center">
-            <Image 
-              src="/logo.jpg" 
-              alt="editresume.io" 
-              width={400} 
+            <Image
+              src="/logo.jpg"
+              alt="editresume.io"
+              width={400}
               height={200}
               className="h-16 w-auto"
               priority
@@ -120,9 +122,8 @@ function AutoHideNavbar() {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`relative text-xs font-semibold transition ${
-                  isActive(item.href) ? 'text-primary-700' : 'text-text-muted hover:text-text-primary'
-                }`}
+                className={`relative text-xs font-semibold transition ${isActive(item.href) ? 'text-primary-700' : 'text-text-muted hover:text-text-primary'
+                  }`}
               >
                 {item.label}
                 {isActive(item.href) && (
@@ -159,9 +160,8 @@ function AutoHideNavbar() {
                   key={item.label}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                    isActive(item.href) ? 'bg-primary-50 text-primary-700' : 'text-text-muted hover:bg-primary-50/50'
-                  }`}
+                  className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${isActive(item.href) ? 'bg-primary-50 text-primary-700' : 'text-text-muted hover:bg-primary-50/50'
+                    }`}
                 >
                   {item.label}
                 </Link>
