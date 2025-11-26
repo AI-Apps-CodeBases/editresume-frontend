@@ -6,10 +6,77 @@ from typing import Optional
 import logging
 import traceback
 import ssl
+import requests
 
 logger = logging.getLogger(__name__)
 
 ADMIN_EMAIL = "hasantutacdevops@gmail.com"
+
+
+def _send_via_sendgrid(
+    feedback_text: str,
+    category: str,
+    rating: Optional[int] = None,
+    user_email: Optional[str] = None,
+    page_url: Optional[str] = None,
+) -> bool:
+    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+    sendgrid_from_email = os.getenv("SENDGRID_FROM_EMAIL", ADMIN_EMAIL)
+    
+    if not sendgrid_api_key:
+        return False
+    
+    rating_text = f"{rating}/5 ⭐" if rating else "Not provided"
+    user_text = user_email or "Anonymous"
+    page_text = page_url or "Unknown"
+    
+    body = f"""
+New feedback received on editresume.io
+
+Category: {category.title()}
+Rating: {rating_text}
+User: {user_text}
+Page: {page_text}
+
+Feedback:
+{feedback_text}
+
+---
+This is an automated notification from editresume.io feedback system.
+    """
+    
+    try:
+        response = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={
+                "Authorization": f"Bearer {sendgrid_api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "personalizations": [{
+                    "to": [{"email": ADMIN_EMAIL}]
+                }],
+                "from": {"email": sendgrid_from_email},
+                "subject": f"New Feedback: {category.title()} - editresume.io",
+                "content": [{
+                    "type": "text/plain",
+                    "value": body
+                }]
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 202:
+            logger.info(f"✅ Feedback notification email sent via SendGrid to {ADMIN_EMAIL}")
+            return True
+        else:
+            logger.error(f"❌ SendGrid API error: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ SendGrid request failed: {e}")
+        logger.error(traceback.format_exc())
+        return False
 
 
 def send_feedback_notification(
@@ -19,13 +86,19 @@ def send_feedback_notification(
     user_email: Optional[str] = None,
     page_url: Optional[str] = None,
 ) -> bool:
+    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+    
+    if sendgrid_api_key:
+        logger.info("Using SendGrid API for email delivery")
+        return _send_via_sendgrid(feedback_text, category, rating, user_email, page_url)
+    
     smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER")
     smtp_password = os.getenv("SMTP_PASSWORD")
     use_ssl = os.getenv("SMTP_USE_SSL", "false").lower() == "true"
 
-    logger.info(f"Attempting to send feedback email. SMTP_USER configured: {bool(smtp_user)}")
+    logger.info(f"Attempting to send feedback email via SMTP. SMTP_USER configured: {bool(smtp_user)}")
     
     if not smtp_user or not smtp_password:
         logger.warning(
@@ -87,9 +160,8 @@ This is an automated notification from editresume.io feedback system.
 
     except OSError as e:
         if "Network is unreachable" in str(e) or "101" in str(e):
-            logger.error(f"❌ Network unreachable - Render may be blocking SMTP connections")
-            logger.error("💡 Solution: Use an email service API (SendGrid, Mailgun) or configure Render to allow outbound SMTP")
-            logger.error("   Alternative: Set SMTP_PORT=465 and SMTP_USE_SSL=true to try SSL connection")
+            logger.error(f"❌ Network unreachable - Render is blocking SMTP connections")
+            logger.error("💡 Solution: Set SENDGRID_API_KEY environment variable to use SendGrid API instead")
         else:
             logger.error(f"❌ Network error: {e}")
         logger.error(traceback.format_exc())
