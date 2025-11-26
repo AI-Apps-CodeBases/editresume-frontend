@@ -93,12 +93,26 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
     setIsScanning(false)
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-
       const baseUrl = process.env.NEXT_PUBLIC_API_BASE || config.apiBase
       const uploadUrl = `${baseUrl}/api/resume/upload`
       console.log('Upload URL:', uploadUrl)
+
+      const healthCheckUrl = `${baseUrl}/health`
+      try {
+        const healthResponse = await fetch(healthCheckUrl, { method: 'GET' })
+        if (!healthResponse.ok) {
+          throw new Error(`Backend health check failed: ${healthResponse.status}`)
+        }
+        console.log('✅ Backend is reachable')
+      } catch (healthErr) {
+        console.error('❌ Backend health check failed:', healthErr)
+        setError(`Cannot connect to backend at ${baseUrl}. Please ensure the backend server is running.`)
+        setIsUploading(false)
+        return
+      }
+
+      const formData = new FormData()
+      formData.append('file', file)
 
       const response = await fetch(uploadUrl, {
         method: 'POST',
@@ -107,6 +121,17 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
 
       console.log('Response status:', response.status)
       console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` }
+        }
+        throw new Error(errorData.error || errorData.message || `Server returned ${response.status}`)
+      }
 
       const result = await response.json()
       console.log('Upload response:', result)
@@ -133,8 +158,10 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
       console.error('Error stack:', err instanceof Error ? err.stack : undefined)
       console.error('Full error:', err)
       
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE || config.apiBase
+      
       if (err instanceof Error && err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
-        setError('Network error: Unable to connect to the server. Please check your internet connection and try again.')
+        setError(`Cannot connect to backend at ${baseUrl}. Please ensure the backend server is running on the correct port.`)
       } else if (err instanceof Error && err.name === 'TypeError' && err.message.includes('CORS')) {
         setError('CORS error: The server is not allowing requests from this domain.')
       } else {
