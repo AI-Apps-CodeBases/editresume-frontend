@@ -966,6 +966,100 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
   return metadata;
 };
 
+// Transform EnhancedATSChecker response to JobMatchResult format
+const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: string): JobMatchResult => {
+  // Extract TF-IDF analysis from the response
+  // The structure depends on whether industry_standard method was used
+  const details = enhancedATSResult.details || {};
+  const tfidfAnalysis = details.tfidf_analysis || {};
+  
+  // Extract matching and missing keywords
+  // EnhancedATSChecker returns objects with {keyword, job_weight, resume_weight} or {keyword, weight}
+  const matchingKeywordsRaw = tfidfAnalysis.matching_keywords || [];
+  const missingKeywordsRaw = tfidfAnalysis.missing_keywords || [];
+  
+  // Convert to string arrays - handle both object and string formats
+  const matchingKeywords = matchingKeywordsRaw.map((kw: any) => {
+    if (typeof kw === 'string') return kw;
+    return kw.keyword || (typeof kw === 'object' ? JSON.stringify(kw) : String(kw));
+  }).filter((kw: string) => kw && kw.trim().length > 0);
+  
+  const missingKeywords = missingKeywordsRaw.map((kw: any) => {
+    if (typeof kw === 'string') return kw;
+    return kw.keyword || (typeof kw === 'object' ? JSON.stringify(kw) : String(kw));
+  }).filter((kw: string) => kw && kw.trim().length > 0);
+  
+  // Extract technical keywords using a heuristic
+  // EnhancedATSChecker doesn't separate technical keywords, so we identify them
+  const technicalKeywords = ['python', 'java', 'javascript', 'react', 'aws', 'docker', 'kubernetes', 
+    'sql', 'mongodb', 'postgresql', 'node', 'typescript', 'git', 'ci/cd', 'agile', 'scrum',
+    'angular', 'vue', 'django', 'flask', 'spring', 'express', 'laravel', 'rails', 'asp.net',
+    'mysql', 'redis', 'elasticsearch', 'cassandra', 'oracle', 'dynamodb', 'neo4j',
+    'azure', 'gcp', 'google cloud', 'terraform', 'ansible', 'jenkins', 'github', 'gitlab',
+    'microservices', 'api', 'rest', 'graphql', 'tdd', 'devops', 'sre'];
+  
+  const technicalMatches: string[] = [];
+  const technicalMissing: string[] = [];
+  
+  matchingKeywords.forEach((kw: string) => {
+    const kwLower = kw.toLowerCase();
+    if (technicalKeywords.some(tech => kwLower.includes(tech.toLowerCase()))) {
+      technicalMatches.push(kw);
+    }
+  });
+  
+  missingKeywords.forEach((kw: string) => {
+    const kwLower = kw.toLowerCase();
+    if (technicalKeywords.some(tech => kwLower.includes(tech.toLowerCase()))) {
+      technicalMissing.push(kw);
+    }
+  });
+  
+  // Get the overall score
+  const overallScore = enhancedATSResult.score || 0;
+  
+  // Calculate technical score (percentage of technical keywords matched)
+  const totalTechnical = technicalMatches.length + technicalMissing.length;
+  const technicalScore = totalTechnical > 0 
+    ? (technicalMatches.length / totalTechnical) * 100
+    : 0;
+  
+  // Calculate total job keywords
+  const totalJobKeywords = tfidfAnalysis.total_job_keywords || 
+                           (matchingKeywords.length + missingKeywords.length) ||
+                           0;
+  
+  // Build match_analysis object
+  const match_analysis: MatchAnalysis = {
+    similarity_score: overallScore,
+    technical_score: roundScoreValue(technicalScore) ?? 0,
+    matching_keywords: matchingKeywords,
+    missing_keywords: missingKeywords,
+    technical_matches: technicalMatches,
+    technical_missing: technicalMissing,
+    total_job_keywords: totalJobKeywords,
+    match_count: matchingKeywords.length,
+    missing_count: missingKeywords.length,
+  };
+  
+  return {
+    success: enhancedATSResult.success !== false,
+    match_analysis,
+    keyword_suggestions: {}, // EnhancedATSChecker doesn't provide this format
+    improvement_suggestions: enhancedATSResult.ai_improvements?.map((imp: any) => ({
+      category: imp.category || 'General',
+      suggestion: imp.specific_suggestion || imp.description || imp.title || ''
+    })) || [],
+    analysis_summary: {
+      overall_match: overallScore >= 80 ? 'Excellent' : 
+                    overallScore >= 60 ? 'Good' : 
+                    overallScore >= 40 ? 'Fair' : 'Needs Improvement',
+      technical_match: technicalScore >= 70 ? 'Strong' : 
+                       technicalScore >= 40 ? 'Moderate' : 'Weak',
+    },
+  };
+};
+
 const normalizeMatchResult = (result: JobMatchResult | null): JobMatchResult | null => {
   if (!result) return result;
   const normalizedSimilarity = roundScoreValue(result.match_analysis?.similarity_score) ?? 0;
@@ -1659,17 +1753,20 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }))
       };
 
-      const matchRes = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
+      const matchRes = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_description: jobDescription,
-          resume_data: cleanedResumeData
+          resume_data: cleanedResumeData,
+          target_role: '',
+          industry: ''
         }),
       });
 
       if (matchRes.ok) {
-        const matchData = await matchRes.json() as JobMatchResult;
+        const enhancedATSData = await matchRes.json();
+        const matchData = transformEnhancedATSResponse(enhancedATSData, jobDescription);
         const normalizedMatchData = normalizeMatchResult(matchData);
         const newScore = normalizedMatchData?.match_analysis?.similarity_score ?? null;
 
@@ -2075,19 +2172,22 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           };
 
           const matchResponse = await fetch(
-            `${config.apiBase}/api/ai/match_job_description`,
+            `${config.apiBase}/api/ai/enhanced_ats_score`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 job_description: jobDescription,
                 resume_data: cleanedResumeData,
+                target_role: '',
+                industry: ''
               }),
             }
           );
 
           if (matchResponse.ok) {
-            const matchData = await matchResponse.json();
+            const enhancedATSData = await matchResponse.json();
+            const matchData = transformEnhancedATSResponse(enhancedATSData, jobDescription);
             const normalizedMatchData = normalizeMatchResult(matchData);
             const newScore = roundScoreValue(matchData.match_analysis?.similarity_score);
             setUpdatedATSScore(newScore);
@@ -2767,14 +2867,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }))
       };
 
-      const response = await fetch(`${config.apiBase}/api/ai/match_job_description`, {
+      const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           job_description: jobDescription,
-          resume_data: cleanedResumeData
+          resume_data: cleanedResumeData,
+          target_role: '',
+          industry: ''
         }),
       });
 
@@ -2790,7 +2892,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         throw new Error(errorMessage);
       }
 
-      const rawResult = await response.json() as JobMatchResult;
+      const enhancedATSResult = await response.json();
+      const rawResult = transformEnhancedATSResponse(enhancedATSResult, jobDescription);
       const normalizedResult = normalizeMatchResult(rawResult);
       setMatchResult(normalizedResult);
       setCurrentATSScore(normalizedResult?.match_analysis?.similarity_score ?? null);
