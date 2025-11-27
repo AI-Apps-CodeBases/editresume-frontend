@@ -327,6 +327,68 @@ async def get_top_countries(
         raise HTTPException(status_code=500, detail="Failed to fetch top countries")
 
 
+@router.get("/users")
+async def get_users(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+    page: int = 1,
+    limit: int = 10,
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    """Get paginated list of users"""
+    try:
+        query = db.query(User)
+        
+        # Apply search filter
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                (User.name.ilike(search_term)) | (User.email.ilike(search_term))
+            )
+        
+        # Apply status filter (Active = premium, Inactive = free)
+        if status and status.lower() != 'all':
+            if status.lower() == 'active':
+                query = query.filter(User.is_premium == True)
+            elif status.lower() == 'inactive':
+                query = query.filter(User.is_premium == False)
+        
+        # Get total count before pagination
+        total_users = query.count()
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+        
+        # Format users for frontend
+        formatted_users = [
+            {
+                "id": str(user.id),
+                "joinDate": user.created_at.strftime("%d %b %Y") if user.created_at else "",
+                "name": user.name or "Unknown",
+                "email": user.email,
+                "department": "N/A",  # Not stored in User model
+                "designation": "Premium" if user.is_premium else "Free",
+                "status": "Active" if user.is_premium else "Inactive",
+                "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.email}",
+            }
+            for user in users
+        ]
+        
+        total_pages = (total_users + limit - 1) // limit if limit > 0 else 1
+        
+        return {
+            "users": formatted_users,
+            "totalUsers": total_users,
+            "currentPage": page,
+            "totalPages": total_pages,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch users")
+
+
 @router.get("/content-generation")
 async def get_content_generation_data(
     db: Session = Depends(get_db),

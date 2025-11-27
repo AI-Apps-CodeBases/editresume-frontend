@@ -1,17 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Eye, Pencil, Trash2, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { useUsersData } from '@/hooks/useUsersData'
 import { User } from '@/types/users'
 
 export default function UsersPage() {
-    const { users, totalUsers, currentPage, totalPages, loading } = useUsersData()
     const [entriesPerPage, setEntriesPerPage] = useState(10)
     const [searchQuery, setSearchQuery] = useState('')
     const [statusFilter, setStatusFilter] = useState('all')
     const [activePage, setActivePage] = useState(1)
+    
+    // Use debounced search query to avoid too many API calls
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+    
+    // Debounce search query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery)
+            setActivePage(1) // Reset to first page on search
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [searchQuery])
+    
+    // Reset page when status filter changes
+    useEffect(() => {
+        setActivePage(1)
+    }, [statusFilter])
+    
+    const { users, totalUsers, currentPage, totalPages, loading } = useUsersData(
+        activePage,
+        entriesPerPage,
+        debouncedSearchQuery,
+        statusFilter
+    )
 
     if (loading) {
         return (
@@ -21,19 +44,9 @@ export default function UsersPage() {
         )
     }
 
-    // Filter users based on search and status
-    const filteredUsers = users.filter(user => {
-        const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.toLowerCase())
-        const matchesStatus = statusFilter === 'all' || user.status.toLowerCase() === statusFilter.toLowerCase()
-        return matchesSearch && matchesStatus
-    })
-
-    // Pagination
+    // Calculate display range
     const startIndex = (activePage - 1) * entriesPerPage
-    const endIndex = startIndex + entriesPerPage
-    const paginatedUsers = filteredUsers.slice(startIndex, endIndex)
-    const totalFilteredPages = Math.ceil(filteredUsers.length / entriesPerPage)
+    const endIndex = Math.min(startIndex + entriesPerPage, totalUsers)
 
     return (
         <DashboardLayout>
@@ -106,12 +119,19 @@ export default function UsersPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {paginatedUsers.map((user) => (
+                                {users.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                                            No users found
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    users.map((user, index) => (
                                     <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4">
                                             <input type="checkbox" className="rounded border-gray-300" />
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">{user.id}</td>
+                                        <td className="px-6 py-4 text-sm text-gray-900">{startIndex + index + 1}</td>
                                         <td className="px-6 py-4 text-sm text-gray-600">{user.joinDate}</td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
@@ -148,7 +168,8 @@ export default function UsersPage() {
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -156,7 +177,7 @@ export default function UsersPage() {
                     {/* Pagination */}
                     <div className="p-6 border-t border-gray-100 flex items-center justify-between">
                         <div className="text-sm text-gray-600">
-                            Showing {startIndex + 1} to {Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} entries
+                            Showing {startIndex + 1} to {endIndex} of {totalUsers} entries
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -168,7 +189,7 @@ export default function UsersPage() {
                                 «
                             </button>
 
-                            {Array.from({ length: totalFilteredPages }, (_, i) => i + 1).map((page) => (
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                                 <button
                                     key={page}
                                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${page === activePage
@@ -183,8 +204,8 @@ export default function UsersPage() {
 
                             <button
                                 className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                onClick={() => setActivePage(Math.min(totalFilteredPages, activePage + 1))}
-                                disabled={activePage === totalFilteredPages}
+                                onClick={() => setActivePage(Math.min(totalPages, activePage + 1))}
+                                disabled={activePage === totalPages}
                             >
                                 »
                             </button>
