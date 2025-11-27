@@ -492,11 +492,11 @@ export default function CoverLetterGenerator({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        <div className="flex">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex flex-1 min-h-0">
           {/* Left Panel - Input Form */}
-          <div className="w-1/2 p-6 border-r overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
+          <div className="w-1/2 p-6 border-r flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between mb-6 flex-shrink-0">
               <h2 className="text-xl font-bold text-gray-900">📝 Cover Letter Generator</h2>
               <button
                 onClick={onClose}
@@ -506,6 +506,7 @@ export default function CoverLetterGenerator({
               </button>
             </div>
 
+            <div className="flex-1 overflow-y-auto pr-2">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -633,6 +634,10 @@ export default function CoverLetterGenerator({
                 />
               </div>
 
+            </div>
+            </div>
+            
+            <div className="flex-shrink-0 pt-4 border-t mt-4">
               <button
                 onClick={generateCoverLetter}
                 disabled={isGenerating}
@@ -644,8 +649,8 @@ export default function CoverLetterGenerator({
           </div>
 
           {/* Right Panel - Generated Cover Letter */}
-          <div className="w-1/2 p-6 flex flex-col max-h-[80vh]">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Generated Cover Letter</h3>
+          <div className="w-1/2 p-6 flex flex-col overflow-hidden">
+            <h3 className="text-lg font-bold text-gray-900 mb-4 flex-shrink-0">Generated Cover Letter</h3>
             
             {!coverLetter ? (
               <div className="text-center py-12">
@@ -654,7 +659,7 @@ export default function CoverLetterGenerator({
               </div>
             ) : (
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto mb-4 pr-2">
+                <div className="flex-1 overflow-y-auto pr-2">
                   <div className="space-y-4">
                     {/* Opening Paragraph */}
                     <div className="border border-gray-200 rounded-lg p-4">

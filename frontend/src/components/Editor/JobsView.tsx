@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import JobDetailView from './JobDetailView'
+import { BriefcaseIcon, FolderIcon, LockIcon, BookmarkIcon, CheckIcon, XIcon, CalendarIcon, HandshakeIcon, EditIcon } from '@/components/Icons'
 
 interface JobResumeSummary {
   id: number
@@ -71,7 +72,16 @@ export default function JobsView({ onBack }: Props) {
     setLoading(true)
 
     try {
-      const res = await fetch(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
+      const { auth } = await import('@/lib/firebaseClient')
+      const currentUser = auth.currentUser
+      const token = currentUser ? await currentUser.getIdToken() : null
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const res = await fetch(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+        headers
+      })
       if (res.ok) {
         const data = await res.json()
         const jds = Array.isArray(data) ? data : data.results || []
@@ -104,7 +114,9 @@ export default function JobsView({ onBack }: Props) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="text-6xl mb-4">🔐</div>
+          <div className="flex justify-center mb-4">
+            <LockIcon size={64} color="#0f62fe" className="opacity-80" />
+          </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Sign In Required</h2>
           <p className="text-gray-600 mb-6">Please sign in to view your saved jobs and resumes.</p>
           <button
@@ -145,7 +157,7 @@ export default function JobsView({ onBack }: Props) {
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'bookmarked': return 'bg-gray-100 text-gray-700'
-      case 'applied': return 'bg-blue-100 text-blue-700'
+      case 'applied': return 'bg-primary-100 text-primary-700'
       case 'interview_set': return 'bg-purple-100 text-purple-700'
       case 'interviewing': return 'bg-yellow-100 text-yellow-700'
       case 'negotiating': return 'bg-orange-100 text-orange-700'
@@ -155,16 +167,30 @@ export default function JobsView({ onBack }: Props) {
     }
   }
 
+  const getStatusIcon = (status?: string) => {
+    const iconSize = 14
+    switch (status) {
+      case 'bookmarked': return <BookmarkIcon size={iconSize} color="currentColor" />
+      case 'applied': return <EditIcon size={iconSize} color="currentColor" />
+      case 'interview_set': return <CalendarIcon size={iconSize} color="currentColor" />
+      case 'interviewing': return <BriefcaseIcon size={iconSize} color="currentColor" />
+      case 'negotiating': return <HandshakeIcon size={iconSize} color="currentColor" />
+      case 'accepted': return <CheckIcon size={iconSize} color="currentColor" />
+      case 'rejected': return <XIcon size={iconSize} color="currentColor" />
+      default: return <BookmarkIcon size={iconSize} color="currentColor" />
+    }
+  }
+
   const getStatusLabel = (status?: string) => {
     switch (status) {
-      case 'bookmarked': return '📌 Bookmarked'
-      case 'applied': return '📝 Applied'
-      case 'interview_set': return '📅 Interview Set'
-      case 'interviewing': return '💼 Interviewing'
-      case 'negotiating': return '🤝 Negotiating'
-      case 'accepted': return '✅ Accepted'
-      case 'rejected': return '❌ Rejected'
-      default: return '📌 Bookmarked'
+      case 'bookmarked': return 'Bookmarked'
+      case 'applied': return 'Applied'
+      case 'interview_set': return 'Interview Set'
+      case 'interviewing': return 'Interviewing'
+      case 'negotiating': return 'Negotiating'
+      case 'accepted': return 'Accepted'
+      case 'rejected': return 'Rejected'
+      default: return 'Bookmarked'
     }
   }
 
@@ -177,8 +203,8 @@ export default function JobsView({ onBack }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
-      <div className="bg-white border-b shadow-sm sticky top-0 z-20">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex flex-col overflow-hidden">
+      <div className="bg-white border-b shadow-sm sticky top-0 z-20 flex-shrink-0">
         <div className="w-full px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -191,7 +217,10 @@ export default function JobsView({ onBack }: Props) {
                 </svg>
                 Back to Editor
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">💼 Saved Job Descriptions</h1>
+              <div className="flex items-center gap-3">
+                <BriefcaseIcon size={28} color="#0f62fe" />
+                <h1 className="text-2xl font-bold text-gray-900">Saved Job Descriptions</h1>
+              </div>
             </div>
             <button
               onClick={fetchData}
@@ -203,56 +232,50 @@ export default function JobsView({ onBack }: Props) {
         </div>
       </div>
 
-      <div className="w-full px-6 py-8">
+      <div className="w-full px-6 py-8 flex-1 overflow-y-auto">
         <div className="bg-white rounded-2xl shadow-lg p-8">
           {savedJDs.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">🗂️</div>
+              <div className="flex justify-center mb-4">
+                <FolderIcon size={64} color="#0f62fe" className="opacity-60" />
+              </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">No saved jobs yet</h3>
               <p className="text-gray-600">Use the browser extension to save LinkedIn jobs.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto border rounded-xl">
+            <div className="overflow-x-auto border border-gray-200 rounded-2xl shadow-sm">
               <table className="w-full min-w-[1200px]">
-                <thead className="bg-gray-50 text-left text-sm text-gray-600">
+                <thead className="bg-gray-50 text-left text-sm text-gray-600 border-b border-gray-200">
                   <tr>
-                    <th className="p-3">Important</th>
-                    <th className="p-3">Title</th>
-                    <th className="p-3">Company</th>
-                    <th className="p-3">Max Salary</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Best Match</th>
-                    <th className="p-3">Date Saved</th>
-                    <th className="p-3">Follow Up</th>
-                    <th className="p-3">Source</th>
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-4 font-semibold">Important</th>
+                    <th className="p-4 font-semibold">Title</th>
+                    <th className="p-4 font-semibold">Company</th>
+                    <th className="p-4 font-semibold">Max Salary</th>
+                    <th className="p-4 font-semibold">Status</th>
+                    <th className="p-4 font-semibold">Best Match</th>
+                    <th className="p-4 font-semibold">Date Saved</th>
+                    <th className="p-4 font-semibold">Follow Up</th>
+                    <th className="p-4 font-semibold">Source</th>
+                    <th className="p-4 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-gray-100 bg-white">
                   {savedJDs.map((jd) => {
                     const bestMatch = jd.best_resume_version
-                    const resumeCount = jd.resume_versions?.length || 0
                     const scoreSnapshot =
                       jd.ats_insights && typeof jd.ats_insights === 'object'
                         ? (jd.ats_insights as any).score_snapshot ?? null
                         : null
                     const overallScore =
                       bestMatch?.score ?? (typeof scoreSnapshot?.overall_score === 'number' ? scoreSnapshot.overall_score : null)
-                    const keywordCoverage =
-                      bestMatch?.keyword_coverage ??
-                      (typeof scoreSnapshot?.keyword_coverage === 'number' ? scoreSnapshot.keyword_coverage : null)
-                    const estimatedKeywordScore =
-                      typeof scoreSnapshot?.estimated_keyword_score === 'number'
-                        ? scoreSnapshot.estimated_keyword_score
-                        : null
                     const ringScore = overallScore !== null ? Math.max(0, Math.min(100, overallScore)) : 0
                     const ringStrokeClass = getScoreColor(overallScore).replace('text-', 'stroke-')
                     return (
-                      <tr key={jd.id} className="hover:bg-gray-50">
-                        <td className="p-3">
+                      <tr key={jd.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="p-4">
                           {jd.important_emoji && <span className="text-2xl">{jd.important_emoji}</span>}
                         </td>
-                        <td className="p-3">
+                        <td className="p-4">
                           <button
                             onClick={() => setSelectedJobId(jd.id)}
                             className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
@@ -260,7 +283,7 @@ export default function JobsView({ onBack }: Props) {
                             {jd.title}
                           </button>
                         </td>
-                        <td className="p-3">
+                        <td className="p-4">
                           <button
                             onClick={() => setSelectedJobId(jd.id)}
                             className="text-gray-700 hover:text-blue-600 hover:underline text-left"
@@ -268,17 +291,18 @@ export default function JobsView({ onBack }: Props) {
                             {jd.company || '-'}
                           </button>
                         </td>
-                        <td className="p-3 text-gray-700">
+                        <td className="p-4 text-gray-700">
                           {jd.max_salary ? `$${jd.max_salary.toLocaleString()}/yr` : '-'}
                         </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(jd.status)}`}>
+                        <td className="p-4">
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold ${getStatusColor(jd.status)}`}>
+                            {getStatusIcon(jd.status)}
                             {getStatusLabel(jd.status)}
                           </span>
                         </td>
-                        <td className="p-3 text-sm">
+                        <td className="p-4">
                           {overallScore !== null ? (
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center">
                               <div className="relative inline-flex h-12 w-12 items-center justify-center">
                                 <svg viewBox="0 0 36 36" className="h-12 w-12">
                                   <path
@@ -304,63 +328,23 @@ export default function JobsView({ onBack }: Props) {
                                   <span className="text-[10px] uppercase text-gray-400">ATS</span>
                                 </div>
                               </div>
-                              <div className="space-y-1">
-                                <div className={`text-sm font-semibold ${getScoreColor(overallScore)}`}>
-                                  {overallScore}% match
-                                </div>
-                                {keywordCoverage !== null && (
-                                  <div className="text-[11px] text-gray-500">
-                                    Keywords {Math.round(keywordCoverage)}%
-                                  </div>
-                                )}
-                                {estimatedKeywordScore !== null && (
-                                  <div className="text-[11px] text-gray-500">
-                                    Est. keyword fit {estimatedKeywordScore}%
-                                  </div>
-                                )}
-                                {bestMatch?.resume_name && (
-                                  <div className="text-[11px] text-gray-500">
-                                    {bestMatch.resume_name}
-                                    {bestMatch.resume_version_label && (
-                                      <span className="ml-1 text-gray-400">
-                                        ({bestMatch.resume_version_label})
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                {bestMatch?.updated_at && (
-                                  <div className="text-[11px] text-gray-400">
-                                    Updated {new Date(bestMatch.updated_at).toLocaleDateString()}
-                                  </div>
-                                )}
-                                {!bestMatch?.updated_at && scoreSnapshot?.updated_at && (
-                                  <div className="text-[11px] text-gray-400">
-                                    Updated {new Date(scoreSnapshot.updated_at).toLocaleDateString()}
-                                  </div>
-                                )}
-                              </div>
                             </div>
                           ) : (
                             <span className="text-xs text-gray-400">No match yet</span>
                           )}
-                          {resumeCount > 1 && (
-                            <div className="text-[11px] text-gray-400 mt-1">
-                              {resumeCount} versions saved
-                            </div>
-                          )}
                         </td>
-                        <td className="p-3 text-gray-500 text-sm">
+                        <td className="p-4 text-gray-500 text-sm">
                           {jd.created_at ? new Date(jd.created_at).toLocaleDateString() : '-'}
                         </td>
-                        <td className="p-3 text-gray-500 text-sm">
+                        <td className="p-4 text-gray-500 text-sm">
                           {jd.follow_up_date ? new Date(jd.follow_up_date).toLocaleDateString() : '-'}
                         </td>
-                        <td className="p-3 text-gray-700 text-sm">{jd.source || 'extension'}</td>
-                        <td className="p-3">
+                        <td className="p-4 text-gray-700 text-sm">{jd.source || 'extension'}</td>
+                        <td className="p-4">
                           <div className="flex justify-end gap-2 flex-wrap">
                             <button
                               onClick={() => setSelectedJobId(jd.id)}
-                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 whitespace-nowrap"
+                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 whitespace-nowrap transition-colors"
                             >
                               View Details
                             </button>
@@ -370,7 +354,7 @@ export default function JobsView({ onBack }: Props) {
                                   const versionQuery = bestMatch.resume_version_id ? `&resumeVersionId=${bestMatch.resume_version_id}` : ''
                                   window.location.href = `/editor?resumeId=${bestMatch.resume_id}${versionQuery}&jdId=${jd.id}`
                                 }}
-                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 whitespace-nowrap"
+                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 whitespace-nowrap transition-colors"
                               >
                                 Open Editor
                               </button>

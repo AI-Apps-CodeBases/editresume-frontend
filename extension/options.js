@@ -11,20 +11,87 @@ document.addEventListener('DOMContentLoaded', async () => {
     appBaseEl.value = cfg.appBase || '';
     tokenEl.value = cfg.token || '';
     tokenEl.readOnly = true;
+    
+    // Monitor storage changes to detect if settings are being overwritten
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'sync' && (changes.appBase || changes.apiBase)) {
+        console.log('Options page: Storage changed', changes);
+        // Update UI if changed externally
+        if (changes.appBase) {
+          appBaseEl.value = changes.appBase.newValue || '';
+        }
+        if (changes.apiBase) {
+          apiBaseEl.value = changes.apiBase.newValue || '';
+        }
+        if (changes.appBase || changes.apiBase) {
+          statusEl.textContent = 'Settings were changed externally';
+          statusEl.style.color = 'orange';
+          setTimeout(() => {
+            statusEl.textContent = '';
+            statusEl.style.color = '';
+          }, 3000);
+        }
+      }
+    });
 
     saveBtn.addEventListener('click', async () => {
       const apiBase = apiBaseEl.value.trim();
       const appBase = appBaseEl.value.trim();
-      await chrome.storage.sync.set({ apiBase, appBase });
-      statusEl.textContent = 'Saved';
-      // optional: ping backend
-      try {
-        const res = await fetch(apiBase.replace(/\/$/, '') + '/health');
-        if (res.ok) {
-          statusEl.textContent = 'Saved (API OK)';
+      
+      // Validate URLs
+      if (!apiBase || !appBase) {
+        statusEl.textContent = 'Error: Both URLs are required';
+        statusEl.style.color = 'red';
+        setTimeout(() => { 
+          statusEl.textContent = '';
+          statusEl.style.color = '';
+        }, 3000);
+        return;
+      }
+      
+      // Get all existing storage to preserve other keys (like token)
+      const existing = await chrome.storage.sync.get();
+      
+      // Update only the URL fields, preserving everything else
+      const updated = {
+        ...existing,
+        apiBase,
+        appBase,
+        // Add a flag to prevent overwrites
+        _settingsLocked: true,
+        _lastSaved: Date.now()
+      };
+      
+      // Save settings
+      await chrome.storage.sync.set(updated);
+      
+      // Wait a bit and verify they were saved
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const saved = await chrome.storage.sync.get(['apiBase', 'appBase']);
+      
+      if (saved.apiBase === apiBase && saved.appBase === appBase) {
+        statusEl.textContent = 'Saved successfully!';
+        statusEl.style.color = 'green';
+        
+        // optional: ping backend
+        try {
+          const res = await fetch(apiBase.replace(/\/$/, '') + '/health');
+          if (res.ok) {
+            statusEl.textContent = 'Saved (API OK)';
+          }
+        } catch (_) {
+          statusEl.textContent = 'Saved (API unreachable)';
         }
-      } catch (_) {}
-      setTimeout(() => { statusEl.textContent = ''; }, 2000);
+      } else {
+        statusEl.textContent = 'Error: Settings not saved correctly';
+        statusEl.style.color = 'red';
+        console.error('Settings mismatch:', { saved, expected: { apiBase, appBase } });
+      }
+      
+      setTimeout(() => { 
+        statusEl.textContent = '';
+        statusEl.style.color = '';
+      }, 3000);
     });
   } catch (e) {
     console.error('Options init error', e);

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import config from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { shouldPromptAuthentication } from '@/lib/guestAuth';
+import { useModal } from '@/contexts/ModalContext';
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -264,6 +265,35 @@ interface JobMetadata {
 
 const roundScoreValue = (value?: number | null) =>
   typeof value === 'number' && !Number.isNaN(value) ? Math.round(value) : null;
+
+type TechnicalKeywordOption = {
+  keyword: string;
+  source: 'ats' | 'jd' | 'extension';
+};
+
+const TECH_KEYWORD_SOURCE_PRIORITY: Record<TechnicalKeywordOption['source'], number> = {
+  ats: 0,
+  jd: 1,
+  extension: 2,
+};
+
+const TECH_KEYWORD_CHIP_CLASS: Record<TechnicalKeywordOption['source'], string> = {
+  ats: 'bg-red-50 text-red-700 border-red-200 hover:border-red-300',
+  jd: 'bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-300',
+  extension: 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-300',
+};
+
+const TECH_KEYWORD_BADGE_CLASS: Record<TechnicalKeywordOption['source'], string> = {
+  ats: 'bg-red-100 text-red-700',
+  jd: 'bg-blue-100 text-blue-700',
+  extension: 'bg-purple-100 text-purple-700',
+};
+
+const TECH_KEYWORD_SOURCE_LABEL: Record<TechnicalKeywordOption['source'], string> = {
+  ats: 'ATS Missing',
+  jd: 'JD Extract',
+  extension: 'Extension',
+};
 
 // Highlight missing keywords in generated bullet text
 const highlightMissingKeywords = (text: string, missingKeywords: string[]): React.ReactNode => {
@@ -956,6 +986,7 @@ const normalizeMatchResult = (result: JobMatchResult | null): JobMatchResult | n
 
 export default function JobDescriptionMatcher({ resumeData, onMatchResult, onResumeUpdate, onClose, standalone = true, initialJobDescription, onSelectJobDescriptionId, currentJobDescriptionId }: JobDescriptionMatcherProps) {
   const { user, isAuthenticated } = useAuth();
+  const { showAlert } = useModal();
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [selectedJobMetadata, setSelectedJobMetadata] = useState<JobMetadata | null>(null);
   const [currentJDInfo, setCurrentJDInfo] = useState<{ company?: string, title?: string, easy_apply_url?: string } | null>(null);
@@ -1115,14 +1146,158 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     return () => clearTimeout(timeoutId);
   }, [jobDescription, resumeData]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [matchResult, setMatchResult] = useState<JobMatchResult | null>(null);
+  const [matchResult, setMatchResult] = useState<JobMatchResult | null>(() => {
+    // Restore match result from localStorage on mount - prioritize by JD ID
+    if (typeof window !== 'undefined') {
+      try {
+        // First try to load by JD ID if available
+        if (currentJobDescriptionId) {
+          const savedByJdId = localStorage.getItem(`matchResult_${currentJobDescriptionId}`);
+          if (savedByJdId) {
+            const parsed = JSON.parse(savedByJdId);
+            return normalizeMatchResult(parsed);
+          }
+        }
+        // Fallback to current match result
+        const saved = localStorage.getItem('currentMatchResult');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // Verify it matches current JD
+          const savedJD = localStorage.getItem('currentJDText');
+          if (savedJD === jobDescription || savedJD === initialJobDescription) {
+            return normalizeMatchResult(parsed);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to restore match result:', e);
+      }
+    }
+    return null;
+  });
+  
+  // Auto-load analysis when JD ID changes
+  useEffect(() => {
+    if (!currentJobDescriptionId || typeof window === 'undefined') return;
+    if (matchResult) return; // Don't override existing result
+    
+    try {
+      const saved = localStorage.getItem(`matchResult_${currentJobDescriptionId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const normalized = normalizeMatchResult(parsed);
+        setMatchResult(normalized);
+        
+        // Restore ATS score
+        const score = normalized?.match_analysis?.similarity_score ?? null;
+        setCurrentATSScore(roundScoreValue(score));
+        
+        // Restore keywords
+        const jdKeywords = {
+          matching: normalized?.match_analysis?.matching_keywords || [],
+          missing: normalized?.match_analysis?.missing_keywords || [],
+          high_frequency: selectedJobMetadata?.high_frequency_keywords || [],
+          priority: (normalized as any)?.priority_keywords || []
+        };
+        localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
+        
+        // Load JD text if available
+        const savedJD = localStorage.getItem('currentJDText');
+        if (savedJD && !jobDescription.trim()) {
+          setJobDescription(savedJD);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to auto-load match result:', e);
+    }
+  }, [currentJobDescriptionId]);
   const [error, setError] = useState<string | null>(null);
 
-  const [currentATSScore, setCurrentATSScore] = useState<number | null>(null);
+  const technicalKeywordOptions = useMemo(() => {
+    const options = new Map<string, TechnicalKeywordOption>();
+    const register = (value?: string | null, source: TechnicalKeywordOption['source'] = 'ats') => {
+      if (!value || typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      const existing = options.get(key);
+      if (existing) {
+        if (TECH_KEYWORD_SOURCE_PRIORITY[source] < TECH_KEYWORD_SOURCE_PRIORITY[existing.source]) {
+          options.set(key, { keyword: trimmed, source });
+        }
+        return;
+      }
+      options.set(key, { keyword: trimmed, source });
+    };
+
+    (matchResult?.match_analysis?.technical_missing || []).forEach((kw) => register(kw, 'ats'));
+    if (Array.isArray(extractedKeywords?.technical_keywords)) {
+      extractedKeywords.technical_keywords.forEach((kw: any) => {
+        if (typeof kw === 'string') {
+          register(kw, 'jd');
+        } else if (kw && typeof kw.keyword === 'string') {
+          register(kw.keyword, 'jd');
+        }
+      });
+    }
+    if (Array.isArray(selectedJobMetadata?.skills)) {
+      selectedJobMetadata.skills.forEach((kw: any) => {
+        if (typeof kw === 'string') {
+          register(kw, 'extension');
+        }
+      });
+    }
+
+    return Array.from(options.values()).sort((a, b) => {
+      const priorityDelta =
+        TECH_KEYWORD_SOURCE_PRIORITY[a.source] - TECH_KEYWORD_SOURCE_PRIORITY[b.source];
+      if (priorityDelta !== 0) return priorityDelta;
+      return a.keyword.localeCompare(b.keyword);
+    });
+  }, [matchResult, extractedKeywords, selectedJobMetadata]);
+
+  const [currentATSScore, setCurrentATSScore] = useState<number | null>(() => {
+    // Restore ATS score from localStorage on mount
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('currentMatchResult');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const score = parsed?.match_analysis?.similarity_score ?? null;
+          return roundScoreValue(score);
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    return null;
+  });
   const [updatedATSScore, setUpdatedATSScore] = useState<number | null>(null);
   const [isCalculatingATS, setIsCalculatingATS] = useState(false);
   const [previousATSScore, setPreviousATSScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
+
+  // Restore match result when job description or component mounts
+  useEffect(() => {
+    if (typeof window === 'undefined' || !jobDescription?.trim()) return;
+    
+    try {
+      const saved = localStorage.getItem('currentMatchResult');
+      const savedJD = localStorage.getItem('currentJDText');
+      
+      // Only restore if JD matches
+      if (saved && savedJD === jobDescription) {
+        const parsed = JSON.parse(saved);
+        const normalized = normalizeMatchResult(parsed);
+        setMatchResult(normalized);
+        
+        // Restore ATS score
+        const score = normalized?.match_analysis?.similarity_score ?? null;
+        setCurrentATSScore(roundScoreValue(score));
+      }
+    } catch (e) {
+      console.error('Failed to restore match result:', e);
+    }
+  }, [jobDescription]);
 
   const showGuestNotification = useCallback((title: string, message: string) => {
     if (typeof window === 'undefined') return
@@ -1523,10 +1698,15 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           return nextRounded;
         });
 
-        // Update localStorage
+        // Update localStorage - store with JD ID for persistence
         if (typeof window !== 'undefined') {
           try {
+            const storageKey = currentJobDescriptionId 
+              ? `matchResult_${currentJobDescriptionId}`
+              : 'currentMatchResult';
+            localStorage.setItem(storageKey, JSON.stringify(normalizedMatchData));
             localStorage.setItem('currentMatchResult', JSON.stringify(normalizedMatchData));
+            
             const jdKeywords = {
               matching: normalizedMatchData?.match_analysis?.matching_keywords || [],
               missing: normalizedMatchData?.match_analysis?.missing_keywords || [],
@@ -1627,7 +1807,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
 
       setIsATSUpdatePending(false);
-    }, 2500);
+    }, 1000); // Reduced from 2500ms to 1000ms for faster updates
 
     resumeChangeTimerRef.current = timeoutId;
 
@@ -1957,16 +2137,32 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       if (remainingCount === 0) {
         // All bullets assigned
         if (assignmentResults.length) {
-          alert(`✅ ${assignmentResults.join('; ')}`);
+          await showAlert({
+            type: 'success',
+            message: assignmentResults.join('; '),
+            title: 'Success'
+          });
         } else {
-          alert('✅ All bullet points added to your resume!');
+          await showAlert({
+            type: 'success',
+            message: 'All bullet points added to your resume!',
+            title: 'Success'
+          });
         }
       } else {
         // Some bullets remaining
         if (assignmentResults.length) {
-          alert(`✅ ${assignmentResults.join('; ')}\n\n${remainingCount} bullet${remainingCount > 1 ? 's' : ''} remaining - assign them or close the window.`);
+          await showAlert({
+            type: 'success',
+            message: `${assignmentResults.join('; ')}\n\n${remainingCount} bullet${remainingCount > 1 ? 's' : ''} remaining - assign them or close the window.`,
+            title: 'Bullets Added'
+          });
         } else {
-          alert(`✅ ${assignedCount} bullet point${assignedCount > 1 ? 's' : ''} added! ${remainingCount} remaining.`);
+          await showAlert({
+            type: 'success',
+            message: `${assignedCount} bullet point${assignedCount > 1 ? 's' : ''} added! ${remainingCount} remaining.`,
+            title: 'Success'
+          });
         }
       }
     },
@@ -1989,7 +2185,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   // Removed auto-apply useEffect - assignments now happen on button click
 
   const addKeywordsToSkillsSection = useCallback(
-    (keywords: string[]) => {
+    async (keywords: string[]) => {
       if (!onResumeUpdate || !Array.isArray(resumeData.sections)) return;
 
       const normalizedKeywords = keywords
@@ -2029,7 +2225,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }));
 
       if (!newBullets.length) {
-        alert('All selected keywords already exist in your Skills section.');
+        await showAlert({
+          type: 'info',
+          message: 'All selected keywords already exist in your Skills section.',
+          title: 'Info'
+        });
         return;
       }
 
@@ -2048,10 +2248,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       });
 
       setSelectedKeywords(new Set());
-      alert(
-        `✅ Added ${newBullets.length} keyword${newBullets.length > 1 ? 's' : ''
-        } to your Skills section.`
-      );
+      await showAlert({
+        type: 'success',
+        message: `Added ${newBullets.length} keyword${newBullets.length > 1 ? 's' : ''} to your Skills section.`,
+        title: 'Success'
+      });
     },
     [onResumeUpdate, resumeData, setSelectedKeywords]
   );
@@ -2070,14 +2271,22 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
   const handleSaveJobDescription = async (): Promise<number | null> => {
     if (!jobDescription || !jobDescription.trim()) {
-      alert('Please enter a job description to save.');
+      await showAlert({
+        type: 'warning',
+        message: 'Please enter a job description to save.',
+        title: 'Required Field'
+      });
       return null;
     }
 
     if (!isAuthenticated || !user?.email) {
       const requireAuth = shouldPromptAuthentication('saveJobDescription', isAuthenticated)
       if (requireAuth) {
-        alert('Please sign in to save job descriptions');
+        await showAlert({
+          type: 'warning',
+          message: 'Please sign in to save job descriptions',
+          title: 'Authentication Required'
+        });
         return null;
       }
       return saveGuestJobDescriptionLocally();
@@ -2213,7 +2422,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     } catch (error) {
       console.error('Failed to save job description:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to save job description: ${errorMessage}`);
+      await showAlert({
+        type: 'error',
+        message: `Failed to save job description: ${errorMessage}`,
+        title: 'Error'
+      });
 
       // Restore button state on error
       const saveButton = document.querySelector('[data-save-job-btn]') as HTMLButtonElement;
@@ -2233,14 +2446,22 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     const trimmedName = rawName?.trim();
 
     if (!trimmedName) {
-      alert('Please enter a resume name.');
+      await showAlert({
+        type: 'warning',
+        message: 'Please enter a resume name.',
+        title: 'Required Field'
+      });
       return null;
     }
 
     const resumePayload = options?.resumeOverride ?? updatedResumeData ?? resumeData;
 
     if (!resumePayload) {
-      alert('No resume data to save');
+      await showAlert({
+        type: 'error',
+        message: 'No resume data to save',
+        title: 'Error'
+      });
       return null;
     }
 
@@ -2248,7 +2469,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       const requireAuth = shouldPromptAuthentication('saveResume', isAuthenticated)
       setResumeSaveName(trimmedName);
       if (requireAuth) {
-        alert('Please sign in to save resumes to your profile');
+        await showAlert({
+          type: 'warning',
+          message: 'Please sign in to save resumes to your profile',
+          title: 'Authentication Required'
+        });
         return null;
       }
       saveGuestResumeLocally(trimmedName, resumePayload);
@@ -2414,7 +2639,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           });
         } catch (matchError) {
           console.error('Failed to create match session:', matchError);
-          alert(`Resume saved, but failed to link with job description: ${matchError instanceof Error ? matchError.message : 'Unknown error'}`);
+          await showAlert({
+            type: 'warning',
+            message: `Resume saved, but failed to link with job description: ${matchError instanceof Error ? matchError.message : 'Unknown error'}`,
+            title: 'Partial Success'
+          });
         }
       } else {
         console.log('Saving master resume without JD match');
@@ -2460,7 +2689,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     } catch (error) {
       console.error('Failed to save resume:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to save resume: ${errorMessage}`);
+      await showAlert({
+        type: 'error',
+        message: `Failed to save resume: ${errorMessage}`,
+        title: 'Error'
+      });
       return null;
     }
   };
@@ -2568,7 +2801,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       // Store match result and keywords in localStorage for VisualResumeEditor
       if (typeof window !== 'undefined') {
         try {
+          // Store with JD ID for persistence across page changes
+          const storageKey = currentJobDescriptionId 
+            ? `matchResult_${currentJobDescriptionId}`
+            : 'currentMatchResult';
+          localStorage.setItem(storageKey, JSON.stringify(normalizedResult));
           localStorage.setItem('currentMatchResult', JSON.stringify(normalizedResult));
+          
           const jdKeywords = {
             matching: normalizedResult?.match_analysis?.matching_keywords || [],
             missing: normalizedResult?.match_analysis?.missing_keywords || [],
@@ -2577,6 +2816,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           };
           localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
           localStorage.setItem('currentJDText', jobDescription);
+          
+          // Store JD ID for auto-loading later
+          if (currentJobDescriptionId) {
+            localStorage.setItem('activeJobDescriptionId', String(currentJobDescriptionId));
+          }
         } catch (e) {
           console.error('Failed to store match result:', e);
         }
@@ -2903,7 +3147,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         <div className="space-y-4">
           {/* Analyze Button */}
           <div>
-            {(!currentJobDescriptionId || !matchResult) && (
+            {!matchResult && (
               <>
                 <button
                   onClick={analyzeMatch}
@@ -2918,6 +3162,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </p>
                 )}
               </>
+            )}
+            {matchResult && currentJobDescriptionId && (
+              <div className="text-xs text-gray-500 text-center mb-2">
+                ✓ Analysis loaded from saved job
+              </div>
             )}
           </div>
 
@@ -3249,20 +3498,22 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               </div>
 
-              {/* Missing Keywords Section */}
-              {matchResult.match_analysis.missing_keywords.length > 0 && (
+              {/* Combined Missing Keywords & Technical Skills Section */}
+              {(matchResult.match_analysis.missing_keywords.length > 0 || technicalKeywordOptions.length > 0) && (
                 <div className="border-t border-gray-200 pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+                    <div className="space-y-1">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        Missing Keywords
+                        Missing Keywords & Technical Skills
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Add these to improve your match score ({matchResult.match_analysis.missing_keywords.length} missing)
+                      <p className="text-sm text-gray-500">
+                        Add these to improve your match score 
+                        {matchResult.match_analysis.missing_keywords.length > 0 && ` (${matchResult.match_analysis.missing_keywords.length} missing keywords)`}
+                        {technicalKeywordOptions.length > 0 && ` (${technicalKeywordOptions.length} technical skills)`}
                       </p>
                     </div>
                     {selectedKeywords.size > 0 && (
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                         <button
                           onClick={() => {
                             const workExpSections = resumeData.sections.filter((s: any) =>
@@ -3292,11 +3543,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {/* Missing Keywords */}
                     {matchResult.match_analysis.missing_keywords.map((keyword, index) => (
                       <label
-                        key={index}
-                        className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer border-2 transition-all flex items-center gap-2 ${selectedKeywords.has(keyword)
+                        key={`missing-${index}`}
+                        className={`px-2 py-1 text-xs rounded-md cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
                           ? 'bg-red-100 text-red-800 border-red-400 font-medium'
                           : (matchResult as any).priority_keywords?.includes?.(keyword)
                             ? 'bg-red-50 text-red-700 border-red-300 font-medium'
@@ -3315,11 +3567,41 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             }
                             setSelectedKeywords(newSelected);
                           }}
-                          className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                          className="w-3 h-3 text-red-600 rounded focus:ring-red-500"
                         />
                         <span>{keyword}</span>
                       </label>
                     ))}
+                    {/* Technical Skills */}
+                    {technicalKeywordOptions.map(({ keyword, source }, index) => {
+                      const isSelected = selectedKeywords.has(keyword);
+                      const chipClass = isSelected
+                        ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                        : TECH_KEYWORD_CHIP_CLASS[source];
+
+                      return (
+                        <label
+                          key={`tech-${keyword}-${source}-${index}`}
+                          className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer border transition-all ${chipClass}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const newSelected = new Set(selectedKeywords);
+                              if (e.target.checked) {
+                                newSelected.add(keyword);
+                              } else {
+                                newSelected.delete(keyword);
+                              }
+                              setSelectedKeywords(newSelected);
+                            }}
+                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="font-medium">{keyword}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -3400,165 +3682,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               )}
 
-              {/* Technical Skills */}
-              {matchResult.match_analysis.technical_missing.length > 0 && (
-                <div className="border-t border-gray-200 pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Missing Technical Skills
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Add these skills to your resume ({matchResult.match_analysis.technical_missing.length} missing)
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const currentSkills = new Set<string>()
-                        resumeData.sections?.forEach((section: any) => {
-                          const sectionType = section.title?.toLowerCase()
-                          if (sectionType?.includes('skill') || sectionType?.includes('technical')) {
-                            section.bullets?.forEach((bullet: any) => {
-                              const skillText = bullet.text?.replace(/^•\s*/, '').trim()
-                              if (skillText) {
-                                currentSkills.add(skillText.toLowerCase())
-                              }
-                            })
-                          }
-                        })
-
-                        let skillsSection = resumeData.sections?.find((s: any) => {
-                          const title = s.title?.toLowerCase()
-                          return title?.includes('skill') || title?.includes('technical')
-                        })
-
-                        if (!skillsSection) {
-                          skillsSection = {
-                            id: `skill-${Date.now()}`,
-                            title: 'Skills',
-                            bullets: []
-                          }
-                        }
-
-                        const skillsToAdd = matchResult.match_analysis.technical_missing.filter(
-                          (skill: string) => !currentSkills.has(skill.toLowerCase())
-                        )
-
-                        const newSkills = skillsToAdd.map((skill: string) => ({
-                          id: `skill-${Date.now()}-${Math.random()}`,
-                          text: skill,
-                          params: { visible: true }
-                        }))
-
-                        const updatedSections = resumeData.sections?.map((s: any) =>
-                          s.id === skillsSection.id
-                            ? { ...s, bullets: [...s.bullets, ...newSkills] }
-                            : s
-                        ) || []
-
-                        if (!resumeData.sections?.find((s: any) => s.id === skillsSection.id)) {
-                          updatedSections.push(skillsSection)
-                        }
-
-                        const updatedResume = {
-                          ...resumeData,
-                          sections: updatedSections
-                        }
-
-                        if (onResumeUpdate) {
-                          onResumeUpdate(updatedResume)
-                        }
-
-                        alert(`✅ Added ${skillsToAdd.length} missing skill${skillsToAdd.length > 1 ? 's' : ''} to your resume!`)
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Add All Missing Skills
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {matchResult.match_analysis.technical_missing.map((skill, index) => {
-                      // Check if skill already exists in resume
-                      const skillExists = resumeData.sections?.some((section: any) => {
-                        const sectionType = section.title?.toLowerCase()
-                        if (sectionType?.includes('skill') || sectionType?.includes('technical')) {
-                          return section.bullets?.some((bullet: any) =>
-                            bullet.text?.replace(/^•\s*/, '').trim().toLowerCase() === skill.toLowerCase()
-                          )
-                        }
-                        return false
-                      })
-
-                      return (
-                        <label
-                          key={index}
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer border-2 transition-all ${skillExists
-                            ? 'bg-green-100 text-green-700 border-green-300'
-                            : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
-                            }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={false}
-                            onChange={(e) => {
-                              if (e.target.checked && !skillExists) {
-                                // Find or create skills section
-                                let skillsSection = resumeData.sections?.find((s: any) => {
-                                  const title = s.title?.toLowerCase()
-                                  return title?.includes('skill') || title?.includes('technical')
-                                })
-
-                                if (!skillsSection) {
-                                  skillsSection = {
-                                    id: `skill-${Date.now()}`,
-                                    title: 'Skills',
-                                    bullets: []
-                                  }
-                                }
-
-                                const newSkill = {
-                                  id: `skill-${Date.now()}-${Math.random()}`,
-                                  text: skill,
-                                  params: { visible: true }
-                                }
-
-                                const updatedSections = resumeData.sections?.map((s: any) =>
-                                  s.id === skillsSection.id
-                                    ? { ...s, bullets: [...s.bullets, newSkill] }
-                                    : s
-                                ) || []
-
-                                if (!resumeData.sections?.find((s: any) => s.id === skillsSection.id)) {
-                                  updatedSections.push({ ...skillsSection, bullets: [newSkill] })
-                                }
-
-                                const updatedResume = {
-                                  ...resumeData,
-                                  sections: updatedSections
-                                }
-
-                                if (onResumeUpdate) {
-                                  onResumeUpdate(updatedResume)
-                                }
-
-                                // Uncheck the checkbox after adding
-                                e.target.checked = false
-                              }
-                            }}
-                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            disabled={skillExists}
-                          />
-                          <span>{skill}</span>
-                          {skillExists && <span className="text-xs">✓</span>}
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* Save Button */}
               {matchResult && currentJobDescriptionId && (
@@ -3566,7 +3689,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   <button
                     onClick={async () => {
                       if (!isAuthenticated || !user?.email) {
-                        alert('Please sign in to save resumes to your profile');
+                        await showAlert({
+                          type: 'warning',
+                          message: 'Please sign in to save resumes to your profile',
+                          title: 'Authentication Required'
+                        });
                         return;
                       }
 
@@ -3775,7 +3902,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               <button
                 onClick={async () => {
                   if (!selectedWorkExpSection) {
-                    alert('Please select a work experience section');
+                    await showAlert({
+                      type: 'warning',
+                      message: 'Please select a work experience section',
+                      title: 'Selection Required'
+                    });
                     return;
                   }
 
@@ -3907,7 +4038,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
                       if (generatedBulletsList.length === 0) {
                         // All keywords found, just show success message
-                        alert(summary);
+                        await showAlert({
+                          type: 'success',
+                          message: summary,
+                          title: 'Success'
+                        });
                         setShowBulletGenerator(false);
                         setSelectedKeywords(new Set());
                         setSelectedWorkExpSection('');
@@ -3980,7 +4115,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             });
 
                           if (sanitizedBullets.length === 0) {
-                            alert('All generated bullet points already exist in this section – nothing new to add.');
+                            await showAlert({
+                              type: 'info',
+                              message: 'All generated bullet points already exist in this section – nothing new to add.',
+                              title: 'Info'
+                            });
                             setShowBulletGenerator(false);
                             setSelectedKeywords(new Set());
                             setSelectedWorkExpSection('');
@@ -4034,10 +4173,18 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             ? `✅ Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} and added ${sanitizedBullets.length} new bullet point${sanitizedBullets.length > 1 ? 's' : ''} to ${selectedSection.title}!`
                             : `✅ Successfully generated and added ${sanitizedBullets.length} bullet point${sanitizedBullets.length > 1 ? 's' : ''} to ${selectedSection.title}!`;
 
-                          alert(successMsg);
+                          await showAlert({
+                            type: 'success',
+                            message: successMsg,
+                            title: 'Success'
+                          });
                         } else if (markedBullets.length > 0) {
                           // Only marked existing bullets, no new ones generated
-                          alert(`✅ Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} - all keywords found in your resume!`);
+                          await showAlert({
+                            type: 'success',
+                            message: `Marked ${markedBullets.length} existing bullet${markedBullets.length > 1 ? 's' : ''} - all keywords found in your resume!`,
+                            title: 'Success'
+                          });
                         }
 
                         setShowBulletGenerator(false);
@@ -4074,7 +4221,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     }
                   } catch (error) {
                     console.error('Error generating bullet points:', error);
-                    alert('Failed to generate bullet points: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                    await showAlert({
+                      type: 'error',
+                      message: 'Failed to generate bullet points: ' + (error instanceof Error ? error.message : 'Unknown error'),
+                      title: 'Error'
+                    });
                   } finally {
                     setIsGeneratingBullets(false);
                   }
@@ -4278,7 +4429,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                                   (idx) => !bulletAssignments.has(idx)
                                 );
                                 if (!unassignedSelected.length) {
-                                  alert('Please select at least one unassigned bullet point');
+                                  await showAlert({
+                                    type: 'warning',
+                                    message: 'Please select at least one unassigned bullet point',
+                                    title: 'Selection Required'
+                                  });
                                   return;
                                 }
 

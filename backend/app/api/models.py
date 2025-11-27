@@ -121,9 +121,15 @@ class GrammarCheckPayload(BaseModel):
 
 
 class WorkExperienceRequest(BaseModel):
-    role: str
-    company: str
-    duration: str
+    currentCompany: Optional[str] = None
+    currentJobTitle: Optional[str] = None
+    currentDateRange: Optional[str] = None
+    experienceDescription: Optional[str] = None
+    projects: Optional[str] = None
+    jobDescription: Optional[str] = None
+    role: Optional[str] = None
+    company: Optional[str] = None
+    duration: Optional[str] = None
     skills: List[str] = []
     achievements: Optional[str] = None
     tone: Optional[str] = "professional"

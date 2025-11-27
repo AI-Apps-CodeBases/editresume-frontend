@@ -1,5 +1,6 @@
 'use client'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import SettingsPanel from '@/components/SettingsPanel'
@@ -8,6 +9,7 @@ import { auth } from '@/lib/firebaseClient'
 import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { StatsPanel } from '@/components/home/StatsPanel'
+import { DocumentIcon, DownloadIcon, ClockIcon, FolderIcon, DiamondIcon, EditIcon } from '@/components/Icons'
 
 interface ResumeHistory {
   id: string
@@ -38,6 +40,7 @@ interface CheckoutSessionResponse {
 
 function ProfilePageContent() {
   const { user, isAuthenticated, logout } = useAuth()
+  const { showAlert, showConfirm } = useModal()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
@@ -211,7 +214,15 @@ function ProfilePageContent() {
     setJobsLoading(true)
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
-      const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`)
+      const currentUser = auth.currentUser
+      const token = currentUser ? await currentUser.getIdToken() : null
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+        headers
+      })
       if (res.ok) {
         const data = await res.json()
         const jds = Array.isArray(data) ? data : data.results || []
@@ -287,8 +298,13 @@ function ProfilePageContent() {
     }
   }, [activeTab, isAuthenticated, user?.email, savedJDs.length, savedResumes.length, jobsLoading, resumesLoading, fetchJobDescriptions, fetchSavedResumes])
 
-  const handleDeleteAccount = () => {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+  const handleDeleteAccount = async () => {
+    const confirmed = await showConfirm({
+      title: 'Delete Account',
+      message: 'Are you sure you want to delete your account? This action cannot be undone.',
+      type: 'danger'
+    })
+    if (confirmed) {
       logout()
       router.push('/')
     }
@@ -299,7 +315,11 @@ function ProfilePageContent() {
 
     const currentUser = auth.currentUser
     if (!currentUser) {
-      alert('Unable to start checkout. Please sign in again.')
+      await showAlert({
+        type: 'warning',
+        message: 'Unable to start checkout. Please sign in again.',
+        title: 'Authentication Required'
+      })
       return
     }
 
@@ -335,7 +355,11 @@ function ProfilePageContent() {
       }
     } catch (error) {
       console.error('Checkout error', error)
-      alert(error instanceof Error ? error.message : 'Failed to start checkout. Please try again.')
+      await showAlert({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to start checkout. Please try again.',
+        title: 'Checkout Failed'
+      })
     } finally {
       setCheckoutLoading(false)
     }
@@ -345,7 +369,9 @@ function ProfilePageContent() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-body-gradient">
         <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
-          <div className="mb-4 text-4xl animate-pulse">📄</div>
+          <div className="flex justify-center mb-4">
+            <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+          </div>
           <p className="text-sm font-semibold text-text-muted">Loading profile…</p>
         </div>
       </div>
@@ -438,17 +464,23 @@ function ProfilePageContent() {
                 <h2 className="text-2xl font-bold text-gray-900">Account Overview</h2>
                 <div className="grid grid-cols-3 gap-6">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border-2 border-blue-200">
-                    <div className="text-blue-600 text-3xl mb-2">📄</div>
+                    <div className="mb-2">
+                      <DocumentIcon size={32} color="#2563eb" />
+                    </div>
                     <div className="text-3xl font-bold text-blue-900">{stats.resumesCreated}</div>
                     <div className="text-sm text-blue-700 font-medium">Resumes Created</div>
                   </div>
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border-2 border-purple-200">
-                    <div className="text-purple-600 text-3xl mb-2">📥</div>
+                    <div className="mb-2">
+                      <DownloadIcon size={32} color="#9333ea" />
+                    </div>
                     <div className="text-3xl font-bold text-purple-900">{stats.exportsThisMonth}</div>
                     <div className="text-sm text-purple-700 font-medium">Exports This Month</div>
                   </div>
                   <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-6 border-2 border-pink-200">
-                    <div className="text-pink-600 text-3xl mb-2">⏱️</div>
+                    <div className="mb-2">
+                      <ClockIcon size={32} color="#ec4899" />
+                    </div>
                     <div className="text-lg font-bold text-pink-900">{stats.accountAge}</div>
                     <div className="text-sm text-pink-700 font-medium">Account Age</div>
                   </div>
@@ -461,7 +493,7 @@ function ProfilePageContent() {
                       href="/editor?new=true"
                       className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all"
                     >
-                      <span className="text-2xl">✏️</span>
+                      <EditIcon size={24} color="currentColor" />
                       <div>
                         <div className="font-semibold text-gray-900">Create Resume</div>
                         <div className="text-xs text-gray-600">Start a new resume</div>
@@ -489,7 +521,9 @@ function ProfilePageContent() {
 
                 {resumeHistory.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="text-6xl mb-4">📄</div>
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No resumes yet</h3>
                     <p className="text-gray-600 mb-6">Create your first resume to see it here</p>
                     <a
@@ -542,12 +576,16 @@ function ProfilePageContent() {
 
                 {resumesLoading && savedResumes.length === 0 ? (
                   <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
-                    <div className="text-4xl mb-4 animate-pulse">📄</div>
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+                    </div>
                     <p className="text-gray-600">Loading resumes...</p>
                   </div>
                 ) : savedResumes.length === 0 ? (
                   <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
-                    <div className="text-6xl mb-4">📄</div>
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No saved resumes yet</h3>
                     <p className="text-gray-600 mb-6">Save your resume from the editor to create a master resume that you can match with job descriptions.</p>
                     <a
@@ -627,7 +665,9 @@ function ProfilePageContent() {
 
                   {savedResumes.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-gray-200">
-                      <div className="text-4xl mb-3">📄</div>
+                      <div className="flex justify-center mb-3">
+                        <DocumentIcon size={48} color="#0f62fe" className="opacity-60" />
+                      </div>
                       <h3 className="text-lg font-bold text-gray-900 mb-2">No saved resumes yet</h3>
                       <p className="text-gray-600 mb-4">Save your resume after creating or editing it in the editor.</p>
                       <a
@@ -732,7 +772,11 @@ function ProfilePageContent() {
                                     }
                                   } catch (error) {
                                     console.error('Failed to export resume:', error)
-                                    alert(`Failed to export resume: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                                    await showAlert({
+                                      type: 'error',
+                                      message: `Failed to export resume: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                      title: 'Export Failed'
+                                    })
                                   } finally {
                                     exportBtn.disabled = false
                                     exportBtn.textContent = originalText
@@ -746,7 +790,12 @@ function ProfilePageContent() {
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation()
-                                    if (!confirm(`Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`)) return
+                                    const confirmed = await showConfirm({
+                                      title: 'Delete Resume',
+                                      message: `Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`,
+                                      type: 'danger'
+                                    })
+                                    if (!confirmed) return
                                     
                                     const deleteBtn = e.currentTarget
                                     const originalText = deleteBtn.textContent
@@ -775,13 +824,21 @@ function ProfilePageContent() {
                                         }, 3000)
                                       } else {
                                         const errorData = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
-                                        alert(`Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`)
+                                        await showAlert({
+                                          type: 'error',
+                                          message: `Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`,
+                                          title: 'Delete Failed'
+                                        })
                                         deleteBtn.disabled = false
                                         deleteBtn.textContent = originalText
                                       }
                                     } catch (error) {
                                       console.error('Failed to delete resume:', error)
-                                      alert(`Failed to delete resume: ${error instanceof Error ? error.message : 'Network error'}`)
+                                      await showAlert({
+                                        type: 'error',
+                                        message: `Failed to delete resume: ${error instanceof Error ? error.message : 'Network error'}`,
+                                        title: 'Delete Failed'
+                                      })
                                       deleteBtn.disabled = false
                                       deleteBtn.textContent = originalText
                                     }
@@ -890,7 +947,9 @@ function ProfilePageContent() {
                   </div>
                 ) : savedJDs.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="text-6xl mb-4">🗂️</div>
+                    <div className="flex justify-center mb-4">
+                      <FolderIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No saved jobs yet</h3>
                     <p className="text-gray-600">Use the browser extension to save LinkedIn jobs.</p>
                   </div>
@@ -1017,7 +1076,12 @@ function ProfilePageContent() {
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation()
-                                    if (!confirm(`Are you sure you want to delete "${jd.title}"? This action cannot be undone.`)) return
+                                    const confirmed = await showConfirm({
+                                      title: 'Delete Job Description',
+                                      message: `Are you sure you want to delete "${jd.title}"? This action cannot be undone.`,
+                                      type: 'danger'
+                                    })
+                                    if (!confirmed) return
                                     
                                     const deleteBtn = e.currentTarget
                                     const originalText = deleteBtn.textContent
@@ -1046,13 +1110,21 @@ function ProfilePageContent() {
                                         }, 3000)
                                       } else {
                                         const errorData = await res.json().catch(() => ({ detail: 'Failed to delete job description' }))
-                                        alert(`Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`)
+                                        await showAlert({
+                                          type: 'error',
+                                          message: `Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`,
+                                          title: 'Delete Failed'
+                                        })
                                         deleteBtn.disabled = false
                                         deleteBtn.textContent = originalText
                                       }
                                     } catch (e) {
                                       console.error('Failed to delete job description:', e)
-                                      alert(`Failed to delete job description: ${e instanceof Error ? e.message : 'Network error'}`)
+                                      await showAlert({
+                                        type: 'error',
+                                        message: `Failed to delete job description: ${e instanceof Error ? e.message : 'Network error'}`,
+                                        title: 'Delete Failed'
+                                      })
                                       deleteBtn.disabled = false
                                       deleteBtn.textContent = originalText
                                     }
@@ -1134,14 +1206,22 @@ function ProfilePageContent() {
                     <button
                       type="button"
                       className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold"
-                      onClick={() => alert('To manage or cancel your subscription, please contact support@editresume.io.')}
+                      onClick={async () => {
+                        await showAlert({
+                          type: 'info',
+                          message: 'To manage or cancel your subscription, please contact support@editresume.io.',
+                          title: 'Manage Subscription'
+                        })
+                      }}
                     >
                       Manage Subscription
                     </button>
                   </>
                 ) : (
                   <div className="text-center py-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
-                    <div className="text-6xl mb-4">💎</div>
+                    <div className="flex justify-center mb-4">
+                      <DiamondIcon size={64} color="#0f62fe" />
+                    </div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">Upgrade to Premium</h3>
                     <p className="text-gray-600 mb-6 max-w-md mx-auto">
                       Get unlimited exports, premium templates, and priority support
@@ -1194,7 +1274,9 @@ export default function ProfilePage() {
         fallback={
           <div className="flex min-h-screen items-center justify-center bg-body-gradient">
             <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
-              <div className="mb-4 text-4xl animate-pulse">📄</div>
+              <div className="flex justify-center mb-4">
+                <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+              </div>
               <p className="text-sm font-semibold text-text-muted">Loading profile…</p>
             </div>
           </div>

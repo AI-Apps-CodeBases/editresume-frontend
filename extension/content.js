@@ -1009,14 +1009,15 @@
       try {
         const cfg = await chrome.storage.sync.get({ appBase: 'https://editresume.io', token: '' });
         
-        if (cfg.appBase && (cfg.appBase.includes('staging.editresume.io') || cfg.appBase.includes('localhost'))) {
-          cfg.appBase = 'https://editresume.io';
-          cfg.apiBase = 'https://editresume-api-prod.onrender.com';
-          await chrome.storage.sync.set({ 
-            appBase: cfg.appBase,
-            apiBase: cfg.apiBase
-          });
-        }
+        // Migration disabled - respect user's saved settings
+        // if (cfg.appBase && (cfg.appBase.includes('staging.editresume.io') || cfg.appBase.includes('localhost'))) {
+        //   cfg.appBase = 'https://editresume.io';
+        //   cfg.apiBase = 'https://editresume-api-prod.onrender.com';
+        //   await chrome.storage.sync.set({ 
+        //     appBase: cfg.appBase,
+        //     apiBase: cfg.apiBase
+        //   });
+        // }
         
         const resolvedApiBase = cfg.apiBase || (cfg.appBase && cfg.appBase.includes('editresume.io') && !cfg.appBase.includes('staging') 
           ? 'https://editresume-api-prod.onrender.com' 

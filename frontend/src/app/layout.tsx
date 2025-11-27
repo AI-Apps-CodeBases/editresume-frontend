@@ -5,6 +5,7 @@ import { SettingsProvider } from '@/contexts/SettingsContext'
 import { ModalProvider } from '@/contexts/ModalContext'
 import AutoHideNavbar from '@/components/layout/AutoHideNavbar'
 import Footer from '@/components/layout/Footer'
+import FeedbackWidget from '@/components/Feedback/FeedbackWidget'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <main className="flex-1">{children}</main>
                 <Footer />
               </div>
+              <FeedbackWidget />
             </ModalProvider>
           </SettingsProvider>
         </AuthProvider>

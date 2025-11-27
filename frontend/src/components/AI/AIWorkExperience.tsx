@@ -1,7 +1,8 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useModal } from '@/contexts/ModalContext'
+import config from '@/lib/config'
 
-import config from '@/lib/config';
 interface Props {
   companyName: string
   jobTitle: string
@@ -18,13 +19,46 @@ interface Props {
 }
 
 export default function AIWorkExperience({ companyName, jobTitle, dateRange, sectionId, bulletId, onUpdate, onClose }: Props) {
+  const { showAlert } = useModal()
+  const [formData, setFormData] = useState({
+    companyName: companyName || '',
+    jobTitle: jobTitle || '',
+    dateRange: dateRange || '',
+    projects: ''
+  })
   const [experienceDescription, setExperienceDescription] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedData, setGeneratedData] = useState<any>(null)
+  const [jobDescription, setJobDescription] = useState<string>('')
+
+  useEffect(() => {
+    const jd = typeof window !== 'undefined' ? localStorage.getItem('currentJDText') || '' : ''
+    setJobDescription(jd)
+  }, [])
 
   const handleGenerate = async () => {
-    if (!experienceDescription.trim()) {
-      alert('Please describe your experience first')
+    if (!formData.companyName.trim()) {
+      await showAlert({
+        type: 'warning',
+        message: 'Please enter a company name',
+        title: 'Missing Information'
+      })
+      return
+    }
+    if (!formData.jobTitle.trim()) {
+      await showAlert({
+        type: 'warning',
+        message: 'Please enter a job title',
+        title: 'Missing Information'
+      })
+      return
+    }
+    if (!formData.dateRange.trim()) {
+      await showAlert({
+        type: 'warning',
+        message: 'Please enter a date range',
+        title: 'Missing Information'
+      })
       return
     }
 
@@ -34,10 +68,12 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          experienceDescription,
-          currentCompany: companyName,
-          currentJobTitle: jobTitle,
-          currentDateRange: dateRange
+          currentCompany: formData.companyName,
+          currentJobTitle: formData.jobTitle,
+          currentDateRange: formData.dateRange,
+          experienceDescription: experienceDescription || `${formData.jobTitle} at ${formData.companyName}. ${formData.projects ? `Projects: ${formData.projects}` : ''}`,
+          projects: formData.projects,
+          jobDescription: jobDescription
         })
       })
 
@@ -46,20 +82,38 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
       }
 
       const result = await response.json()
-      setGeneratedData(result)
+      
+      // Clean bullets: remove quotes and special characters
+      const cleanBullet = (text: string): string => {
+        if (!text) return ""
+        let cleaned = text.trim()
+        // Remove surrounding quotes
+        if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+          cleaned = cleaned.slice(1, -1)
+        }
+        // Remove any remaining quotes
+        cleaned = cleaned.trim().replace(/^["']+|["']+$/g, '')
+        // Remove bullet markers if present
+        cleaned = cleaned.replace(/^[•\-\*]\s*/, '').trim()
+        // Remove JSON escape characters
+        cleaned = cleaned.replace(/\\"/g, '"').replace(/\\'/g, "'")
+        return cleaned
+      }
+
+      const cleanedBullets = (result.bullets || []).map(cleanBullet).filter((text: string) => text.length > 0)
+      
+      setGeneratedData({
+        companyName: (result.companyName || formData.companyName || '').trim(),
+        jobTitle: (result.jobTitle || formData.jobTitle || '').trim(),
+        dateRange: (result.dateRange || formData.dateRange || '').trim(),
+        bullets: cleanedBullets
+      })
     } catch (error) {
       console.error('Error generating work experience:', error)
-      // Fallback to mock data for testing
-      setGeneratedData({
-        companyName: companyName || 'Tech Company',
-        jobTitle: jobTitle || 'Software Engineer',
-        dateRange: dateRange || '2020-2023',
-        bullets: [
-          'Developed and maintained web applications using modern technologies',
-          'Collaborated with cross-functional teams to deliver high-quality software solutions',
-          'Implemented automated testing and CI/CD pipelines',
-          'Mentored junior developers and conducted code reviews'
-        ]
+      await showAlert({
+        type: 'error',
+        message: 'Failed to generate work experience. Please try again.',
+        title: 'Generation Error'
       })
     } finally {
       setIsGenerating(false)
@@ -79,113 +133,173 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-300">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">🤖 AI Work Experience Generator</h2>
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                🤖 AI Work Experience Generator
+              </h2>
+              <p className="text-gray-600 mt-1 text-sm">
+                Fill in your work details and AI will generate optimized bullet points based on your job description
+              </p>
+            </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl"
+              className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
             >
               ×
             </button>
           </div>
-          <p className="text-gray-600 mt-2">Describe your experience and AI will generate company info and bullet points</p>
         </div>
 
-        {/* Content */}
         <div className="p-6">
           {!generatedData ? (
             <div className="space-y-6">
-              {/* Current Company Info */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Current Company Information</h3>
-                <div className="space-y-2 text-sm">
-                  <div><strong>Company:</strong> {companyName}</div>
-                  <div><strong>Role:</strong> {jobTitle}</div>
-                  <div><strong>Date Range:</strong> {dateRange}</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Company Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.companyName}
+                    onChange={(e) => setFormData({...formData, companyName: e.target.value})}
+                    placeholder="e.g., Google, Microsoft, Amazon"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Job Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.jobTitle}
+                    onChange={(e) => setFormData({...formData, jobTitle: e.target.value})}
+                    placeholder="e.g., Senior Software Engineer"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
                 </div>
               </div>
 
-              {/* Experience Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Describe Your Experience
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Date Range <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.dateRange}
+                  onChange={(e) => setFormData({...formData, dateRange: e.target.value})}
+                  placeholder="e.g., Jan 2020 - Dec 2023 or 2020-2023"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Projects You Worked On
+                </label>
+                <textarea
+                  value={formData.projects}
+                  onChange={(e) => setFormData({...formData, projects: e.target.value})}
+                  placeholder="List the main projects you worked on at this company. For example: 'E-commerce platform migration, Payment gateway integration, Mobile app development'"
+                  className="w-full h-24 px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Optional: Describe key projects to help AI generate more relevant bullet points
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Additional Experience Details (Optional)
                 </label>
                 <textarea
                   value={experienceDescription}
                   onChange={(e) => setExperienceDescription(e.target.value)}
-                  placeholder="Example: I worked as a Senior Software Engineer at TechCorp from 2020 to 2023. I led a team of 5 developers, built scalable web applications using React and Node.js, implemented CI/CD pipelines, and improved system performance by 40%. I also mentored junior developers and conducted code reviews."
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Add any additional details about your responsibilities, achievements, or technologies used..."
+                  className="w-full h-32 px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Include your role, company, time period, key responsibilities, and achievements
-                </p>
               </div>
 
-              {/* Generate Button */}
+              {jobDescription && (
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-blue-900 mb-1">📋 Job Description Detected</p>
+                  <p className="text-xs text-blue-700">
+                    AI will optimize bullet points to match keywords and requirements from your target job description
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={handleGenerate}
-                disabled={!experienceDescription.trim() || isGenerating}
-                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                disabled={!formData.companyName.trim() || !formData.jobTitle.trim() || !formData.dateRange.trim() || isGenerating}
+                className="w-full px-6 py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
               >
                 {isGenerating ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Generating...
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>Generating optimized bullet points...</span>
                   </>
                 ) : (
                   <>
-                    🤖 Generate Work Experience
+                    <span>🤖</span>
+                    <span>Generate Work Experience</span>
                   </>
                 )}
               </button>
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Generated Company Info */}
-              <div className="bg-green-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-green-900 mb-3">✨ Generated Company Information</h3>
-                <div className="space-y-3">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-5">
+                <h3 className="text-lg font-bold text-green-900 mb-4 flex items-center gap-2">
+                  <span>✨</span>
+                  <span>Generated Work Experience</span>
+                </h3>
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Company Name</label>
                     <input
                       type="text"
                       value={generatedData.companyName}
                       onChange={(e) => setGeneratedData({...generatedData, companyName: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all bg-white"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
-                    <input
-                      type="text"
-                      value={generatedData.jobTitle}
-                      onChange={(e) => setGeneratedData({...generatedData, jobTitle: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
-                    <input
-                      type="text"
-                      value={generatedData.dateRange}
-                      onChange={(e) => setGeneratedData({...generatedData, dateRange: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Job Title</label>
+                      <input
+                        type="text"
+                        value={generatedData.jobTitle}
+                        onChange={(e) => setGeneratedData({...generatedData, jobTitle: e.target.value})}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Date Range</label>
+                      <input
+                        type="text"
+                        value={generatedData.dateRange}
+                        onChange={(e) => setGeneratedData({...generatedData, dateRange: e.target.value})}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all bg-white"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Generated Bullet Points */}
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-blue-900 mb-3">📝 Generated Bullet Points</h3>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5">
+                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                  <span>📝</span>
+                  <span>Generated Bullet Points</span>
+                </h3>
                 <div className="space-y-3">
                   {generatedData.bullets.map((bullet: string, index: number) => (
-                    <div key={index} className="flex gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                    <div key={index} className="flex gap-3 items-start">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-3 flex-shrink-0"></div>
                       <textarea
                         value={bullet}
                         onChange={(e) => {
@@ -193,7 +307,7 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
                           newBullets[index] = e.target.value
                           setGeneratedData({...generatedData, bullets: newBullets})
                         }}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white resize-none"
                         rows={2}
                       />
                       <button
@@ -201,7 +315,8 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
                           const newBullets = generatedData.bullets.filter((_: any, i: number) => i !== index)
                           setGeneratedData({...generatedData, bullets: newBullets})
                         }}
-                        className="text-red-500 hover:text-red-700 text-sm px-2 py-1 rounded"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors flex-shrink-0"
+                        title="Remove bullet point"
                       >
                         ×
                       </button>
@@ -214,26 +329,25 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
                         bullets: [...generatedData.bullets, 'New bullet point']
                       })
                     }}
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    className="text-blue-600 hover:text-blue-800 text-sm font-semibold hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors"
                   >
                     + Add Bullet Point
                   </button>
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex gap-3">
                 <button
                   onClick={() => setGeneratedData(null)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
                 >
-                  ← Back to Description
+                  ← Back to Form
                 </button>
                 <button
                   onClick={handleApply}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl"
                 >
-                  ✅ Apply Changes
+                  ✅ Apply to Resume
                 </button>
               </div>
             </div>
@@ -243,4 +357,3 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
     </div>
   )
 }
-

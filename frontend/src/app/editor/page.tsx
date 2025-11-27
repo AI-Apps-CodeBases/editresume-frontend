@@ -4,6 +4,7 @@ import Image from 'next/image'
 import config from '@/lib/config'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import { deduplicateSections } from '@/utils/sectionDeduplication'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GlobalReplacements from '@/components/AI/GlobalReplacements'
@@ -80,6 +81,7 @@ const normalizeSectionsForState = (sections: any[]) => {
 
 const EditorPageContent = () => {
   const { user, isAuthenticated, logout, checkPremiumAccess } = useAuth()
+  const { showAlert } = useModal()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -1022,7 +1024,11 @@ const EditorPageContent = () => {
       }
     } catch (error) {
       console.error('Failed to create room:', error)
-      alert('Failed to create collaboration room')
+      await showAlert({
+        type: 'error',
+        message: 'Failed to create collaboration room',
+        title: 'Error'
+      })
     }
   }
 
@@ -1116,7 +1122,11 @@ const EditorPageContent = () => {
 
     if (premiumMode && !checkPremiumAccess()) {
       console.log('Premium mode - access denied')
-      alert('⭐ Premium feature! Upgrade to export resumes.')
+      await showAlert({
+        type: 'info',
+        message: '⭐ Premium feature! Upgrade to export resumes.',
+        title: 'Premium Feature'
+      })
       return
     }
 
@@ -1140,7 +1150,11 @@ const EditorPageContent = () => {
     }
     
     if (isCoverLetterExport && !coverLetterToExport) {
-      alert('Please select a cover letter from the jobs page first, or generate a new one.')
+      await showAlert({
+        type: 'warning',
+        message: 'Please select a cover letter from the jobs page first, or generate a new one.',
+        title: 'Selection Required'
+      })
       return
     }
 
@@ -1399,12 +1413,20 @@ const EditorPageContent = () => {
       } else {
         const errorText = await response.text()
         console.error('Export failed:', response.status, errorText)
-        alert(`Export failed (${response.status}): ${errorText}`)
+        await showAlert({
+          type: 'error',
+          message: `Export failed (${response.status}): ${errorText}`,
+          title: 'Export Failed'
+        })
       }
     } catch (error) {
       console.error('Export error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      alert(`Export failed: ${errorMessage}. Make sure backend is running.`)
+      await showAlert({
+        type: 'error',
+        message: `Export failed: ${errorMessage}. Make sure backend is running.`,
+        title: 'Export Failed'
+      })
     } finally {
       setIsExporting(false)
     }
@@ -1422,12 +1444,20 @@ const EditorPageContent = () => {
 
   const handleSaveResume = useCallback(async () => {
     if (!resumeData.name && !resumeData.sections?.length) {
-      alert('Please add some content to your resume before saving')
+      await showAlert({
+        type: 'warning',
+        message: 'Please add some content to your resume before saving',
+        title: 'Content Required'
+      })
       return
     }
 
     if (!user?.email) {
-      alert('Unable to determine your account email. Please sign in again.')
+      await showAlert({
+        type: 'warning',
+        message: 'Unable to determine your account email. Please sign in again.',
+        title: 'Authentication Required'
+      })
       return
     }
 
@@ -1504,7 +1534,11 @@ const EditorPageContent = () => {
       }
     } catch (error) {
       console.error('Failed to save resume:', error)
-      alert(`Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      await showAlert({
+        type: 'error',
+        message: `Failed to save resume: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        title: 'Error'
+      })
     }
   }, [resumeData, selectedTemplate, setCurrentResumeId, user])
 
@@ -1544,7 +1578,7 @@ const EditorPageContent = () => {
     }
   }, [fullscreenPreview, previewMode])
 
-  const handleWorkExperienceUpdate = (newContent: any) => {
+  const handleWorkExperienceUpdate = async (newContent: any) => {
     console.log('=== HANDLING WORK EXPERIENCE UPDATE ===')
     console.log('New content:', newContent)
     console.log('Context:', newContent.context)
@@ -1559,17 +1593,39 @@ const EditorPageContent = () => {
           const updatedBullets = section.bullets.map(bullet => {
             if (bullet.id === bulletId) {
               // Update the company header with new information
+              const finalCompanyName = (content.companyName || companyName || '').trim() || 'New Company'
+              const finalJobTitle = (content.jobTitle || jobTitle || '').trim() || 'New Role'
+              const finalDateRange = (content.dateRange || dateRange || '').trim() || 'Date Range'
               return {
                 ...bullet,
-                text: `**${content.companyName || companyName} / ${content.jobTitle || jobTitle} / ${content.dateRange || dateRange}**`
+                text: `**${finalCompanyName} / Location / ${finalJobTitle} / ${finalDateRange}**`
               }
             }
             return bullet
           })
           
-          // Add new bullet points after the company header
+          // Clean and add new bullet points after the company header
+          const cleanBulletText = (text: string): string => {
+            if (!text) return ""
+            let cleaned = text.trim()
+            // Remove surrounding quotes
+            if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+              cleaned = cleaned.slice(1, -1)
+            }
+            // Remove any remaining quotes
+            cleaned = cleaned.trim().replace(/^["']+|["']+$/g, '')
+            // Remove bullet markers if present
+            cleaned = cleaned.replace(/^[•\-\*]\s*/, '').trim()
+            // Remove JSON escape characters
+            cleaned = cleaned.replace(/\\"/g, '"').replace(/\\'/g, "'")
+            return cleaned
+          }
+
           if (content.bullets && content.bullets.length > 0) {
-            const newBullets = content.bullets.map((bulletText: string, index: number) => ({
+            const newBullets = content.bullets
+              .map(cleanBulletText)
+              .filter((text: string) => text.length > 0)
+              .map((bulletText: string, index: number) => ({
               id: `bullet-${Date.now()}-${index}`,
               text: `• ${bulletText}`,
               params: {}
@@ -1593,11 +1649,15 @@ const EditorPageContent = () => {
       
     } catch (error) {
       console.error('Error updating work experience:', error)
-      alert('Failed to update work experience: ' + (error as Error).message)
+      await showAlert({
+        type: 'error',
+        message: 'Failed to update work experience: ' + (error as Error).message,
+        title: 'Error'
+      })
     }
   }
 
-  const handleBulletImprovement = (newContent: any) => {
+  const handleBulletImprovement = async (newContent: any) => {
     console.log('=== HANDLING BULLET IMPROVEMENT ===')
     console.log('New content:', newContent)
     console.log('Context:', newContent.context)
@@ -1640,11 +1700,15 @@ const EditorPageContent = () => {
       
     } catch (error) {
       console.error('Error improving bullet point:', error)
-      alert('Failed to improve bullet point: ' + (error as Error).message)
+      await showAlert({
+        type: 'error',
+        message: 'Failed to improve bullet point: ' + (error as Error).message,
+        title: 'Error'
+      })
     }
   }
 
-  const handleAddContent = (newContent: any) => {
+  const handleAddContent = async (newContent: any) => {
     console.log('=== AI WIZARD ADDING CONTENT ===')
     console.log('New content from AI wizard:', newContent)
     console.log('Content type:', newContent.type)
@@ -1878,7 +1942,11 @@ const EditorPageContent = () => {
       }
     } catch (error) {
       console.error('Error adding content:', error)
-      alert('Failed to add content: ' + (error as Error).message)
+      await showAlert({
+        type: 'error',
+        message: 'Failed to add content: ' + (error as Error).message,
+        title: 'Error'
+      })
     }
   }
 
@@ -2009,11 +2077,23 @@ const EditorPageContent = () => {
             console.error('AI improvement failed:', error)
             const errorMessage = error?.message || 'Unknown error occurred'
             if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
-              alert('Request timed out. The AI service may be slow right now. Please try again in a moment.')
+              await showAlert({
+                type: 'warning',
+                message: 'Request timed out. The AI service may be slow right now. Please try again in a moment.',
+                title: 'Timeout'
+              })
             } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
-              alert('AI service is temporarily unavailable. Please try again in a moment.')
+              await showAlert({
+                type: 'error',
+                message: 'AI service is temporarily unavailable. Please try again in a moment.',
+                title: 'Service Unavailable'
+              })
             } else {
-              alert('AI improvement failed: ' + errorMessage)
+              await showAlert({
+                type: 'error',
+                message: 'AI improvement failed: ' + errorMessage,
+                title: 'Error'
+              })
             }
             return text
           }
@@ -2074,29 +2154,14 @@ const EditorPageContent = () => {
       )}
 
       {showCoverLetterGenerator && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-xl font-bold">Cover Letter Generator</h2>
-              <button
-                onClick={() => setShowCoverLetterGenerator(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <CoverLetterGenerator
-                resumeData={resumeData}
-                onClose={() => setShowCoverLetterGenerator(false)}
-                onCoverLetterChange={(letter: string | null) => {
-                  setLatestCoverLetter(letter)
-                  setShowCoverLetterGenerator(false)
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <CoverLetterGenerator
+          resumeData={resumeData}
+          onClose={() => setShowCoverLetterGenerator(false)}
+          onCoverLetterChange={(letter: string | null) => {
+            setLatestCoverLetter(letter)
+            setShowCoverLetterGenerator(false)
+          }}
+        />
       )}
 
       {showVersionControl && currentResumeId && (

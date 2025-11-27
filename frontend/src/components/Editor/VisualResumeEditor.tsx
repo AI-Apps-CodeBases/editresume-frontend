@@ -7,6 +7,7 @@ import AIWorkExperience from '@/components/AI/AIWorkExperience'
 import AISectionAssistant from '@/components/AI/AISectionAssistant'
 import Comments from './Comments'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useModal } from '@/contexts/ModalContext'
 import {
   DndContext,
   closestCenter,
@@ -125,6 +126,7 @@ export default function VisualResumeEditor({
   onViewChange,
   hideSidebar = false
 }: Props) {
+  const { showAlert, showConfirm } = useModal()
   const [jdKeywords, setJdKeywords] = useState<{
     matching: string[];
     missing: string[];
@@ -649,9 +651,9 @@ export default function VisualResumeEditor({
       const keywordText = text.substring(match.index, match.index + match.length);
       if (keywordText) {
         parts.push(
-          <span key={`kw-${idx}-${match.index}`} className="bg-yellow-200 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
+          <span key={`kw-${idx}-${match.index}`} className="bg-green-200 text-green-900 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
             {keywordText}
-            {match.count > 1 && <sup className="text-xs text-gray-600 ml-0.5">{match.count}</sup>}
+            {match.count > 1 && <sup className="text-xs text-green-700 ml-0.5">{match.count}</sup>}
           </span>
         );
       }
@@ -673,10 +675,20 @@ export default function VisualResumeEditor({
   const highlightKeywordsInHTML = (text: string, matchedKeywords: string[]): string => {
     if (!matchedKeywords.length || !text || typeof text !== 'string') return text || '';
 
-    // First, decode any existing HTML entities to avoid double-encoding
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = text;
-    let cleanText = tempDiv.textContent || tempDiv.innerText || text;
+    // ALWAYS extract plain text first - STRIP ALL HTML completely to prevent any nested highlights
+    let cleanText = text;
+    
+    // If text contains any HTML, extract only text content
+    if (text.includes('<') || text.includes('&')) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = text;
+      cleanText = tempDiv.textContent || tempDiv.innerText || text;
+    }
+
+    if (!cleanText || cleanText.trim().length === 0) return cleanText;
+    
+    // Ensure we have ONLY plain text - no HTML entities or tags
+    cleanText = cleanText.trim();
 
     let highlightedText = cleanText;
     const sortedKeywords = [...matchedKeywords]
@@ -685,38 +697,64 @@ export default function VisualResumeEditor({
 
     if (sortedKeywords.length === 0) return cleanText;
 
+    // Track which parts of text have been highlighted to prevent duplicate highlighting
+    const highlightedRanges: Array<{start: number, end: number}> = [];
+    
     sortedKeywords.forEach(keyword => {
       try {
         const keywordLower = keyword.toLowerCase().trim();
         if (keywordLower.length <= 1) return;
 
-        // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+        // Handle special characters like "/" in "CI/CD" - escape properly
         const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+        const escapedKeyword = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
         let regex: RegExp;
         if (hasSpecialChars) {
-          // For keywords with special chars, escape and match directly (no word boundaries)
-          const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          regex = new RegExp(`(${escaped})`, 'gi');
+          // For keywords with special chars, match the exact keyword (case insensitive)
+          regex = new RegExp(escapedKeyword, 'gi');
         } else {
-          // For normal keywords, use word boundaries to avoid partial matches
-          regex = new RegExp(`\\b(${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+          // For normal keywords, use word boundaries
+          regex = new RegExp(`\\b${escapedKeyword}\\b`, 'gi');
         }
         
-        highlightedText = highlightedText.replace(regex, (match) => {
-          if (!match) return match;
-          // Properly escape HTML entities for the title attribute
-          const escapedKeyword = keyword
+        // Find all matches in the clean text
+        let match;
+        const matches: Array<{match: string, index: number}> = [];
+        while ((match = regex.exec(highlightedText)) !== null) {
+          const matchIndex = match.index;
+          const matchLength = match[0].length;
+          
+          // Check if this range is already highlighted
+          const alreadyHighlighted = highlightedRanges.some(range => 
+            matchIndex >= range.start && matchIndex < range.end
+          );
+          
+          if (!alreadyHighlighted) {
+            matches.push({ match: match[0], index: matchIndex });
+            highlightedRanges.push({ start: matchIndex, end: matchIndex + matchLength });
+          }
+        }
+        
+        // Replace matches in reverse order to maintain indices
+        matches.reverse().forEach(({ match: matchText, index }) => {
+          const escapedKeywordAttr = keyword
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
-          // Escape the match text itself for HTML
-          const escapedMatch = match
+          
+          const escapedMatch = matchText
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
-          return `<mark class="bg-yellow-200 font-semibold underline" title="JD Keyword: ${escapedKeyword}">${escapedMatch}</mark>`;
+          
+          const before = highlightedText.substring(0, index);
+          const after = highlightedText.substring(index + matchText.length);
+          highlightedText = before + 
+            `<mark class="bg-green-200 text-green-900 font-semibold underline" title="JD Keyword: ${escapedKeywordAttr}">${escapedMatch}</mark>` + 
+            after;
         });
       } catch (e) {
         console.warn('Error highlighting keyword in HTML:', keyword, e);
@@ -762,44 +800,164 @@ export default function VisualResumeEditor({
   // Track if component is mounted to avoid hydration errors
   const [isMounted, setIsMounted] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
+  const summaryHighlightingRef = useRef(false);
+  const summaryFieldRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
-    // Wait for React hydration to complete
-    const hydrationTimer = setTimeout(() => {
-      setIsHydrated(true);
-    }, 300);
-    return () => clearTimeout(hydrationTimer);
+    
+    // Clean up any corrupted highlights in summary field immediately on mount
+    if (typeof window !== 'undefined') {
+      const cleanupTimer = setTimeout(() => {
+        const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
+        if (summaryField) {
+          const html = summaryField.innerHTML || '';
+          const plainText = summaryField.textContent || '';
+          
+          // Detect corrupted patterns (repeated ">ci/cd" or excessive occurrences)
+          const ciCdMatches = (html.match(/ci\/cd/gi) || []).length;
+          const hasCorruptedPattern = html.includes('">ci/cd') || 
+                                     html.includes('">CI/CD') || 
+                                     html.includes('">ci/cd">') ||
+                                     ciCdMatches > 5; // More than 5 occurrences suggests corruption
+          
+          if (hasCorruptedPattern && plainText) {
+            // Strip ALL HTML and use only clean plain text
+            summaryField.textContent = plainText.trim();
+            // Update data to persist the clean version
+            if (data.summary !== plainText.trim()) {
+              onChange({ ...data, summary: plainText.trim() });
+            }
+          }
+        }
+      }, 100);
+      
+      // Wait for React hydration to complete
+      const hydrationTimer = setTimeout(() => {
+        setIsHydrated(true);
+      }, 300);
+      
+      return () => {
+        clearTimeout(hydrationTimer);
+        clearTimeout(cleanupTimer);
+      };
+    } else {
+      // Wait for React hydration to complete
+      const hydrationTimer = setTimeout(() => {
+        setIsHydrated(true);
+      }, 300);
+      return () => clearTimeout(hydrationTimer);
+    }
   }, []);
 
-  // Update highlighting when keywords change (client-side only to avoid hydration errors)
+  // Track previous summary text to prevent unnecessary updates
+  const previousSummaryRef = useRef<string>('');
+  const previousKeywordsRef = useRef<string>('');
+  const shouldRehighlightRef = useRef<boolean>(false);
+  const highlightingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // DISABLED: Automatic highlighting - only highlight on explicit blur event to prevent loops
+  // Highlighting will be triggered manually on blur
   useEffect(() => {
     if (!isHydrated) return;
     if (typeof window === 'undefined') return;
     if (!jdKeywords?.matching?.length) return;
 
-    // Update summary highlighting
-    const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
-    if (summaryField && data.summary && !summaryField.matches(':focus')) {
-      try {
-        // Get clean text content (strip any existing HTML)
-        const cleanText = summaryField.textContent || data.summary || '';
-        const summaryMatches = getTextMatches(cleanText);
-        if (summaryMatches.matchedKeywords.length > 0) {
-          const currentText = summaryField.textContent || '';
-          const normalizedCurrent = currentText.trim();
-          const normalizedData = cleanText.trim();
-          if (normalizedCurrent === normalizedData || !normalizedCurrent) {
-            // Use clean text to avoid HTML entity issues
-            const highlighted = highlightKeywordsInHTML(cleanText, summaryMatches.matchedKeywords);
-            summaryField.innerHTML = highlighted;
-          }
-        }
-      } catch (e) {
-        console.warn('Error highlighting summary:', e);
-      }
+    // Clear any pending highlighting
+    if (highlightingTimeoutRef.current) {
+      clearTimeout(highlightingTimeoutRef.current);
+      highlightingTimeoutRef.current = null;
     }
-  }, [isHydrated, jdKeywords, data.summary]);
+
+    // DO NOT automatically highlight - only do it on explicit blur trigger
+    // This prevents infinite loops
+    
+    // Only run if explicitly requested via shouldRehighlightRef
+    if (!shouldRehighlightRef.current) {
+      return;
+    }
+
+    const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
+    if (!summaryField) return;
+    
+    // Don't update if field is focused or being edited
+    if (summaryField.matches(':focus') || document.activeElement === summaryField) {
+      shouldRehighlightRef.current = false;
+      return;
+    }
+
+    // Prevent concurrent highlighting
+    if (summaryHighlightingRef.current) {
+      return;
+    }
+
+    const currentSummary = data.summary || '';
+    if (!currentSummary || !currentSummary.trim()) {
+      shouldRehighlightRef.current = false;
+      return;
+    }
+
+    // Get ONLY plain text from the field - completely strip all HTML
+    const plainText = summaryField.textContent || currentSummary || '';
+    
+    if (!plainText.trim()) {
+      shouldRehighlightRef.current = false;
+      return;
+    }
+
+    // Check if text actually changed
+    const keywordsHash = JSON.stringify(jdKeywords.matching);
+    const summaryChanged = plainText.trim() !== previousSummaryRef.current.trim();
+    const keywordsChanged = keywordsHash !== previousKeywordsRef.current;
+    
+    // Only highlight if explicitly requested OR if keywords changed (first time only)
+    if (!shouldRehighlightRef.current && !keywordsChanged) {
+      return;
+    }
+
+    // Prevent duplicate highlighting if already highlighted
+    const hasExistingHighlights = summaryField.innerHTML.includes('<mark');
+    if (hasExistingHighlights && !keywordsChanged && !shouldRehighlightRef.current) {
+      return;
+    }
+
+    try {
+      summaryHighlightingRef.current = true;
+      
+      // Get clean plain text only
+      const cleanPlainText = plainText.trim();
+      
+      const summaryMatches = getTextMatches(cleanPlainText);
+      
+      if (summaryMatches.matchedKeywords.length > 0) {
+        // Highlight from completely clean text
+        const highlighted = highlightKeywordsInHTML(cleanPlainText, summaryMatches.matchedKeywords);
+        
+        // Only update if we actually got highlighted HTML back
+        if (highlighted && highlighted !== cleanPlainText && highlighted.includes('<mark')) {
+          // Set the highlighted version
+          summaryField.innerHTML = highlighted;
+        }
+      }
+      
+      // Update tracking refs
+      previousSummaryRef.current = cleanPlainText;
+      previousKeywordsRef.current = keywordsHash;
+      
+    } catch (e) {
+      console.warn('Error highlighting summary:', e);
+      // On error, ensure field has clean text
+      if (summaryField.innerHTML.includes('<mark')) {
+        summaryField.textContent = plainText;
+      }
+    } finally {
+      shouldRehighlightRef.current = false;
+      // Reset flag after a delay
+      setTimeout(() => {
+        summaryHighlightingRef.current = false;
+      }, 500);
+    }
+  }, [isHydrated, jdKeywords]);
 
   // Add page break styles
   useEffect(() => {
@@ -810,8 +968,9 @@ export default function VisualResumeEditor({
         page-break-inside: avoid;
       }
       
-      mark.bg-yellow-200 {
-        background-color: #fef08a !important;
+      mark.bg-green-200 {
+        background-color: #bbf7d0 !important;
+        color: #166534 !important;
         font-weight: 600;
         text-decoration: underline;
         padding: 1px 2px;
@@ -1216,10 +1375,13 @@ export default function VisualResumeEditor({
         const updatedBullets = (section.bullets || []).map(bullet => {
           if (bullet.id === bulletId) {
             // Update the company header with new information
-            const location = updateData.location || 'Location'
+            const companyName = (updateData.companyName || '').trim() || 'New Company'
+            const location = (updateData.location || 'Location').trim()
+            const jobTitle = (updateData.jobTitle || '').trim() || 'New Role'
+            const dateRange = (updateData.dateRange || '').trim() || 'Date Range'
             return {
               ...bullet,
-              text: `**${updateData.companyName} / ${location} / ${updateData.jobTitle} / ${updateData.dateRange}**`
+              text: `**${companyName} / ${location} / ${jobTitle} / ${dateRange}**`
             }
           }
           return bullet
@@ -1243,8 +1405,27 @@ export default function VisualResumeEditor({
         // Remove old bullets
         const filteredBullets = updatedBullets.filter(bullet => !companyBulletIds.includes(bullet.id))
 
-        // Add new bullets after the company header
-        const newBullets = updateData.bullets.map((bulletText, index) => ({
+        // Clean and add new bullets after the company header
+        const cleanBulletText = (text: string): string => {
+          if (!text) return ""
+          // Remove surrounding quotes
+          let cleaned = text.trim()
+          if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+            cleaned = cleaned.slice(1, -1)
+          }
+          // Remove any remaining quotes
+          cleaned = cleaned.trim().replace(/^["']+|["']+$/g, '')
+          // Remove bullet markers if present
+          cleaned = cleaned.replace(/^[•\-\*]\s*/, '').trim()
+          // Remove JSON escape characters
+          cleaned = cleaned.replace(/\\"/g, '"').replace(/\\'/g, "'")
+          return cleaned
+        }
+
+        const newBullets = updateData.bullets
+          .map(cleanBulletText)
+          .filter(text => text.length > 0)
+          .map((bulletText, index) => ({
           id: `bullet-${Date.now()}-${index}`,
           text: `• ${bulletText}`,
           params: {}
@@ -1267,7 +1448,7 @@ export default function VisualResumeEditor({
     setAiWorkExperienceContext(null)
   }
 
-  const handleSectionAssistantUpdate = (sectionData: any) => {
+  const handleSectionAssistantUpdate = async (sectionData: any) => {
     console.log('=== HANDLING SECTION ASSISTANT UPDATE ===')
     console.log('Section data:', sectionData)
     console.log('Context:', aiSectionAssistantContext)
@@ -1332,7 +1513,11 @@ export default function VisualResumeEditor({
 
     } catch (error) {
       console.error('Error updating section content:', error)
-      alert('Failed to update section content: ' + (error as Error).message)
+      await showAlert({
+        type: 'error',
+        message: 'Failed to update section content: ' + (error as Error).message,
+        title: 'Error'
+      })
     }
   }
 
@@ -1568,7 +1753,11 @@ export default function VisualResumeEditor({
       }
     } catch (error) {
       console.error('Summary generation failed:', error)
-      alert('Failed to generate summary: ' + (error as Error).message)
+      await showAlert({
+        type: 'error',
+        message: 'Failed to generate summary: ' + (error as Error).message,
+        title: 'Error'
+      })
     } finally {
       setIsSummaryGenerating(false)
     }
@@ -1664,7 +1853,11 @@ export default function VisualResumeEditor({
           console.log('Bullet added successfully!')
         } else {
           console.error('API returned failure:', result)
-          alert('Failed to generate bullet point: ' + (result.error || 'Unknown error'))
+          await showAlert({
+            type: 'error',
+            message: 'Failed to generate bullet point: ' + (result.error || 'Unknown error'),
+            title: 'Error'
+          })
         }
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
@@ -1677,11 +1870,23 @@ export default function VisualResumeEditor({
       console.error('Bullet generation failed:', error)
       const errorMessage = error?.message || 'Unknown error occurred'
       if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
-        alert('Request timed out. The AI service may be slow right now. Please try again in a moment.')
+        await showAlert({
+          type: 'warning',
+          message: 'Request timed out. The AI service may be slow right now. Please try again in a moment.',
+          title: 'Timeout'
+        })
       } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
-        alert('AI service is temporarily unavailable. Please try again in a moment.')
+        await showAlert({
+          type: 'error',
+          message: 'AI service is temporarily unavailable. Please try again in a moment.',
+          title: 'Service Unavailable'
+        })
       } else {
-        alert('Bullet generation failed: ' + errorMessage)
+        await showAlert({
+          type: 'error',
+          message: 'Bullet generation failed: ' + errorMessage,
+          title: 'Error'
+        })
       }
     } finally {
       setIsGeneratingBullet(false)
@@ -2015,11 +2220,60 @@ export default function VisualResumeEditor({
                         >
                           <div className="prose max-w-none">
                             <div
+                              ref={(el) => {
+                                if (el) summaryFieldRef.current = el;
+                              }}
                               contentEditable
                               suppressContentEditableWarning
                               data-editable-type="field"
                               data-field="summary"
-                              onBlur={(e) => updateField('summary', e.currentTarget.textContent || '')}
+                              onFocus={(e) => {
+                                // Remove ALL highlighting when user starts editing
+                                const textContent = e.currentTarget.textContent || '';
+                                // Force plain text - strip all HTML
+                                e.currentTarget.textContent = textContent;
+                                shouldRehighlightRef.current = false;
+                                if (highlightingTimeoutRef.current) {
+                                  clearTimeout(highlightingTimeoutRef.current);
+                                  highlightingTimeoutRef.current = null;
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const textContent = e.currentTarget.textContent || '';
+                                updateField('summary', textContent);
+                                
+                                // Clear any existing timeout
+                                if (highlightingTimeoutRef.current) {
+                                  clearTimeout(highlightingTimeoutRef.current);
+                                }
+                                
+                                // Trigger re-highlighting after a delay (ensures updateField completes)
+                                highlightingTimeoutRef.current = setTimeout(() => {
+                                  const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
+                                  if (summaryField && !summaryField.matches(':focus') && jdKeywords?.matching?.length) {
+                                    shouldRehighlightRef.current = true;
+                                    summaryHighlightingRef.current = false;
+                                    previousSummaryRef.current = ''; // Force re-check
+                                    
+                                    // Get plain text and highlight
+                                    const plainText = summaryField.textContent || textContent || '';
+                                    if (plainText.trim()) {
+                                      const summaryMatches = getTextMatches(plainText);
+                                      if (summaryMatches.matchedKeywords.length > 0) {
+                                        try {
+                                          const highlighted = highlightKeywordsInHTML(plainText, summaryMatches.matchedKeywords);
+                                          if (highlighted && highlighted !== plainText && highlighted.includes('<mark')) {
+                                            summaryField.innerHTML = highlighted;
+                                          }
+                                        } catch (err) {
+                                          console.warn('Error highlighting on blur:', err);
+                                        }
+                                      }
+                                    }
+                                    shouldRehighlightRef.current = false;
+                                  }
+                                }, 300);
+                              }}
                               className="text-sm text-gray-700 leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200"
                             >
                               {data.summary || 'Write a compelling professional summary that highlights your key skills and experience...'}
@@ -2375,10 +2629,13 @@ export default function VisualResumeEditor({
                                               })
                                               setShowAIWorkExperience(true)
                                             }}
-                                            className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-semibold rounded-lg hover:from-orange-600 hover:to-red-600 transition-all shadow-md hover:shadow-lg flex items-center gap-1"
+                                            className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white text-xs font-semibold rounded-lg hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 transition-all shadow-md hover:shadow-lg flex items-center gap-1.5"
                                             title="🤖 AI Assistant - Generate work experience content"
                                           >
-                                            <span>🤖</span> AI Assistant
+                                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                            </svg>
+                                            <span>AI Assistant</span>
                                           </button>
 
                                           <button
@@ -2392,10 +2649,13 @@ export default function VisualResumeEditor({
                                               )
                                               onChange({ ...data, sections })
                                             }}
-                                            className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-800 rounded-lg font-semibold flex items-center justify-center text-xs transition-colors shadow-sm hover:shadow-md"
+                                            className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 text-xs transition-all shadow-sm hover:shadow-md"
                                             title="Delete company panel"
                                           >
-                                            <span>×</span> Delete Company
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                            <span>Delete Company</span>
                                           </button>
                                         </div>
                                       </div>
@@ -2606,12 +2866,17 @@ export default function VisualResumeEditor({
                                     })
                                     .map((bullet) => {
                                       const skillName = bullet.text.replace(/^•\s*/, '').trim()
+                                      // Check if skill matches JD keywords
+                                      const skillMatch = checkBulletMatches(skillName, section.title)
+                                      const hasKeywordMatch = skillMatch.matches && skillMatch.matchedKeywords.length > 0
 
                                       return (
                                         <label
                                           key={bullet.id}
                                           className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all border-2 ${bullet.params?.visible !== false
-                                            ? 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
+                                            ? hasKeywordMatch
+                                              ? 'bg-green-100 text-green-800 border-green-400 hover:bg-green-200 shadow-sm'
+                                              : 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
                                             : 'bg-gray-100 text-gray-400 border-gray-200 line-through'
                                             }`}
                                         >
@@ -2662,8 +2927,13 @@ export default function VisualResumeEditor({
                                             className="outline-none cursor-text"
                                             onClick={(e) => e.stopPropagation()}
                                           >
-                                            {skillName}
+                                            {hasKeywordMatch ? highlightKeywordsInText(skillName, skillMatch.matchedKeywords, skillMatch.keywordCounts) : skillName}
                                           </span>
+                                          {hasKeywordMatch && (
+                                            <span className="ml-1 text-green-600 text-xs" title={`Matches JD keywords: ${skillMatch.matchedKeywords.join(', ')}`}>
+                                              ✓
+                                            </span>
+                                          )}
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation()
@@ -2771,20 +3041,22 @@ export default function VisualResumeEditor({
                                         {/* AI Improve Button */}
                                         <button
                                           onClick={() => {
-                                            if (jdKeywords && jdKeywords.missing.length > 0) {
+                                            // Always use missing keywords modal when available
+                                            if (jdKeywords && jdKeywords.missing && jdKeywords.missing.length > 0) {
                                               const cleanedText = (bullet.text || '').replace(/^[-•*]+\s*/, '').trim()
                                               setAiImproveContext({
                                                 sectionId: section.id,
                                                 bulletId: bullet.id,
-                                                currentText: bullet.text,
+                                                currentText: bullet.text || '',
                                                 mode: cleanedText.length > 0 ? 'existing' : 'new'
                                               })
                                               setShowAIImproveModal(true)
                                             } else if (onAIImprove) {
+                                              // Fallback to old improve function when no missing keywords
                                               ; (async () => {
                                                 try {
                                                   setIsAILoading(true)
-                                                  const improvedText = await onAIImprove(bullet.text)
+                                                  const improvedText = await onAIImprove(bullet.text || '')
                                                   updateBullet(section.id, bullet.id, improvedText)
                                                 } catch (error) {
                                                   console.error('AI improvement failed:', error)
@@ -2796,7 +3068,9 @@ export default function VisualResumeEditor({
                                           }}
                                           disabled={isAILoading}
                                           className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
-                                          title="✨ AI Improve - Enhance with missing JD keywords"
+                                          title={jdKeywords && jdKeywords.missing && jdKeywords.missing.length > 0 
+                                            ? "✨ AI Improve - Enhance with missing JD keywords from job description" 
+                                            : "✨ AI Improve - Enhance bullet point"}
                                         >
                                           <span>{isAILoading ? '⏳' : '✨'}</span>
                                         </button>
@@ -2866,14 +3140,18 @@ export default function VisualResumeEditor({
                           return (
                             <button
                               key={idx}
-                              onClick={() => {
+                              onClick={async () => {
                                 const newSelected = new Set(selectedMissingKeywords)
                                 if (isSelected) {
                                   newSelected.delete(keyword)
                                 } else if (newSelected.size < 8) {
                                   newSelected.add(keyword)
                                 } else {
-                                  alert('Please select maximum 8 keywords')
+                                  await showAlert({
+                                    type: 'warning',
+                                    message: 'Please select maximum 8 keywords',
+                                    title: 'Selection Limit'
+                                  })
                                 }
                                 setSelectedMissingKeywords(newSelected)
                               }}
@@ -2898,11 +3176,19 @@ export default function VisualResumeEditor({
                       onClick={async () => {
                         if (!aiImproveContext) return
                         if (selectedMissingKeywords.size < 2) {
-                          alert('Please select at least 2 keywords (minimum 2, maximum 8)')
+                          await showAlert({
+                            type: 'warning',
+                            message: 'Please select at least 2 keywords (minimum 2, maximum 8)',
+                            title: 'Selection Required'
+                          })
                           return
                         }
                         if (selectedMissingKeywords.size > 8) {
-                          alert('Please select maximum 8 keywords')
+                          await showAlert({
+                            type: 'warning',
+                            message: 'Please select maximum 8 keywords',
+                            title: 'Selection Limit'
+                          })
                           return
                         }
 
@@ -3054,11 +3340,23 @@ export default function VisualResumeEditor({
                           console.error('Failed to generate AI bullet:', error)
                           const errorMessage = error?.message || 'Unknown error occurred'
                           if (errorMessage.includes('timeout') || errorMessage.includes('timed out') || errorMessage.includes('AbortError')) {
-                            alert('Request timed out. The AI service may be slow right now. Please try again in a moment or reduce the number of keywords.')
+                            await showAlert({
+                              type: 'warning',
+                              message: 'Request timed out. The AI service may be slow right now. Please try again in a moment or reduce the number of keywords.',
+                              title: 'Timeout'
+                            })
                           } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
-                            alert('AI service is temporarily unavailable. Please try again in a moment.')
+                            await showAlert({
+                              type: 'error',
+                              message: 'AI service is temporarily unavailable. Please try again in a moment.',
+                              title: 'Service Unavailable'
+                            })
                           } else {
-                            alert(`Failed to generate bullet: ${errorMessage}`)
+                            await showAlert({
+                              type: 'error',
+                              message: `Failed to generate bullet: ${errorMessage}`,
+                              title: 'Error'
+                            })
                           }
                         } finally {
                           setIsGeneratingBullets(false)
@@ -3212,16 +3510,24 @@ export default function VisualResumeEditor({
                         <div className="flex flex-col sm:flex-row gap-3">
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               if (!aiImproveContext) return
                               if (selectedBullets.size === 0) {
-                                alert('Please select a bullet to insert')
+                                await showAlert({
+                                  type: 'warning',
+                                  message: 'Please select a bullet to insert',
+                                  title: 'Selection Required'
+                                })
                                 return
                               }
                               const selectedIndex = Array.from(selectedBullets)[0]
                               const chosen = generatedBulletOptions[selectedIndex]
                               if (!chosen) {
-                                alert('Selected bullet is unavailable')
+                                await showAlert({
+                                  type: 'error',
+                                  message: 'Selected bullet is unavailable',
+                                  title: 'Error'
+                                })
                                 return
                               }
                               const sanitizedChoice = chosen.replace(/^[-•*]+\s*/, '').trim()
@@ -3388,6 +3694,7 @@ function SortableSectionCard({
   onToggleVisibility?: () => void
   onRemove?: () => void
 }) {
+  const { showConfirm } = useModal()
   const {
     attributes,
     listeners,
@@ -3461,10 +3768,15 @@ function SortableSectionCard({
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {onRemove && (
             <button
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation()
                 e.preventDefault()
-                if (confirm(`Are you sure you want to delete the "${title}" section?`)) {
+                const confirmed = await showConfirm({
+                  title: 'Delete Section',
+                  message: `Are you sure you want to delete the "${title}" section?`,
+                  type: 'danger'
+                })
+                if (confirmed) {
                   // Immediately call remove - no other operations
                   onRemove()
                 }
