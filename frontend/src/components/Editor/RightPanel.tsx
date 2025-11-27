@@ -84,10 +84,22 @@ export default function RightPanel({
 
       // Use job description if available (from deepLinkedJD or localStorage)
       let jobDescriptionToUse = deepLinkedJD || '';
+      let extractedKeywordsToUse = null;
       if (!jobDescriptionToUse && typeof window !== 'undefined') {
         const savedJD = localStorage.getItem('deepLinkedJD');
         if (savedJD) {
           jobDescriptionToUse = savedJD;
+        }
+      }
+      // Load extracted_keywords from localStorage if available
+      if (typeof window !== 'undefined') {
+        const savedKeywords = localStorage.getItem('extractedKeywords');
+        if (savedKeywords) {
+          try {
+            extractedKeywordsToUse = JSON.parse(savedKeywords);
+          } catch (e) {
+            console.error('Failed to parse extracted keywords:', e);
+          }
         }
       }
 
@@ -100,7 +112,8 @@ export default function RightPanel({
           resume_data: cleanedResumeData,
           job_description: jobDescriptionToUse, // Use job description when available for better scoring
           target_role: '', // Optional
-          industry: '' // Optional
+          industry: '', // Optional
+          extracted_keywords: extractedKeywordsToUse || undefined  // Include if available
         }),
       })
 

@@ -343,3 +343,39 @@ Requirements:
 
 Return ONLY a JSON array of bullet point strings, e.g. ["Bullet 1", "Bullet 2"]."""
 
+
+def get_llm_keyword_extraction_prompt(job_description: str) -> str:
+    """Generate prompt for LLM-based keyword extraction from job description."""
+    return f"""Extract ATS-relevant keywords from this job description. Focus on keywords that are important for Applicant Tracking Systems (ATS) to match resumes.
+
+Job Description:
+{job_description}
+
+Extract keywords in these categories:
+1. TECHNICAL_KEYWORDS: Programming languages, frameworks, tools, technologies (e.g., Python, React, AWS, Kubernetes)
+2. SOFT_SKILLS: Interpersonal and professional skills (e.g., Leadership, Communication, Problem-solving)
+3. EDUCATION: Degree requirements, certifications (e.g., Bachelor's in Computer Science, AWS Certified)
+4. EXPERIENCE: Years of experience, experience types (e.g., 5+ years, Agile experience)
+5. GENERAL_KEYWORDS: Important terms, methodologies, industry terms (e.g., Microservices, DevOps, Scrum)
+
+CRITICAL REQUIREMENTS:
+- Extract ONLY meaningful, ATS-relevant keywords (40-80 total, not hundreds)
+- Exclude generic words like "the", "and", "company", "team", "work", "experience" (unless part of a specific phrase)
+- Include multi-word phrases when relevant (e.g., "machine learning", "cloud computing")
+- Prioritize keywords that appear in requirements/qualifications sections
+- Return keywords in lowercase for consistency
+- Focus on keywords that would actually be searched by ATS systems
+
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "technical_keywords": ["python", "react", "aws", "kubernetes"],
+  "soft_skills": ["leadership", "communication", "problem-solving"],
+  "education": ["bachelor's in computer science", "aws certified"],
+  "experience": ["5+ years", "agile experience"],
+  "general_keywords": ["microservices", "devops", "scrum", "ci/cd"],
+  "priority_keywords": ["python", "react", "aws", "kubernetes", "microservices"]
+}}
+
+The "priority_keywords" array should contain the top 15-20 most important keywords for ATS matching.
+Return ONLY the JSON, no explanations or markdown formatting."""
+

@@ -35,6 +35,7 @@ class EnhancedATSPayload(BaseModel):
     job_description: Optional[str] = None
     target_role: Optional[str] = None
     industry: Optional[str] = None
+    extracted_keywords: Optional[Dict[str, Any]] = None  # Extension-extracted keywords from LLM
 
 
 class AIImprovementPayload(BaseModel):

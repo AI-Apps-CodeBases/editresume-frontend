@@ -477,6 +477,11 @@ const EditorPageContent = () => {
                 console.log('Loaded JD from API, setting preview mode to match')
                 setDeepLinkedJD(description)
                 setPreviewMode('match')
+                // Store extracted_keywords if available (from extension)
+                const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords
+                if (extractedKeywords && typeof window !== 'undefined') {
+                  localStorage.setItem('extractedKeywords', JSON.stringify(extractedKeywords))
+                }
                 if (typeof window !== 'undefined') {
                   localStorage.setItem('deepLinkedJD', description)
                   localStorage.setItem('activeJobDescriptionId', String(jobId))
