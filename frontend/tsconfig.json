@@ -55,6 +55,7 @@
   },
   "include": [
     "next-env.d.ts",
+    "react-simple-maps.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"
