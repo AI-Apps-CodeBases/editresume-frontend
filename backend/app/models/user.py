@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.core.db import Base
@@ -19,6 +19,9 @@ class User(Base):
     password = Column(String, nullable=False)
     is_premium = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    linkedin_token = Column(Text, nullable=True)
+    linkedin_profile_url = Column(String, nullable=True)
+    linkedin_id = Column(String, nullable=True)
 
     resumes = relationship("Resume", back_populates="user")
     resume_versions = relationship("ResumeVersion", back_populates="user")
