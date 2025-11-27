@@ -21,6 +21,8 @@ export default function DashboardPage() {
         topPerformers,
         topCountries,
         contentGenData,
+        latestUsers,
+        latestSubscribers,
         loading
     } = useDashboardData()
 
@@ -104,10 +106,18 @@ export default function DashboardPage() {
                 {/* Charts Row 1 - Sales Statistic wider (2 cols), others 1 col each */}
                 <div className="grid grid-cols-4 gap-6">
                     <div className="col-span-2">
-                        <SalesChart data={salesData} />
+                        <SalesChart 
+                            data={salesData} 
+                            totalIncome={stats.totalIncome}
+                            incomeChange={stats.incomeChange}
+                        />
                     </div>
                     <div className="col-span-1">
-                        <SubscriberChart data={subscriberData} />
+                        <SubscriberChart 
+                            data={subscriberData}
+                            totalSubscriptions={stats.totalSubscriptions}
+                            subscriptionsChange={stats.subscriptionsChange}
+                        />
                     </div>
                     <div className="col-span-1">
                         <UserOverviewChart data={userOverview} />
@@ -117,7 +127,10 @@ export default function DashboardPage() {
                 {/* Charts Row 2 */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2">
-                        <LatestUsersTable />
+                        <LatestUsersTable 
+                            latestUsers={latestUsers}
+                            latestSubscribers={latestSubscribers}
+                        />
                     </div>
                     <div className="lg:col-span-1">
                         <TopPerformerList data={topPerformers} />
