@@ -76,12 +76,36 @@ async def get_dashboard_stats(
         
         free_users_change = users_change - subscriptions_change
         
-        # Income and Expense (from Stripe - placeholder for now)
+        # Income (from Stripe - placeholder for now)
         # TODO: Implement Stripe payment tracking
         total_income = 0
-        total_expense = 0
         income_change = 0
-        expense_change = 0
+        
+        # Expense (OpenAI API costs)
+        # Calculate based on estimated token usage
+        # For now, estimate: each resume generation uses ~2000 tokens
+        # gpt-4o-mini pricing: $0.15 per 1M input tokens, $0.60 per 1M output tokens
+        # Average: ~$0.0003 per 1000 tokens
+        total_resumes = db.query(func.count(Resume.id)).scalar() or 0
+        estimated_tokens = total_resumes * 2000  # Rough estimate
+        # Cost per 1000 tokens: ~$0.0003 for gpt-4o-mini
+        total_expense = round(estimated_tokens * 0.0003 / 1000, 2)
+        
+        # Calculate expense change (last 30 days)
+        resumes_last_30 = db.query(func.count(Resume.id)).filter(
+            Resume.created_at >= thirty_days_ago
+        ).scalar() or 0
+        estimated_tokens_last_30 = resumes_last_30 * 2000
+        expense_last_30 = round(estimated_tokens_last_30 * 0.0003 / 1000, 2)
+        
+        resumes_previous_30 = db.query(func.count(Resume.id)).filter(
+            Resume.created_at >= sixty_days_ago,
+            Resume.created_at < thirty_days_ago
+        ).scalar() or 0
+        estimated_tokens_previous_30 = resumes_previous_30 * 2000
+        expense_previous_30 = round(estimated_tokens_previous_30 * 0.0003 / 1000, 2)
+        
+        expense_change = round(expense_last_30 - expense_previous_30, 2)
         
         return {
             "totalUsers": total_users,
@@ -151,6 +175,27 @@ async def get_subscriber_data(
 ):
     """Get subscriber statistics by day of week"""
     try:
+        # Get total subscriptions
+        total_subscriptions = db.query(func.count(User.id)).filter(
+            User.is_premium == True
+        ).scalar() or 0
+        
+        # Calculate changes (last 30 days vs previous 30 days)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        sixty_days_ago = datetime.utcnow() - timedelta(days=60)
+        
+        subscriptions_last_30 = db.query(func.count(User.id)).filter(
+            User.is_premium == True,
+            User.created_at >= thirty_days_ago
+        ).scalar() or 0
+        
+        subscriptions_previous_30 = db.query(func.count(User.id)).filter(
+            User.is_premium == True,
+            User.created_at >= sixty_days_ago,
+            User.created_at < thirty_days_ago
+        ).scalar() or 0
+        
+        subscriptions_change = subscriptions_last_30 - subscriptions_previous_30
         
         # Get premium users grouped by day of week (0=Monday, 6=Sunday)
         days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -180,7 +225,11 @@ async def get_subscriber_data(
         # Reverse to show most recent first
         subscriber_by_day.reverse()
         
-        return subscriber_by_day
+        return {
+            "data": subscriber_by_day,
+            "totalSubscriptions": total_subscriptions,
+            "subscriptionsChange": subscriptions_change,
+        }
     except Exception as e:
         logger.error(f"Error fetching subscriber data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch subscriber data")
@@ -280,20 +329,23 @@ async def get_top_performers(
     db: Session = Depends(get_db),
     token: dict = Depends(verify_admin_token),
 ):
-    """Get top performing users (by resume count or exports)"""
+    """Get top performing users (by resume count - proxy for token usage)"""
     try:
-        # Get users with most resumes
+        # Get users with most resumes (proxy for token/API usage)
         users_with_resumes = db.query(
             User.id,
             User.name,
             User.email,
-            func.count(Resume.id).label("resume_count")
+            func.count(Resume.id).label("resume_count"),
+            func.count(ResumeVersion.id).label("version_count")
         ).join(
             Resume, User.id == Resume.user_id, isouter=True
+        ).join(
+            ResumeVersion, Resume.id == ResumeVersion.resume_id, isouter=True
         ).group_by(
             User.id, User.name, User.email
         ).order_by(
-            func.count(Resume.id).desc()
+            func.count(ResumeVersion.id).desc()  # Order by version count (proxy for token usage)
         ).limit(10).all()
         
         return [
@@ -302,10 +354,10 @@ async def get_top_performers(
                 "name": name,
                 "email": email,
                 "agentId": str(user_id),
-                "revenue": resume_count or 0,
+                "revenue": version_count or 0,  # Version count as proxy for token usage
                 "status": "active",
             }
-            for user_id, name, email, resume_count in users_with_resumes
+            for user_id, name, email, resume_count, version_count in users_with_resumes
         ]
     except Exception as e:
         logger.error(f"Error fetching top performers: {e}", exc_info=True)
@@ -394,12 +446,35 @@ async def get_content_generation_data(
     db: Session = Depends(get_db),
     token: dict = Depends(verify_admin_token),
 ):
-    """Get content generation statistics"""
+    """Get content generation statistics (token usage)"""
     try:
-        # Get resume versions created by month
-        # TODO: Track actual content generation (words, images)
-        # For now, return empty array
-        return []
+        # Get resume versions created by month (proxy for token usage)
+        current_year = datetime.utcnow().year
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        content_by_month = []
+        for month_num in range(1, 13):
+            month_start = datetime(current_year, month_num, 1)
+            if month_num == 12:
+                month_end = datetime(current_year + 1, 1, 1)
+            else:
+                month_end = datetime(current_year, month_num + 1, 1)
+            
+            # Count resume versions created in this month (proxy for AI usage)
+            version_count = db.query(func.count(ResumeVersion.id)).filter(
+                ResumeVersion.created_at >= month_start,
+                ResumeVersion.created_at < month_end
+            ).scalar() or 0
+            
+            # Estimate tokens: each version generation uses ~2000 tokens
+            estimated_tokens = version_count * 2000
+            
+            content_by_month.append({
+                "date": months[month_num - 1],
+                "word": estimated_tokens,  # Using "word" as key to match frontend
+            })
+        
+        return content_by_month
     except Exception as e:
         logger.error(f"Error fetching content generation data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch content generation data")

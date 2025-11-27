@@ -84,8 +84,21 @@ export const useDashboardData = () => {
 
                 // Update subscriber data
                 if (subscribersRes.status === 'fulfilled' && subscribersRes.value.ok) {
-                    const data = await subscribersRes.value.json()
-                    setSubscriberData(data)
+                    const result = await subscribersRes.value.json()
+                    // Handle both old format (array) and new format (object with data, totalSubscriptions, subscriptionsChange)
+                    if (Array.isArray(result)) {
+                        setSubscriberData(result)
+                    } else {
+                        setSubscriberData(result.data || [])
+                        // Update stats with subscriber info if available
+                        if (result.totalSubscriptions !== undefined) {
+                            setStats(prev => ({
+                                ...prev,
+                                totalSubscriptions: result.totalSubscriptions,
+                                subscriptionsChange: result.subscriptionsChange || 0,
+                            }))
+                        }
+                    }
                 }
 
                 // Update user overview
