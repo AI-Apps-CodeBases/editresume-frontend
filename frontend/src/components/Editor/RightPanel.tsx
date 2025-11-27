@@ -82,6 +82,15 @@ export default function RightPanel({
         }))
       }
 
+      // Use job description if available (from deepLinkedJD or localStorage)
+      let jobDescriptionToUse = deepLinkedJD || '';
+      if (!jobDescriptionToUse && typeof window !== 'undefined') {
+        const savedJD = localStorage.getItem('deepLinkedJD');
+        if (savedJD) {
+          jobDescriptionToUse = savedJD;
+        }
+      }
+
       const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
         headers: {
@@ -89,7 +98,7 @@ export default function RightPanel({
         },
         body: JSON.stringify({
           resume_data: cleanedResumeData,
-          job_description: '', // Optional
+          job_description: jobDescriptionToUse, // Use job description when available for better scoring
           target_role: '', // Optional
           industry: '' // Optional
         }),
@@ -118,7 +127,7 @@ export default function RightPanel({
     } finally {
       setIsAnalyzing(false)
     }
-  }, [resumeData])
+  }, [resumeData, deepLinkedJD]) // Recalculate when job description changes
 
   // Debounced effect to recalculate score when resumeData changes
   useEffect(() => {
@@ -226,6 +235,15 @@ export default function RightPanel({
       console.log('Applying improvement with strategy:', strategy)
       console.log('Resume data:', cleanedResumeData)
 
+      // Use job description if available for better improvement suggestions
+      let jobDescriptionToUse = deepLinkedJD || '';
+      if (!jobDescriptionToUse && typeof window !== 'undefined') {
+        const savedJD = localStorage.getItem('deepLinkedJD');
+        if (savedJD) {
+          jobDescriptionToUse = savedJD;
+        }
+      }
+
       const response = await fetch(`${config.apiBase}/api/ai/apply_improvement`, {
         method: 'POST',
         headers: {
@@ -233,7 +251,7 @@ export default function RightPanel({
         },
         body: JSON.stringify({
           resume_data: cleanedResumeData,
-          job_description: '', // Optional, can be empty
+          job_description: jobDescriptionToUse, // Use job description when available
           target_role: '', // Optional, can be empty
           industry: '', // Optional, can be empty
           strategy: strategy

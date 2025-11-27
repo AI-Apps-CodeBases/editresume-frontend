@@ -274,9 +274,18 @@ class EnhancedATSChecker:
                 ]
             )
 
+        # Create TF-IDF vectorizer optimized for 2-document comparison (resume + job description)
+        # This vectorizer is reused for all calculations - we call fit_transform() each time
+        # with new documents, but reuse the same configured vectorizer object for efficiency.
         if SKLEARN_AVAILABLE:
             self.vectorizer = TfidfVectorizer(
-                max_features=1000, stop_words="english", ngram_range=(1, 2)
+                max_features=None,  # No limit - keep all unique terms (safe for 2 documents)
+                stop_words="english",  # Remove common words (the, a, an, etc.)
+                ngram_range=(1, 2),  # Include unigrams (single words) and bigrams (word pairs)
+                min_df=1,  # Term must appear at least once
+                max_df=1.0,  # Allow terms appearing in both documents (important for matching)
+                lowercase=True,  # Case-insensitive matching
+                strip_accents="unicode",  # Normalize accents (é → e)
             )
         else:
             self.vectorizer = None
@@ -353,26 +362,26 @@ class EnhancedATSChecker:
             if not found:
                 missing_sections.append(section_type)
 
-        # Improved scoring: More generous base score and better scaling
+        # Realistic scoring: More accurate base score and better scaling
         found_count = sum(1 for found in found_sections.values() if found)
-        base_section_score = found_count * 25  # Increased from 20 to 25 per section
+        base_section_score = found_count * 20  # Realistic: 20 points per section
         
         # Bonus for having contact info
-        contact_bonus = 15 if bool(
+        contact_bonus = 10 if bool(
             resume_data.get("email") or resume_data.get("phone")
         ) else 0
         
-        # Bonus for having multiple sections (encourages completeness)
-        section_count_bonus = min(30, len(resume_data.get("sections", [])) * 3)  # Increased from 2 to 3
+        # Bonus for having multiple sections (encourages completeness) - more realistic cap
+        section_count_bonus = min(15, len(resume_data.get("sections", [])) * 2)  # Reduced from 30 to 15
         
         # Additional bonus for having summary/objective
-        summary_bonus = 10 if resume_data.get("summary") else 0
+        summary_bonus = 8 if resume_data.get("summary") else 0
         
         section_score = min(100, base_section_score + contact_bonus + section_count_bonus + summary_bonus)
         
-        # Ensure minimum score if resume has any content
+        # More realistic minimum score - only if resume has meaningful content
         if len(resume_data.get("sections", [])) > 0:
-            section_score = max(30, section_score)  # Minimum 30 if has sections
+            section_score = max(15, section_score)  # Reduced from 30 to 15 for more realistic scoring
 
         return {
             "found_sections": found_sections,
@@ -426,20 +435,25 @@ class EnhancedATSChecker:
             (leadership_count / total_words) * 100 if total_words > 0 else 0
         )
 
-        # Job description matching
+        # Job description matching - improved to be more sensitive to keyword additions
         job_match_score = 0
         job_suggestions = []
+        matching_keywords = set()  # Initialize for use in bonus calculation
         if job_description:
             job_words = job_description.lower().split()
             job_keywords = [
                 word.strip('.,!?;:"()[]{}') for word in job_words if word.isalpha()
             ]
             matching_keywords = set(words) & set(job_keywords)
-            job_match_score = (
-                (len(matching_keywords) / len(set(job_keywords))) * 100
-                if job_keywords
-                else 0
-            )
+            
+            # More sensitive calculation: consider both percentage and absolute count
+            if job_keywords:
+                match_percentage = (len(matching_keywords) / len(set(job_keywords))) * 100
+                # Boost score based on number of matches (more matches = better)
+                match_count_boost = min(10, len(matching_keywords) * 0.5)
+                job_match_score = min(100, match_percentage + match_count_boost)
+            else:
+                job_match_score = 0
 
             missing_job_keywords = set(job_keywords) - set(words)
             if missing_job_keywords:
@@ -460,17 +474,24 @@ class EnhancedATSChecker:
         if leadership_density < 0.2:
             suggestions.append("Include leadership and team collaboration keywords")
 
-        # Improved scoring: Higher base score and better scaling
-        base_score = 50  # Increased from 40 to 50
+        # Realistic scoring: More accurate base and better sensitivity to keyword additions
+        base_score = 40  # More realistic starting point
         
-        # Improved bonus calculations with better scaling
-        action_bonus = min(30, 15 + (action_density * 3))  # Increased max from 25 to 30
-        technical_bonus = min(30, 20 + (technical_density * 5))  # Increased max from 25 to 30
-        metrics_bonus = min(30, 20 + (metrics_density * 6))  # Increased max from 25 to 30
-        leadership_bonus = min(25, 15 + (leadership_density * 7))  # Increased max from 20 to 25
+        # Use both density AND absolute counts for better sensitivity
+        # This ensures adding keywords actually increases the score
+        action_bonus = min(25, 10 + (action_density * 2) + min(10, action_verb_count * 0.5))
+        technical_bonus = min(25, 15 + (technical_density * 3) + min(10, technical_count * 0.4))
+        metrics_bonus = min(25, 15 + (metrics_density * 4) + min(10, metrics_count * 0.5))
+        leadership_bonus = min(20, 10 + (leadership_density * 5) + min(8, leadership_count * 0.4))
         
-        # Job match bonus scales better
-        job_bonus = min(40, job_match_score * 0.4) if job_description else 0  # Increased max from 30 to 40
+        # Job match bonus - more sensitive to keyword additions
+        # Use both percentage and absolute count for better responsiveness
+        if job_description:
+            # Calculate bonus based on both match percentage and number of matches
+            match_count = len(matching_keywords)
+            job_bonus = min(35, (job_match_score * 0.35) + min(15, match_count * 0.5))
+        else:
+            job_bonus = 0
 
         keyword_score = min(
             100,
@@ -482,9 +503,9 @@ class EnhancedATSChecker:
             + job_bonus,
         )
         
-        # Ensure minimum score if resume has keywords
+        # More realistic minimum score - only if resume has meaningful keywords
         if action_verb_count > 0 or technical_count > 0:
-            keyword_score = max(40, keyword_score)  # Minimum 40 if has keywords
+            keyword_score = max(25, keyword_score)  # Reduced from 40 to 25 for more realistic scoring
 
         return {
             "score": keyword_score,
@@ -548,26 +569,26 @@ class EnhancedATSChecker:
             1 for word in buzzwords if word.lower() in text_content.lower()
         )
 
-        # Improved quality score calculation: Higher base and better rewards
-        quality_score = 60  # Increased from 50 to 60
+        # Realistic quality score calculation: More accurate base and better rewards
+        quality_score = 45  # More realistic starting point (reduced from 60)
 
         if quantified_achievements > 0:
-            quality_score += min(35, quantified_achievements * 6)  # Increased from 30 to 35, better scaling
+            quality_score += min(30, quantified_achievements * 5)  # More realistic scaling
 
         if strong_verb_count > 0:
-            quality_score += min(25, strong_verb_count * 4)  # Increased from 20 to 25, better scaling
+            quality_score += min(20, strong_verb_count * 3)  # More realistic scaling
 
         if vague_count > 0:
-            quality_score -= min(15, vague_count * 3)  # Reduced penalty from 20 to 15
+            quality_score -= min(12, vague_count * 2.5)  # More realistic penalty
 
         if buzzword_count > 3:
-            quality_score -= min(8, (buzzword_count - 3) * 1.5)  # Reduced penalty from 10 to 8
+            quality_score -= min(6, (buzzword_count - 3) * 1.2)  # More realistic penalty
 
         quality_score = max(0, min(100, quality_score))
         
-        # Ensure minimum score if resume has content
+        # More realistic minimum score - only if resume has meaningful content
         if text_content.strip():
-            quality_score = max(45, quality_score)  # Minimum 45 if has content
+            quality_score = max(30, quality_score)  # Reduced from 45 to 30 for more realistic scoring
 
         suggestions = []
         if vague_count > 0:
@@ -848,19 +869,15 @@ class EnhancedATSChecker:
             return self._fallback_keyword_match(resume_text, job_description)
 
         try:
-            # Create TF-IDF vectorizer with industry-standard parameters
-            vectorizer = TfidfVectorizer(
-                max_features=1000,  # Limit vocabulary size
-                stop_words="english",  # Remove common words
-                ngram_range=(1, 2),  # Include unigrams and bigrams
-                min_df=1,  # Term must appear at least once
-                max_df=0.95,  # Ignore terms that appear in >95% of documents
-                lowercase=True,
-                strip_accents="unicode",
-            )
+            # Reuse the vectorizer from __init__ for efficiency
+            # We call fit_transform() each time with new documents, but reuse the same configured object
+            if not self.vectorizer:
+                # Fallback if vectorizer wasn't initialized (shouldn't happen if SKLEARN_AVAILABLE)
+                return self._fallback_keyword_match(resume_text, job_description)
 
             # Fit and transform resume and job description
-            tfidf_matrix = vectorizer.fit_transform([resume_text, job_description])
+            # Note: fit_transform() fits the vectorizer to these specific documents and transforms them
+            tfidf_matrix = self.vectorizer.fit_transform([resume_text, job_description])
 
             # Calculate cosine similarity (industry-standard method)
             cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
@@ -869,7 +886,7 @@ class EnhancedATSChecker:
             cosine_score = cosine_sim * 100
 
             # Extract feature names (keywords) and their TF-IDF scores
-            feature_names = vectorizer.get_feature_names_out()
+            feature_names = self.vectorizer.get_feature_names_out()
             resume_tfidf = tfidf_matrix[0].toarray()[0]
             job_tfidf = tfidf_matrix[1].toarray()[0]
 
@@ -1102,17 +1119,17 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         formatting_analysis = self.check_formatting_compatibility(resume_data)
 
-        # Improved weighted scoring: Better balance to allow higher scores
+        # Realistic weighted scoring: Better balance for accurate scores
         overall_score = (
-            structure_analysis["section_score"] * 0.25  # Reduced from 0.28
-            + keyword_analysis["score"] * 0.35  # Increased from 0.32
-            + quality_analysis["score"] * 0.28  # Increased from 0.25
-            + formatting_analysis["score"] * 0.12  # Reduced from 0.15
+            structure_analysis["section_score"] * 0.25
+            + keyword_analysis["score"] * 0.35
+            + quality_analysis["score"] * 0.28
+            + formatting_analysis["score"] * 0.12
         )
         
-        # Ensure minimum score if resume has meaningful content
+        # More realistic minimum score - only if resume has meaningful content
         if resume_text.strip() and len(resume_data.get("sections", [])) > 0:
-            overall_score = max(35, overall_score)  # Minimum 35 if has content
+            overall_score = max(20, overall_score)  # Reduced from 35 to 20 for more realistic scoring
 
         # Generate AI improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)
