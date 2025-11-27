@@ -7,7 +7,8 @@ import json
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.models import (
@@ -114,6 +115,39 @@ async def get_ats_score(payload: ResumePayload):
             "details": {},
             "error": str(e),
         }
+
+
+@router.options("/enhanced_ats_score")
+async def options_enhanced_ats_score(request: Request):
+    """Handle OPTIONS preflight for enhanced_ats_score endpoint"""
+    import os
+    from app.core.config import settings
+    
+    origin = request.headers.get("origin")
+    
+    headers = {
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    }
+    
+    # Get allowed origins from settings
+    allowed_origins = settings.allowed_origins
+    env = os.getenv("ENVIRONMENT", "development")
+    
+    # Check if origin is allowed
+    if origin:
+        if env == "staging":
+            headers["Access-Control-Allow-Origin"] = "*"
+            headers["Access-Control-Allow-Credentials"] = "false"
+        elif origin in allowed_origins or origin.startswith("chrome-extension://"):
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+        else:
+            # Still allow for OPTIONS (preflight), actual request will be validated
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "false"
+    
+    return Response(status_code=200, headers=headers)
 
 
 @router.post("/enhanced_ats_score")

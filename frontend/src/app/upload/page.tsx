@@ -9,9 +9,7 @@ import { ResumeAutomationFlow } from '@/features/resume-automation/components/Re
 import { deduplicateSections } from '@/utils/sectionDeduplication'
 
 const quickActions = [
-  { icon: '⚡', title: 'AI Rewrite', description: 'Generate targeted improvements instantly.', href: '/editor?new=true&ai=1' },
   { icon: '🧠', title: 'Match a Job', description: 'Upload JD and tailor in minutes.', href: '/editor?view=jobs' },
-  { icon: '🤝', title: 'Share Securely', description: 'Invite feedback without exporting.', href: '/profile?tab=resumes' },
 ]
 
 export default function UploadPage() {
@@ -111,14 +109,7 @@ export default function UploadPage() {
             <p className="max-w-2xl mx-auto text-xl text-slate-600 leading-relaxed">
               Import from PDF or DOCX, keep every structured section, and unlock <span className="font-semibold text-primary-700">ATS-aware diagnostics</span> the moment it lands in the editor.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-              <Link href="/editor?new=true" className="px-6 py-3 rounded-xl bg-white border-2 border-slate-200 text-slate-700 font-semibold hover:border-primary-300 hover:bg-primary-50 transition-all shadow-sm hover:shadow-md">
-                Start from scratch
-              </Link>
-              <Link href="/auth/signup" className="px-6 py-3 rounded-xl text-slate-600 font-semibold hover:text-primary-700 transition-colors">
-                Need an account? →
-              </Link>
-            </div>
+
           </div>
 
           {/* Main Upload Area */}
@@ -160,7 +151,7 @@ export default function UploadPage() {
                       href={item.href}
                       className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-primary-50/0 via-purple-50/0 to-blue-50/0 group-hover:from-primary-50/50 group-hover:via-purple-50/50 group-hover:to-blue-50/50 transition-all duration-300"></div>
+
                       <div className="relative flex items-start gap-4">
                         <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300">
                           {item.icon}
@@ -183,7 +174,7 @@ export default function UploadPage() {
                     }}
                     className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 text-left w-full"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary-50/0 via-purple-50/0 to-blue-50/0 group-hover:from-primary-50/50 group-hover:via-purple-50/50 group-hover:to-blue-50/50 transition-all duration-300"></div>
+
                     <div className="relative flex items-start gap-4">
                       <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300">
                         ✨

@@ -10,6 +10,20 @@ const aiHighlights = [
 export default function HeroSection() {
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-white via-[#f4f7ff] to-white">
+      {/* Logo */}
+      <div className="absolute top-6 left-6 z-20">
+        <Link href="/" className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm p-2 hover:shadow-md transition-shadow">
+          <Image 
+            src="/logo.jpg" 
+            alt="editresume.io" 
+            width={480} 
+            height={240}
+            className="h-12 w-auto"
+            priority
+          />
+        </Link>
+      </div>
+      
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -left-24 top-14 h-72 w-72 rounded-full bg-primary-100 blur-[140px]" />
         <div className="absolute -right-16 top-1/3 h-80 w-80 rounded-full bg-primary-200 blur-[160px]" />
@@ -27,10 +41,10 @@ export default function HeroSection() {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link href="/upload" className="button-primary text-sm">
-                Import your resume
+                import your resume
               </Link>
               <Link href="/editor?new=true" className="button-secondary text-sm">
-                Create my resume
+                create a new resume
               </Link>
             </div>
             <div className="mt-6">
