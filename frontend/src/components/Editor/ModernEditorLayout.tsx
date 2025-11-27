@@ -147,7 +147,7 @@ export default function ModernEditorLayout({
         onRightPanelClick={() => setShowRightDrawer(true)}
       />
 
-      <div className="flex flex-1 overflow-hidden mt-[70px] lg:mt-[120px]">
+      <div className="flex flex-1 overflow-hidden mt-14">
         <ModernLeftSidebar 
           onViewChange={onViewChange} 
           currentView={currentView}
