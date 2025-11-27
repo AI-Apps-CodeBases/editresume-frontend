@@ -18,7 +18,6 @@ from app.api import (
     auth,
     collaboration,
     dashboard,
-    feedback,
     firebase_auth,
     job,
     jobs,
@@ -108,7 +107,6 @@ app.include_router(jobs.router)
 app.include_router(collaboration.router)
 app.include_router(analytics.router)
 app.include_router(dashboard.router)
-app.include_router(feedback.router)
 
 # Additional routes that need different prefixes
 # These are registered here because they don't fit the standard router prefix pattern

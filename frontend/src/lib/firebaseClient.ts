@@ -61,7 +61,7 @@ export const auth = new Proxy(authObj, {
   get(target, prop) {
     if (!isBrowser) {
       if (prop === 'currentUser') return null
-      if (prop === 'onAuthStateChanged') return () => () => {}
+      if (prop === 'onAuthStateChanged') return () => () => { }
       return undefined
     }
     try {
@@ -73,6 +73,12 @@ export const auth = new Proxy(authObj, {
       return value
     } catch (error) {
       console.error('Firebase Auth access error:', error)
+      // Return no-op functions for auth methods when Firebase is not configured
+      if (prop === 'currentUser') return null
+      if (prop === 'onAuthStateChanged') return () => () => { }
+      if (typeof prop === 'string' && ['signInWithEmailAndPassword', 'createUserWithEmailAndPassword', 'signOut', 'sendPasswordResetEmail', 'signInWithPopup'].includes(prop)) {
+        return () => Promise.reject(new Error('Firebase is not configured'))
+      }
       return undefined
     }
   }
@@ -92,5 +98,3 @@ export default new Proxy(appObj, {
     }
   }
 }) as FirebaseApp
-
-
