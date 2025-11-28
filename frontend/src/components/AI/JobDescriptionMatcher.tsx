@@ -3574,24 +3574,26 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   {selectedJobMetadata?.title && (
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-xl">📌</span>
-                      <h3 className="text-lg font-bold text-gray-900">{selectedJobMetadata.title}</h3>
+                      <h3 className="text-lg font-bold text-gray-900">{selectedJobMetadata?.title}</h3>
                     </div>
                   )}
                   {selectedJobMetadata?.company && (
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <span className="text-lg">🏢</span>
-                        <span className="text-base font-semibold text-gray-700">{selectedJobMetadata.company}</span>
+                        <span className="text-base font-semibold text-gray-700">{selectedJobMetadata?.company}</span>
                       </div>
                       {currentJDInfo?.easy_apply_url && (
                         <a
-                          href={currentJDInfo.easy_apply_url}
+                          href={currentJDInfo?.easy_apply_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-4 py-2 bg-[#0077b5] hover:bg-[#006399] text-white text-sm font-semibold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center gap-2"
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(currentJDInfo.easy_apply_url, '_blank');
+                            if (currentJDInfo?.easy_apply_url) {
+                              window.open(currentJDInfo.easy_apply_url, '_blank');
+                            }
                           }}
                         >
                           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -3613,7 +3615,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       <span>💼</span>
                       <span className="text-xs font-semibold text-gray-600 uppercase">Job Type</span>
                     </div>
-                    <div className="text-sm font-bold text-gray-900">{selectedJobMetadata.jobType}</div>
+                    <div className="text-sm font-bold text-gray-900">{selectedJobMetadata?.jobType}</div>
                   </div>
                 )}
                 {selectedJobMetadata?.remoteStatus && (
@@ -3622,7 +3624,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       <span>🌐</span>
                       <span className="text-xs font-semibold text-gray-600 uppercase">Work Type</span>
                     </div>
-                    <div className="text-sm font-bold text-gray-900">{selectedJobMetadata.remoteStatus}</div>
+                    <div className="text-sm font-bold text-gray-900">{selectedJobMetadata?.remoteStatus}</div>
                   </div>
                 )}
                 {selectedJobMetadata?.budget && (
@@ -3631,19 +3633,19 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       <span>💰</span>
                       <span className="text-xs font-semibold text-gray-600 uppercase">Budget</span>
                     </div>
-                    <div className="text-sm font-bold text-green-600">{selectedJobMetadata.budget}</div>
+                    <div className="text-sm font-bold text-green-600">{selectedJobMetadata?.budget}</div>
                   </div>
                 )}
               </div>
 
               {/* Technical Skills */}
-              {selectedJobMetadata?.skills && selectedJobMetadata.skills.length > 0 && (
+              {selectedJobMetadata?.skills && (selectedJobMetadata?.skills?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
                     <span>⚙️</span> Technical Skills
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {selectedJobMetadata.skills.map((skill, idx) => (
+                    {(selectedJobMetadata?.skills || []).map((skill, idx) => (
                       <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-500 to-green-600 text-white">
                         {skill}
                       </span>
@@ -3653,13 +3655,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               )}
 
               {/* Top Keywords */}
-              {selectedJobMetadata?.keywords && selectedJobMetadata.keywords.length > 0 && (
+              {selectedJobMetadata?.keywords && (selectedJobMetadata?.keywords?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
                     <span>📊</span> Top Keywords
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {selectedJobMetadata.keywords.map((keyword, idx) => (
+                    {(selectedJobMetadata?.keywords || []).map((keyword, idx) => (
                       <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-500 to-purple-600 text-white">
                         {keyword}
                       </span>
@@ -3669,13 +3671,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               )}
 
               {/* Soft Skills */}
-              {selectedJobMetadata?.soft_skills && selectedJobMetadata.soft_skills.length > 0 && (
+              {selectedJobMetadata?.soft_skills && (selectedJobMetadata?.soft_skills?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
                     <span>🤝</span> Soft Skills
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {selectedJobMetadata.soft_skills.map((skill, idx) => (
+                    {(selectedJobMetadata?.soft_skills || []).map((skill, idx) => (
                       <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                         {skill}
                       </span>
@@ -3685,13 +3687,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               )}
 
               {/* High-Frequency Keywords (Most Important for ATS) */}
-              {selectedJobMetadata?.high_frequency_keywords && selectedJobMetadata.high_frequency_keywords.length > 0 && (
+              {selectedJobMetadata?.high_frequency_keywords && (selectedJobMetadata?.high_frequency_keywords?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
                     <span>🔥</span> High-Frequency Keywords (ATS Priority)
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {selectedJobMetadata.high_frequency_keywords.map((item, idx) => (
+                    {(selectedJobMetadata?.high_frequency_keywords || []).map((item, idx) => (
                       <span
                         key={idx}
                         className={`px-3 py-1 rounded-full text-xs font-medium text-white ${item.importance === 'high'
@@ -3714,13 +3716,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               {selectedJobMetadata?.ats_insights && (
                 <div className="space-y-3">
                   {/* Action Verbs */}
-                  {selectedJobMetadata.ats_insights.action_verbs && selectedJobMetadata.ats_insights.action_verbs.length > 0 && (
+                  {selectedJobMetadata?.ats_insights?.action_verbs && (selectedJobMetadata?.ats_insights?.action_verbs?.length ?? 0) > 0 && (
                     <div>
                       <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
                         <span>⚡</span> Action Verbs (Use in Resume)
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {selectedJobMetadata.ats_insights.action_verbs.map((verb, idx) => (
+                        {(selectedJobMetadata?.ats_insights?.action_verbs || []).map((verb, idx) => (
                           <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-indigo-500 to-indigo-600 text-white">
                             {verb}
                           </span>
@@ -3733,13 +3735,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   )}
 
                   {/* Metrics */}
-                  {selectedJobMetadata.ats_insights.metrics && selectedJobMetadata.ats_insights.metrics.length > 0 && (
+                  {selectedJobMetadata?.ats_insights?.metrics && (selectedJobMetadata?.ats_insights?.metrics?.length ?? 0) > 0 && (
                     <div>
                       <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
                         <span>📈</span> Metrics Keywords
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {selectedJobMetadata.ats_insights.metrics.map((metric, idx) => (
+                        {(selectedJobMetadata?.ats_insights?.metrics || []).map((metric, idx) => (
                           <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-teal-500 to-teal-600 text-white">
                             {metric}
                           </span>
@@ -3752,13 +3754,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   )}
 
                   {/* Industry Terms */}
-                  {selectedJobMetadata.ats_insights.industry_terms && selectedJobMetadata.ats_insights.industry_terms.length > 0 && (
+                  {selectedJobMetadata?.ats_insights?.industry_terms && (selectedJobMetadata?.ats_insights?.industry_terms?.length ?? 0) > 0 && (
                     <div>
                       <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
                         <span>🏭</span> Industry Terms
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {selectedJobMetadata.ats_insights.industry_terms.map((term, idx) => (
+                        {(selectedJobMetadata?.ats_insights?.industry_terms || []).map((term, idx) => (
                           <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-cyan-500 to-cyan-600 text-white">
                             {term}
                           </span>
