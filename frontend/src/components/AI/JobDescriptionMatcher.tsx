@@ -2707,6 +2707,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         payload.id = currentJobDescriptionId;
       }
 
+      // Include resume_id if available to link current resume version
+      if (resumeData?.id) {
+        payload.resume_id = resumeData.id;
+      }
+
       const response = await fetch(`${apiBase}/api/job-descriptions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3848,6 +3853,36 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     >
                       {isManualATSRefreshing ? 'Refreshing...' : 'Refresh'}
                     </button>
+                    {currentJobDescriptionId && (updatedResumeData || updatedATSScore !== null) && (
+                      <button
+                        onClick={async () => {
+                          if (!isAuthenticated || !user?.email) {
+                            await showAlert({
+                              type: 'warning',
+                              message: 'Please sign in to save matches',
+                              title: 'Authentication Required'
+                            });
+                            return;
+                          }
+                          
+                          const resumePayload = updatedResumeData ?? resumeData;
+                          const suggestedName = currentJDInfo?.company 
+                            ? `${currentJDInfo.company}${currentJDInfo.title ? ` - ${currentJDInfo.title}` : ''} Resume`
+                            : selectedJobMetadata?.title 
+                              ? `${selectedJobMetadata.title.trim()} Resume`
+                              : resumeData.name || 'My Resume';
+                          
+                          setResumeSaveName(suggestedName);
+                          setShowSaveNameModal(true);
+                        }}
+                        className="text-xs px-4 py-1.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save Match
+                      </button>
+                    )}
                     {isAnalyzing && (
                       <span className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg font-medium">
                         Updating...
