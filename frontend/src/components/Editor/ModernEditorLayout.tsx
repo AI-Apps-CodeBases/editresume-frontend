@@ -94,7 +94,7 @@ export default function ModernEditorLayout({
   onTemplatesClick,
   onShareResume,
 }: ModernEditorLayoutProps) {
-  const [activeRightTab, setActiveRightTab] = useState<'live' | 'match' | 'analysis' | 'grammar' | 'comments'>('live')
+  const [activeRightTab, setActiveRightTab] = useState<'live' | 'match' | 'comments'>('live')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
   const [showLeftDrawer, setShowLeftDrawer] = useState(false)
   const [showRightDrawer, setShowRightDrawer] = useState(false)
@@ -147,7 +147,7 @@ export default function ModernEditorLayout({
         onRightPanelClick={() => setShowRightDrawer(true)}
       />
 
-      <div className="flex flex-1 overflow-hidden mt-[70px] lg:mt-[120px]">
+      <div className="flex flex-1 overflow-hidden mt-14">
         <ModernLeftSidebar 
           onViewChange={onViewChange} 
           currentView={currentView}

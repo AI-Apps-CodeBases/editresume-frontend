@@ -32,7 +32,6 @@ import { shouldPromptAuthentication } from '@/lib/guestAuth'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { ATSScoreCard } from '@/features/resume-automation/components/ATSScoreCard'
 import { OptimizationSuggestions } from '@/features/resume-automation/components/OptimizationSuggestions'
-import AutoHideNavbar from '@/components/layout/AutoHideNavbar'
 import type {
   AutoGenerateResponse,
   ATSScore as AutomationATSScore,
@@ -2016,7 +2015,6 @@ const EditorPageContent = () => {
 
   return (
     <>
-      <AutoHideNavbar />
       <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
         {headerElement}
         <div className="fixed inset-0 overflow-hidden">

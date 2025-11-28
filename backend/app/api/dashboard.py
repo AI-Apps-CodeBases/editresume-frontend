@@ -1,314 +1,406 @@
-"""Dashboard API endpoints for admin/analytics dashboard."""
+"""Dashboard API endpoints - Real data from PostgreSQL."""
 
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, extract
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.models import User, ExportAnalytics, JobMatch
+from app.core.security import get_current_user_token
+from app.core.firebase_admin import verify_id_token
+from app.models import User, Resume, ResumeVersion, ExportAnalytics
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
-@router.get("/sales")
-async def get_dashboard_sales(db: Session = Depends(get_db)):
-    """Get sales dashboard data"""
-    try:
-        # TODO: Implement sales analytics
-        # This could include:
-        # - Revenue by period
-        # - Subscription conversions
-        # - Payment history
-        # - Revenue trends
-        
-        return {
-            "success": True,
-            "sales": [],
-            "total_revenue": 0,
-            "period": "monthly",
-            "message": "Sales dashboard - implementation pending"
-        }
-    except Exception as e:
-        logger.error(f"Error getting sales data: {e}")
-        return {
-            "success": False,
-            "sales": [],
-            "error": str(e)
-        }
-
-
-@router.get("/subscribers")
-async def get_dashboard_subscribers(db: Session = Depends(get_db)):
-    """Get subscribers dashboard data"""
-    try:
-        # TODO: Implement subscribers analytics
-        # This could include:
-        # - Total subscribers
-        # - Active subscriptions
-        # - Churn rate
-        # - Subscription growth
-        
-        total_users = db.query(User).count()
-        premium_users = db.query(User).filter(User.is_premium == True).count() if hasattr(User, 'is_premium') else 0
-        
-        return {
-            "success": True,
-            "subscribers": [],
-            "total_users": total_users,
-            "premium_users": premium_users,
-            "free_users": total_users - premium_users,
-            "message": "Subscribers dashboard - implementation pending"
-        }
-    except Exception as e:
-        logger.error(f"Error getting subscribers data: {e}")
-        return {
-            "success": False,
-            "subscribers": [],
-            "error": str(e)
-        }
-
-
-@router.get("/content-generation")
-async def get_dashboard_content_generation(db: Session = Depends(get_db)):
-    """Get content generation analytics"""
-    try:
-        # TODO: Implement content generation analytics
-        # This could include:
-        # - Total content generated
-        # - Content by type (resumes, cover letters, etc.)
-        # - Usage trends
-        # - Popular features
-        
-        return {
-            "success": True,
-            "content_generation": [],
-            "total_generations": 0,
-            "by_type": {},
-            "message": "Content generation dashboard - implementation pending"
-        }
-    except Exception as e:
-        logger.error(f"Error getting content generation data: {e}")
-        return {
-            "success": False,
-            "content_generation": [],
-            "error": str(e)
-        }
-
-
-@router.get("/top-performers")
-async def get_dashboard_top_performers(db: Session = Depends(get_db)):
-    """Get top performing users/content"""
-    try:
-        # TODO: Implement top performers analytics
-        # This could include:
-        # - Most active users
-        # - Highest scoring resumes
-        # - Most successful job matches
-        # - Top templates used
-        
-        return {
-            "success": True,
-            "top_performers": [],
-            "message": "Top performers dashboard - implementation pending"
-        }
-    except Exception as e:
-        logger.error(f"Error getting top performers data: {e}")
-        return {
-            "success": False,
-            "top_performers": [],
-            "error": str(e)
-        }
-
-
-@router.get("/top-countries")
-async def get_dashboard_top_countries(db: Session = Depends(get_db)):
-    """Get top countries by usage"""
-    try:
-        # TODO: Implement top countries analytics
-        # This could include:
-        # - User distribution by country
-        # - Usage statistics by country
-        # - Geographic trends
-        
-        return {
-            "success": True,
-            "top_countries": [],
-            "message": "Top countries dashboard - implementation pending"
-        }
-    except Exception as e:
-        logger.error(f"Error getting top countries data: {e}")
-        return {
-            "success": False,
-            "top_countries": [],
-            "error": str(e)
-        }
+def verify_admin_token(token: str = Depends(get_current_user_token)) -> dict:
+    """Verify token and check if user is admin (for now, just verify token)"""
+    decoded_token = verify_id_token(token)
+    if not decoded_token:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return decoded_token
 
 
 @router.get("/stats")
-async def get_dashboard_stats(db: Session = Depends(get_db)):
-    """Get overall dashboard statistics"""
+async def get_dashboard_stats(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Get dashboard statistics from PostgreSQL"""
     try:
-        # TODO: Implement comprehensive stats
-        # This could include:
-        # - Total users
-        # - Total resumes created
-        # - Total exports
-        # - Total job matches
-        # - Active subscriptions
-        # - Revenue metrics
+        # Total users
+        total_users = db.query(func.count(User.id)).scalar() or 0
         
-        total_users = db.query(User).count()
-        total_exports = db.query(ExportAnalytics).count() if ExportAnalytics else 0
-        total_matches = db.query(JobMatch).count() if JobMatch else 0
+        # Total subscriptions (premium users)
+        total_subscriptions = db.query(func.count(User.id)).filter(
+            User.is_premium == True
+        ).scalar() or 0
+        
+        # Total free users
+        total_free_users = total_users - total_subscriptions
+        
+        # Calculate changes (last 30 days vs previous 30 days)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        sixty_days_ago = datetime.utcnow() - timedelta(days=60)
+        
+        users_last_30 = db.query(func.count(User.id)).filter(
+            User.created_at >= thirty_days_ago
+        ).scalar() or 0
+        
+        users_previous_30 = db.query(func.count(User.id)).filter(
+            User.created_at >= sixty_days_ago,
+            User.created_at < thirty_days_ago
+        ).scalar() or 0
+        
+        users_change = users_last_30 - users_previous_30
+        
+        subscriptions_last_30 = db.query(func.count(User.id)).filter(
+            User.is_premium == True,
+            User.created_at >= thirty_days_ago
+        ).scalar() or 0
+        
+        subscriptions_previous_30 = db.query(func.count(User.id)).filter(
+            User.is_premium == True,
+            User.created_at >= sixty_days_ago,
+            User.created_at < thirty_days_ago
+        ).scalar() or 0
+        
+        subscriptions_change = subscriptions_last_30 - subscriptions_previous_30
+        
+        free_users_change = users_change - subscriptions_change
+        
+        # Income and Expense (from Stripe - placeholder for now)
+        # TODO: Implement Stripe payment tracking
+        total_income = 0
+        total_expense = 0
+        income_change = 0
+        expense_change = 0
         
         return {
-            "success": True,
-            "stats": {
-                "total_users": total_users,
-                "total_exports": total_exports,
-                "total_job_matches": total_matches,
-                "active_subscriptions": 0,
-                "total_revenue": 0,
-            },
-            "message": "Dashboard stats - implementation pending"
+            "totalUsers": total_users,
+            "totalSubscriptions": total_subscriptions,
+            "totalFreeUsers": total_free_users,
+            "totalIncome": total_income,
+            "totalExpense": total_expense,
+            "usersChange": users_change,
+            "subscriptionsChange": subscriptions_change,
+            "freeUsersChange": free_users_change,
+            "incomeChange": income_change,
+            "expenseChange": expense_change,
         }
     except Exception as e:
-        logger.error(f"Error getting dashboard stats: {e}")
-        return {
-            "success": False,
-            "stats": {},
-            "error": str(e)
-        }
+        logger.error(f"Error fetching dashboard stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch dashboard stats")
+
+
+@router.get("/sales")
+async def get_sales_data(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Get sales statistics by month"""
+    try:
+        # Get premium users grouped by month
+        # TODO: Implement actual Stripe payment tracking
+        # For now, use premium user creation dates as proxy
+        
+        current_year = datetime.utcnow().year
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        sales_by_month = []
+        for month_num in range(1, 13):
+            month_start = datetime(current_year, month_num, 1)
+            if month_num == 12:
+                month_end = datetime(current_year + 1, 1, 1)
+            else:
+                month_end = datetime(current_year, month_num + 1, 1)
+            
+            # Count premium users created in this month
+            premium_count = db.query(func.count(User.id)).filter(
+                User.is_premium == True,
+                User.created_at >= month_start,
+                User.created_at < month_end
+            ).scalar() or 0
+            
+            # Estimate revenue (premium users * average subscription price)
+            # TODO: Replace with actual Stripe revenue data
+            estimated_revenue = premium_count * 10  # Placeholder: $10 per premium user
+        
+            sales_by_month.append({
+                "date": months[month_num - 1],
+                "amount": estimated_revenue
+            })
+        
+        return sales_by_month
+    except Exception as e:
+        logger.error(f"Error fetching sales data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch sales data")
+
+
+@router.get("/subscribers")
+async def get_subscriber_data(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Get subscriber statistics by day of week"""
+    try:
+        
+        # Get premium users grouped by day of week (0=Monday, 6=Sunday)
+        days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        
+        # Get last 7 days of premium user creations
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        
+        subscriber_by_day = []
+        for day_offset in range(7):
+            day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=day_offset)
+            day_end = day_start + timedelta(days=1)
+            
+            # Count premium users created on this day
+            count = db.query(func.count(User.id)).filter(
+                User.is_premium == True,
+                User.created_at >= day_start,
+                User.created_at < day_end
+            ).scalar() or 0
+            
+            day_name = days[(day_start.weekday() + 1) % 7]  # Convert to Sunday-first format
+            
+            subscriber_by_day.append({
+                "date": day_name,
+                "count": count
+            })
+        
+        # Reverse to show most recent first
+        subscriber_by_day.reverse()
+        
+        return subscriber_by_day
+    except Exception as e:
+        logger.error(f"Error fetching subscriber data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch subscriber data")
 
 
 @router.get("/user-overview")
-async def get_dashboard_user_overview(db: Session = Depends(get_db)):
+async def get_user_overview(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
     """Get user overview statistics"""
     try:
-        # TODO: Implement user overview analytics
-        # This could include:
-        # - New users by period
-        # - User growth trends
-        # - User engagement metrics
-        # - User retention
+        today = datetime.utcnow().date()
+        today_start = datetime.combine(today, datetime.min.time())
         
-        total_users = db.query(User).count()
+        # New users today
+        new_users_today = db.query(func.count(User.id)).filter(
+            func.date(User.created_at) == today
+        ).scalar() or 0
         
-        return {
-            "success": True,
-            "user_overview": {
-                "total_users": total_users,
-                "new_users_today": 0,
-                "new_users_this_week": 0,
-                "new_users_this_month": 0,
-            },
-            "message": "User overview dashboard - implementation pending"
-        }
+        # New subscribers today
+        new_subscribers_today = db.query(func.count(User.id)).filter(
+            User.is_premium == True,
+            func.date(User.created_at) == today
+        ).scalar() or 0
+        
+        return [
+            {
+                "date": "Today",
+                "new": new_users_today,
+                "subscribers": new_subscribers_today,
+            }
+        ]
     except Exception as e:
-        logger.error(f"Error getting user overview data: {e}")
-        return {
-            "success": False,
-            "user_overview": {},
-            "error": str(e)
-        }
+        logger.error(f"Error fetching user overview: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch user overview")
 
 
 @router.get("/latest-users")
-async def get_dashboard_latest_users(
-    limit: int = Query(default=5, ge=1, le=100),
-    db: Session = Depends(get_db)
+async def get_latest_users(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+    limit: int = 10,
 ):
     """Get latest registered users"""
     try:
-        # TODO: Implement latest users with proper ordering
-        # This could include:
-        # - Most recent signups
-        # - User details
-        # - Registration source
+        users = db.query(User).order_by(
+            User.created_at.desc()
+        ).limit(limit).all()
         
-        users = db.query(User).order_by(User.created_at.desc() if hasattr(User, 'created_at') else User.id.desc()).limit(limit).all()
-        
-        latest_users = []
-        for user in users:
-            user_data = {
-                "id": user.id,
+        return [
+            {
+                "id": str(user.id),
+                "name": user.name,
                 "email": user.email,
-                "name": getattr(user, 'name', 'Unknown'),
+                "joinDate": user.created_at.strftime("%d %b %Y") if user.created_at else "",
+                "isPremium": user.is_premium,
             }
-            if hasattr(user, 'created_at'):
-                user_data["created_at"] = user.created_at.isoformat() if user.created_at else None
-            if hasattr(user, 'is_premium'):
-                user_data["is_premium"] = user.is_premium
-            latest_users.append(user_data)
-        
-        return {
-            "success": True,
-            "latest_users": latest_users,
-            "total": len(latest_users),
-            "limit": limit
-        }
+            for user in users
+        ]
     except Exception as e:
-        logger.error(f"Error getting latest users: {e}")
-        return {
-            "success": False,
-            "latest_users": [],
-            "error": str(e)
-        }
+        logger.error(f"Error fetching latest users: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch latest users")
+
+
+@router.get("/latest-subscribers")
+async def get_latest_subscribers(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+    limit: int = 10,
+):
+    """Get latest subscribed (premium) users"""
+    try:
+        users = db.query(User).filter(
+            User.is_premium == True
+        ).order_by(
+            User.created_at.desc()
+        ).limit(limit).all()
+        
+        return [
+            {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+                "joinDate": user.created_at.strftime("%d %b %Y") if user.created_at else "",
+                "isPremium": user.is_premium,
+            }
+            for user in users
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching latest subscribers: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch latest subscribers")
+
+
+@router.get("/top-performers")
+async def get_top_performers(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Get top performing users (by resume count or exports)"""
+    try:
+        # Get users with most resumes
+        users_with_resumes = db.query(
+            User.id,
+            User.name,
+            User.email,
+            func.count(Resume.id).label("resume_count")
+        ).join(
+            Resume, User.id == Resume.user_id, isouter=True
+        ).group_by(
+            User.id, User.name, User.email
+        ).order_by(
+            func.count(Resume.id).desc()
+        ).limit(10).all()
+        
+        return [
+            {
+                "id": str(user_id),
+                "name": name,
+                "email": email,
+                "agentId": str(user_id),
+                "revenue": resume_count or 0,
+                "status": "active",
+            }
+            for user_id, name, email, resume_count in users_with_resumes
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching top performers: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch top performers")
+
+
+@router.get("/top-countries")
+async def get_top_countries(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Get top countries by user count"""
+    try:
+        # TODO: Add country field to User model or get from IP geolocation
+        # For now, return empty array
+        return []
+    except Exception as e:
+        logger.error(f"Error fetching top countries: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch top countries")
 
 
 @router.get("/users")
-async def get_dashboard_users(
-    page: int = Query(default=1, ge=1),
-    limit: int = Query(default=50, ge=1, le=100),
-    db: Session = Depends(get_db)
+async def get_users(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+    page: int = 1,
+    limit: int = 10,
+    search: Optional[str] = None,
+    status: Optional[str] = None,
 ):
     """Get paginated list of users"""
     try:
-        # TODO: Implement proper pagination and filtering
-        # This could include:
-        # - Pagination
-        # - Search/filter
-        # - Sorting
-        # - User details
+        query = db.query(User)
         
+        # Apply search filter
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                (User.name.ilike(search_term)) | (User.email.ilike(search_term))
+            )
+        
+        # Apply status filter (Active = premium, Inactive = free)
+        if status and status.lower() != 'all':
+            if status.lower() == 'active':
+                query = query.filter(User.is_premium == True)
+            elif status.lower() == 'inactive':
+                query = query.filter(User.is_premium == False)
+        
+        # Get total count before pagination
+        total_users = query.count()
+        
+        # Apply pagination
         offset = (page - 1) * limit
-        users = db.query(User).offset(offset).limit(limit).all()
-        total_users = db.query(User).count()
+        users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
         
-        users_list = []
-        for user in users:
-            user_data = {
-                "id": user.id,
+        # Format users for frontend
+        formatted_users = [
+            {
+                "id": str(user.id),
+                "joinDate": user.created_at.strftime("%d %b %Y") if user.created_at else "",
+                "name": user.name or "Unknown",
                 "email": user.email,
-                "name": getattr(user, 'name', 'Unknown'),
+                "department": "N/A",  # Not stored in User model
+                "designation": "Premium" if user.is_premium else "Free",
+                "status": "Active" if user.is_premium else "Inactive",
+                "avatar": f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.email}",
             }
-            if hasattr(user, 'created_at'):
-                user_data["created_at"] = user.created_at.isoformat() if user.created_at else None
-            if hasattr(user, 'is_premium'):
-                user_data["is_premium"] = user.is_premium
-            users_list.append(user_data)
+            for user in users
+        ]
+        
+        total_pages = (total_users + limit - 1) // limit if limit > 0 else 1
         
         return {
-            "success": True,
-            "users": users_list,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": total_users,
-                "total_pages": (total_users + limit - 1) // limit
-            }
+            "users": formatted_users,
+            "totalUsers": total_users,
+            "currentPage": page,
+            "totalPages": total_pages,
         }
     except Exception as e:
-        logger.error(f"Error getting users: {e}")
-        return {
-            "success": False,
-            "users": [],
-            "error": str(e)
-        }
+        logger.error(f"Error fetching users: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch users")
+
+
+@router.get("/content-generation")
+async def get_content_generation_data(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Get content generation statistics"""
+    try:
+        # Get resume versions created by month
+        # TODO: Track actual content generation (words, images)
+        # For now, return empty array
+        return []
+    except Exception as e:
+        logger.error(f"Error fetching content generation data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch content generation data")
 

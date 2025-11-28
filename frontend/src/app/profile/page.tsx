@@ -10,6 +10,7 @@ import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { StatsPanel } from '@/components/home/StatsPanel'
 import { DocumentIcon, DownloadIcon, ClockIcon, FolderIcon, DiamondIcon, EditIcon } from '@/components/Icons'
+import { useLinkedIn } from '@/hooks/useLinkedIn'
 
 interface ResumeHistory {
   id: string
@@ -43,6 +44,7 @@ function ProfilePageContent() {
   const { showAlert, showConfirm } = useModal()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { connectLinkedIn, checkStatus, status: linkedInStatus, loading: linkedInLoading } = useLinkedIn()
   const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'resumes' | 'jobs' | 'billing' | 'settings'>('overview')
@@ -138,6 +140,7 @@ function ProfilePageContent() {
         router.push('/editor')
       } else {
         loadUserData()
+        checkStatus()
       }
       setLoading(false)
     }, 100)
@@ -146,6 +149,17 @@ function ProfilePageContent() {
     const tabParam = searchParams.get('tab')
     if (tabParam && ['overview', 'history', 'resumes', 'jobs', 'billing', 'settings'].includes(tabParam)) {
       setActiveTab(tabParam as typeof activeTab)
+    }
+
+    // Check for LinkedIn connection success
+    if (searchParams.get('linkedin_connected') === 'true') {
+      checkStatus()
+      showAlert({
+        type: 'success',
+        message: 'LinkedIn connected successfully!',
+        title: 'Success'
+      })
+      router.replace('/profile?tab=overview')
     }
     
     return () => clearTimeout(checkAuth)
@@ -500,6 +514,51 @@ function ProfilePageContent() {
                       </div>
                     </a>
                   </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">LinkedIn Integration</h3>
+                  {linkedInStatus?.connected ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                        <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                        </svg>
+                        <div className="flex-1">
+                          <div className="font-semibold text-green-900">LinkedIn Connected</div>
+                          <div className="text-xs text-green-700">Your account is linked to LinkedIn</div>
+                        </div>
+                      </div>
+                      {linkedInStatus.profile_url && (
+                        <a
+                          href={linkedInStatus.profile_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-center px-4 py-2 bg-[#0077B5] text-white rounded-lg hover:bg-[#005885] transition-all font-semibold text-sm"
+                        >
+                          View LinkedIn Profile
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-4 bg-white rounded-lg border-2 border-gray-200">
+                        <div className="text-sm text-gray-600 mb-3">
+                          Connect your LinkedIn account to import profile data and share resumes directly to LinkedIn.
+                        </div>
+                        <button
+                          onClick={connectLinkedIn}
+                          disabled={linkedInLoading}
+                          className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-[#0077B5] text-white rounded-lg hover:bg-[#005885] transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                          </svg>
+                          {linkedInLoading ? 'Connecting...' : 'Connect LinkedIn'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

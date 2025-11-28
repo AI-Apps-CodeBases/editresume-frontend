@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 const footerSections = [
   {
@@ -37,6 +40,10 @@ const footerSections = [
 ] as const
 
 export default function Footer() {
+  const pathname = usePathname()
+
+  if (pathname?.startsWith('/dashboard')) return null
+
   return (
     <footer className="border-t border-border-subtle bg-[#f1f5ff]">
       <div className="container-padding mx-auto max-w-7xl py-16">

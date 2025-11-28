@@ -5,12 +5,10 @@ import { useParams } from 'next/navigation'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import SharedResumeComments from '@/components/Resume/SharedResumeComments'
 import { sharedResumeService, SharedResumeData } from '@/lib/services/sharedResume'
-import AutoHideNavbar from '@/components/layout/AutoHideNavbar'
 
 function LoadingView({ message }: { message: string }) {
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary pt-4">
-      <AutoHideNavbar />
       <div className="flex flex-1 items-center justify-center px-4">
         <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
           <div className="mb-4 text-4xl animate-pulse">📄</div>
