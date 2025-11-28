@@ -35,8 +35,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     saveBtn.addEventListener('click', async () => {
-      const apiBase = apiBaseEl.value.trim();
-      const appBase = appBaseEl.value.trim();
+      let apiBase = apiBaseEl.value.trim();
+      let appBase = appBaseEl.value.trim();
+      
+      // Force HTTP for localhost to avoid SSL errors
+      if (apiBase.includes('localhost')) {
+        apiBase = apiBase.replace(/^https?:\/\//, 'http://');
+      }
+      if (appBase.includes('localhost')) {
+        appBase = appBase.replace(/^https?:\/\//, 'http://');
+      }
       
       // Validate URLs
       if (!apiBase || !appBase) {
@@ -64,6 +72,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Save settings
       await chrome.storage.sync.set(updated);
+      
+      // Update UI with normalized values
+      if (apiBase.includes('localhost')) {
+        apiBaseEl.value = apiBase;
+      }
+      if (appBase.includes('localhost')) {
+        appBaseEl.value = appBase;
+      }
       
       // Wait a bit and verify they were saved
       await new Promise(resolve => setTimeout(resolve, 100));

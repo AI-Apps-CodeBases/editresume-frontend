@@ -269,7 +269,7 @@ export default function PreviewPanel({
             return (
               <span
                 key={bullet.id}
-                className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300"
+                className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
               >
                 {applyReplacements(skillName)}
               </span>

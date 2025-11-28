@@ -274,9 +274,18 @@ class EnhancedATSChecker:
                 ]
             )
 
+        # Create TF-IDF vectorizer optimized for 2-document comparison (resume + job description)
+        # This vectorizer is reused for all calculations - we call fit_transform() each time
+        # with new documents, but reuse the same configured vectorizer object for efficiency.
         if SKLEARN_AVAILABLE:
             self.vectorizer = TfidfVectorizer(
-                max_features=1000, stop_words="english", ngram_range=(1, 2)
+                max_features=None,  # No limit - keep all unique terms (safe for 2 documents)
+                stop_words="english",  # Remove common words (the, a, an, etc.)
+                ngram_range=(1, 2),  # Include unigrams (single words) and bigrams (word pairs)
+                min_df=1,  # Term must appear at least once
+                max_df=1.0,  # Allow terms appearing in both documents (important for matching)
+                lowercase=True,  # Case-insensitive matching
+                strip_accents="unicode",  # Normalize accents (é → e)
             )
         else:
             self.vectorizer = None
@@ -353,26 +362,26 @@ class EnhancedATSChecker:
             if not found:
                 missing_sections.append(section_type)
 
-        # Improved scoring: More generous base score and better scaling
+        # Realistic scoring: More accurate base score and better scaling
         found_count = sum(1 for found in found_sections.values() if found)
-        base_section_score = found_count * 25  # Increased from 20 to 25 per section
+        base_section_score = found_count * 20  # Realistic: 20 points per section
         
         # Bonus for having contact info
-        contact_bonus = 15 if bool(
+        contact_bonus = 10 if bool(
             resume_data.get("email") or resume_data.get("phone")
         ) else 0
         
-        # Bonus for having multiple sections (encourages completeness)
-        section_count_bonus = min(30, len(resume_data.get("sections", [])) * 3)  # Increased from 2 to 3
+        # Bonus for having multiple sections (encourages completeness) - more realistic cap
+        section_count_bonus = min(15, len(resume_data.get("sections", [])) * 2)  # Reduced from 30 to 15
         
         # Additional bonus for having summary/objective
-        summary_bonus = 10 if resume_data.get("summary") else 0
+        summary_bonus = 8 if resume_data.get("summary") else 0
         
         section_score = min(100, base_section_score + contact_bonus + section_count_bonus + summary_bonus)
         
-        # Ensure minimum score if resume has any content
+        # More realistic minimum score - only if resume has meaningful content
         if len(resume_data.get("sections", [])) > 0:
-            section_score = max(30, section_score)  # Minimum 30 if has sections
+            section_score = max(15, section_score)  # Reduced from 30 to 15 for more realistic scoring
 
         return {
             "found_sections": found_sections,
@@ -426,20 +435,25 @@ class EnhancedATSChecker:
             (leadership_count / total_words) * 100 if total_words > 0 else 0
         )
 
-        # Job description matching
+        # Job description matching - improved to be more sensitive to keyword additions
         job_match_score = 0
         job_suggestions = []
+        matching_keywords = set()  # Initialize for use in bonus calculation
         if job_description:
             job_words = job_description.lower().split()
             job_keywords = [
                 word.strip('.,!?;:"()[]{}') for word in job_words if word.isalpha()
             ]
             matching_keywords = set(words) & set(job_keywords)
-            job_match_score = (
-                (len(matching_keywords) / len(set(job_keywords))) * 100
-                if job_keywords
-                else 0
-            )
+            
+            # More sensitive calculation: consider both percentage and absolute count
+            if job_keywords:
+                match_percentage = (len(matching_keywords) / len(set(job_keywords))) * 100
+                # Boost score based on number of matches (more matches = better)
+                match_count_boost = min(10, len(matching_keywords) * 0.5)
+                job_match_score = min(100, match_percentage + match_count_boost)
+            else:
+                job_match_score = 0
 
             missing_job_keywords = set(job_keywords) - set(words)
             if missing_job_keywords:
@@ -460,17 +474,24 @@ class EnhancedATSChecker:
         if leadership_density < 0.2:
             suggestions.append("Include leadership and team collaboration keywords")
 
-        # Improved scoring: Higher base score and better scaling
-        base_score = 50  # Increased from 40 to 50
+        # Realistic scoring: More accurate base and better sensitivity to keyword additions
+        base_score = 40  # More realistic starting point
         
-        # Improved bonus calculations with better scaling
-        action_bonus = min(30, 15 + (action_density * 3))  # Increased max from 25 to 30
-        technical_bonus = min(30, 20 + (technical_density * 5))  # Increased max from 25 to 30
-        metrics_bonus = min(30, 20 + (metrics_density * 6))  # Increased max from 25 to 30
-        leadership_bonus = min(25, 15 + (leadership_density * 7))  # Increased max from 20 to 25
+        # Use both density AND absolute counts for better sensitivity
+        # This ensures adding keywords actually increases the score
+        action_bonus = min(25, 10 + (action_density * 2) + min(10, action_verb_count * 0.5))
+        technical_bonus = min(25, 15 + (technical_density * 3) + min(10, technical_count * 0.4))
+        metrics_bonus = min(25, 15 + (metrics_density * 4) + min(10, metrics_count * 0.5))
+        leadership_bonus = min(20, 10 + (leadership_density * 5) + min(8, leadership_count * 0.4))
         
-        # Job match bonus scales better
-        job_bonus = min(40, job_match_score * 0.4) if job_description else 0  # Increased max from 30 to 40
+        # Job match bonus - more sensitive to keyword additions
+        # Use both percentage and absolute count for better responsiveness
+        if job_description:
+            # Calculate bonus based on both match percentage and number of matches
+            match_count = len(matching_keywords)
+            job_bonus = min(35, (job_match_score * 0.35) + min(15, match_count * 0.5))
+        else:
+            job_bonus = 0
 
         keyword_score = min(
             100,
@@ -482,9 +503,9 @@ class EnhancedATSChecker:
             + job_bonus,
         )
         
-        # Ensure minimum score if resume has keywords
+        # More realistic minimum score - only if resume has meaningful keywords
         if action_verb_count > 0 or technical_count > 0:
-            keyword_score = max(40, keyword_score)  # Minimum 40 if has keywords
+            keyword_score = max(25, keyword_score)  # Reduced from 40 to 25 for more realistic scoring
 
         return {
             "score": keyword_score,
@@ -548,26 +569,26 @@ class EnhancedATSChecker:
             1 for word in buzzwords if word.lower() in text_content.lower()
         )
 
-        # Improved quality score calculation: Higher base and better rewards
-        quality_score = 60  # Increased from 50 to 60
+        # Realistic quality score calculation: More accurate base and better rewards
+        quality_score = 45  # More realistic starting point (reduced from 60)
 
         if quantified_achievements > 0:
-            quality_score += min(35, quantified_achievements * 6)  # Increased from 30 to 35, better scaling
+            quality_score += min(30, quantified_achievements * 5)  # More realistic scaling
 
         if strong_verb_count > 0:
-            quality_score += min(25, strong_verb_count * 4)  # Increased from 20 to 25, better scaling
+            quality_score += min(20, strong_verb_count * 3)  # More realistic scaling
 
         if vague_count > 0:
-            quality_score -= min(15, vague_count * 3)  # Reduced penalty from 20 to 15
+            quality_score -= min(12, vague_count * 2.5)  # More realistic penalty
 
         if buzzword_count > 3:
-            quality_score -= min(8, (buzzword_count - 3) * 1.5)  # Reduced penalty from 10 to 8
+            quality_score -= min(6, (buzzword_count - 3) * 1.2)  # More realistic penalty
 
         quality_score = max(0, min(100, quality_score))
         
-        # Ensure minimum score if resume has content
+        # More realistic minimum score - only if resume has meaningful content
         if text_content.strip():
-            quality_score = max(45, quality_score)  # Minimum 45 if has content
+            quality_score = max(30, quality_score)  # Reduced from 45 to 30 for more realistic scoring
 
         suggestions = []
         if vague_count > 0:
@@ -824,7 +845,7 @@ class EnhancedATSChecker:
         return improvements
 
     def calculate_tfidf_cosine_score(
-        self, resume_text: str, job_description: str = None
+        self, resume_text: str, job_description: str = None, extracted_keywords: Dict = None
     ) -> Dict[str, Any]:
         """
         Industry-standard TF-IDF + Cosine Similarity scoring method.
@@ -832,8 +853,28 @@ class EnhancedATSChecker:
         
         Formula: Cosine Similarity = (A · B) / (||A|| × ||B||)
         Where A and B are TF-IDF vectors of resume and job description.
+        
+        If extracted_keywords is provided (from extension), uses those keywords instead of
+        extracting new ones from job_description. This ensures consistency and accuracy.
         """
-        if not job_description or not resume_text.strip():
+        if not resume_text.strip():
+            return {
+                "score": 0,
+                "method": "tfidf_cosine",
+                "cosine_similarity": 0.0,
+                "tfidf_score": 0.0,
+                "matching_keywords": [],
+                "missing_keywords": [],
+            }
+        
+        # If extracted_keywords provided, use them; otherwise require job_description
+        if extracted_keywords:
+            # Use extension-extracted keywords (from LLM)
+            use_extracted_keywords = True
+        elif job_description and job_description.strip():
+            # Fallback to extracting from job_description
+            use_extracted_keywords = False
+        else:
             return {
                 "score": 0,
                 "method": "tfidf_cosine",
@@ -848,28 +889,62 @@ class EnhancedATSChecker:
             return self._fallback_keyword_match(resume_text, job_description)
 
         try:
-            # Create TF-IDF vectorizer with industry-standard parameters
-            vectorizer = TfidfVectorizer(
-                max_features=1000,  # Limit vocabulary size
-                stop_words="english",  # Remove common words
-                ngram_range=(1, 2),  # Include unigrams and bigrams
-                min_df=1,  # Term must appear at least once
-                max_df=0.95,  # Ignore terms that appear in >95% of documents
-                lowercase=True,
-                strip_accents="unicode",
-            )
+            # Reuse the vectorizer from __init__ for efficiency
+            # We call fit_transform() each time with new documents, but reuse the same configured object
+            if not self.vectorizer:
+                # Fallback if vectorizer wasn't initialized (shouldn't happen if SKLEARN_AVAILABLE)
+                return self._fallback_keyword_match(resume_text, job_description)
 
-            # Fit and transform resume and job description
-            tfidf_matrix = vectorizer.fit_transform([resume_text, job_description])
+            # If extracted_keywords provided, create a "job description" text from those keywords
+            # This ensures we use the extension's meaningful keywords (40-80) instead of extracting 635+
+            if use_extracted_keywords:
+                # Combine all extension keywords into a text for TF-IDF matching
+                all_keywords = []
+                all_keywords.extend(extracted_keywords.get("technical_keywords", []))
+                all_keywords.extend(extracted_keywords.get("general_keywords", []))
+                all_keywords.extend(extracted_keywords.get("soft_skills", []))
+                all_keywords.extend(extracted_keywords.get("priority_keywords", []))
+                
+                # Get high_frequency_keywords if available
+                high_freq = extracted_keywords.get("high_frequency_keywords", [])
+                if high_freq:
+                    # Extract keyword strings from objects if needed
+                    high_freq_keywords = [
+                        kw.get("keyword", kw) if isinstance(kw, dict) else kw
+                        for kw in high_freq
+                    ]
+                    all_keywords.extend(high_freq_keywords)
+                
+                # Remove duplicates and create keyword text
+                unique_keywords = list(set([str(kw).lower() for kw in all_keywords if kw]))
+                # Create a text representation for TF-IDF (join keywords with spaces)
+                keyword_text = " ".join(unique_keywords)
+                
+                # Use extension's total_keywords count if available
+                extension_total_keywords = extracted_keywords.get("total_keywords")
+                if extension_total_keywords:
+                    # Use the count of unique meaningful keywords from extension
+                    extension_total_keywords = len(unique_keywords)
+            else:
+                # Fallback: use job_description as before
+                keyword_text = job_description
+                extension_total_keywords = None
+
+            # Fit and transform resume and keyword text
+            # Note: fit_transform() fits the vectorizer to these specific documents and transforms them
+            tfidf_matrix = self.vectorizer.fit_transform([resume_text, keyword_text])
 
             # Calculate cosine similarity (industry-standard method)
             cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
 
-            # Convert to percentage score (0-100)
+            # Convert to percentage score (0-100) with base boost for better scaling
             cosine_score = cosine_sim * 100
+            # Add base boost to make scoring more generous (helps scores above 60)
+            if cosine_score > 0:
+                cosine_score = min(100, cosine_score * 1.1)  # 10% boost to base score
 
             # Extract feature names (keywords) and their TF-IDF scores
-            feature_names = vectorizer.get_feature_names_out()
+            feature_names = self.vectorizer.get_feature_names_out()
             resume_tfidf = tfidf_matrix[0].toarray()[0]
             job_tfidf = tfidf_matrix[1].toarray()[0]
 
@@ -899,9 +974,22 @@ class EnhancedATSChecker:
             # Sort by weight (most important first)
             matching_keywords.sort(key=lambda x: x["job_weight"], reverse=True)
             missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
+            
+            # Add boost based on number of matching keywords (encourages adding more keywords)
+            matching_count = len(matching_keywords)
+            if matching_count > 15:
+                cosine_score = min(100, cosine_score + min(15, (matching_count - 15) * 0.6))
+            elif matching_count > 10:
+                cosine_score = min(100, cosine_score + min(10, (matching_count - 10) * 0.5))
+            elif matching_count > 5:
+                cosine_score = min(100, cosine_score + min(5, (matching_count - 5) * 0.4))
 
             # Calculate keyword match percentage with improved algorithm
-            total_job_keywords = len([w for w in job_tfidf if w > threshold])
+            # Use extension's total_keywords if available (more accurate than TF-IDF count)
+            if use_extracted_keywords and extension_total_keywords:
+                total_job_keywords = extension_total_keywords
+            else:
+                total_job_keywords = len([w for w in job_tfidf if w > threshold])
             
             # Calculate weighted match score based on keyword importance
             total_job_weight = sum(job_tfidf[i] for i in range(len(job_tfidf)) if job_tfidf[i] > threshold)
@@ -923,10 +1011,22 @@ class EnhancedATSChecker:
                 else 0
             )
             
-            # Use the higher of the two to be more forgiving
-            match_percentage = max(weighted_match_percentage, simple_match_percentage * 0.8)
+            # Use the higher of the two to be more forgiving, with boost for more matches
+            base_match_percentage = max(weighted_match_percentage, simple_match_percentage * 0.9)
+            
+            # Add boost for having many matching keywords (encourages adding more)
+            if len(matching_keywords) > 20:
+                match_percentage = min(100, base_match_percentage + min(8, (len(matching_keywords) - 20) * 0.3))
+            elif len(matching_keywords) > 15:
+                match_percentage = min(100, base_match_percentage + min(6, (len(matching_keywords) - 15) * 0.4))
+            elif len(matching_keywords) > 10:
+                match_percentage = min(100, base_match_percentage + min(4, (len(matching_keywords) - 10) * 0.4))
+            elif len(matching_keywords) > 5:
+                match_percentage = min(100, base_match_percentage + min(2, (len(matching_keywords) - 5) * 0.4))
+            else:
+                match_percentage = base_match_percentage
 
-            return {
+            result = {
                 "score": round(cosine_score, 2),
                 "method": "tfidf_cosine",
                 "cosine_similarity": round(float(cosine_sim), 4),
@@ -937,6 +1037,18 @@ class EnhancedATSChecker:
                 "total_job_keywords": total_job_keywords,
                 "matched_keywords_count": len(matching_keywords),
             }
+            
+            # If using extracted_keywords, also include the original keywords for reference
+            if use_extracted_keywords and extracted_keywords:
+                result["original_keywords"] = {
+                    "technical_keywords": extracted_keywords.get("technical_keywords", []),
+                    "general_keywords": extracted_keywords.get("general_keywords", []),
+                    "soft_skills": extracted_keywords.get("soft_skills", []),
+                    "priority_keywords": extracted_keywords.get("priority_keywords", []),
+                    "high_frequency_keywords": extracted_keywords.get("high_frequency_keywords", []),
+                }
+            
+            return result
 
         except Exception as e:
             # Fallback to simple matching on error
@@ -969,7 +1081,7 @@ class EnhancedATSChecker:
         }
 
     def calculate_industry_standard_score(
-        self, resume_data: Dict, job_description: str = None
+        self, resume_data: Dict, job_description: str = None, extracted_keywords: Dict = None
     ) -> Dict[str, Any]:
         """
         Industry-standard ATS score using TF-IDF + Cosine Similarity.
@@ -987,7 +1099,7 @@ class EnhancedATSChecker:
         resume_text = self.extract_text_from_resume(resume_data)
 
         # 1. TF-IDF + Cosine Similarity (35% weight, reduced from 40%)
-        tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description)
+        tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description, extracted_keywords=extracted_keywords)
         tfidf_score = tfidf_analysis.get("score", 0)
 
         # 2. Keyword Match Percentage (25% weight, reduced from 30%)
@@ -1005,21 +1117,28 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         quality_score = quality_analysis["score"]
 
-        # Adaptive weighting: if TF-IDF score is very low, give more weight to other factors
-        if tfidf_score < 30:
-            # When TF-IDF is low, redistribute weights to allow improvement
-            tfidf_weight = 0.25
-            keyword_weight = 0.20
-            section_weight = 0.25
-            formatting_weight = 0.15
-            quality_weight = 0.15
-        else:
-            # Standard weights
-            tfidf_weight = 0.35
-            keyword_weight = 0.25
+        # Adaptive weighting: prioritize keyword matching to allow better improvement
+        if tfidf_score < 40:
+            # When TF-IDF is low, heavily emphasize keyword matching
+            tfidf_weight = 0.20
+            keyword_weight = 0.40  # Increased significantly to reward keyword additions
             section_weight = 0.20
             formatting_weight = 0.12
             quality_weight = 0.08
+        elif tfidf_score < 60:
+            # Medium TF-IDF: balanced weights with strong emphasis on keywords
+            tfidf_weight = 0.28
+            keyword_weight = 0.35  # Increased to reward keyword additions
+            section_weight = 0.20
+            formatting_weight = 0.10
+            quality_weight = 0.07
+        else:
+            # High TF-IDF: standard weights with slightly increased keyword weight
+            tfidf_weight = 0.32
+            keyword_weight = 0.30  # Increased from 0.25
+            section_weight = 0.20
+            formatting_weight = 0.11
+            quality_weight = 0.07
 
         # Calculate weighted overall score with adaptive weights
         overall_score = (
@@ -1029,6 +1148,31 @@ class EnhancedATSChecker:
             + formatting_score * formatting_weight
             + quality_score * quality_weight
         )
+        
+        # Add aggressive bonus for high keyword match percentage (encourages improvement)
+        if keyword_match_score >= 60:
+            overall_score += min(8, (keyword_match_score - 60) * 0.2)  # Up to 8 points bonus
+        elif keyword_match_score >= 50:
+            overall_score += min(5, (keyword_match_score - 50) * 0.5)  # Up to 5 points bonus
+        elif keyword_match_score >= 40:
+            overall_score += min(3, (keyword_match_score - 40) * 0.3)  # Up to 3 points bonus
+        
+        # Add bonus for high TF-IDF score
+        if tfidf_score >= 50:
+            overall_score += min(8, (tfidf_score - 50) * 0.16)  # Up to 8 points bonus
+        elif tfidf_score >= 40:
+            overall_score += min(4, (tfidf_score - 40) * 0.4)  # Up to 4 points bonus
+        
+        # Add bonus for having many matching keywords (progressive scaling)
+        matching_count = tfidf_analysis.get("matched_keywords_count", 0)
+        if matching_count > 20:
+            overall_score += min(6, (matching_count - 20) * 0.3)  # Up to 6 points
+        elif matching_count > 15:
+            overall_score += min(4, (matching_count - 15) * 0.4)  # Up to 4 points
+        elif matching_count > 10:
+            overall_score += min(3, (matching_count - 10) * 0.3)  # Up to 3 points
+        elif matching_count > 5:
+            overall_score += min(2, (matching_count - 5) * 0.2)  # Up to 2 points
 
         # Generate improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)
@@ -1102,17 +1246,17 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         formatting_analysis = self.check_formatting_compatibility(resume_data)
 
-        # Improved weighted scoring: Better balance to allow higher scores
+        # Realistic weighted scoring: Better balance for accurate scores
         overall_score = (
-            structure_analysis["section_score"] * 0.25  # Reduced from 0.28
-            + keyword_analysis["score"] * 0.35  # Increased from 0.32
-            + quality_analysis["score"] * 0.28  # Increased from 0.25
-            + formatting_analysis["score"] * 0.12  # Reduced from 0.15
+            structure_analysis["section_score"] * 0.25
+            + keyword_analysis["score"] * 0.35
+            + quality_analysis["score"] * 0.28
+            + formatting_analysis["score"] * 0.12
         )
         
-        # Ensure minimum score if resume has meaningful content
+        # More realistic minimum score - only if resume has meaningful content
         if resume_text.strip() and len(resume_data.get("sections", [])) > 0:
-            overall_score = max(35, overall_score)  # Minimum 35 if has content
+            overall_score = max(20, overall_score)  # Reduced from 35 to 20 for more realistic scoring
 
         # Generate AI improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)
@@ -1155,6 +1299,7 @@ class EnhancedATSChecker:
         resume_data: Dict,
         job_description: str = None,
         use_industry_standard: bool = False,
+        extracted_keywords: Dict = None,
     ) -> Dict[str, Any]:
         """
         Main method to get enhanced ATS compatibility score and AI improvements.
@@ -1166,10 +1311,11 @@ class EnhancedATSChecker:
                                   If False, uses custom comprehensive scoring (default).
         """
         try:
-            if use_industry_standard and job_description:
+            if use_industry_standard and (job_description or extracted_keywords):
                 # Use industry-standard TF-IDF + Cosine Similarity method
+                # Pass extracted_keywords if available (from extension)
                 result = self.calculate_industry_standard_score(
-                    resume_data, job_description
+                    resume_data, job_description, extracted_keywords=extracted_keywords
                 )
             else:
                 # Use custom comprehensive scoring (original method)

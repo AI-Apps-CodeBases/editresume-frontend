@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import json
 import logging
 import re
@@ -168,7 +170,7 @@ async def upload_and_parse_resume(file_content: bytes, filename: str, content_ty
             }
 
         logger.info("Using AI-powered parsing for better resume organization...")
-        parsed_data = parse_resume_with_ai(text)
+        parsed_data = await parse_resume_with_ai(text)
 
         logger.info(
             "AI parsing successful: text_length=%s, sections=%s, summary_len=%s",
@@ -190,7 +192,7 @@ async def upload_and_parse_resume(file_content: bytes, filename: str, content_ty
         return {"success": False, "error": f"Upload failed: {str(e)}"}
 
 
-def parse_resume_with_ai(text: str) -> Dict:
+async def parse_resume_with_ai(text: str) -> Dict:
     """Use AI to intelligently parse and structure resume content"""
     if not USE_AI_PARSER:
         logger.info(
@@ -300,31 +302,57 @@ Resume Text (Full Content):
             f"Parsing resume: {resume_length} characters, using {max_tokens_for_resume} max tokens"
         )
 
-        response = openai_client["requests"].post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {openai_client['api_key']}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": openai_client["model"],
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a resume parsing expert specializing in app-exported resumes. Extract structured information from multi-page resumes accurately. Capture ALL sections and information without paraphrasing or summarizing. Preserve exact wording, metrics, and technical details. Always return valid JSON.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.3,
-                "max_tokens": max_tokens_for_resume,
-            },
-            timeout=120,
-        )
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json",
+        }
+
+        data = {
+            "model": openai_client["model"],
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a resume parsing expert specializing in app-exported resumes. Extract structured information from multi-page resumes accurately. Capture ALL sections and information without paraphrasing or summarizing. Preserve exact wording, metrics, and technical details. Always return valid JSON.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.3,
+            "max_tokens": max_tokens_for_resume,
+        }
+
+        # Use async httpx client for better performance
+        httpx_client = openai_client.get("httpx_client")
+        if httpx_client:
+            response = await httpx_client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=120.0,  # Keep same timeout for consistency
+            )
+        else:
+            # Fallback to thread pool if httpx not available
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    openai_client["requests"].post,
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=120,
+                )
+            )
 
         if response.status_code != 200:
-            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            # Both httpx and requests have .text attribute
+            error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+            logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
             return parse_resume_text(text)
 
+        # Both httpx and requests have .json() method
         result = response.json()
         ai_response = result["choices"][0]["message"]["content"].strip()
 

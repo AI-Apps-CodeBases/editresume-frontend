@@ -7,7 +7,8 @@ import json
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.models import (
@@ -116,6 +117,39 @@ async def get_ats_score(payload: ResumePayload):
         }
 
 
+@router.options("/enhanced_ats_score")
+async def options_enhanced_ats_score(request: Request):
+    """Handle OPTIONS preflight for enhanced_ats_score endpoint"""
+    import os
+    from app.core.config import settings
+    
+    origin = request.headers.get("origin")
+    
+    headers = {
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    }
+    
+    # Get allowed origins from settings
+    allowed_origins = settings.allowed_origins
+    env = os.getenv("ENVIRONMENT", "development")
+    
+    # Check if origin is allowed
+    if origin:
+        if env == "staging":
+            headers["Access-Control-Allow-Origin"] = "*"
+            headers["Access-Control-Allow-Credentials"] = "false"
+        elif origin in allowed_origins or origin.startswith("chrome-extension://"):
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+        else:
+            # Still allow for OPTIONS (preflight), actual request will be validated
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "false"
+    
+    return Response(status_code=200, headers=headers)
+
+
 @router.post("/enhanced_ats_score")
 async def get_enhanced_ats_score(payload: EnhancedATSPayload):
     """Get enhanced ATS compatibility score with AI improvements using TF-IDF when job description provided"""
@@ -157,10 +191,16 @@ async def get_enhanced_ats_score(payload: EnhancedATSPayload):
         }
 
         # Get enhanced ATS score and analysis
-        # Automatically use industry-standard TF-IDF when job description is provided
-        use_tfidf = bool(payload.job_description and payload.job_description.strip())
+        # Automatically use industry-standard TF-IDF when job description or extracted_keywords is provided
+        use_tfidf = bool(
+            (payload.job_description and payload.job_description.strip()) or 
+            (payload.extracted_keywords and payload.extracted_keywords.get("total_keywords", 0) > 0)
+        )
         result = enhanced_ats_checker.get_enhanced_ats_score(
-            resume_data, payload.job_description, use_industry_standard=use_tfidf
+            resume_data, 
+            payload.job_description, 
+            use_industry_standard=use_tfidf,
+            extracted_keywords=payload.extracted_keywords
         )
 
         logger.info(f"Enhanced ATS analysis completed. Score: {result.get('score', 0)}")
@@ -678,6 +718,162 @@ async def extract_job_keywords(payload: ExtractKeywordsPayload):
         raise
     except Exception as e:
         logger.error(f"Keyword extraction error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to extract keywords: {str(e)}"
+        )
+
+
+@router.post("/extract_keywords_llm")
+async def extract_keywords_llm(payload: ExtractKeywordsPayload):
+    """Extract keywords from job description using LLM (pure AI approach)"""
+    try:
+        if not payload.job_description or not payload.job_description.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Job description cannot be empty"
+            )
+
+        if not openai_client:
+            raise HTTPException(
+                status_code=503,
+                detail="OpenAI service not available"
+            )
+
+        from app.prompts.content_generation_prompts import get_llm_keyword_extraction_prompt
+        
+        prompt = get_llm_keyword_extraction_prompt(payload.job_description)
+        
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json",
+        }
+
+        data = {
+            "model": openai_client["model"],
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 800,  # Enough for 50-100 keywords
+            "temperature": 0.3,  # Lower for more consistent extraction
+            "response_format": {"type": "json_object"},  # Force JSON response
+        }
+
+        # Use async httpx client
+        httpx_client = openai_client.get("httpx_client")
+        if not httpx_client:
+            raise HTTPException(
+                status_code=503,
+                detail="HTTP client not available"
+            )
+
+        try:
+            response = await httpx_client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=20.0,
+            )
+
+            if response.status_code != 200:
+                error_text = response.text
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"OpenAI API error: {response.status_code}"
+                )
+
+            result = response.json()
+            content = result["choices"][0]["message"]["content"].strip()
+            
+            # Parse JSON response
+            import json
+            keywords_data = json.loads(content)
+            
+            # Validate keywords against job description content
+            jd_lower = payload.job_description.lower()
+            
+            def keyword_in_text(keyword: str) -> bool:
+                """Check if keyword appears in job description text"""
+                if not keyword:
+                    return False
+                kw_lower = keyword.lower().strip()
+                # Check exact match or as part of a word/phrase
+                return kw_lower in jd_lower
+            
+            # Filter keywords to only those present in JD
+            technical_keywords = [
+                kw for kw in keywords_data.get("technical_keywords", [])
+                if keyword_in_text(kw)
+            ]
+            soft_skills = [
+                kw for kw in keywords_data.get("soft_skills", [])
+                if keyword_in_text(kw)
+            ]
+            general_keywords = [
+                kw for kw in keywords_data.get("general_keywords", [])
+                if keyword_in_text(kw)
+            ]
+            priority_keywords = [
+                kw for kw in keywords_data.get("priority_keywords", [])
+                if keyword_in_text(kw)
+            ]
+            education_keywords = [
+                kw for kw in keywords_data.get("education", [])
+                if keyword_in_text(kw)
+            ]
+            experience_keywords = [
+                kw for kw in keywords_data.get("experience", [])
+                if keyword_in_text(kw)
+            ]
+            
+            # Create high_frequency_keywords format
+            high_frequency_keywords = [
+                {
+                    "keyword": kw,
+                    "frequency": len(priority_keywords) - idx,  # Higher frequency for earlier keywords
+                    "importance": "high" if idx < 5 else "medium" if idx < 10 else "low"
+                }
+                for idx, kw in enumerate(priority_keywords[:20])
+            ]
+            
+            # Combine all keywords for total count
+            all_keywords = (
+                technical_keywords + 
+                general_keywords + 
+                soft_skills + 
+                education_keywords + 
+                experience_keywords
+            )
+            
+            return {
+                "success": True,
+                "method": "llm",
+                "technical_keywords": technical_keywords,
+                "soft_skills": soft_skills,
+                "general_keywords": general_keywords,
+                "priority_keywords": priority_keywords,
+                "high_frequency_keywords": high_frequency_keywords,
+                "education_keywords": education_keywords,
+                "experience_keywords": experience_keywords,
+                "total_keywords": len(set(all_keywords)),  # Unique count
+            }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM response as JSON: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to parse LLM response"
+            )
+        except asyncio.TimeoutError:
+            logger.error("OpenAI API timeout")
+            raise HTTPException(
+                status_code=504,
+                detail="OpenAI API timeout"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"LLM keyword extraction error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to extract keywords: {str(e)}"

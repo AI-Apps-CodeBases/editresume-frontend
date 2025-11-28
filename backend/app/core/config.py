@@ -56,6 +56,14 @@ class Settings(BaseSettings):
         default=None, env="STRIPE_PORTAL_RETURN_URL"
     )
 
+    linkedin_client_id: Optional[str] = Field(default=None, env="LINKEDIN_CLIENT_ID")
+    linkedin_client_secret: Optional[str] = Field(
+        default=None, env="LINKEDIN_CLIENT_SECRET"
+    )
+    linkedin_redirect_uri: Optional[str] = Field(
+        default=None, env="LINKEDIN_REDIRECT_URI"
+    )
+
     model_config = SettingsConfigDict(
         case_sensitive=False,
         env_file=".env",
