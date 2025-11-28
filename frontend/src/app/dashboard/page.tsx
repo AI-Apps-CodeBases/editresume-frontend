@@ -115,8 +115,8 @@ export default function DashboardPage() {
                     <div className="col-span-1">
                         <SubscriberChart 
                             data={subscriberData}
-                            totalSubscriptions={stats.totalSubscriptions}
-                            subscriptionsChange={stats.subscriptionsChange}
+                            totalSubscriptions={stats.totalSubscriptions || 0}
+                            subscriptionsChange={stats.subscriptionsChange || 0}
                         />
                     </div>
                     <div className="col-span-1">
