@@ -29,6 +29,7 @@ import TemplateDesignPage from '@/components/Editor/TemplateDesignPage'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 import { shouldPromptAuthentication } from '@/lib/guestAuth'
+import { getAuthHeaders } from '@/lib/auth'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { ATSScoreCard } from '@/features/resume-automation/components/ATSScoreCard'
 import { OptimizationSuggestions } from '@/features/resume-automation/components/OptimizationSuggestions'
@@ -340,7 +341,9 @@ const EditorPageContent = () => {
               setPreviewMode('match')
             } else {
               Promise.all([
-                fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => {
+                fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+                  headers: getAuthHeaders()
+                }).then(res => {
                   if (res.status === 404) return null;
                   return res.ok ? res.json() : null;
                 }).catch(() => null),
@@ -466,7 +469,9 @@ const EditorPageContent = () => {
           // Fetch from API
           console.log('Fetching JD from API')
           Promise.all([
-            fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null),
+            fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+              headers: getAuthHeaders()
+            }).then(res => res.ok ? res.json() : null).catch(() => null),
             fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
           ]).then(([newJob, legacyJob]) => {
             const jobData = newJob || legacyJob
@@ -595,7 +600,9 @@ const EditorPageContent = () => {
       setActiveJobDescriptionId(jobId)
       
       Promise.all([
-        fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => {
+        fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+          headers: getAuthHeaders()
+        }).then(res => {
           if (res.status === 404) return null;
           return res.ok ? res.json() : null;
         }).catch(() => null),

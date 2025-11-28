@@ -139,6 +139,8 @@ export default function VisualResumeEditor({
   const [generatedBulletOptions, setGeneratedBulletOptions] = useState<string[]>([]);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
   const [selectedBullets, setSelectedBullets] = useState<Set<number>>(new Set());
+  const [keywordSourceType, setKeywordSourceType] = useState<'missing' | 'matching' | 'tfidf'>('missing');
+  const [matchResult, setMatchResult] = useState<any>(null);
   const hasCleanedDataRef = useRef(false); // Track if we've cleaned old HTML data
 
   // Collapsible sections state
@@ -198,6 +200,21 @@ export default function VisualResumeEditor({
       });
     }
   }, [data.sections]);
+
+  // Load match result when AI Improve modal opens for existing bullets
+  useEffect(() => {
+    if (showAIImproveModal && aiImproveContext?.mode !== 'new' && !matchResult && typeof window !== 'undefined') {
+      const stored = localStorage.getItem('currentMatchResult');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setMatchResult(parsed);
+        } catch (e) {
+          console.error('Failed to parse match result:', e);
+        }
+      }
+    }
+  }, [showAIImproveModal, aiImproveContext?.mode, matchResult]);
 
   // Deduplicate sections by title (case-insensitive) - keep first occurrence
   const lastSectionsRef = useRef<string>('')
@@ -2309,6 +2326,7 @@ export default function VisualResumeEditor({
                       const icon = sectionIcons[section.title] || '📄'
 
                       const isSectionCollapsed = !openSections.has(section.id)
+                      const isSkillSection = getSectionType(section.title) === 'skill'
                       return (
                         <SortableSectionCard
                           key={section.id}
@@ -2318,6 +2336,7 @@ export default function VisualResumeEditor({
                           isEnabled={section.params?.visible !== false}
                           fieldCount={bulletCount}
                           isCollapsed={isSectionCollapsed}
+                          isSkillSection={isSkillSection}
                           onToggleCollapse={() => {
                             setOpenSections(prev => {
                               const updated = new Set(prev)
@@ -2865,11 +2884,11 @@ export default function VisualResumeEditor({
                                       return (
                                         <label
                                           key={bullet.id}
-                                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all border-2 ${bullet.params?.visible !== false
+                                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all ${bullet.params?.visible !== false
                                             ? hasKeywordMatch
-                                              ? 'bg-green-100 text-green-800 border-green-400 hover:bg-green-200 shadow-sm'
-                                              : 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
-                                            : 'bg-gray-100 text-gray-400 border-gray-200 line-through'
+                                              ? 'bg-green-100 text-green-800 hover:bg-green-200 shadow-sm'
+                                              : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                                            : 'bg-gray-100 text-gray-400 line-through'
                                             }`}
                                         >
                                           <input
@@ -3099,16 +3118,20 @@ export default function VisualResumeEditor({
                 setAiImproveContext(null);
                 setSelectedMissingKeywords(new Set());
                 setGeneratedBulletOptions([]);
+                setKeywordSourceType('missing');
+                setMatchResult(null);
               }}>
                 <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
-                    <h2 className="text-2xl font-bold text-white">✨ AI Improve with Missing Keywords</h2>
+                    <h2 className="text-2xl font-bold text-white">✨ AI Improve with Keywords</h2>
                     <button
                       onClick={() => {
                         setShowAIImproveModal(false);
                         setAiImproveContext(null);
                         setSelectedMissingKeywords(new Set());
                         setGeneratedBulletOptions([]);
+                        setKeywordSourceType('missing');
+                        setMatchResult(null);
                       }}
                       className="text-white hover:text-gray-200 text-2xl font-bold"
                     >
@@ -3124,38 +3147,115 @@ export default function VisualResumeEditor({
                       </div>
                     </div>
 
+                    {/* Keyword Source Selection - Only show for existing bullets (improve mode) */}
+                    {aiImproveContext.mode !== 'new' && (
+                      <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Select Keyword Source to Boost ATS Score
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => setKeywordSourceType('missing')}
+                            className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                              keywordSourceType === 'missing'
+                                ? 'bg-red-100 text-red-800 border-2 border-red-400'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            Missing Keywords
+                          </button>
+                          <button
+                            onClick={() => setKeywordSourceType('matching')}
+                            className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                              keywordSourceType === 'matching'
+                                ? 'bg-green-100 text-green-800 border-2 border-green-400'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            Matching Keywords
+                          </button>
+                          <button
+                            onClick={() => setKeywordSourceType('tfidf')}
+                            className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                              keywordSourceType === 'tfidf'
+                                ? 'bg-purple-100 text-purple-800 border-2 border-purple-400'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            TF-IDF Boost
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="mb-4">
-                      <p className="text-sm font-semibold text-gray-900 mb-3">Select missing keywords to include (choose 2-8):</p>
+                      <p className="text-sm font-semibold text-gray-900 mb-3">
+                        {aiImproveContext.mode === 'new' 
+                          ? 'Select missing keywords to include (choose 2-8):'
+                          : keywordSourceType === 'missing'
+                            ? 'Select missing keywords to include (choose 2-8):'
+                            : keywordSourceType === 'matching'
+                              ? 'Select matching keywords to reinforce (choose 2-8):'
+                              : 'Select TF-IDF boost keywords to include (choose 2-8):'
+                        }
+                      </p>
                       <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        {jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30).map((keyword, idx) => {
-                          const isSelected = selectedMissingKeywords.has(keyword)
-                          return (
-                            <button
-                              key={idx}
-                              onClick={async () => {
-                                const newSelected = new Set(selectedMissingKeywords)
-                                if (isSelected) {
-                                  newSelected.delete(keyword)
-                                } else if (newSelected.size < 8) {
-                                  newSelected.add(keyword)
-                                } else {
-                                  await showAlert({
-                                    type: 'warning',
-                                    message: 'Please select maximum 8 keywords',
-                                    title: 'Selection Limit'
-                                  })
-                                }
-                                setSelectedMissingKeywords(newSelected)
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${isSelected
-                                ? 'bg-blue-600 text-white border-2 border-blue-700'
-                                : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-                                }`}
-                            >
-                              {isSelected && '✓ '}{keyword}
-                            </button>
-                          )
-                        })}
+                        {(() => {
+                          // Determine which keywords to show
+                          let keywordsToShow: string[] = [];
+                          if (aiImproveContext.mode === 'new') {
+                            // For new bullets, use jdKeywords missing
+                            keywordsToShow = jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30) || [];
+                          } else {
+                            // For existing bullets, use match result based on source type
+                            if (keywordSourceType === 'missing') {
+                              keywordsToShow = matchResult?.match_analysis?.missing_keywords || jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30) || [];
+                            } else if (keywordSourceType === 'matching') {
+                              keywordsToShow = matchResult?.match_analysis?.matching_keywords || [];
+                            } else if (keywordSourceType === 'tfidf') {
+                              keywordsToShow = matchResult?.keyword_suggestions?.tfidf_suggestions || [];
+                            }
+                          }
+
+                          return keywordsToShow.length > 0 ? (
+                            keywordsToShow.map((keyword, idx) => {
+                              const isSelected = selectedMissingKeywords.has(keyword);
+                              const colorClass = keywordSourceType === 'missing'
+                                ? (isSelected ? 'bg-red-600 text-white border-2 border-red-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-red-400 hover:bg-red-50')
+                                : keywordSourceType === 'matching'
+                                  ? (isSelected ? 'bg-green-600 text-white border-2 border-green-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-green-400 hover:bg-green-50')
+                                  : (isSelected ? 'bg-purple-600 text-white border-2 border-purple-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-400 hover:bg-purple-50');
+                              
+                              return (
+                                <button
+                                  key={idx}
+                                  onClick={async () => {
+                                    const newSelected = new Set(selectedMissingKeywords);
+                                    if (isSelected) {
+                                      newSelected.delete(keyword);
+                                    } else if (newSelected.size < 8) {
+                                      newSelected.add(keyword);
+                                    } else {
+                                      await showAlert({
+                                        type: 'warning',
+                                        message: 'Please select maximum 8 keywords',
+                                        title: 'Selection Limit'
+                                      });
+                                    }
+                                    setSelectedMissingKeywords(newSelected);
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${colorClass}`}
+                                >
+                                  {isSelected && '✓ '}{keyword}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">
+                              No {keywordSourceType === 'missing' ? 'missing' : keywordSourceType === 'matching' ? 'matching' : 'TF-IDF boost'} keywords available. Please match a job description first.
+                            </p>
+                          );
+                        })()}
                       </div>
                       {selectedMissingKeywords.size > 0 && (
                         <p className="text-xs text-gray-600 mt-2">
@@ -3671,6 +3771,7 @@ function SortableSectionCard({
   fieldCount,
   children,
   isCollapsed,
+  isSkillSection = false,
   onToggleCollapse,
   onToggleVisibility,
   onRemove,
@@ -3682,6 +3783,7 @@ function SortableSectionCard({
   fieldCount?: number
   children: React.ReactNode
   isCollapsed?: boolean
+  isSkillSection?: boolean
   onToggleCollapse?: () => void
   onToggleVisibility?: () => void
   onRemove?: () => void
@@ -3706,9 +3808,11 @@ function SortableSectionCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-xl border transition-all ${isDragging
-        ? 'border-blue-400 shadow-lg z-50'
-        : 'border-gray-200 shadow-sm hover:shadow-md'
+      className={`bg-white rounded-xl transition-all ${isSkillSection
+        ? '' // No border or shadow for skills section
+        : isDragging
+          ? 'border border-blue-400 shadow-lg z-50'
+          : 'border border-gray-200 shadow-sm hover:shadow-md'
         }`}
     >
       {/* Section Header */}

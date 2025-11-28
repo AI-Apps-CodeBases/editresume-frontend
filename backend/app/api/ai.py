@@ -788,13 +788,42 @@ async def extract_keywords_llm(payload: ExtractKeywordsPayload):
             import json
             keywords_data = json.loads(content)
             
-            # Transform to match extension format
-            technical_keywords = keywords_data.get("technical_keywords", [])
-            soft_skills = keywords_data.get("soft_skills", [])
-            general_keywords = keywords_data.get("general_keywords", [])
-            priority_keywords = keywords_data.get("priority_keywords", [])
-            education_keywords = keywords_data.get("education", [])
-            experience_keywords = keywords_data.get("experience", [])
+            # Validate keywords against job description content
+            jd_lower = payload.job_description.lower()
+            
+            def keyword_in_text(keyword: str) -> bool:
+                """Check if keyword appears in job description text"""
+                if not keyword:
+                    return False
+                kw_lower = keyword.lower().strip()
+                # Check exact match or as part of a word/phrase
+                return kw_lower in jd_lower
+            
+            # Filter keywords to only those present in JD
+            technical_keywords = [
+                kw for kw in keywords_data.get("technical_keywords", [])
+                if keyword_in_text(kw)
+            ]
+            soft_skills = [
+                kw for kw in keywords_data.get("soft_skills", [])
+                if keyword_in_text(kw)
+            ]
+            general_keywords = [
+                kw for kw in keywords_data.get("general_keywords", [])
+                if keyword_in_text(kw)
+            ]
+            priority_keywords = [
+                kw for kw in keywords_data.get("priority_keywords", [])
+                if keyword_in_text(kw)
+            ]
+            education_keywords = [
+                kw for kw in keywords_data.get("education", [])
+                if keyword_in_text(kw)
+            ]
+            experience_keywords = [
+                kw for kw in keywords_data.get("experience", [])
+                if keyword_in_text(kw)
+            ]
             
             # Create high_frequency_keywords format
             high_frequency_keywords = [

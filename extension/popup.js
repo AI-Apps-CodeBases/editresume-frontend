@@ -31,6 +31,34 @@ async function ensureAuthToken({ silent = false, forceRefresh = false } = {}) {
   }
 }
 
+async function resolveApiBase() {
+  const { appBase, apiBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io', apiBase: '' });
+  
+  if (apiBase && apiBase.trim()) {
+    return apiBase.trim().replace(/\/$/, '');
+  }
+  
+  if (appBase && appBase.includes('localhost')) {
+    if (appBase.includes('localhost:3000')) {
+      return 'http://localhost:8000';
+    } else if (appBase.includes('localhost:8000')) {
+      return appBase.replace(/\/$/, '');
+    } else {
+      return 'http://localhost:8000';
+    }
+  }
+  
+  if (appBase && appBase.includes('staging.editresume.io')) {
+    return 'https://editresume-staging.onrender.com';
+  }
+  
+  if (appBase && appBase.includes('editresume.io') && !appBase.includes('staging')) {
+    return 'https://editresume-api-prod.onrender.com';
+  }
+  
+  return 'https://editresume-api-prod.onrender.com';
+}
+
 function cleanCompanyName(value) {
   if (!value) return '';
   let result = value.replace(/\s+/g, ' ').trim();
@@ -1094,15 +1122,7 @@ async function loadSavedJDs() {
       document.getElementById('savedList').innerHTML = '<div class="empty-state">Sign in to see saved jobs</div>';
       return;
     }
-    const { appBase, apiBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
-    const resolvedApiBase = apiBase || (appBase && appBase.includes('editresume.io') && !appBase.includes('staging') 
-      ? 'https://editresume-api-prod.onrender.com' 
-      : appBase && appBase.includes('staging.editresume.io')
-      ? 'https://editresume-staging.onrender.com'
-      : appBase && appBase.includes('localhost:3000')
-      ? 'http://localhost:8000'
-      : 'https://editresume-api-prod.onrender.com');
-    const base = resolvedApiBase.replace(/\/$/, '');
+    const base = await resolveApiBase();
     const res = await fetch(`${base}/api/job-descriptions`, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -1162,8 +1182,7 @@ function renderSavedList(list) {
             console.warn('No auth token when loading saved job');
             return;
           }
-          const { apiBase } = await chrome.storage.sync.get({ apiBase: 'https://editresume-api-prod.onrender.com' });
-          const base = (apiBase || 'https://editresume-api-prod.onrender.com').replace(/\/$/, '');
+          const base = await resolveApiBase();
           const res = await fetch(`${base}/api/job-descriptions/${id}`, {
             headers: {
               Authorization: `Bearer ${token}`
@@ -1257,12 +1276,22 @@ async function extractKeywordsWithLLM(content, token, apiBase) {
       saveBtn.textContent = originalText;
     }
 
-    // Transform LLM response to match existing format
-    const technical_keywords = data.technical_keywords || [];
-    const soft_skills = data.soft_skills || [];
-    const general_keywords = data.general_keywords || [];
-    const priority_keywords = data.priority_keywords || [];
-    const high_frequency_keywords = data.high_frequency_keywords || [];
+    // Validate keywords against job description content
+    const contentLower = content.toLowerCase();
+    const keywordInText = (keyword) => {
+      if (!keyword) return false;
+      return contentLower.includes(keyword.toLowerCase().trim());
+    };
+
+    // Transform LLM response to match existing format and validate
+    const technical_keywords = (data.technical_keywords || []).filter(kw => keywordInText(kw));
+    const soft_skills = (data.soft_skills || []).filter(kw => keywordInText(kw));
+    const general_keywords = (data.general_keywords || []).filter(kw => keywordInText(kw));
+    const priority_keywords = (data.priority_keywords || []).filter(kw => keywordInText(kw));
+    const high_frequency_keywords = (data.high_frequency_keywords || []).filter(item => {
+      const kw = item.keyword || item;
+      return keywordInText(kw);
+    });
 
     // Combine for allKeywords
     const allKeywords = [...new Set([...priority_keywords, ...general_keywords])];
@@ -1299,9 +1328,31 @@ async function extractKeywordsWithLLM(content, token, apiBase) {
 }
 
 /**
+ * Validate that keyword appears in the job description text
+ */
+function keywordInText(keyword, text) {
+  if (!keyword || !text) return false;
+  const kwLower = keyword.toLowerCase().trim();
+  const textLower = text.toLowerCase();
+  return textLower.includes(kwLower);
+}
+
+/**
  * Extract keywords locally (fallback method)
  */
 function extractKeywordsLocally(content) {
+  if (!content || !content.trim()) {
+    return {
+      technical_keywords: [],
+      soft_skills: [],
+      general_keywords: [],
+      priority_keywords: [],
+      high_frequency_keywords: [],
+      ats_insights: { action_verbs: [], metrics: [], industry_terms: [] },
+      atsKeywords: []
+    };
+  }
+
   // Extract ATS-focused keywords (education, experience, certifications)
   const atsKeywords = extractATSKeywords(content);
   const topKeywords = extractTopKeywords(content);
@@ -1309,11 +1360,17 @@ function extractKeywordsLocally(content) {
   const softSkills = extractSoftSkillsFromText(content);
   const atsInsights = extractAtsInsightsFromText(content);
 
+  // Validate all keywords are in the content
+  const validatedAtsKeywords = atsKeywords.filter(kw => keywordInText(kw, content));
+  const validatedTopKeywords = topKeywords.filter(kw => keywordInText(kw, content));
+  const validatedSkills = detectedSkills.filter(kw => keywordInText(kw, content));
+  const validatedSoftSkills = softSkills.filter(kw => keywordInText(kw, content));
+
   // Combine ATS keywords with general keywords, prioritizing ATS keywords
-  const allKeywords = [...new Set([...atsKeywords, ...topKeywords])];
+  const allKeywords = [...new Set([...validatedAtsKeywords, ...validatedTopKeywords])];
   const priorityKeywords = allKeywords.slice(0, 15); // Top 15 most relevant for ATS
 
-  const keywordFrequency = buildKeywordFrequencyMap([...detectedSkills, ...allKeywords]);
+  const keywordFrequency = buildKeywordFrequencyMap([...validatedSkills, ...allKeywords]);
   const highFrequencyKeywords = allKeywords.slice(0, 20).map((keyword, idx) => ({
     keyword,
     frequency: keywordFrequency[keyword.toLowerCase()] || 1,
@@ -1321,13 +1378,13 @@ function extractKeywordsLocally(content) {
   }));
 
   return {
-    technical_keywords: detectedSkills,
-    soft_skills: softSkills,
+    technical_keywords: validatedSkills,
+    soft_skills: validatedSoftSkills,
     general_keywords: allKeywords,
     priority_keywords: priorityKeywords,
     high_frequency_keywords: highFrequencyKeywords,
     ats_insights: atsInsights,
-    atsKeywords: atsKeywords
+    atsKeywords: validatedAtsKeywords
   };
 }
 
@@ -1398,15 +1455,8 @@ async function saveJobDescription() {
       return;
     }
 
-    const { appBase, apiBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
-    const resolvedApiBase = apiBase || (appBase && appBase.includes('editresume.io') && !appBase.includes('staging') 
-      ? 'https://editresume-api-prod.onrender.com' 
-      : appBase && appBase.includes('staging.editresume.io')
-      ? 'https://editresume-staging.onrender.com'
-      : appBase && appBase.includes('localhost:3000')
-      ? 'http://localhost:8000'
-      : 'https://editresume-api-prod.onrender.com');
-    const apiUrl = resolvedApiBase.replace(/\/$/, '') + '/api/job-descriptions';
+    const resolvedApiBase = await resolveApiBase();
+    const apiUrl = resolvedApiBase + '/api/job-descriptions';
     console.log('Saving job description to:', apiUrl);
 
     // Extract Easy Apply URL if available
@@ -1451,7 +1501,8 @@ async function saveJobDescription() {
     // Extract keywords using LLM (with fallback to local extraction)
     let keywordData;
     try {
-      keywordData = await extractKeywordsWithLLM(content, token, resolvedApiBase);
+      const apiBase = await resolveApiBase();
+      keywordData = await extractKeywordsWithLLM(content, token, apiBase);
       console.log('✅ Keywords extracted using LLM');
     } catch (error) {
       console.warn('⚠️ LLM extraction failed, falling back to local extraction:', error);
@@ -1465,6 +1516,9 @@ async function saveJobDescription() {
     const atsInsights = keywordData.ats_insights || { action_verbs: [], metrics: [], industry_terms: [] };
     const priorityKeywords = keywordData.priority_keywords || [];
     const highFrequencyKeywords = keywordData.high_frequency_keywords || [];
+
+    const allKeywords = topKeywords;
+    const keywordFrequency = buildKeywordFrequencyMap([...detectedSkills, ...allKeywords]);
 
     console.log('📊 Extracted fields:', {
       location: actualLocation,
@@ -1484,7 +1538,7 @@ async function saveJobDescription() {
       source: 'extension',
       extracted_keywords: {
         technical_keywords: detectedSkills.map(skill => skill.toLowerCase()),
-        general_keywords: allKeywords.map(keyword => keyword.toLowerCase()), // Use combined ATS + general keywords
+        general_keywords: allKeywords.map(keyword => keyword.toLowerCase()),
         soft_skills: softSkills,
         high_frequency_keywords: highFrequencyKeywords,
         ats_keywords: atsInsights,
@@ -1630,14 +1684,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       
-      // Allow staging URLs - don't force migration
-      // if (normalizedBase.includes('staging.editresume.io') || normalizedBase.includes('localhost')) {
-      //   normalizedBase = 'https://editresume.io';
-      //   await chrome.storage.sync.set({ 
-      //     appBase: normalizedBase,
-      //     apiBase: 'https://editresume-api-prod.onrender.com'
-      //   });
-      // }
+      // Force HTTP for localhost to avoid SSL errors
+      if (normalizedBase.includes('localhost')) {
+        normalizedBase = normalizedBase.replace(/^https?:\/\//, 'http://');
+      }
       
       chrome.tabs.create({ url: `${normalizedBase}/?extensionAuth=1` });
     });

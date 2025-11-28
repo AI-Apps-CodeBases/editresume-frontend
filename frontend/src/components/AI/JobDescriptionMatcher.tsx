@@ -5,6 +5,7 @@ import config from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { shouldPromptAuthentication } from '@/lib/guestAuth';
 import { useModal } from '@/contexts/ModalContext';
+import { getAuthHeaders } from '@/lib/auth';
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -766,6 +767,59 @@ const extractKeyPhrases = (text: string): string[] => {
     .map(([phrase]) => phrase.split(' ').map((token) => token.charAt(0).toUpperCase() + token.slice(1)).join(' '));
 };
 
+// Transform saved keywords from extension format to Match JD display format
+const transformSavedKeywords = (savedKeywords: any) => {
+  if (!savedKeywords) return null;
+  
+  // If already in the expected format (has high_intensity_keywords), return as-is
+  if (savedKeywords.high_intensity_keywords || savedKeywords.success) {
+    return savedKeywords;
+  }
+  
+  // Transform from extension format
+  const transformed: any = {
+    success: true,
+    technical_keywords: savedKeywords.technical_keywords || [],
+    general_keywords: savedKeywords.general_keywords || [],
+    soft_skills: savedKeywords.soft_skills || [],
+    priority_keywords: savedKeywords.priority_keywords || [],
+    total_keywords: savedKeywords.total_keywords || 0,
+  };
+  
+  // Transform high_frequency_keywords to high_intensity_keywords format
+  if (savedKeywords.high_frequency_keywords && Array.isArray(savedKeywords.high_frequency_keywords)) {
+    transformed.high_intensity_keywords = savedKeywords.high_frequency_keywords.map((kw: any) => {
+      if (typeof kw === 'string') {
+        return { keyword: kw, frequency: 1, importance: 'medium' };
+      }
+      if (typeof kw === 'object' && kw.keyword) {
+        return {
+          keyword: kw.keyword,
+          frequency: kw.frequency || 1,
+          importance: kw.importance || 'medium'
+        };
+      }
+      return null;
+    }).filter(Boolean);
+    
+    // Also create high_priority_keywords from priority_keywords and technical_keywords
+    const highPriority = new Set<string>();
+    (savedKeywords.priority_keywords || []).forEach((kw: string) => highPriority.add(kw.toLowerCase()));
+    (savedKeywords.technical_keywords || []).forEach((kw: string) => highPriority.add(kw.toLowerCase()));
+    transformed.high_priority_keywords = Array.from(highPriority);
+  } else {
+    // Fallback: create high_intensity_keywords from priority_keywords
+    transformed.high_intensity_keywords = (savedKeywords.priority_keywords || []).map((kw: string, idx: number) => ({
+      keyword: kw,
+      frequency: (savedKeywords.priority_keywords || []).length - idx,
+      importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low'
+    }));
+    transformed.high_priority_keywords = savedKeywords.priority_keywords || [];
+  }
+  
+  return transformed;
+};
+
 const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
   if (!text?.trim()) return null;
   const normalized = text.replace(/\r\n?/g, '\n');
@@ -966,54 +1020,163 @@ const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
   return metadata;
 };
 
+// Extract all keywords from saved extracted_keywords (from extension)
+const extractAllSavedKeywords = (savedKeywords: any): string[] => {
+  if (!savedKeywords) return [];
+  
+  const allKeywords = new Set<string>();
+  
+  // Extract from technical_keywords
+  if (Array.isArray(savedKeywords.technical_keywords)) {
+    savedKeywords.technical_keywords.forEach((kw: any) => {
+      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
+      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
+    });
+  }
+  
+  // Extract from general_keywords
+  if (Array.isArray(savedKeywords.general_keywords)) {
+    savedKeywords.general_keywords.forEach((kw: any) => {
+      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
+      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
+    });
+  }
+  
+  // Extract from priority_keywords
+  if (Array.isArray(savedKeywords.priority_keywords)) {
+    savedKeywords.priority_keywords.forEach((kw: any) => {
+      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
+      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
+    });
+  }
+  
+  // Extract from high_frequency_keywords
+  if (Array.isArray(savedKeywords.high_frequency_keywords)) {
+    savedKeywords.high_frequency_keywords.forEach((kw: any) => {
+      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
+      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
+    });
+  }
+  
+  // Extract from soft_skills
+  if (Array.isArray(savedKeywords.soft_skills)) {
+    savedKeywords.soft_skills.forEach((kw: any) => {
+      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
+      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
+    });
+  }
+  
+  return Array.from(allKeywords);
+};
+
+// Check which saved keywords are in the resume text
+const findMissingKeywordsFromSaved = (savedKeywords: any, resumeText: string): { matched: string[], missing: string[] } => {
+  const allSavedKeywords = extractAllSavedKeywords(savedKeywords);
+  if (allSavedKeywords.length === 0) {
+    return { matched: [], missing: [] };
+  }
+  
+  const resumeTextLower = resumeText.toLowerCase();
+  const matched: string[] = [];
+  const missing: string[] = [];
+  
+  allSavedKeywords.forEach((keyword) => {
+    // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+    const hasSpecialChars = /[\/\-_]/g.test(keyword);
+    let pattern: RegExp;
+    
+    if (hasSpecialChars) {
+      // For keywords with special chars, escape and match directly (no word boundaries)
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      pattern = new RegExp(escaped, 'i');
+    } else {
+      // For normal keywords, use word boundaries to avoid partial matches
+      pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    }
+    
+    if (pattern.test(resumeTextLower)) {
+      matched.push(keyword);
+    } else {
+      missing.push(keyword);
+    }
+  });
+  
+  return { matched, missing };
+};
+
 // Transform EnhancedATSChecker response to JobMatchResult format
-const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: string): JobMatchResult => {
+const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: string, savedKeywords?: any, resumeText?: string): JobMatchResult => {
   // Extract TF-IDF analysis from the response
   // The structure depends on whether industry_standard method was used
   const details = enhancedATSResult.details || {};
   const tfidfAnalysis = details.tfidf_analysis || {};
   
-  // Extract matching and missing keywords
-  // EnhancedATSChecker returns objects with {keyword, job_weight, resume_weight} or {keyword, weight}
-  const matchingKeywordsRaw = tfidfAnalysis.matching_keywords || [];
-  const missingKeywordsRaw = tfidfAnalysis.missing_keywords || [];
+  // If we have saved keywords from extension, use them directly instead of TF-IDF results
+  let matchingKeywords: string[] = [];
+  let missingKeywords: string[] = [];
+  let technicalMatches: string[] = [];
+  let technicalMissing: string[] = [];
   
-  // Convert to string arrays - handle both object and string formats
-  const matchingKeywords = matchingKeywordsRaw.map((kw: any) => {
-    if (typeof kw === 'string') return kw;
-    return kw.keyword || (typeof kw === 'object' ? JSON.stringify(kw) : String(kw));
-  }).filter((kw: string) => kw && kw.trim().length > 0);
-  
-  const missingKeywords = missingKeywordsRaw.map((kw: any) => {
-    if (typeof kw === 'string') return kw;
-    return kw.keyword || (typeof kw === 'object' ? JSON.stringify(kw) : String(kw));
-  }).filter((kw: string) => kw && kw.trim().length > 0);
-  
-  // Extract technical keywords using a heuristic
-  // EnhancedATSChecker doesn't separate technical keywords, so we identify them
-  const technicalKeywords = ['python', 'java', 'javascript', 'react', 'aws', 'docker', 'kubernetes', 
-    'sql', 'mongodb', 'postgresql', 'node', 'typescript', 'git', 'ci/cd', 'agile', 'scrum',
-    'angular', 'vue', 'django', 'flask', 'spring', 'express', 'laravel', 'rails', 'asp.net',
-    'mysql', 'redis', 'elasticsearch', 'cassandra', 'oracle', 'dynamodb', 'neo4j',
-    'azure', 'gcp', 'google cloud', 'terraform', 'ansible', 'jenkins', 'github', 'gitlab',
-    'microservices', 'api', 'rest', 'graphql', 'tdd', 'devops', 'sre'];
-  
-  const technicalMatches: string[] = [];
-  const technicalMissing: string[] = [];
-  
-  matchingKeywords.forEach((kw: string) => {
-    const kwLower = kw.toLowerCase();
-    if (technicalKeywords.some(tech => kwLower.includes(tech.toLowerCase()))) {
-      technicalMatches.push(kw);
-    }
-  });
-  
-  missingKeywords.forEach((kw: string) => {
-    const kwLower = kw.toLowerCase();
-    if (technicalKeywords.some(tech => kwLower.includes(tech.toLowerCase()))) {
-      technicalMissing.push(kw);
-    }
-  });
+  if (savedKeywords && resumeText) {
+    // Use saved keywords for display
+    const savedKeywordMatch = findMissingKeywordsFromSaved(savedKeywords, resumeText);
+    matchingKeywords = savedKeywordMatch.matched;
+    missingKeywords = savedKeywordMatch.missing;
+    
+    // Identify technical keywords from saved set
+    const savedTechnicalKeywords = Array.isArray(savedKeywords.technical_keywords) 
+      ? savedKeywords.technical_keywords.map((kw: any) => typeof kw === 'string' ? kw.toLowerCase() : kw?.keyword?.toLowerCase()).filter(Boolean)
+      : [];
+    
+    matchingKeywords.forEach((kw) => {
+      if (savedTechnicalKeywords.includes(kw.toLowerCase())) {
+        technicalMatches.push(kw);
+      }
+    });
+    
+    missingKeywords.forEach((kw) => {
+      if (savedTechnicalKeywords.includes(kw.toLowerCase())) {
+        technicalMissing.push(kw);
+      }
+    });
+  } else {
+    // Fallback to TF-IDF results if no saved keywords
+    const matchingKeywordsRaw = tfidfAnalysis.matching_keywords || [];
+    const missingKeywordsRaw = tfidfAnalysis.missing_keywords || [];
+    
+    // Convert to string arrays - handle both object and string formats
+    matchingKeywords = matchingKeywordsRaw.map((kw: any) => {
+      if (typeof kw === 'string') return kw;
+      return kw.keyword || (typeof kw === 'object' ? JSON.stringify(kw) : String(kw));
+    }).filter((kw: string) => kw && kw.trim().length > 0);
+    
+    missingKeywords = missingKeywordsRaw.map((kw: any) => {
+      if (typeof kw === 'string') return kw;
+      return kw.keyword || (typeof kw === 'object' ? JSON.stringify(kw) : String(kw));
+    }).filter((kw: string) => kw && kw.trim().length > 0);
+    
+    // Extract technical keywords using a heuristic
+    const technicalKeywords = ['python', 'java', 'javascript', 'react', 'aws', 'docker', 'kubernetes', 
+      'sql', 'mongodb', 'postgresql', 'node', 'typescript', 'git', 'ci/cd', 'agile', 'scrum',
+      'angular', 'vue', 'django', 'flask', 'spring', 'express', 'laravel', 'rails', 'asp.net',
+      'mysql', 'redis', 'elasticsearch', 'cassandra', 'oracle', 'dynamodb', 'neo4j',
+      'azure', 'gcp', 'google cloud', 'terraform', 'ansible', 'jenkins', 'github', 'gitlab',
+      'microservices', 'api', 'rest', 'graphql', 'tdd', 'devops', 'sre'];
+    
+    matchingKeywords.forEach((kw: string) => {
+      const kwLower = kw.toLowerCase();
+      if (technicalKeywords.some(tech => kwLower.includes(tech.toLowerCase()))) {
+        technicalMatches.push(kw);
+      }
+    });
+    
+    missingKeywords.forEach((kw: string) => {
+      const kwLower = kw.toLowerCase();
+      if (technicalKeywords.some(tech => kwLower.includes(tech.toLowerCase()))) {
+        technicalMissing.push(kw);
+      }
+    });
+  }
   
   // Get the overall score
   const overallScore = enhancedATSResult.score || 0;
@@ -1025,9 +1188,30 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
     : 0;
   
   // Calculate total job keywords
-  const totalJobKeywords = tfidfAnalysis.total_job_keywords || 
-                           (matchingKeywords.length + missingKeywords.length) ||
-                           0;
+  // If using saved keywords, use the count from saved set; otherwise use TF-IDF count
+  const totalJobKeywords = savedKeywords 
+    ? (matchingKeywords.length + missingKeywords.length)
+    : (tfidfAnalysis.total_job_keywords || (matchingKeywords.length + missingKeywords.length) || 0);
+  
+  // Extract TF-IDF suggestions (keywords similar to job description but not in saved keywords)
+  let tfidfSuggestions: string[] = [];
+  if (savedKeywords && tfidfAnalysis.missing_keywords) {
+    // Get all saved keywords as a set for comparison
+    const allSavedKeywords = new Set(extractAllSavedKeywords(savedKeywords).map(kw => kw.toLowerCase()));
+    
+    // Extract TF-IDF missing keywords that are NOT in saved keywords
+    const tfidfMissingRaw = tfidfAnalysis.missing_keywords || [];
+    const tfidfMissing = tfidfMissingRaw.map((kw: any) => {
+      if (typeof kw === 'string') return kw.toLowerCase();
+      return (kw.keyword || String(kw)).toLowerCase();
+    }).filter((kw: string) => kw && kw.trim().length > 0);
+    
+    // Filter out keywords that are already in saved keywords
+    tfidfSuggestions = tfidfMissing
+      .filter((kw: string) => !allSavedKeywords.has(kw.toLowerCase()))
+      .filter((kw: string) => !missingKeywords.some(savedKw => savedKw.toLowerCase() === kw.toLowerCase()))
+      .slice(0, 15); // Limit to top 15 TF-IDF suggestions
+  }
   
   // Build match_analysis object
   const match_analysis: MatchAnalysis = {
@@ -1045,7 +1229,9 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
   return {
     success: enhancedATSResult.success !== false,
     match_analysis,
-    keyword_suggestions: {}, // EnhancedATSChecker doesn't provide this format
+    keyword_suggestions: {
+      tfidf_suggestions: tfidfSuggestions, // Additional TF-IDF keywords similar to JD
+    },
     improvement_suggestions: enhancedATSResult.ai_improvements?.map((imp: any) => ({
       category: imp.category || 'General',
       suggestion: imp.specific_suggestion || imp.description || imp.title || ''
@@ -1101,7 +1287,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       const savedKeywords = localStorage.getItem('extractedKeywords');
       if (savedKeywords) {
         try {
-          setExtractedKeywords(JSON.parse(savedKeywords));
+          const parsed = JSON.parse(savedKeywords);
+          const transformed = transformSavedKeywords(parsed);
+          setExtractedKeywords(transformed);
         } catch (e) {
           console.error('Failed to parse extracted keywords:', e);
         }
@@ -1118,7 +1306,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       } else {
         // Try to fetch from API if not in localStorage
         Promise.all([
-          fetch(`${config.apiBase}/api/jobs/${currentJobDescriptionId}`).then(res => {
+          fetch(`${config.apiBase}/api/jobs/${currentJobDescriptionId}`, {
+            headers: getAuthHeaders()
+          }).then(res => {
             if (!res.ok && res.status === 404) return null;
             return res.ok ? res.json() : null;
           }).catch(() => null),
@@ -1135,9 +1325,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               // Store extracted_keywords if available (from extension)
               const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords;
               if (extractedKeywords) {
-                setExtractedKeywords(extractedKeywords);
+                // Transform saved keywords format to match UI expectations
+                const transformedKeywords = transformSavedKeywords(extractedKeywords);
+                setExtractedKeywords(transformedKeywords);
                 if (typeof window !== 'undefined') {
-                  localStorage.setItem('extractedKeywords', JSON.stringify(extractedKeywords));
+                  localStorage.setItem('extractedKeywords', JSON.stringify(transformedKeywords));
                 }
               }
               if (typeof window !== 'undefined') {
@@ -1164,9 +1356,23 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   }, [jobDescription]);
 
   // Auto-extract keywords when JD is pasted/updated (debounced)
+  // Only extract if we don't already have saved keywords from extension
   useEffect(() => {
     if (!jobDescription?.trim() || jobDescription.length < 50) {
       setExtractedKeywords(null);
+      return;
+    }
+
+    // Skip extraction if we already have saved keywords from extension
+    // Check for both extension format (technical_keywords array) and API format (various fields)
+    const hasSavedKeywords = extractedKeywords && (
+      (extractedKeywords.technical_keywords && extractedKeywords.technical_keywords.length > 0) ||
+      (extractedKeywords.general_keywords && extractedKeywords.general_keywords.length > 0) ||
+      (extractedKeywords.priority_keywords && extractedKeywords.priority_keywords.length > 0) ||
+      (extractedKeywords.high_frequency_keywords && extractedKeywords.high_frequency_keywords.length > 0)
+    );
+    if (hasSavedKeywords) {
+      console.log('Using saved keywords from extension, skipping re-extraction');
       return;
     }
 
@@ -1784,7 +1990,25 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
       if (matchRes.ok) {
         const enhancedATSData = await matchRes.json();
-        const matchData = transformEnhancedATSResponse(enhancedATSData, jobDescription);
+        
+        // Extract resume text for keyword matching
+        const resumeTextFragments: string[] = [];
+        const appendText = (value?: string) => {
+          const normalized = normalizeTextForATS(value);
+          if (normalized) {
+            resumeTextFragments.push(normalized.toLowerCase());
+          }
+        };
+        appendText(cleanedResumeData.title);
+        appendText(cleanedResumeData.summary);
+        cleanedResumeData.sections.forEach((section: any) => {
+          appendText(section.title);
+          section.bullets.forEach((bullet: any) => appendText(bullet?.text));
+        });
+        const resumeText = resumeTextFragments.join(' ').replace(/\s+/g, ' ').trim();
+        
+        // Pass saved keywords and resume text to transformation
+        const matchData = transformEnhancedATSResponse(enhancedATSData, jobDescription, extractedKeywords, resumeText);
         const normalizedMatchData = normalizeMatchResult(matchData);
         const newScore = normalizedMatchData?.match_analysis?.similarity_score ?? null;
 
@@ -3662,7 +3886,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               </div>
 
               {/* Combined Missing Keywords & Technical Skills Section */}
-              {(matchResult.match_analysis.missing_keywords.length > 0 || technicalKeywordOptions.length > 0) && (
+              {(matchResult.match_analysis.missing_keywords.length > 0 || technicalKeywordOptions.length > 0 || (matchResult.keyword_suggestions?.tfidf_suggestions?.length || 0) > 0) && (
                 <div className="border-t border-gray-200 pt-6">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
                     <div className="space-y-1">
@@ -3673,6 +3897,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         Add these to improve your match score 
                         {matchResult.match_analysis.missing_keywords.length > 0 && ` (${matchResult.match_analysis.missing_keywords.length} missing keywords)`}
                         {technicalKeywordOptions.length > 0 && ` (${technicalKeywordOptions.length} technical skills)`}
+                        {(matchResult.keyword_suggestions?.tfidf_suggestions?.length || 0) > 0 && ` (${matchResult.keyword_suggestions.tfidf_suggestions.length} TF-IDF boost keywords)`}
                       </p>
                     </div>
                     {selectedKeywords.size > 0 && (
@@ -3765,6 +3990,52 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         </label>
                       );
                     })}
+                    {/* TF-IDF Boost Keywords - Similar to JD but not in saved keywords */}
+                    {matchResult.keyword_suggestions?.tfidf_suggestions && matchResult.keyword_suggestions.tfidf_suggestions.length > 0 && (
+                      <>
+                        <div className="w-full mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
+                              🔥 TF-IDF Boost Keywords
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              (Similar to job description - add these for higher ATS score)
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {matchResult.keyword_suggestions.tfidf_suggestions.map((keyword, index) => {
+                              const isSelected = selectedKeywords.has(keyword);
+                              return (
+                                <label
+                                  key={`tfidf-${index}`}
+                                  className={`px-2 py-1 text-xs rounded-md cursor-pointer border transition-all flex items-center gap-1.5 ${
+                                    isSelected
+                                      ? 'bg-purple-100 text-purple-800 border-purple-400 font-medium'
+                                      : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      const newSelected = new Set(selectedKeywords);
+                                      if (e.target.checked) {
+                                        newSelected.add(keyword);
+                                      } else {
+                                        newSelected.delete(keyword);
+                                      }
+                                      setSelectedKeywords(newSelected);
+                                    }}
+                                    className="w-3 h-3 text-purple-600 rounded focus:ring-purple-500"
+                                  />
+                                  <span>{keyword}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}

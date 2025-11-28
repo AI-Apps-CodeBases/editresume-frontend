@@ -44,7 +44,12 @@ def get_user_email_from_request(
     # First try Firebase auth (for extension and frontend)
     firebase_user = getattr(request.state, "firebase_user", None)
     if firebase_user and firebase_user.get("email"):
+        logger.info(f"Extracted email from Firebase auth: {firebase_user.get('email')}")
         return firebase_user["email"]
+    elif firebase_user:
+        logger.warning(f"Firebase user found but no email: {firebase_user}")
+    else:
+        logger.warning(f"No Firebase user in request.state, falling back to query param: {user_email}")
     # Fallback to query parameter (for backward compatibility)
     return user_email
 
@@ -59,8 +64,12 @@ async def create_job_description(
     """Create or update a job description"""
     # Extract user email from Firebase auth or query parameter
     email = get_user_email_from_request(request, user_email)
+    logger.info(f"Creating job description - extracted email: {email}, query param: {user_email}")
     if email:
         payload["user_email"] = email
+        logger.info(f"Added user_email to payload: {email}")
+    else:
+        logger.warning("No user email found in request - job will be saved without user association")
     return create_or_update_job_description(payload, db)
 
 
@@ -73,6 +82,7 @@ async def list_job_descriptions(
     """List job descriptions for a user"""
     # Extract user email from Firebase auth or query parameter
     email = get_user_email_from_request(request, user_email)
+    logger.info(f"GET /api/job-descriptions - query param: {user_email}, extracted email: {email}, firebase_user: {getattr(request.state, 'firebase_user', None)}")
     return list_user_job_descriptions(email, db)
 
 

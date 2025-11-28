@@ -186,9 +186,13 @@ export default function ModernEditorLayout({
               />
             </div>
           ) : currentView === 'jobs' ? (
-            <JobsView onBack={() => onViewChange?.('editor')} />
+            <div className="h-full overflow-y-auto">
+              <JobsView onBack={() => onViewChange?.('editor')} />
+            </div>
           ) : currentView === 'resumes' ? (
-            <ResumesView onBack={() => onViewChange?.('editor')} />
+            <div className="h-full overflow-y-auto">
+              <ResumesView onBack={() => onViewChange?.('editor')} />
+            </div>
           ) : null}
         </div>
 
