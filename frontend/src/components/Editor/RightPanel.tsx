@@ -1,8 +1,8 @@
 'use client'
-import React from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
-
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
+import config from '@/lib/config'
 
 
 interface RightPanelProps {
@@ -110,15 +110,46 @@ export default function RightPanel({
         },
         body: JSON.stringify({
           resume_data: cleanedResumeData,
-          job_description: jobDescriptionToUse, // Use job description when available for better scoring
-          target_role: '', // Optional
-          industry: '', // Optional
-          extracted_keywords: extractedKeywordsToUse || undefined  // Include if available
+          job_description: jobDescriptionToUse,
+          target_role: '',
+          industry: '',
+          extracted_keywords: extractedKeywordsToUse || undefined
         }),
       })
 
+      if (!response.ok) {
+        throw new Error('Failed to calculate ATS score')
+      }
 
+      const data = await response.json()
+      setAtsScore(data.score || null)
+      setAiImprovements(data.improvements_count || 0)
+      setAtsSuggestions(data.suggestions || [])
+    } catch (error) {
+      console.error('Error calculating ATS score:', error)
+      setAtsScore(null)
+      setAiImprovements(0)
+      setAtsSuggestions([])
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }, [resumeData, deepLinkedJD])
 
+  useEffect(() => {
+    if (analyzeTimeoutRef.current) {
+      clearTimeout(analyzeTimeoutRef.current)
+    }
+
+    analyzeTimeoutRef.current = setTimeout(() => {
+      calculateATSScore()
+    }, 1000)
+
+    return () => {
+      if (analyzeTimeoutRef.current) {
+        clearTimeout(analyzeTimeoutRef.current)
+      }
+    }
+  }, [calculateATSScore])
 
   const tabs = [
     { id: 'live' as const, label: 'Live', icon: '⚡' },
