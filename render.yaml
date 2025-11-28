@@ -1,7 +1,7 @@
 services:
   - type: web
     name: editresume-backend
-    dockerfilePath: ./Dockerfile.render
+    dockerfilePath: ./backend/Dockerfile.render
     envVars:
       - key: DATABASE_URL
         fromDatabase:
