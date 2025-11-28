@@ -59,6 +59,48 @@ async function resolveApiBase() {
   return 'https://editresume-api-prod.onrender.com';
 }
 
+async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+  let lastError;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      
+      if (response.ok) {
+        return response;
+      }
+      
+      if (response.status === 429 || response.status >= 500) {
+        const isLastAttempt = attempt === maxRetries - 1;
+        if (isLastAttempt) {
+          return response;
+        }
+        
+        const delay = Math.min(1000 * Math.pow(2, attempt) + Math.random() * 1000, 10000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      lastError = error;
+      const isLastAttempt = attempt === maxRetries - 1;
+      if (isLastAttempt) {
+        throw error;
+      }
+      
+      if (error.message?.includes('throttl') || error.message?.includes('Failed to fetch')) {
+        const delay = Math.min(1000 * Math.pow(2, attempt) + Math.random() * 1000, 10000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      throw error;
+    }
+  }
+  
+  throw lastError || new Error('Request failed after retries');
+}
+
 function cleanCompanyName(value) {
   if (!value) return '';
   let result = value.replace(/\s+/g, ' ').trim();
@@ -1123,7 +1165,7 @@ async function loadSavedJDs() {
       return;
     }
     const base = await resolveApiBase();
-    const res = await fetch(`${base}/api/job-descriptions`, {
+    const res = await fetchWithRetry(`${base}/api/job-descriptions`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -1135,18 +1177,28 @@ async function loadSavedJDs() {
       renderSavedList(list);
     } else if (res.status === 401) {
       document.getElementById('savedList').innerHTML = '<div class="empty-state">Please sign in on editresume.io</div>';
-      // Preserve existing settings when clearing token
       const current = await chrome.storage.sync.get();
       await chrome.storage.sync.set({ 
         ...current,
         token: '', 
         tokenFetchedAt: 0 
       });
+    } else if (res.status === 429) {
+      document.getElementById('savedList').innerHTML = '<div class="empty-state">Too many requests. Please wait a moment.</div>';
+    } else if (res.status >= 500) {
+      document.getElementById('savedList').innerHTML = '<div class="empty-state">Server error. Please try again later.</div>';
     } else {
-      document.getElementById('savedList').innerHTML = '<div class="empty-state">Failed to load</div>';
+      document.getElementById('savedList').innerHTML = `<div class="empty-state">Failed to load (${res.status})</div>`;
     }
   } catch (e) {
-    document.getElementById('savedList').innerHTML = '<div class="empty-state">Error loading jobs</div>';
+    console.error('Error loading jobs:', e);
+    if (e.message?.includes('throttl') || e.message?.includes('429')) {
+      document.getElementById('savedList').innerHTML = '<div class="empty-state">Request throttled. Please wait a moment.</div>';
+    } else if (e.message?.includes('500')) {
+      document.getElementById('savedList').innerHTML = '<div class="empty-state">Server error. Please try again later.</div>';
+    } else {
+      document.getElementById('savedList').innerHTML = '<div class="empty-state">Error loading jobs. Check connection.</div>';
+    }
   }
 }
 
@@ -1183,7 +1235,7 @@ function renderSavedList(list) {
             return;
           }
           const base = await resolveApiBase();
-          const res = await fetch(`${base}/api/job-descriptions/${id}`, {
+          const res = await fetchWithRetry(`${base}/api/job-descriptions/${id}`, {
             headers: {
               Authorization: `Bearer ${token}`
             }
@@ -1253,7 +1305,7 @@ async function extractKeywordsWithLLM(content, token, apiBase) {
       saveBtn.textContent = 'Extracting keywords with AI...';
     }
 
-    const response = await fetch(`${base}/api/ai/extract_keywords_llm`, {
+    const response = await fetchWithRetry(`${base}/api/ai/extract_keywords_llm`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1262,10 +1314,16 @@ async function extractKeywordsWithLLM(content, token, apiBase) {
       body: JSON.stringify({
         job_description: content
       })
-    });
+    }, 2);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      if (response.status === 429) {
+        throw new Error('Request throttled. Please wait a moment.');
+      }
+      if (response.status >= 500) {
+        throw new Error('Server error. Falling back to local extraction.');
+      }
       throw new Error(errorData.detail || `HTTP ${response.status}`);
     }
 
@@ -1552,7 +1610,7 @@ async function saveJobDescription() {
     };
     console.log('📤 Saving job description with payload:', { ...payload, content: content.substring(0, 100) + '...' });
 
-    const resp = await fetch(apiUrl, {
+    const resp = await fetchWithRetry(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1567,7 +1625,13 @@ async function saveJobDescription() {
         const errorData = await resp.json();
         errorMessage = errorData.detail || errorData.message || `HTTP ${resp.status}: ${resp.statusText}`;
       } catch (e) {
-        errorMessage = `HTTP ${resp.status}: ${resp.statusText}`;
+        if (resp.status === 429) {
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
+        } else if (resp.status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = `HTTP ${resp.status}: ${resp.statusText}`;
+        }
       }
       throw new Error(errorMessage);
     }
