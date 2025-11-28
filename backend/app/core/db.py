@@ -161,6 +161,11 @@ def migrate_schema() -> None:
                 "important_emoji": "VARCHAR",
                 "notes": "TEXT",
             },
+            "users": {
+                "linkedin_token": "TEXT",
+                "linkedin_profile_url": "VARCHAR(255)",
+                "linkedin_id": "VARCHAR(255)",
+            },
         }
 
         for table_name, columns in column_additions.items():
@@ -183,3 +188,27 @@ def migrate_schema() -> None:
                         )
                     )
                     conn.commit()
+
+        # Create index on users.linkedin_id if it doesn't exist
+        result = conn.execute(
+            text(
+                """
+                SELECT indexname 
+                FROM pg_indexes 
+                WHERE tablename = 'users' 
+                AND indexname = 'idx_users_linkedin_id'
+                """
+            )
+        )
+        row = result.fetchone()
+        if not row:
+            conn.execute(
+                text(
+                    """
+                    CREATE INDEX idx_users_linkedin_id 
+                    ON users(linkedin_id) 
+                    WHERE linkedin_id IS NOT NULL
+                    """
+                )
+            )
+            conn.commit()
