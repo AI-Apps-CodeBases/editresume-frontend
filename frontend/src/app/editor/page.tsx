@@ -29,10 +29,10 @@ import TemplateDesignPage from '@/components/Editor/TemplateDesignPage'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 import { shouldPromptAuthentication } from '@/lib/guestAuth'
+import { getAuthHeaders } from '@/lib/auth'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { ATSScoreCard } from '@/features/resume-automation/components/ATSScoreCard'
 import { OptimizationSuggestions } from '@/features/resume-automation/components/OptimizationSuggestions'
-import AutoHideNavbar from '@/components/layout/AutoHideNavbar'
 import type {
   AutoGenerateResponse,
   ATSScore as AutomationATSScore,
@@ -341,7 +341,9 @@ const EditorPageContent = () => {
               setPreviewMode('match')
             } else {
               Promise.all([
-                fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => {
+                fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+                  headers: getAuthHeaders()
+                }).then(res => {
                   if (res.status === 404) return null;
                   return res.ok ? res.json() : null;
                 }).catch(() => null),
@@ -467,7 +469,9 @@ const EditorPageContent = () => {
           // Fetch from API
           console.log('Fetching JD from API')
           Promise.all([
-            fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null),
+            fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+              headers: getAuthHeaders()
+            }).then(res => res.ok ? res.json() : null).catch(() => null),
             fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
           ]).then(([newJob, legacyJob]) => {
             const jobData = newJob || legacyJob
@@ -477,6 +481,11 @@ const EditorPageContent = () => {
                 console.log('Loaded JD from API, setting preview mode to match')
                 setDeepLinkedJD(description)
                 setPreviewMode('match')
+                // Store extracted_keywords if available (from extension)
+                const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords
+                if (extractedKeywords && typeof window !== 'undefined') {
+                  localStorage.setItem('extractedKeywords', JSON.stringify(extractedKeywords))
+                }
                 if (typeof window !== 'undefined') {
                   localStorage.setItem('deepLinkedJD', description)
                   localStorage.setItem('activeJobDescriptionId', String(jobId))
@@ -591,7 +600,9 @@ const EditorPageContent = () => {
       setActiveJobDescriptionId(jobId)
       
       Promise.all([
-        fetch(`${config.apiBase}/api/jobs/${jobId}`).then(res => {
+        fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+          headers: getAuthHeaders()
+        }).then(res => {
           if (res.status === 404) return null;
           return res.ok ? res.json() : null;
         }).catch(() => null),
@@ -2011,7 +2022,6 @@ const EditorPageContent = () => {
 
   return (
     <>
-      <AutoHideNavbar />
       <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
         {headerElement}
         <div className="fixed inset-0 overflow-hidden">

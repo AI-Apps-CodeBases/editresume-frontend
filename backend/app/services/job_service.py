@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -12,7 +13,7 @@ from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import keyword_extractor
-from app.models import JobDescription, JobCoverLetter, JobResumeVersion, User
+from app.models import JobDescription, JobCoverLetter, JobResumeVersion, User, Resume, ResumeVersion
 from app.utils.job_helpers import (
     _classify_priority_keywords,
     _determine_final_job_title,
@@ -40,7 +41,31 @@ def create_or_update_job_description(
 
         user = None
         if hasattr(payload, "user_email") and payload.user_email:
-            user = db.query(User).filter(User.email == payload.user_email).first()
+            user_email_clean = payload.user_email.strip()
+            if user_email_clean:
+                user = db.query(User).filter(User.email == user_email_clean).first()
+                if not user:
+                    logger.info(f"User with email {user_email_clean} not found, creating user record")
+                    try:
+                        temp_password = secrets.token_urlsafe(32)
+                        user_name = user_email_clean.split("@")[0] if "@" in user_email_clean else "User"
+                        user = User(
+                            email=user_email_clean,
+                            name=user_name,
+                            password=temp_password,
+                            is_premium=False,
+                        )
+                        db.add(user)
+                        db.flush()
+                        logger.info(f"Created user record for {user_email_clean} with id {user.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to create user record for {user_email_clean}: {e}")
+                        db.rollback()
+                        user = None
+                else:
+                    logger.info(f"Found existing user {user_email_clean} with id {user.id}")
+        else:
+            logger.warning("No user_email provided in payload, job will be saved without user association")
 
         jd = None
         if hasattr(payload, "id") and payload.id:
@@ -296,6 +321,7 @@ def create_or_update_job_description(
 
         # New columns exist - use normal SQLAlchemy
         jd.user_id = user.id if user else None
+        logger.info(f"Saving job description with user_id: {jd.user_id} (user: {payload.user_email if hasattr(payload, 'user_email') else None})")
         jd.title = final_title
         jd.company = getattr(payload, "company", None)
         jd.source = getattr(payload, "source", None)
@@ -319,6 +345,69 @@ def create_or_update_job_description(
         db.add(jd)
         db.commit()
         db.refresh(jd)
+        logger.info(f"Successfully saved job description {jd.id} with user_id: {jd.user_id}")
+        
+        # Save current resume version if resume_id is provided
+        resume_id = getattr(payload, "resume_id", None)
+        if resume_id and user:
+            try:
+                resume = db.query(Resume).filter(
+                    Resume.id == resume_id,
+                    Resume.user_id == user.id
+                ).first()
+                
+                if resume:
+                    # Get the latest resume version
+                    latest_version = db.query(ResumeVersion).filter(
+                        ResumeVersion.resume_id == resume_id,
+                        ResumeVersion.user_id == user.id
+                    ).order_by(ResumeVersion.version_number.desc()).first()
+                    
+                    if latest_version:
+                        # Check if this resume version is already linked to this job
+                        existing_link = db.query(JobResumeVersion).filter(
+                            JobResumeVersion.job_description_id == jd.id,
+                            JobResumeVersion.resume_version_id == latest_version.id
+                        ).first()
+                        
+                        if not existing_link:
+                            # Create new link
+                            job_resume_version = JobResumeVersion(
+                                job_description_id=jd.id,
+                                resume_id=resume.id,
+                                resume_version_id=latest_version.id,
+                                resume_name=resume.name,
+                                resume_version_label=f"v{latest_version.version_number}",
+                            )
+                            db.add(job_resume_version)
+                            db.commit()
+                            logger.info(
+                                f"Linked resume version {latest_version.id} (v{latest_version.version_number}) "
+                                f"to job description {jd.id}"
+                            )
+                        else:
+                            # Update existing link timestamp
+                            existing_link.updated_at = datetime.utcnow()
+                            db.commit()
+                            logger.info(
+                                f"Updated existing resume version link for job description {jd.id}"
+                            )
+                    else:
+                        logger.warning(
+                            f"No resume versions found for resume {resume_id}"
+                        )
+                else:
+                    logger.warning(
+                        f"Resume {resume_id} not found or doesn't belong to user {user.id}"
+                    )
+            except Exception as link_error:
+                logger.error(
+                    f"Failed to link resume version to job description {jd.id}: {link_error}",
+                    exc_info=True,
+                )
+                # Don't fail the job save if resume linking fails
+                db.rollback()
+        
         return {
             "id": jd.id,
             "message": "saved",
@@ -337,6 +426,7 @@ def list_user_job_descriptions(
     user_email: Optional[str], db: Session
 ) -> List[Dict[str, Any]]:
     """List job descriptions for a user"""
+    logger.info(f"Listing job descriptions for user_email: {user_email}")
     try:
         # Check if new columns exist
         try:
@@ -361,6 +451,7 @@ def list_user_job_descriptions(
             if user_email:
                 user = db.query(User).filter(User.email == user_email).first()
                 if user:
+                    logger.info(f"Found user {user_email} with id {user.id}, filtering jobs")
                     q = q.filter(
                         or_(
                             JobDescription.user_id == user.id,
@@ -368,8 +459,13 @@ def list_user_job_descriptions(
                         )
                     )
                 else:
+                    logger.warning(f"User {user_email} not found in database, returning only jobs with user_id IS NULL")
                     q = q.filter(JobDescription.user_id.is_(None))
+            else:
+                logger.warning("No user_email provided - Firebase auth may have failed. Returning jobs with user_id IS NULL only.")
+                q = q.filter(JobDescription.user_id.is_(None))
             items = q.order_by(JobDescription.created_at.desc()).limit(100).all()
+            logger.info(f"Found {len(items)} job descriptions for user_email: {user_email}")
         else:
             # Columns don't exist - use raw SQL query
             sql = """
@@ -382,10 +478,16 @@ def list_user_job_descriptions(
             if user_email:
                 user = db.query(User).filter(User.email == user_email).first()
                 if user:
+                    logger.info(f"[SQL path] Found user {user_email} with id {user.id}, filtering jobs")
                     sql += " WHERE (user_id = :user_id OR user_id IS NULL)"
                     params["user_id"] = user.id
                 else:
+                    logger.warning(f"[SQL path] User {user_email} not found in database, returning only jobs with user_id IS NULL")
                     sql += " WHERE user_id IS NULL"
+            else:
+                logger.info("[SQL path] No user_email provided, returning all jobs (no filter)")
+                # When no user_email is provided, return all jobs
+                # This allows the extension to see all jobs until proper auth is set up
             sql += " ORDER BY created_at DESC LIMIT 100"
 
             result = db.execute(text(sql), params)
@@ -655,7 +757,7 @@ def get_job_description_detail(
     if user_email:
         user = db.query(User).filter(User.email == user_email).first()
         if user:
-            if jd.user_id != user.id:
+            if jd.user_id is not None and jd.user_id != user.id:
                 logger.warning(f"Job description {jd_id} belongs to user {jd.user_id}, but requested by user {user.id}")
                 raise HTTPException(status_code=404, detail="Job description not found")
         else:

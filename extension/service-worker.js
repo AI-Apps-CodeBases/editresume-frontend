@@ -188,13 +188,43 @@ const requestTokenViaApp = async (retries = 3) => {
 
   await new Promise(resolve => setTimeout(resolve, 1000))
 
+  const tabStatus = await chrome.tabs.get(targetTab.id).catch(() => null)
+  if (!tabStatus) {
+    throw new Error('tab_not_found')
+  }
+
+  if (tabStatus.status !== 'complete' || !tabStatus.url) {
+    throw new Error('tab_not_ready')
+  }
+
+  try {
+    const url = new URL(tabStatus.url)
+    if (url.protocol === 'chrome-error:' || url.protocol === 'chrome-extension-error:' || url.protocol === 'about:') {
+      if (createdTempTab) {
+        chrome.tabs.remove(targetTab.id, () => {})
+      }
+      throw new Error(`error_page_detected: ${tabStatus.url}`)
+    }
+  } catch (urlErr) {
+    if (urlErr.message?.startsWith('error_page_detected')) {
+      throw urlErr
+    }
+    throw new Error('invalid_url')
+  }
+
   try {
     await chrome.scripting.executeScript({
       target: { tabId: targetTab.id },
       files: ['appBridge.js']
     })
   } catch (err) {
-    console.warn('Failed to inject appBridge.js', err)
+    if (err.message?.includes('error page') || err.message?.includes('Frame') || err.message?.includes('frameId')) {
+      if (createdTempTab) {
+        chrome.tabs.remove(targetTab.id, () => {})
+      }
+      throw new Error(`cannot_inject_into_error_page: ${tabStatus.url}. Please check if ${normalizedBase} is accessible.`)
+    }
+    throw err
   }
 
   await new Promise(resolve => setTimeout(resolve, 500))
@@ -296,6 +326,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 const handleExtensionAuthTab = async (tabId) => {
   try {
+    const tabStatus = await chrome.tabs.get(tabId).catch(() => null)
+    if (!tabStatus || tabStatus.status !== 'complete' || !tabStatus.url) {
+      return false
+    }
+
+    try {
+      const url = new URL(tabStatus.url)
+      if (url.protocol === 'chrome-error:' || url.protocol === 'chrome-extension-error:' || url.protocol === 'about:') {
+        return false
+      }
+    } catch {
+      return false
+    }
+
     const injected = await chrome.scripting.executeScript({
       target: { tabId },
       files: ['appBridge.js']
