@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>EditResume Options</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
+      label { display:block; margin-top:12px; font-weight:600; }
+      input { width: 420px; padding:8px; border:1px solid #e5e7eb; border-radius:8px; }
+      button { margin-top:16px; padding:8px 12px; border:none; border-radius:8px; background:#2563eb; color:white; }
+      .muted { color:#6b7280; font-size:12px; }
+    </style>
+  </head>
+  <body>
+    <h2>editresume.io Extension Settings</h2>
+    <label>API Base URL</label>
+    <input id="apiBase" placeholder="https://editresume-api-prod.onrender.com" />
+    <div class="muted">Production: https://editresume-api-prod.onrender.com<br/>Testing: https://editresume-staging.onrender.com or http://localhost:8000</div>
+
+    <label>App Base URL</label>
+    <input id="appBase" placeholder="https://editresume.io" />
+    <div class="muted">Production: https://editresume.io<br/>Testing: https://staging.editresume.io or http://localhost:3000</div>
+
+    <label>Access Token (auto-managed)</label>
+    <input id="token" placeholder="Sign in on editresume.io to populate automatically" readonly />
+    <div class="muted">Open your editresume.io dashboard and sign in; the extension will sync the token automatically.</div>
+
+    <div>
+      <button id="save">Save</button>
+      <span id="status" class="muted"></span>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+  </html>
+

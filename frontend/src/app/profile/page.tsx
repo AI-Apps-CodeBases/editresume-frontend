@@ -1,0 +1,1349 @@
+'use client'
+import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import SettingsPanel from '@/components/SettingsPanel'
+import config from '@/lib/config'
+import { auth } from '@/lib/firebaseClient'
+import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
+import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
+import { StatsPanel } from '@/components/home/StatsPanel'
+import { DocumentIcon, DownloadIcon, ClockIcon, FolderIcon, DiamondIcon, EditIcon } from '@/components/Icons'
+import { useLinkedIn } from '@/hooks/useLinkedIn'
+
+interface ResumeHistory {
+  id: string
+  name: string
+  lastModified: string
+  template: string
+}
+
+interface PaymentHistory {
+  id: string
+  date: string
+  amount: string
+  status: string
+  plan: string
+}
+
+interface SubscriptionStatus {
+  isPremium: boolean
+  subscriptionStatus?: string | null
+  subscriptionCurrentPeriodEnd?: string | null
+  stripeCustomerId?: string | null
+  stripeSubscriptionId?: string | null
+}
+
+interface CheckoutSessionResponse {
+  url: string
+}
+
+function ProfilePageContent() {
+  const { user, isAuthenticated, logout } = useAuth()
+  const { showAlert, showConfirm } = useModal()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { connectLinkedIn, checkStatus, status: linkedInStatus, loading: linkedInLoading } = useLinkedIn()
+  const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
+  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'resumes' | 'jobs' | 'billing' | 'settings'>('overview')
+  const [savedJDs, setSavedJDs] = useState<Array<{
+    id: number
+    title: string
+    company?: string
+    source?: string
+    url?: string
+    max_salary?: number
+    status?: string
+    follow_up_date?: string
+    important_emoji?: string
+    created_at?: string
+    last_match?: {
+      id: number
+      score: number
+      resume_id: number
+      resume_name?: string | null
+      resume_version_id?: number | null
+      created_at?: string
+    } | null
+    all_matches?: Array<{
+      id: number
+      score: number
+      resume_id: number
+      resume_name?: string | null
+      resume_version_id?: number | null
+      created_at?: string
+    }>
+  }>>([])
+  const [savedResumes, setSavedResumes] = useState<Array<{
+    id: number
+    name: string
+    title?: string
+    template?: string
+    created_at?: string
+    updated_at?: string
+    latest_version_id?: number | null
+    latest_version_number?: number | null
+    version_count?: number
+    match_count?: number
+    recent_matches?: Array<{
+      id: number
+      job_description_id: number
+      jd_title?: string
+      jd_company?: string
+      score: number
+      keyword_coverage?: number
+      resume_version_id?: number | null
+      resume_version_number?: number | null
+      created_at?: string
+    }>
+  }>>([])
+  const [loading, setLoading] = useState(true)
+  const [jobsLoading, setJobsLoading] = useState(false)
+  const [resumesLoading, setResumesLoading] = useState(false)
+  const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionStatus | null>(null)
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const apiBase = config.apiBase
+  const isPremiumMember = subscriptionInfo?.isPremium ?? user?.isPremium ?? false
+  const subscriptionStatus = subscriptionInfo?.subscriptionStatus ?? (isPremiumMember ? 'active' : 'inactive')
+  const nextBillingDate = subscriptionInfo?.subscriptionCurrentPeriodEnd
+    ? new Date(subscriptionInfo.subscriptionCurrentPeriodEnd).toLocaleDateString()
+    : null
+
+  const loadUserData = useCallback(() => {
+    const savedResumes = localStorage.getItem('resumeHistory')
+    if (savedResumes) {
+      setResumeHistory(JSON.parse(savedResumes))
+    }
+
+    const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
+    if (premiumMode && isPremiumMember) {
+      setPaymentHistory([
+        {
+          id: '1',
+          date: new Date().toISOString().split('T')[0],
+          amount: '$9.99',
+          status: 'Paid',
+          plan: 'Premium Monthly'
+        }
+      ])
+    } else {
+      setPaymentHistory([])
+    }
+  }, [isPremiumMember])
+
+  useEffect(() => {
+    const checkAuth = setTimeout(() => {
+      if (!isAuthenticated) {
+        router.push('/editor')
+      } else {
+        loadUserData()
+        checkStatus()
+      }
+      setLoading(false)
+    }, 100)
+    
+    // Check for tab parameter in URL
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['overview', 'history', 'resumes', 'jobs', 'billing', 'settings'].includes(tabParam)) {
+      setActiveTab(tabParam as typeof activeTab)
+    }
+
+    // Check for LinkedIn connection success
+    if (searchParams.get('linkedin_connected') === 'true') {
+      checkStatus()
+      showAlert({
+        type: 'success',
+        message: 'LinkedIn connected successfully!',
+        title: 'Success'
+      })
+      router.replace('/profile?tab=overview')
+    }
+    
+    return () => clearTimeout(checkAuth)
+  }, [isAuthenticated, router, searchParams, loadUserData])
+
+  const loadSubscriptionStatus = useCallback(async () => {
+    if (!isAuthenticated) {
+      setSubscriptionInfo(null)
+      return
+    }
+
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      return
+    }
+
+    setSubscriptionLoading(true)
+    try {
+      const token = await currentUser.getIdToken()
+      const response = await fetch(`${apiBase}/api/billing/subscription`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data: SubscriptionStatus = await response.json()
+        setSubscriptionInfo(data)
+      } else if (response.status === 401) {
+        setSubscriptionInfo(null)
+      } else {
+        const errorText = await response.text().catch(() => '')
+        console.error('Failed to fetch subscription status', errorText)
+      }
+    } catch (error) {
+      console.error('Failed to fetch subscription status', error)
+    } finally {
+      setSubscriptionLoading(false)
+    }
+  }, [apiBase, isAuthenticated])
+
+  const fetchSavedResumes = useCallback(async () => {
+    if (!isAuthenticated || !user?.email) return
+    
+    setResumesLoading(true)
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+      const resumesRes = await fetch(`${apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+      if (resumesRes.ok) {
+        const resumesData = await resumesRes.json()
+        setSavedResumes(resumesData.resumes || [])
+        console.log('✅ Loaded saved resumes:', resumesData.resumes?.length || 0)
+      } else {
+        console.error('Failed to load resumes:', resumesRes.status)
+      }
+    } catch (e) {
+      console.error('Failed to load resumes', e)
+    } finally {
+      setResumesLoading(false)
+    }
+  }, [isAuthenticated, user?.email])
+
+  const fetchJobDescriptions = useCallback(async () => {
+    if (!isAuthenticated || !user?.email) return
+    
+    setJobsLoading(true)
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+      const currentUser = auth.currentUser
+      const token = currentUser ? await currentUser.getIdToken() : null
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const res = await fetch(`${apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+        headers
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const jds = Array.isArray(data) ? data : data.results || []
+        
+        // Backend already includes last_match and all_matches in the response
+        // No need to make additional API calls for each job
+        const jdsWithMatches = jds.map((jd: any) => {
+          // Use matches from backend response if available
+          jd.all_matches = jd.all_matches || jd.resume_versions || []
+          jd.last_match = jd.last_match || jd.best_resume_version || (jd.all_matches && jd.all_matches.length > 0 ? jd.all_matches[0] : null)
+          return jd
+        })
+        
+        setSavedJDs(jdsWithMatches)
+        console.log('✅ Loaded job descriptions:', jdsWithMatches.length)
+      } else {
+        console.error('Failed to load job descriptions:', res.status)
+      }
+    } catch (e) {
+      console.error('Failed to load job descriptions', e)
+    } finally {
+      setJobsLoading(false)
+    }
+  }, [isAuthenticated, user?.email])
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.email) return
+    
+    // Fetch both in parallel for better performance
+    Promise.all([
+      fetchSavedResumes(),
+      fetchJobDescriptions()
+    ]).catch(err => {
+      console.error('Error fetching profile data:', err)
+    })
+  }, [isAuthenticated, user?.email, fetchSavedResumes, fetchJobDescriptions])
+
+  // Listen for job saved events to refresh the list automatically
+  useEffect(() => {
+    const handleJobSaved = () => {
+      fetchJobDescriptions()
+    }
+    
+    window.addEventListener('jobSaved', handleJobSaved)
+    return () => {
+      window.removeEventListener('jobSaved', handleJobSaved)
+    }
+  }, [fetchJobDescriptions])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSubscriptionInfo(null)
+      return
+    }
+    loadSubscriptionStatus()
+  }, [isAuthenticated, loadSubscriptionStatus])
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'billing') {
+      loadSubscriptionStatus()
+    }
+  }, [activeTab, isAuthenticated, loadSubscriptionStatus])
+
+  // Refresh data when switching to jobs or resumes tab (only if not already loaded)
+  useEffect(() => {
+    if ((activeTab === 'jobs' || activeTab === 'resumes') && isAuthenticated && user?.email) {
+      if (activeTab === 'jobs' && savedJDs.length === 0 && !jobsLoading) {
+        fetchJobDescriptions()
+      }
+      if (activeTab === 'resumes' && savedResumes.length === 0 && !resumesLoading) {
+        fetchSavedResumes()
+      }
+    }
+  }, [activeTab, isAuthenticated, user?.email, savedJDs.length, savedResumes.length, jobsLoading, resumesLoading, fetchJobDescriptions, fetchSavedResumes])
+
+  const handleDeleteAccount = async () => {
+    const confirmed = await showConfirm({
+      title: 'Delete Account',
+      message: 'Are you sure you want to delete your account? This action cannot be undone.',
+      type: 'danger'
+    })
+    if (confirmed) {
+      logout()
+      router.push('/')
+    }
+  }
+
+  const handleStartCheckout = useCallback(async () => {
+    if (!isAuthenticated || checkoutLoading) return
+
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      await showAlert({
+        type: 'warning',
+        message: 'Unable to start checkout. Please sign in again.',
+        title: 'Authentication Required'
+      })
+      return
+    }
+
+    setCheckoutLoading(true)
+    try {
+      const token = await currentUser.getIdToken()
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const successUrl = origin ? `${origin}/profile?tab=billing` : undefined
+      const cancelUrl = successUrl
+
+      const response = await fetch(`${apiBase}/api/billing/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          successUrl,
+          cancelUrl
+        })
+      })
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}))
+        throw new Error(errorBody.detail || 'Failed to initiate checkout.')
+      }
+
+      const data: CheckoutSessionResponse = await response.json()
+      if (data?.url) {
+        window.location.href = data.url
+      } else {
+        throw new Error('Checkout URL missing in response.')
+      }
+    } catch (error) {
+      console.error('Checkout error', error)
+      await showAlert({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to start checkout. Please try again.',
+        title: 'Checkout Failed'
+      })
+    } finally {
+      setCheckoutLoading(false)
+    }
+  }, [apiBase, checkoutLoading, isAuthenticated])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-body-gradient">
+        <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
+          <div className="flex justify-center mb-4">
+            <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+          </div>
+          <p className="text-sm font-semibold text-text-muted">Loading profile…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
+
+  const stats = {
+    resumesCreated: resumeHistory.length,
+    exportsThisMonth: 0,
+    accountAge: 'New User'
+  }
+
+  const profileStats = [
+    { value: `${stats.resumesCreated}`, label: 'RESUMES', caption: 'Created' },
+    { value: `${stats.exportsThisMonth}`, label: 'EXPORTS', caption: 'This month' },
+    { value: stats.accountAge, label: 'ACCOUNT', caption: 'Status' },
+  ]
+
+  return (
+    <div className="editor-shell min-h-screen bg-body-gradient text-text-primary pt-4">
+      <div className="mx-auto w-full max-w-7xl px-4 py-16 space-y-10">
+        <div className="mb-4">
+          <button
+            onClick={() => router.push('/editor')}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Editor
+          </button>
+        </div>
+        <div className="dashboard-card space-y-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-primary-600 to-primary-400 text-3xl font-semibold text-white shadow-[0_20px_38px_rgba(15,23,42,0.18)]">
+                {user?.name?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h1 className="text-3xl font-semibold text-text-primary">{user?.name}</h1>
+                <p className="mt-2 text-sm text-text-muted">{user?.email}</p>
+                <div className="mt-4">
+                  {isPremiumMember ? <span className="badge-gradient">Premium Member</span> : <span className="badge">Free Plan</span>}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {!isPremiumMember && process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true' && (
+                <button
+                  onClick={handleStartCheckout}
+                  disabled={checkoutLoading || subscriptionLoading}
+                  className="button-primary text-xs disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {checkoutLoading ? 'Processing…' : '⬆️ Upgrade to Premium'}
+                </button>
+              )}
+              <span className="surface-pill text-[11px]">
+                Status:{' '}
+                <strong className="ml-1 text-text-primary">
+                  {subscriptionStatus}
+                </strong>
+              </span>
+            </div>
+          </div>
+          <StatsPanel stats={profileStats} />
+        </div>
+
+      <div className="dashboard-card">
+          <div className="border-b border-border-subtle pb-4">
+            <div className="flex flex-wrap gap-2">
+              {(['overview', 'history', 'resumes', 'jobs', 'billing', 'settings'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`tab-pill ${activeTab === tab ? 'tab-pill-active' : 'tab-pill-muted'}`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-8 space-y-6">
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900">Account Overview</h2>
+                <div className="grid grid-cols-3 gap-6">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border-2 border-blue-200">
+                    <div className="mb-2">
+                      <DocumentIcon size={32} color="#2563eb" />
+                    </div>
+                    <div className="text-3xl font-bold text-blue-900">{stats.resumesCreated}</div>
+                    <div className="text-sm text-blue-700 font-medium">Resumes Created</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border-2 border-purple-200">
+                    <div className="mb-2">
+                      <DownloadIcon size={32} color="#9333ea" />
+                    </div>
+                    <div className="text-3xl font-bold text-purple-900">{stats.exportsThisMonth}</div>
+                    <div className="text-sm text-purple-700 font-medium">Exports This Month</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-6 border-2 border-pink-200">
+                    <div className="mb-2">
+                      <ClockIcon size={32} color="#ec4899" />
+                    </div>
+                    <div className="text-lg font-bold text-pink-900">{stats.accountAge}</div>
+                    <div className="text-sm text-pink-700 font-medium">Account Age</div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <a
+                      href="/editor?new=true"
+                      className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all"
+                    >
+                      <EditIcon size={24} color="currentColor" />
+                      <div>
+                        <div className="font-semibold text-gray-900">Create Resume</div>
+                        <div className="text-xs text-gray-600">Start a new resume</div>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">LinkedIn Integration</h3>
+                  {linkedInStatus?.connected ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                        <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                        </svg>
+                        <div className="flex-1">
+                          <div className="font-semibold text-green-900">LinkedIn Connected</div>
+                          <div className="text-xs text-green-700">Your account is linked to LinkedIn</div>
+                        </div>
+                      </div>
+                      {linkedInStatus.profile_url && (
+                        <a
+                          href={linkedInStatus.profile_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-center px-4 py-2 bg-[#0077B5] text-white rounded-lg hover:bg-[#005885] transition-all font-semibold text-sm"
+                        >
+                          View LinkedIn Profile
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-4 bg-white rounded-lg border-2 border-gray-200">
+                        <div className="text-sm text-gray-600 mb-3">
+                          Connect your LinkedIn account to import profile data and share resumes directly to LinkedIn.
+                        </div>
+                        <button
+                          onClick={connectLinkedIn}
+                          disabled={linkedInLoading}
+                          className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-[#0077B5] text-white rounded-lg hover:bg-[#005885] transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                          </svg>
+                          {linkedInLoading ? 'Connecting...' : 'Connect LinkedIn'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'history' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900">Resume History</h2>
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('resumeHistory')
+                      setResumeHistory([])
+                    }}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Clear History
+                  </button>
+                </div>
+
+                {resumeHistory.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No resumes yet</h3>
+                    <p className="text-gray-600 mb-6">Create your first resume to see it here</p>
+                    <a
+                      href="/editor"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                    >
+                      Create Resume
+                    </a>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {resumeHistory.map((resume) => (
+                      <div
+                        key={resume.id}
+                        className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border-2 border-gray-200 hover:border-blue-400 transition-all"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xl">
+                            📄
+                          </div>
+                          <div>
+                            <div className="font-semibold text-gray-900">{resume.name}</div>
+                            <div className="text-sm text-gray-600">
+                              Template: {resume.template} • Last modified: {resume.lastModified}
+                            </div>
+                          </div>
+                        </div>
+                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-semibold">
+                          Open
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'resumes' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900">Master Resumes</h2>
+                  <button
+                    onClick={fetchSavedResumes}
+                    disabled={resumesLoading}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {resumesLoading ? 'Loading...' : 'Refresh'}
+                  </button>
+                </div>
+
+                {resumesLoading && savedResumes.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+                    </div>
+                    <p className="text-gray-600">Loading resumes...</p>
+                  </div>
+                ) : savedResumes.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
+                    <div className="flex justify-center mb-4">
+                      <DocumentIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No saved resumes yet</h3>
+                    <p className="text-gray-600 mb-6">Save your resume from the editor to create a master resume that you can match with job descriptions.</p>
+                    <a
+                      href="/editor"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                    >
+                      Create Resume
+                    </a>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {savedResumes.map((resume) => (
+                      <div
+                        key={resume.id}
+                        className="p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all shadow-sm"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">{resume.name}</h3>
+                            {resume.title && (
+                              <p className="text-sm text-gray-600 mb-2">{resume.title}</p>
+                            )}
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              {resume.version_count && (
+                                <span>v{resume.latest_version_number || resume.version_count} •</span>
+                              )}
+                              {resume.created_at && (
+                                <span>Created: {new Date(resume.created_at).toLocaleDateString()}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-4">
+                          <a
+                            href={`/editor?resumeId=${resume.id}${resume.latest_version_id ? `&resumeVersionId=${resume.latest_version_id}` : ''}`}
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-all font-semibold text-center"
+                          >
+                            Edit
+                          </a>
+                          {resume.match_count && resume.match_count > 0 && (
+                            <span className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-xs font-semibold">
+                              {resume.match_count} match{resume.match_count > 1 ? 'es' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'jobs' && (
+              <div className="space-y-6">
+                {/* Saved Resumes Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-gray-900">Saved Resumes</h2>
+                    <button
+                      onClick={async () => {
+                        if (!user?.email) return
+                        try {
+                          const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
+                          if (res.ok) {
+                            const data = await res.json()
+                            setSavedResumes(data.resumes || [])
+                          }
+                        } catch (e) {
+                          console.error('Failed to refresh resumes:', e)
+                        }
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  {savedResumes.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-gray-200">
+                      <div className="flex justify-center mb-3">
+                        <DocumentIcon size={48} color="#0f62fe" className="opacity-60" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-2">No saved resumes yet</h3>
+                      <p className="text-gray-600 mb-4">Save your resume after creating or editing it in the editor.</p>
+                      <a
+                        href="/editor"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                      >
+                        Create Resume
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {savedResumes.map((resume) => (
+                        <div
+                          key={resume.id}
+                          className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-bold text-gray-900">{resume.name}</h3>
+                              {resume.title && (
+                                <p className="text-sm text-gray-600">{resume.title}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <a
+                                href="/editor"
+                                className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 font-semibold"
+                              >
+                                Open
+                              </a>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  const exportBtn = e.currentTarget
+                                  const originalText = exportBtn.textContent
+                                  exportBtn.disabled = true
+                                  exportBtn.textContent = 'Exporting...'
+                                  
+                                  try {
+                                    const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                                    
+                                    // Fetch the latest version of the resume
+                                    let resumeData = null
+                                    if (resume.latest_version_id) {
+                                      const versionRes = await fetch(`${apiBase}/api/resume/version/${resume.latest_version_id}?user_email=${encodeURIComponent(user?.email || '')}`)
+                                      if (versionRes.ok) {
+                                        const versionData = await versionRes.json()
+                                        resumeData = versionData.version.resume_data
+                                      }
+                                    }
+                                    
+                                    // If no version data, construct basic resume data
+                                    if (!resumeData) {
+                                      resumeData = {
+                                        name: resume.name,
+                                        title: resume.title || '',
+                                        email: '',
+                                        phone: '',
+                                        location: '',
+                                        summary: '',
+                                        sections: [],
+                                        template: resume.template || 'tech'
+                                      }
+                                    }
+                                    
+                                    // Normalize resume data structure (handle both personalInfo and flat structure)
+                                    const normalizedData = {
+                                      name: resumeData.personalInfo?.name || resumeData.name || resume.name,
+                                      title: resumeData.personalInfo?.title || resumeData.title || resume.title || '',
+                                      email: resumeData.personalInfo?.email || resumeData.email || '',
+                                      phone: resumeData.personalInfo?.phone || resumeData.phone || '',
+                                      location: resumeData.personalInfo?.location || resumeData.location || '',
+                                      summary: resumeData.summary || '',
+                                      sections: resumeData.sections || [],
+                                      replacements: {},
+                                      template: resumeData.template || resume.template || 'tech',
+                                      two_column_left: [],
+                                      two_column_right: [],
+                                      two_column_left_width: 50
+                                    }
+                                    
+                                    // Export as PDF
+                                    const exportUrl = `${apiBase}/api/resume/export/pdf${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`
+                                    const exportResponse = await fetch(exportUrl, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify(normalizedData)
+                                    })
+                                    
+                                    if (exportResponse.ok) {
+                                      const blob = await exportResponse.blob()
+                                      const url = window.URL.createObjectURL(blob)
+                                      const a = document.createElement('a')
+                                      a.href = url
+                                      a.download = `${resume.name.replace(/[^a-z0-9]/gi, '_')}.pdf`
+                                      document.body.appendChild(a)
+                                      a.click()
+                                      document.body.removeChild(a)
+                                      window.URL.revokeObjectURL(url)
+                                    } else {
+                                      throw new Error(`Export failed: ${exportResponse.status}`)
+                                    }
+                                  } catch (error) {
+                                    console.error('Failed to export resume:', error)
+                                    await showAlert({
+                                      type: 'error',
+                                      message: `Failed to export resume: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                      title: 'Export Failed'
+                                    })
+                                  } finally {
+                                    exportBtn.disabled = false
+                                    exportBtn.textContent = originalText
+                                  }
+                                }}
+                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 font-semibold"
+                                title="Export as PDF"
+                              >
+                                📄 PDF
+                              </button>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    const confirmed = await showConfirm({
+                                      title: 'Delete Resume',
+                                      message: `Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`,
+                                      type: 'danger'
+                                    })
+                                    if (!confirmed) return
+                                    
+                                    const deleteBtn = e.currentTarget
+                                    const originalText = deleteBtn.textContent
+                                    deleteBtn.disabled = true
+                                    deleteBtn.textContent = 'Deleting...'
+                                    
+                                    try {
+                                      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                                      const url = `${apiBase}/api/resumes/${resume.id}?user_email=${encodeURIComponent(user?.email || '')}`
+                                      
+                                      const res = await fetch(url, { 
+                                        method: 'DELETE',
+                                        headers: {
+                                          'Content-Type': 'application/json'
+                                        }
+                                      })
+                                      
+                                      if (res.ok) {
+                                        setSavedResumes((prev) => prev.filter((x) => x.id !== resume.id))
+                                        const successMsg = document.createElement('div')
+                                        successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+                                        successMsg.textContent = '✅ Resume deleted successfully'
+                                        document.body.appendChild(successMsg)
+                                        setTimeout(() => {
+                                          document.body.removeChild(successMsg)
+                                        }, 3000)
+                                      } else {
+                                        const errorData = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
+                                        await showAlert({
+                                          type: 'error',
+                                          message: `Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`,
+                                          title: 'Delete Failed'
+                                        })
+                                        deleteBtn.disabled = false
+                                        deleteBtn.textContent = originalText
+                                      }
+                                    } catch (error) {
+                                      console.error('Failed to delete resume:', error)
+                                      await showAlert({
+                                        type: 'error',
+                                        message: `Failed to delete resume: ${error instanceof Error ? error.message : 'Network error'}`,
+                                        title: 'Delete Failed'
+                                      })
+                                      deleteBtn.disabled = false
+                                      deleteBtn.textContent = originalText
+                                    }
+                                  }}
+                                  className="px-3 py-1 bg-red-50 text-red-700 rounded-lg text-xs hover:bg-red-100 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Delete this resume"
+                                >
+                                  Delete
+                                </button>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-3">
+                            <span>Template: {resume.template || 'tech'}</span>
+                            <span>•</span>
+                            <span>{resume.version_count || 0} versions</span>
+                            {resume.match_count && resume.match_count > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="text-green-600 font-semibold">{resume.match_count} matches</span>
+                              </>
+                            )}
+                          </div>
+                          {resume.recent_matches && resume.recent_matches.length > 0 && (
+                            <div className="space-y-2 pt-3 border-t border-blue-200">
+                              <div className="text-xs text-gray-600 mb-2 font-medium">Recent Matches:</div>
+                              {resume.recent_matches.map((match: any) => (
+                                <div
+                                  key={match.id}
+                                  className="p-2 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
+                                >
+                                  <div className="flex items-start justify-between gap-2 mb-1">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold text-gray-900 text-sm truncate">
+                                        {match.jd_title || 'Unknown Job'}
+                                      </div>
+                                      {match.jd_company && (
+                                        <div className="text-xs text-gray-600 truncate">
+                                          {match.jd_company}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <span
+                                        className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${
+                                          match.score >= 80 ? 'bg-green-100 text-green-700 border border-green-300' :
+                                          match.score >= 60 ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                                          'bg-orange-100 text-orange-700 border border-orange-300'
+                                        }`}
+                                      >
+                                        ATS: {match.score}%
+                                      </span>
+                                      {match.resume_version_number && (
+                                        <a
+                                          href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${match.resume_version_id}`}
+                                          target="_blank"
+                                          className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs hover:bg-blue-100 font-medium"
+                                          title="View resume version"
+                                        >
+                                          v{match.resume_version_number}
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {match.keyword_coverage !== null && match.keyword_coverage !== undefined && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      Keyword coverage: {match.keyword_coverage.toFixed(1)}%
+                                    </div>
+                                  )}
+                                  {match.created_at && (
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      Matched: {new Date(match.created_at).toLocaleDateString()}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {resume.updated_at && (
+                            <div className="text-xs text-gray-500 mt-2">
+                              Updated: {new Date(resume.updated_at).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Saved Job Descriptions Section */}
+                <div className="space-y-4 mt-8">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900">Saved Job Descriptions</h2>
+                  <button
+                    onClick={() => fetchJobDescriptions()}
+                    disabled={jobsLoading}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {jobsLoading ? 'Loading...' : 'Refresh'}
+                  </button>
+                </div>
+
+                {jobsLoading && savedJDs.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
+                    <div className="text-4xl mb-4 animate-pulse">🗂️</div>
+                    <p className="text-gray-600">Loading job descriptions...</p>
+                  </div>
+                ) : savedJDs.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="flex justify-center mb-4">
+                      <FolderIcon size={64} color="#0f62fe" className="opacity-60" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No saved jobs yet</h3>
+                    <p className="text-gray-600">Use the browser extension to save LinkedIn jobs.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border rounded-xl">
+                    <table className="w-full min-w-[1200px]">
+                      <thead className="bg-gray-50 text-left text-sm text-gray-600">
+                        <tr>
+                          <th className="p-3">Important</th>
+                          <th className="p-3">Title</th>
+                          <th className="p-3">Company</th>
+                          <th className="p-3">Max Salary</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3">Date Saved</th>
+                          <th className="p-3">Follow Up</th>
+                          <th className="p-3">Source</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {savedJDs.map((jd) => (
+                          <tr key={jd.id} className="hover:bg-gray-50">
+                            <td className="p-3">
+                              {jd.important_emoji && <span className="text-2xl">{jd.important_emoji}</span>}
+                            </td>
+                            <td className="p-3">
+                              <a
+                                href={`/editor?jdId=${jd.id}`}
+                                className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
+                              >
+                                {jd.title}
+                              </a>
+                            </td>
+                            <td className="p-3 text-gray-700">{jd.company || '-'}</td>
+                            <td className="p-3 text-gray-700">
+                              {jd.max_salary ? `$${jd.max_salary.toLocaleString()}/yr` : '-'}
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                jd.status === 'applied' ? 'bg-blue-100 text-blue-700' :
+                                jd.status === 'interview_set' ? 'bg-purple-100 text-purple-700' :
+                                jd.status === 'interviewing' ? 'bg-yellow-100 text-yellow-700' :
+                                jd.status === 'negotiating' ? 'bg-orange-100 text-orange-700' :
+                                jd.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                jd.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {jd.status === 'bookmarked' ? '📌 Bookmarked' :
+                                 jd.status === 'applied' ? '📝 Applied' :
+                                 jd.status === 'interview_set' ? '📅 Interview Set' :
+                                 jd.status === 'interviewing' ? '💼 Interviewing' :
+                                 jd.status === 'negotiating' ? '🤝 Negotiating' :
+                                 jd.status === 'accepted' ? '✅ Accepted' :
+                                 jd.status === 'rejected' ? '❌ Rejected' :
+                                 '📌 Bookmarked'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-gray-500 text-sm">
+                              {jd.created_at ? new Date(jd.created_at).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="p-3 text-gray-500 text-sm">
+                              {jd.follow_up_date ? new Date(jd.follow_up_date).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="p-3 text-gray-700 text-sm">{jd.source || 'extension'}</td>
+                            <td className="p-3">
+                              <div className="flex justify-end gap-2 flex-wrap">
+                                <a
+                                  href={`/editor?jdId=${jd.id}`}
+                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 whitespace-nowrap"
+                                >
+                                  Analyze
+                                </a>
+                                {jd.last_match && (
+                                  <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-xs font-semibold whitespace-nowrap">
+                                        ATS Score: {jd.last_match?.score}%
+                                      </span>
+                                      {jd.last_match?.resume_name && (
+                                        <span className="px-2 py-1 bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs whitespace-nowrap">
+                                          Resume: {jd.last_match?.resume_name}
+                                        </span>
+                                      )}
+                                      {jd.last_match?.resume_version_id && (
+                                        <a
+                                          href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${jd.last_match?.resume_version_id}`}
+                                          className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs hover:bg-blue-100 whitespace-nowrap"
+                                          target="_blank"
+                                        >
+                                          View Latest Version
+                                        </a>
+                                      )}
+                                    </div>
+                                    {jd.all_matches && jd.all_matches.length > 1 && (
+                                      <div className="mt-2 pt-2 border-t border-gray-200">
+                                        <div className="text-xs text-gray-600 mb-1 font-medium">All Matched Versions ({jd.all_matches.length}):</div>
+                                        <div className="flex flex-wrap gap-2">
+                                          {jd.all_matches.map((match: any, idx: number) => (
+                                            <div key={match.id} className="flex items-center gap-1">
+                                              <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
+                                                match.score >= 80 ? 'bg-green-100 text-green-700 border border-green-300' :
+                                                match.score >= 60 ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                                                'bg-orange-100 text-orange-700 border border-orange-300'
+                                              }`}>
+                                                ATS: {match.score}%
+                                              </span>
+                                              {match.resume_version_id && (
+                                                <a
+                                                  href={`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/resume/version/${match.resume_version_id}`}
+                                                  className="px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs hover:bg-blue-100 whitespace-nowrap"
+                                                  target="_blank"
+                                                  title={`Version from ${new Date(match.created_at).toLocaleDateString()}`}
+                                                >
+                                                  v{idx + 1}
+                                                </a>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    const confirmed = await showConfirm({
+                                      title: 'Delete Job Description',
+                                      message: `Are you sure you want to delete "${jd.title}"? This action cannot be undone.`,
+                                      type: 'danger'
+                                    })
+                                    if (!confirmed) return
+                                    
+                                    const deleteBtn = e.currentTarget
+                                    const originalText = deleteBtn.textContent
+                                    deleteBtn.disabled = true
+                                    deleteBtn.textContent = 'Deleting...'
+                                    
+                                    try {
+                                      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                                      const url = `${apiBase}/api/job-descriptions/${jd.id}${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`
+                                      
+                                      const res = await fetch(url, { 
+                                        method: 'DELETE',
+                                        headers: {
+                                          'Content-Type': 'application/json'
+                                        }
+                                      })
+                                      
+                                      if (res.ok) {
+                                        setSavedJDs((prev) => prev.filter((x) => x.id !== jd.id))
+                                        const successMsg = document.createElement('div')
+                                        successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+                                        successMsg.textContent = '✅ Job description deleted successfully'
+                                        document.body.appendChild(successMsg)
+                                        setTimeout(() => {
+                                          document.body.removeChild(successMsg)
+                                        }, 3000)
+                                      } else {
+                                        const errorData = await res.json().catch(() => ({ detail: 'Failed to delete job description' }))
+                                        await showAlert({
+                                          type: 'error',
+                                          message: `Failed to delete: ${errorData.detail || `HTTP ${res.status}`}`,
+                                          title: 'Delete Failed'
+                                        })
+                                        deleteBtn.disabled = false
+                                        deleteBtn.textContent = originalText
+                                      }
+                                    } catch (e) {
+                                      console.error('Failed to delete job description:', e)
+                                      await showAlert({
+                                        type: 'error',
+                                        message: `Failed to delete job description: ${e instanceof Error ? e.message : 'Network error'}`,
+                                        title: 'Delete Failed'
+                                      })
+                                      deleteBtn.disabled = false
+                                      deleteBtn.textContent = originalText
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                  title="Delete this job description"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'billing' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900">Billing & Subscription</h2>
+
+                {subscriptionLoading ? (
+                  <div className="rounded-xl border-2 border-purple-200 bg-purple-50 py-10 text-center text-purple-700">
+                    Checking subscription status…
+                  </div>
+                ) : isPremiumMember ? (
+                  <>
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="text-xl font-bold text-purple-900 mb-2">Premium Plan</h3>
+                          <p className="text-purple-700">Unlimited exports and premium templates</p>
+                          <div className="mt-4 text-3xl font-bold text-purple-900">$9.99<span className="text-lg font-normal text-purple-700">/month</span></div>
+                          <div className="mt-3 text-sm text-purple-800">
+                            Status: <span className="font-semibold capitalize">{subscriptionStatus || 'active'}</span>
+                            {nextBillingDate && (
+                              <span className="ml-2">
+                                • Renews on <span className="font-semibold">{nextBillingDate}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-semibold">Active</span>
+                      </div>
+                    </div>
+
+                    {paymentHistory.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Payment History</h3>
+                        <div className="space-y-2">
+                          {paymentHistory.map((payment) => (
+                            <div
+                              key={payment.id}
+                              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
+                                  ✓
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-gray-900">{payment.plan}</div>
+                                  <div className="text-sm text-gray-600">{payment.date}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold text-gray-900">{payment.amount}</div>
+                                <div className="text-sm text-green-600">{payment.status}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold"
+                      onClick={async () => {
+                        await showAlert({
+                          type: 'info',
+                          message: 'To manage or cancel your subscription, please contact support@editresume.io.',
+                          title: 'Manage Subscription'
+                        })
+                      }}
+                    >
+                      Manage Subscription
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-center py-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
+                    <div className="flex justify-center mb-4">
+                      <DiamondIcon size={64} color="#0f62fe" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Upgrade to Premium</h3>
+                    <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                      Get unlimited exports, premium templates, and priority support
+                    </p>
+                    <ul className="text-left max-w-md mx-auto mb-8 space-y-2">
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Unlimited PDF/DOCX exports
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Access to all premium templates
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Priority customer support
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> No watermarks
+                      </li>
+                    </ul>
+                    <button
+                      onClick={handleStartCheckout}
+                      disabled={checkoutLoading || subscriptionLoading}
+                      className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {checkoutLoading ? 'Redirecting…' : 'Upgrade for $9.99/month'}
+                    </button>
+                  </div>
+                )}
+
+                <ResumeAutomationFlow />
+              </div>
+            )}
+
+            {activeTab === 'settings' && user && (
+              <SettingsPanel
+                user={user}
+                onDeleteAccount={handleDeleteAccount}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <ProtectedRoute>
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center bg-body-gradient">
+            <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
+              <div className="flex justify-center mb-4">
+                <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
+              </div>
+              <p className="text-sm font-semibold text-text-muted">Loading profile…</p>
+            </div>
+          </div>
+        }
+      >
+        <ProfilePageContent />
+      </Suspense>
+    </ProtectedRoute>
+  )
+}
+

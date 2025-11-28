@@ -1,165 +1,21 @@
-# Backend API - editresume.io
+# editresume.io – Frontend Application
 
-FastAPI backend providing resume editing, AI enhancements, and analytics.
+Next.js 14 frontend application for the full-featured resume editor platform.
 
-## Architecture
+## ✨ Features
 
-- **FastAPI** with Python 3.12
-- **PostgreSQL** for all environments (development, staging, production)
-- **OpenAI API** for AI features
-- **SQLAlchemy ORM** for database management
+test
 
-## Core Files
+✅ **Upload PDF Resume** - Automatically parse existing resumes  
+✅ **Smart Parameterization** - Auto-detect & create variables for easy customization  
+✅ **Export PDF & DOCX** - Professional outputs in both formats  
+✅ **15 Industry Templates** - Tech, Healthcare, Finance, Creative, Legal & more  
+✅ **Real-time Preview** - See changes instantly  
+✅ **Global Replacements** - Change variables once, update entire resume  
+✅ **User Authentication** - Optional login system with premium mode toggle  
+✅ **AI-Powered Improvements** - OpenAI integration for bullet point enhancement  
 
-### `main.py` (4923+ lines)
-Main FastAPI application with 59 endpoints:
-
-**Auth Endpoints:**
-- `POST /api/auth/signup` - User registration
-- `POST /api/auth/login` - User authentication
-- `GET /api/user/profile` - Get user profile
-- `POST /api/user/upgrade` - Upgrade to premium
-- `DELETE /api/user/account` - Delete account
-
-**AI Endpoints:**
-- `POST /api/ai/ats_score` - Basic ATS compatibility scoring
-- `POST /api/ai/enhanced_ats_score` - Advanced ATS with AI improvements
-- `POST /api/ai/improvement_suggestions` - Get AI improvement strategies
-- `POST /api/ai/grammar_check` - Grammar and style checking
-- `POST /api/ai/match_job_description` - Resume-job matching
-- `POST /api/ai/cover_letter` - Generate cover letters
-- `POST /api/ai/generate_bullet_points` - AI bullet generation
-- `POST /api/ai/generate_summary` - Generate professional summary
-- `POST /api/ai/generate-work-experience` - Generate work experience entries
-
-**Resume Endpoints:**
-- `POST /api/resume/upload` - Upload & parse resume files
-- `POST /api/resume/export/pdf` - Export as PDF
-- `POST /api/resume/export/docx` - Export as DOCX
-- `POST /api/resume/save` - Save resume to database
-- `GET /api/resume/templates` - List available templates
-
-**Version Control:**
-- `POST /api/resume/version/create` - Create version snapshot
-- `GET /api/resume/{id}/versions` - List all versions
-- `POST /api/resume/version/rollback` - Restore version
-- `POST /api/resume/version/compare` - Compare two versions
-
-**Analytics:**
-- `GET /api/analytics/exports` - Export history
-- `GET /api/analytics/job-matches` - Job matching history
-
-**Collaboration (WebSocket):**
-- Real-time collaboration rooms
-- Comments and feedback system
-
-### `database.py`
-SQLAlchemy models and database setup:
-
-**Tables:**
-- `users` - User accounts with premium status
-- `resumes` - Resume documents
-- `resume_versions` - Version history snapshots
-- `export_analytics` - PDF/DOCX export tracking
-- `job_matches` - Job description matching results
-- `shared_resumes` - Shareable resume links
-- `resume_views` - View tracking for shared resumes
-- `shared_resume_comments` - Comments on shared resumes
-
-**Key Features:**
-- Automatic table creation
-- Relationship management
-- PostgreSQL-only (production-ready)
-
-### `ats_checker.py` & `enhanced_ats_checker.py`
-ATS (Applicant Tracking System) compatibility analyzers:
-
-**ATSChecker (Basic):**
-- Section detection (contact, summary, experience, education, skills)
-- Keyword density analysis
-- Formatting issue detection
-- Overall ATS score calculation
-
-**EnhancedATSChecker:**
-- All basic features plus:
-- Industry-specific keyword detection
-- Leadership keyword analysis
-- Detailed improvement suggestions
-- AI-powered recommendations
-- Priority-based action items
-
-### `ai_improvement_engine.py`
-AI-powered resume improvement strategies:
-
-**10 Improvement Strategies:**
-1. Professional summary enhancement
-2. Quantified achievements
-3. Job alignment
-4. Career transition support
-5. Content audit
-6. Modern formatting
-7. Skills enhancement
-8. Leadership emphasis
-9. Contact optimization
-10. ATS compatibility
-
-### `grammar_checker.py`
-Grammar and style analysis:
-- Grammar error detection
-- Style issue identification
-- Readability scoring
-- Professional tone checking
-- Suggestion generation
-
-### `keyword_extractor.py`
-Keyword extraction for job matching:
-- Technical keyword identification
-- Action verb detection
-- Skill extraction
-- Industry term recognition
-
-### `version_control.py`
-Resume version management:
-- Snapshot creation
-- Change tracking
-- Rollback functionality
-- Version comparison
-
-## AI Integration
-
-**OpenAI Models:**
-- Default: `gpt-4o-mini`
-- Configurable via `OPENAI_MODEL` env var
-- Fallback to non-AI features if API unavailable
-
-**Usage:**
-AI endpoints check for `OPENAI_API_KEY` environment variable and gracefully degrade when unavailable.
-
-## Dependencies
-
-See `requirements.txt`:
-- `fastapi` - Web framework
-- `uvicorn` - ASGI server
-- `sqlalchemy` - ORM
-- `openai` - AI integration
-- `weasyprint` - PDF generation
-- `python-docx` - DOCX generation
-- `pypdf2` - PDF parsing
-- `nltk`, `sklearn`, `spacy` - NLP (optional)
-
-## Environment Variables
-
-```bash
-# PostgreSQL connection string (REQUIRED)
-DATABASE_URL=postgresql+psycopg2://username:password@host:5432/database
-
-# OpenAI Configuration
-OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_MAX_TOKENS=2000
-```
-
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Setup Environment Variables
 
@@ -168,56 +24,115 @@ OPENAI_MAX_TOKENS=2000
 cp env.example .env
 
 # Edit .env and add your configuration
-DATABASE_URL=postgresql+psycopg2://...
-OPENAI_API_KEY=sk-your-key-here
-# ... see env.example for all variables
+NEXT_PUBLIC_API_BASE=https://editresume-staging.onrender.com
+NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
+# ... other variables (see env.example)
 ```
 
 ### 2. Install Dependencies
 
 ```bash
-pip install -r requirements.txt
+npm install
 ```
 
 ### 3. Start the Application
 
 ```bash
-# Using Docker Compose (includes PostgreSQL)
-docker compose up
+# Development server
+npm run dev
 
-# Or run directly
-uvicorn main:app --reload --port 8000
+# Or using Docker
+docker compose up
 ```
 
-**API**: http://localhost:8000  
-**API Docs**: http://localhost:8000/docs
+**Editor**: http://localhost:3000/editor
 
-## Testing
+## 🐳 Docker Development
 
 ```bash
-# Create test user
-python create_test_user.py
-
-# Test API
-curl http://localhost:8000/health
-```
-
-## Deployment
-
-**Render.com:**
-- Uses `Dockerfile.render` (configured in `render.yaml`)
-- PostgreSQL database
-- Auto-deploys on push
-
-**Local Development:**
-```bash
-# Standard environment
+# Start with Docker Compose
 docker compose up
 
-# Local development environment (different ports)
+# Start with local backend API
 docker compose -f docker-compose.local.yml up
 
-# Or run directly
-uvicorn main:app --reload --port 8000
+# Stop services
+docker compose down
 ```
 
+## 📁 Project Structure
+
+```
+├── src/
+│   ├── app/                  # Next.js App Router pages
+│   ├── components/           # React components
+│   ├── contexts/            # React Context providers
+│   ├── features/            # Feature-specific modules
+│   ├── hooks/               # Custom React hooks
+│   ├── lib/                 # Utilities & services
+│   └── styles/              # Global styles
+├── public/                  # Static assets
+├── extension/               # Browser extension
+└── docs/                    # Documentation
+```
+
+## 📖 Documentation
+
+- **FEATURES.md** - Complete feature guide with examples
+- **docs/architecture.md** - Architecture documentation
+- **extension/README.md** - Browser extension documentation
+
+## 🔧 How It Works
+
+1. **Upload** your existing PDF resume (or start fresh)
+2. **Parameterize** with `{{company}}`, `{{tech}}`, `{{metric}}` variables
+3. **Edit** sections and bullets in clean UI
+4. **Choose** from 15 industry-specific templates
+5. **Export** as PDF or DOCX with one click
+
+## 💻 Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
+
+# Type checking
+npm run type-check
+
+# Linting
+npm run lint
+```
+
+## 📁 Tech Stack
+
+- **Frontend**: Next.js 14 (App Router), Tailwind CSS, TypeScript
+- **State Management**: React Context API
+- **Styling**: Tailwind CSS
+- **Deployment**: Vercel (configured via vercel.json)
+
+## 🔌 Backend API
+
+This frontend application requires a backend API. The API base URL is configured via `NEXT_PUBLIC_API_BASE` environment variable.
+
+Default API endpoints:
+- Production: `https://editresume-staging.onrender.com`
+- Local: `http://localhost:8000` or `http://localhost:8001`
+
+## 🌐 Browser Extension
+
+The `extension/` folder contains a Chrome extension for extracting job descriptions from job boards and importing them into the resume editor.
+
+See `extension/README.md` for more details.
+
+## 📝 License
+
+Private repository - All rights reserved.

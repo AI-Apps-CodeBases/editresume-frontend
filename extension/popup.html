@@ -1,0 +1,415 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { 
+        width: 750px; 
+        max-height: 700px; 
+        padding: 0; 
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #f9fafb;
+        overflow-y: auto;
+      }
+      .header {
+        background: white;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 12px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .header h2 {
+        font-size: 16px;
+        font-weight: 700;
+        color: #111827;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .header a {
+        font-size: 12px;
+        color: #6b7280;
+        text-decoration: none;
+      }
+      .content {
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 16px;
+      }
+      .saved-jobs-section {
+        border-right: 1px solid #e5e7eb;
+        padding-right: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .save-form {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .save-form-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: #374151;
+        margin-bottom: 4px;
+      }
+      .save-form input,
+      .save-form textarea {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: inherit;
+      }
+      .save-form input:focus,
+      .save-form textarea:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+      }
+      .save-form textarea {
+        min-height: 60px;
+        resize: vertical;
+      }
+      .save-form button {
+        padding: 8px 12px;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .save-form button.btn-save {
+        background: #2563eb;
+        color: white;
+      }
+      .save-form button.btn-save:hover {
+        background: #1d4ed8;
+      }
+      .save-form button.btn-save:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+      .save-status {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        margin-top: 4px;
+      }
+      .save-status.success {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .save-status.error {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .saved-jobs-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .saved-jobs-header label {
+        font-weight: 600;
+        font-size: 14px;
+        color: #374151;
+      }
+      .metadata-section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .saved-list {
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .saved-item {
+        padding: 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: white;
+      }
+      .saved-item:hover {
+        border-color: #2563eb;
+        background: #eff6ff;
+      }
+      .saved-item.active {
+        border-color: #2563eb;
+        background: #eff6ff;
+        border-width: 2px;
+      }
+      .saved-item-title {
+        font-weight: 600;
+        font-size: 13px;
+        color: #111827;
+        margin-bottom: 4px;
+      }
+      .saved-item-company {
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 4px;
+      }
+      .saved-item-score {
+        font-size: 11px;
+        color: #059669;
+        font-weight: 600;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 24px;
+        color: #9ca3af;
+        font-size: 13px;
+      }
+      .metadata-card {
+        background: linear-gradient(to right, #eff6ff, #f3e8ff);
+        border-left: 4px solid #2563eb;
+        border-radius: 8px;
+        padding: 20px;
+      }
+      .metadata-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .metadata-title-icon {
+        font-size: 20px;
+      }
+      .metadata-title-text {
+        font-size: 18px;
+        font-weight: 700;
+        color: #111827;
+      }
+      .metadata-company {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .metadata-company-icon {
+        font-size: 16px;
+      }
+      .metadata-company-text {
+        font-size: 16px;
+        font-weight: 600;
+        color: #374151;
+      }
+      .metadata-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .metadata-item {
+        background: white;
+        border-radius: 8px;
+        padding: 12px;
+        border: 1px solid #e5e7eb;
+      }
+      .metadata-item-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+      .metadata-item-label-icon {
+        font-size: 14px;
+      }
+      .metadata-item-label-text {
+        font-size: 10px;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .metadata-item-value {
+        font-size: 14px;
+        font-weight: 700;
+        color: #111827;
+      }
+      .metadata-item-value.budget {
+        color: #059669;
+      }
+      .metadata-item.full-width {
+        grid-column: 1 / -1;
+      }
+      .metadata-section-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .metadata-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .metadata-chip {
+        padding: 6px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .chip-skills {
+        background: linear-gradient(to right, #10b981, #059669);
+        color: white;
+      }
+      .chip-keywords {
+        background: linear-gradient(to right, #a855f7, #9333ea);
+        color: white;
+      }
+      .sign-in-section {
+        padding: 16px;
+        background: #fffbeb;
+        border: 2px solid #fde68a;
+        border-radius: 8px;
+        margin-bottom: 16px;
+      }
+      .sign-in-content {
+        text-align: center;
+        margin-bottom: 12px;
+      }
+      .sign-in-icon {
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      .sign-in-title {
+        font-weight: 600;
+        color: #92400e;
+        margin-bottom: 4px;
+      }
+      .sign-in-desc {
+        font-size: 12px;
+        color: #78350f;
+        margin-bottom: 12px;
+      }
+      .btn {
+        padding: 10px 16px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        width: 100%;
+      }
+      .btn-primary {
+        background: #2563eb;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #1d4ed8;
+      }
+      .refresh-btn {
+        background: none;
+        border: none;
+        color: #2563eb;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 4px 0;
+        text-decoration: underline;
+      }
+      .placeholder {
+        background: linear-gradient(to right, #eff6ff, #f3e8ff);
+        border-left: 4px solid #2563eb;
+        border-radius: 8px;
+        padding: 48px 24px;
+        text-align: center;
+        border: 2px dashed #cbd5e1;
+      }
+      .placeholder-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+        color: #9ca3af;
+      }
+      .placeholder-text {
+        font-size: 14px;
+        color: #6b7280;
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+      .placeholder-subtext {
+        font-size: 12px;
+        color: #9ca3af;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h2>
+        <img src="icon-48.png" alt="EditResume" style="width: 24px; height: 24px; margin-right: 8px; vertical-align: middle;" />
+        Save Job Description
+      </h2>
+      <a href="options.html" target="_blank">Settings</a>
+    </div>
+    <div class="content">
+      <!-- Left: Saved Jobs & Save Form -->
+      <div class="saved-jobs-section">
+        <div id="signInSection" class="sign-in-section" style="display: none;">
+          <div class="sign-in-content">
+            <div class="sign-in-icon">🔐</div>
+            <div class="sign-in-title">Sign In Required</div>
+            <div class="sign-in-desc">Sign in to save and view job descriptions</div>
+          </div>
+          <button id="signInBtn" class="btn btn-primary">Sign In / Configure</button>
+        </div>
+
+        <!-- Saved Jobs (Top) -->
+        <div>
+          <div class="saved-jobs-header">
+            <label>Saved Jobs</label>
+            <button id="refreshSaved" class="refresh-btn">Refresh</button>
+          </div>
+          <div id="savedList" class="saved-list">
+            <div class="empty-state">Loading...</div>
+          </div>
+        </div>
+        
+        <!-- Save Form (Bottom) -->
+        <div id="saveForm" class="save-form" style="display: none;">
+          <div class="save-form-title">Save Job Description</div>
+          <input type="text" id="saveTitle" placeholder="Job Title" />
+          <input type="text" id="saveCompany" placeholder="Company" />
+          <input type="text" id="saveUrl" placeholder="URL (optional)" />
+          <button id="saveBtn" class="btn-save">Save Job</button>
+          <div id="saveStatus" class="save-status" style="display: none;"></div>
+        </div>
+      </div>
+
+      <!-- Right: Metadata Graphics -->
+      <div class="metadata-section">
+        <div id="metadataCard" class="placeholder" style="display: none;">
+          <div class="metadata-card" id="metadataContent"></div>
+        </div>
+        <div id="metadataPlaceholder" class="placeholder">
+          <div class="placeholder-icon">📋</div>
+          <div class="placeholder-text">Job metadata will appear here</div>
+          <div class="placeholder-subtext">Select a saved job or save a new one</div>
+        </div>
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>
