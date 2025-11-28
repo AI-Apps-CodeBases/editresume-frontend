@@ -1097,6 +1097,15 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       if (savedJD) {
         setJobDescription(savedJD);
       }
+      // Also load extracted_keywords if available
+      const savedKeywords = localStorage.getItem('extractedKeywords');
+      if (savedKeywords) {
+        try {
+          setExtractedKeywords(JSON.parse(savedKeywords));
+        } catch (e) {
+          console.error('Failed to parse extracted keywords:', e);
+        }
+      }
     }
   }, [initialJobDescription]);
 
@@ -1123,6 +1132,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             const description = newJob?.description || legacyJob?.content || '';
             if (description) {
               setJobDescription(description);
+              // Store extracted_keywords if available (from extension)
+              const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords;
+              if (extractedKeywords) {
+                setExtractedKeywords(extractedKeywords);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('extractedKeywords', JSON.stringify(extractedKeywords));
+                }
+              }
               if (typeof window !== 'undefined') {
                 localStorage.setItem('deepLinkedJD', description);
               }
@@ -1760,7 +1777,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           job_description: jobDescription,
           resume_data: cleanedResumeData,
           target_role: '',
-          industry: ''
+          industry: '',
+          extracted_keywords: extractedKeywords || undefined  // Include if available
         }),
       });
 
@@ -2890,7 +2908,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           job_description: jobDescription,
           resume_data: cleanedResumeData,
           target_role: '',
-          industry: ''
+          industry: '',
+          extracted_keywords: extractedKeywords || undefined  // Include if available
         }),
       });
 

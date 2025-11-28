@@ -845,7 +845,7 @@ class EnhancedATSChecker:
         return improvements
 
     def calculate_tfidf_cosine_score(
-        self, resume_text: str, job_description: str = None
+        self, resume_text: str, job_description: str = None, extracted_keywords: Dict = None
     ) -> Dict[str, Any]:
         """
         Industry-standard TF-IDF + Cosine Similarity scoring method.
@@ -853,8 +853,28 @@ class EnhancedATSChecker:
         
         Formula: Cosine Similarity = (A · B) / (||A|| × ||B||)
         Where A and B are TF-IDF vectors of resume and job description.
+        
+        If extracted_keywords is provided (from extension), uses those keywords instead of
+        extracting new ones from job_description. This ensures consistency and accuracy.
         """
-        if not job_description or not resume_text.strip():
+        if not resume_text.strip():
+            return {
+                "score": 0,
+                "method": "tfidf_cosine",
+                "cosine_similarity": 0.0,
+                "tfidf_score": 0.0,
+                "matching_keywords": [],
+                "missing_keywords": [],
+            }
+        
+        # If extracted_keywords provided, use them; otherwise require job_description
+        if extracted_keywords:
+            # Use extension-extracted keywords (from LLM)
+            use_extracted_keywords = True
+        elif job_description and job_description.strip():
+            # Fallback to extracting from job_description
+            use_extracted_keywords = False
+        else:
             return {
                 "score": 0,
                 "method": "tfidf_cosine",
@@ -875,9 +895,44 @@ class EnhancedATSChecker:
                 # Fallback if vectorizer wasn't initialized (shouldn't happen if SKLEARN_AVAILABLE)
                 return self._fallback_keyword_match(resume_text, job_description)
 
-            # Fit and transform resume and job description
+            # If extracted_keywords provided, create a "job description" text from those keywords
+            # This ensures we use the extension's meaningful keywords (40-80) instead of extracting 635+
+            if use_extracted_keywords:
+                # Combine all extension keywords into a text for TF-IDF matching
+                all_keywords = []
+                all_keywords.extend(extracted_keywords.get("technical_keywords", []))
+                all_keywords.extend(extracted_keywords.get("general_keywords", []))
+                all_keywords.extend(extracted_keywords.get("soft_skills", []))
+                all_keywords.extend(extracted_keywords.get("priority_keywords", []))
+                
+                # Get high_frequency_keywords if available
+                high_freq = extracted_keywords.get("high_frequency_keywords", [])
+                if high_freq:
+                    # Extract keyword strings from objects if needed
+                    high_freq_keywords = [
+                        kw.get("keyword", kw) if isinstance(kw, dict) else kw
+                        for kw in high_freq
+                    ]
+                    all_keywords.extend(high_freq_keywords)
+                
+                # Remove duplicates and create keyword text
+                unique_keywords = list(set([str(kw).lower() for kw in all_keywords if kw]))
+                # Create a text representation for TF-IDF (join keywords with spaces)
+                keyword_text = " ".join(unique_keywords)
+                
+                # Use extension's total_keywords count if available
+                extension_total_keywords = extracted_keywords.get("total_keywords")
+                if extension_total_keywords:
+                    # Use the count of unique meaningful keywords from extension
+                    extension_total_keywords = len(unique_keywords)
+            else:
+                # Fallback: use job_description as before
+                keyword_text = job_description
+                extension_total_keywords = None
+
+            # Fit and transform resume and keyword text
             # Note: fit_transform() fits the vectorizer to these specific documents and transforms them
-            tfidf_matrix = self.vectorizer.fit_transform([resume_text, job_description])
+            tfidf_matrix = self.vectorizer.fit_transform([resume_text, keyword_text])
 
             # Calculate cosine similarity (industry-standard method)
             cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
@@ -918,7 +973,11 @@ class EnhancedATSChecker:
             missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
 
             # Calculate keyword match percentage with improved algorithm
-            total_job_keywords = len([w for w in job_tfidf if w > threshold])
+            # Use extension's total_keywords if available (more accurate than TF-IDF count)
+            if use_extracted_keywords and extension_total_keywords:
+                total_job_keywords = extension_total_keywords
+            else:
+                total_job_keywords = len([w for w in job_tfidf if w > threshold])
             
             # Calculate weighted match score based on keyword importance
             total_job_weight = sum(job_tfidf[i] for i in range(len(job_tfidf)) if job_tfidf[i] > threshold)
@@ -986,7 +1045,7 @@ class EnhancedATSChecker:
         }
 
     def calculate_industry_standard_score(
-        self, resume_data: Dict, job_description: str = None
+        self, resume_data: Dict, job_description: str = None, extracted_keywords: Dict = None
     ) -> Dict[str, Any]:
         """
         Industry-standard ATS score using TF-IDF + Cosine Similarity.
@@ -1172,6 +1231,7 @@ class EnhancedATSChecker:
         resume_data: Dict,
         job_description: str = None,
         use_industry_standard: bool = False,
+        extracted_keywords: Dict = None,
     ) -> Dict[str, Any]:
         """
         Main method to get enhanced ATS compatibility score and AI improvements.
@@ -1183,10 +1243,11 @@ class EnhancedATSChecker:
                                   If False, uses custom comprehensive scoring (default).
         """
         try:
-            if use_industry_standard and job_description:
+            if use_industry_standard and (job_description or extracted_keywords):
                 # Use industry-standard TF-IDF + Cosine Similarity method
+                # Pass extracted_keywords if available (from extension)
                 result = self.calculate_industry_standard_score(
-                    resume_data, job_description
+                    resume_data, job_description, extracted_keywords=extracted_keywords
                 )
             else:
                 # Use custom comprehensive scoring (original method)

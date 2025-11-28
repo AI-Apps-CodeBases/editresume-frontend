@@ -1219,6 +1219,118 @@ function setSaveStatus(message, type = '') {
   statusEl.style.display = message ? 'block' : 'none';
 }
 
+/**
+ * Extract keywords using LLM (pure AI approach)
+ */
+async function extractKeywordsWithLLM(content, token, apiBase) {
+  const saveBtn = document.getElementById('saveBtn');
+  const originalText = saveBtn ? saveBtn.textContent : '';
+  
+  try {
+    const base = (apiBase || 'https://editresume-api-prod.onrender.com').replace(/\/$/, '');
+    
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Extracting keywords with AI...';
+    }
+
+    const response = await fetch(`${base}/api/ai/extract_keywords_llm`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        job_description: content
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalText;
+    }
+
+    // Transform LLM response to match existing format
+    const technical_keywords = data.technical_keywords || [];
+    const soft_skills = data.soft_skills || [];
+    const general_keywords = data.general_keywords || [];
+    const priority_keywords = data.priority_keywords || [];
+    const high_frequency_keywords = data.high_frequency_keywords || [];
+
+    // Combine for allKeywords
+    const allKeywords = [...new Set([...priority_keywords, ...general_keywords])];
+    
+    // Format high_frequency_keywords
+    const formattedHighFrequency = high_frequency_keywords.map(item => ({
+      keyword: item.keyword || item,
+      frequency: item.frequency || 1,
+      importance: item.importance || 'medium'
+    }));
+
+    return {
+      technical_keywords: technical_keywords,
+      soft_skills: soft_skills,
+      general_keywords: allKeywords,
+      priority_keywords: priority_keywords.slice(0, 15),
+      high_frequency_keywords: formattedHighFrequency,
+      ats_insights: {
+        action_verbs: [],  // LLM doesn't extract these separately
+        metrics: [],
+        industry_terms: []
+      },
+      atsKeywords: []  // LLM handles this differently
+    };
+
+  } catch (error) {
+    console.error('LLM keyword extraction failed:', error);
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalText;
+    }
+    throw error;  // Re-throw to trigger fallback
+  }
+}
+
+/**
+ * Extract keywords locally (fallback method)
+ */
+function extractKeywordsLocally(content) {
+  // Extract ATS-focused keywords (education, experience, certifications)
+  const atsKeywords = extractATSKeywords(content);
+  const topKeywords = extractTopKeywords(content);
+  const detectedSkills = extractSkills(content);
+  const softSkills = extractSoftSkillsFromText(content);
+  const atsInsights = extractAtsInsightsFromText(content);
+
+  // Combine ATS keywords with general keywords, prioritizing ATS keywords
+  const allKeywords = [...new Set([...atsKeywords, ...topKeywords])];
+  const priorityKeywords = allKeywords.slice(0, 15); // Top 15 most relevant for ATS
+
+  const keywordFrequency = buildKeywordFrequencyMap([...detectedSkills, ...allKeywords]);
+  const highFrequencyKeywords = allKeywords.slice(0, 20).map((keyword, idx) => ({
+    keyword,
+    frequency: keywordFrequency[keyword.toLowerCase()] || 1,
+    importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low'
+  }));
+
+  return {
+    technical_keywords: detectedSkills,
+    soft_skills: softSkills,
+    general_keywords: allKeywords,
+    priority_keywords: priorityKeywords,
+    high_frequency_keywords: highFrequencyKeywords,
+    ats_insights: atsInsights,
+    atsKeywords: atsKeywords
+  };
+}
+
 async function saveJobDescription() {
   const title = document.getElementById('saveTitle').value.trim();
   let company = document.getElementById('saveCompany').value.trim();
@@ -1336,23 +1448,23 @@ async function saveJobDescription() {
     // Extract job_type
     const jobType = extractedJobType || extractJobType(content);
 
-    // Extract ATS-focused keywords (education, experience, certifications)
-    const atsKeywords = extractATSKeywords(content);
-    const topKeywords = extractTopKeywords(content);
-    const detectedSkills = extractSkills(content);
-    const softSkills = extractSoftSkillsFromText(content);
-    const atsInsights = extractAtsInsightsFromText(content);
+    // Extract keywords using LLM (with fallback to local extraction)
+    let keywordData;
+    try {
+      keywordData = await extractKeywordsWithLLM(content, token, resolvedApiBase);
+      console.log('✅ Keywords extracted using LLM');
+    } catch (error) {
+      console.warn('⚠️ LLM extraction failed, falling back to local extraction:', error);
+      keywordData = extractKeywordsLocally(content);
+    }
 
-    // Combine ATS keywords with general keywords, prioritizing ATS keywords
-    const allKeywords = [...new Set([...atsKeywords, ...topKeywords])];
-    const priorityKeywords = allKeywords.slice(0, 15); // Top 15 most relevant for ATS
-
-    const keywordFrequency = buildKeywordFrequencyMap([...detectedSkills, ...allKeywords]);
-    const highFrequencyKeywords = allKeywords.slice(0, 20).map((keyword, idx) => ({
-      keyword,
-      frequency: keywordFrequency[keyword.toLowerCase()] || 1,
-      importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low'
-    }));
+    const atsKeywords = keywordData.atsKeywords || [];
+    const topKeywords = keywordData.general_keywords || [];
+    const detectedSkills = keywordData.technical_keywords || [];
+    const softSkills = keywordData.soft_skills || [];
+    const atsInsights = keywordData.ats_insights || { action_verbs: [], metrics: [], industry_terms: [] };
+    const priorityKeywords = keywordData.priority_keywords || [];
+    const highFrequencyKeywords = keywordData.high_frequency_keywords || [];
 
     console.log('📊 Extracted fields:', {
       location: actualLocation,

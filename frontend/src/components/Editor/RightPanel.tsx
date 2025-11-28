@@ -46,6 +46,76 @@ export default function RightPanel({
   deepLinkedJD,
   activeJobDescriptionId
 }: RightPanelProps) {
+  const [atsScore, setAtsScore] = useState<number | null>(null)
+  const [aiImprovements, setAiImprovements] = useState<number>(0)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isApplyingImprovement, setIsApplyingImprovement] = useState<string | null>(null)
+  const [atsSuggestions, setAtsSuggestions] = useState<any[]>([])
+  const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Calculate ATS score when resumeData changes
+  const calculateATSScore = useCallback(async () => {
+    if (!resumeData || !resumeData.name && !resumeData.sections?.length) {
+      setAtsScore(null)
+      setAiImprovements(0)
+      setAtsSuggestions([])
+      return
+    }
+
+    setIsAnalyzing(true)
+    try {
+      const cleanedResumeData = {
+        name: resumeData.name || '',
+        title: resumeData.title || '',
+        email: resumeData.email || '',
+        phone: resumeData.phone || '',
+        location: resumeData.location || '',
+        summary: resumeData.summary || '',
+        sections: (resumeData.sections || []).map((section: any) => ({
+          id: section.id,
+          title: section.title,
+          bullets: (section.bullets || []).map((bullet: any) => ({
+            id: bullet.id,
+            text: bullet.text,
+            params: {}
+          }))
+        }))
+      }
+
+      // Use job description if available (from deepLinkedJD or localStorage)
+      let jobDescriptionToUse = deepLinkedJD || '';
+      let extractedKeywordsToUse = null;
+      if (!jobDescriptionToUse && typeof window !== 'undefined') {
+        const savedJD = localStorage.getItem('deepLinkedJD');
+        if (savedJD) {
+          jobDescriptionToUse = savedJD;
+        }
+      }
+      // Load extracted_keywords from localStorage if available
+      if (typeof window !== 'undefined') {
+        const savedKeywords = localStorage.getItem('extractedKeywords');
+        if (savedKeywords) {
+          try {
+            extractedKeywordsToUse = JSON.parse(savedKeywords);
+          } catch (e) {
+            console.error('Failed to parse extracted keywords:', e);
+          }
+        }
+      }
+
+      const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resume_data: cleanedResumeData,
+          job_description: jobDescriptionToUse, // Use job description when available for better scoring
+          target_role: '', // Optional
+          industry: '', // Optional
+          extracted_keywords: extractedKeywordsToUse || undefined  // Include if available
+        }),
+      })
 
 
 
