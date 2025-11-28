@@ -14,10 +14,12 @@ if __name__ == "__main__":
         reload_dirs=[os.path.join(backend_dir, "app")],
         reload_excludes=[
             "**/.venv/**",
+            "**/venv/**",
             "**/__pycache__/**",
             "**/*.pyc",
             "**/node_modules/**",
             "**/.git/**",
+            "**/site-packages/**",
         ],
     )
 

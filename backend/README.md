@@ -185,7 +185,10 @@ pip install -r requirements.txt
 # Using Docker Compose (includes PostgreSQL)
 docker compose up
 
-# Or run directly
+# Or run directly (recommended - excludes .venv from watching)
+python uvicorn_config.py
+
+# Or run with uvicorn directly (will watch .venv and show warnings)
 uvicorn main:app --reload --port 8000
 ```
 
@@ -217,7 +220,10 @@ docker compose up
 # Local development environment (different ports)
 docker compose -f docker-compose.local.yml up
 
-# Or run directly
+# Or run directly (recommended - excludes .venv from watching)
+python uvicorn_config.py
+
+# Or run with uvicorn directly (will watch .venv and show warnings)
 uvicorn main:app --reload --port 8000
 ```
 
