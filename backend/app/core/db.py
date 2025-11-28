@@ -212,3 +212,33 @@ def migrate_schema() -> None:
                 )
             )
             conn.commit()
+
+        # Create indexes for dashboard performance optimization
+        indexes_to_create = [
+            ("idx_users_created_at", "users", "created_at"),
+            ("idx_users_is_premium", "users", "is_premium"),
+            ("idx_users_premium_created", "users", "is_premium, created_at"),
+            ("idx_resumes_created_at", "resumes", "created_at"),
+            ("idx_resume_versions_created_at", "resume_versions", "created_at"),
+        ]
+
+        for index_name, table_name, column_expr in indexes_to_create:
+            result = conn.execute(
+                text(
+                    """
+                    SELECT indexname 
+                    FROM pg_indexes 
+                    WHERE tablename = :table_name 
+                    AND indexname = :index_name
+                    """
+                ),
+                {"table_name": table_name, "index_name": index_name},
+            )
+            row = result.fetchone()
+            if not row:
+                conn.execute(
+                    text(
+                        f"CREATE INDEX {index_name} ON {table_name}({column_expr})"
+                    )
+                )
+                conn.commit()

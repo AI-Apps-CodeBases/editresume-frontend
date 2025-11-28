@@ -8,6 +8,7 @@ import {
     CountryData,
     ContentGenerationData
 } from '@/types/dashboard'
+import { getApiBaseUrl } from '@/lib/config'
 
 export const useDashboardData = () => {
     const [stats, setStats] = useState<DashboardStats>({
@@ -30,6 +31,7 @@ export const useDashboardData = () => {
     const [contentGenData, setContentGenData] = useState<ContentGenerationData[]>([])
     const [latestUsers, setLatestUsers] = useState<any[]>([])
     const [latestSubscribers, setLatestSubscribers] = useState<any[]>([])
+    const [feedbacks, setFeedbacks] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
@@ -51,15 +53,33 @@ export const useDashboardData = () => {
                     return
                 }
 
-                const baseUrl = process.env.NEXT_PUBLIC_API_BASE || 'https://editresume-staging.onrender.com'
+                const baseUrl = getApiBaseUrl()
                 const headers = {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 }
+                
+                console.log('🔍 Fetching dashboard data from:', baseUrl)
+                console.log('🌐 Current hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A')
+                console.log('🔑 Token present:', !!token)
 
-                // Fetch all dashboard data in parallel
-                const [statsRes, salesRes, subscribersRes, userOverviewRes, topPerformersRes, topCountriesRes, contentGenRes, latestUsersRes, latestSubscribersRes] = await Promise.allSettled([
-                    fetch(`${baseUrl}/api/dashboard/stats`, { headers }),
+                // Fetch critical stats first, then other data in parallel
+                // This allows the page to render faster with the most important data
+                try {
+                    const statsResponse = await fetch(`${baseUrl}/api/dashboard/stats`, { headers })
+                    if (statsResponse.ok) {
+                        const data = await statsResponse.json()
+                        setStats(data)
+                    }
+                } catch (err) {
+                    console.error('Error fetching stats:', err)
+                } finally {
+                    setLoading(false) // Show page as soon as stats load (or fail)
+                }
+
+                // Fetch remaining data in parallel (non-blocking, updates UI progressively)
+                console.log('📡 Starting parallel fetch for dashboard data...')
+                const [salesRes, subscribersRes, userOverviewRes, topPerformersRes, topCountriesRes, contentGenRes, latestUsersRes, latestSubscribersRes, feedbacksRes] = await Promise.allSettled([
                     fetch(`${baseUrl}/api/dashboard/sales`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/subscribers`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/user-overview`, { headers }),
@@ -68,13 +88,12 @@ export const useDashboardData = () => {
                     fetch(`${baseUrl}/api/dashboard/content-generation`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/latest-users`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/latest-subscribers`, { headers }),
+                    fetch(`${baseUrl}/api/dashboard/feedback`, { headers }).catch(err => {
+                        console.error('🚨 Feedback fetch error:', err)
+                        throw err
+                    }),
                 ])
-
-                // Update stats
-                if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
-                    const data = await statsRes.value.json()
-                    setStats(data)
-                }
+                console.log('✅ All dashboard fetches completed')
 
                 // Update sales data
                 if (salesRes.status === 'fulfilled' && salesRes.value.ok) {
@@ -137,10 +156,30 @@ export const useDashboardData = () => {
                     setLatestSubscribers(data)
                 }
 
+                // Update feedbacks
+                if (feedbacksRes.status === 'fulfilled') {
+                    if (feedbacksRes.value.ok) {
+                        const data = await feedbacksRes.value.json()
+                        console.log('✅ Feedbacks fetched successfully:', data)
+                        setFeedbacks(Array.isArray(data) ? data : [])
+                    } else {
+                        console.error('❌ Failed to fetch feedbacks. Status:', feedbacksRes.value.status, feedbacksRes.value.statusText)
+                        try {
+                            const errorText = await feedbacksRes.value.text()
+                            console.error('Error response body:', errorText)
+                        } catch (e) {
+                            console.error('Could not read error response')
+                        }
+                        setFeedbacks([]) // Set empty array on error
+                    }
+                } else {
+                    console.error('❌ Feedbacks fetch rejected:', feedbacksRes.reason)
+                    setFeedbacks([]) // Set empty array on rejection
+                }
+
             } catch (err) {
                 console.error('Error fetching dashboard data:', err)
                 setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data')
-            } finally {
                 setLoading(false)
             }
         }
@@ -158,6 +197,7 @@ export const useDashboardData = () => {
         contentGenData,
         latestUsers,
         latestSubscribers,
+        feedbacks,
         loading,
         error
     }
