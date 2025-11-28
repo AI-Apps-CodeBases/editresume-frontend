@@ -474,22 +474,22 @@ class EnhancedATSChecker:
         if leadership_density < 0.2:
             suggestions.append("Include leadership and team collaboration keywords")
 
-        # Realistic scoring: More accurate base and better sensitivity to keyword additions
-        base_score = 40  # More realistic starting point
+        # Conservative scoring: More accurate base with reduced bonuses
+        base_score = 35  # More conservative starting point
         
-        # Use both density AND absolute counts for better sensitivity
-        # This ensures adding keywords actually increases the score
-        action_bonus = min(25, 10 + (action_density * 2) + min(10, action_verb_count * 0.5))
-        technical_bonus = min(25, 15 + (technical_density * 3) + min(10, technical_count * 0.4))
-        metrics_bonus = min(25, 15 + (metrics_density * 4) + min(10, metrics_count * 0.5))
-        leadership_bonus = min(20, 10 + (leadership_density * 5) + min(8, leadership_count * 0.4))
+        # Use both density AND absolute counts with reduced bonuses
+        # This ensures adding keywords increases the score but more conservatively
+        action_bonus = min(20, 8 + (action_density * 1.5) + min(8, action_verb_count * 0.4))
+        technical_bonus = min(20, 12 + (technical_density * 2.5) + min(8, technical_count * 0.3))
+        metrics_bonus = min(20, 12 + (metrics_density * 3) + min(8, metrics_count * 0.4))
+        leadership_bonus = min(15, 8 + (leadership_density * 4) + min(6, leadership_count * 0.3))
         
-        # Job match bonus - more sensitive to keyword additions
+        # Job match bonus - conservative calculation
         # Use both percentage and absolute count for better responsiveness
         if job_description:
             # Calculate bonus based on both match percentage and number of matches
             match_count = len(matching_keywords)
-            job_bonus = min(35, (job_match_score * 0.35) + min(15, match_count * 0.5))
+            job_bonus = min(25, (job_match_score * 0.25) + min(10, match_count * 0.3))
         else:
             job_bonus = 0
 
@@ -937,11 +937,11 @@ class EnhancedATSChecker:
             # Calculate cosine similarity (industry-standard method)
             cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
 
-            # Convert to percentage score (0-100) with base boost for better scaling
+            # Convert to percentage score (0-100) with conservative scaling
             cosine_score = cosine_sim * 100
-            # Add base boost to make scoring more generous (helps scores above 60)
+            # Small base boost for better scaling (5% boost)
             if cosine_score > 0:
-                cosine_score = min(100, cosine_score * 1.1)  # 10% boost to base score
+                cosine_score = min(100, cosine_score * 1.05)  # 5% boost to base score
 
             # Extract feature names (keywords) and their TF-IDF scores
             feature_names = self.vectorizer.get_feature_names_out()
@@ -975,14 +975,14 @@ class EnhancedATSChecker:
             matching_keywords.sort(key=lambda x: x["job_weight"], reverse=True)
             missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
             
-            # Add boost based on number of matching keywords (encourages adding more keywords)
+            # Add conservative boost based on number of matching keywords
             matching_count = len(matching_keywords)
             if matching_count > 15:
-                cosine_score = min(100, cosine_score + min(15, (matching_count - 15) * 0.6))
+                cosine_score = min(100, cosine_score + min(10, (matching_count - 15) * 0.4))
             elif matching_count > 10:
-                cosine_score = min(100, cosine_score + min(10, (matching_count - 10) * 0.5))
+                cosine_score = min(100, cosine_score + min(7, (matching_count - 10) * 0.35))
             elif matching_count > 5:
-                cosine_score = min(100, cosine_score + min(5, (matching_count - 5) * 0.4))
+                cosine_score = min(100, cosine_score + min(4, (matching_count - 5) * 0.3))
 
             # Calculate keyword match percentage with improved algorithm
             # Use extension's total_keywords if available (more accurate than TF-IDF count)
@@ -1014,15 +1014,15 @@ class EnhancedATSChecker:
             # Use the higher of the two to be more forgiving, with boost for more matches
             base_match_percentage = max(weighted_match_percentage, simple_match_percentage * 0.9)
             
-            # Add boost for having many matching keywords (encourages adding more)
+            # Add conservative boost for having many matching keywords
             if len(matching_keywords) > 20:
-                match_percentage = min(100, base_match_percentage + min(8, (len(matching_keywords) - 20) * 0.3))
+                match_percentage = min(100, base_match_percentage + min(4, (len(matching_keywords) - 20) * 0.15))
             elif len(matching_keywords) > 15:
-                match_percentage = min(100, base_match_percentage + min(6, (len(matching_keywords) - 15) * 0.4))
+                match_percentage = min(100, base_match_percentage + min(3, (len(matching_keywords) - 15) * 0.2))
             elif len(matching_keywords) > 10:
-                match_percentage = min(100, base_match_percentage + min(4, (len(matching_keywords) - 10) * 0.4))
+                match_percentage = min(100, base_match_percentage + min(2, (len(matching_keywords) - 10) * 0.2))
             elif len(matching_keywords) > 5:
-                match_percentage = min(100, base_match_percentage + min(2, (len(matching_keywords) - 5) * 0.4))
+                match_percentage = min(100, base_match_percentage + min(1, (len(matching_keywords) - 5) * 0.2))
             else:
                 match_percentage = base_match_percentage
 
@@ -1117,27 +1117,27 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         quality_score = quality_analysis["score"]
 
-        # Adaptive weighting: prioritize keyword matching to allow better improvement
+        # Adaptive weighting: balanced approach with conservative keyword emphasis
         if tfidf_score < 40:
-            # When TF-IDF is low, heavily emphasize keyword matching
-            tfidf_weight = 0.20
-            keyword_weight = 0.40  # Increased significantly to reward keyword additions
+            # When TF-IDF is low, emphasize keyword matching conservatively
+            tfidf_weight = 0.22
+            keyword_weight = 0.35  # Conservative emphasis on keyword additions
+            section_weight = 0.20
+            formatting_weight = 0.13
+            quality_weight = 0.10
+        elif tfidf_score < 60:
+            # Medium TF-IDF: balanced weights with moderate keyword emphasis
+            tfidf_weight = 0.30
+            keyword_weight = 0.30  # Moderate emphasis on keyword additions
             section_weight = 0.20
             formatting_weight = 0.12
             quality_weight = 0.08
-        elif tfidf_score < 60:
-            # Medium TF-IDF: balanced weights with strong emphasis on keywords
-            tfidf_weight = 0.28
-            keyword_weight = 0.35  # Increased to reward keyword additions
+        else:
+            # High TF-IDF: standard weights with balanced keyword weight
+            tfidf_weight = 0.35
+            keyword_weight = 0.28  # Balanced keyword weight
             section_weight = 0.20
             formatting_weight = 0.10
-            quality_weight = 0.07
-        else:
-            # High TF-IDF: standard weights with slightly increased keyword weight
-            tfidf_weight = 0.32
-            keyword_weight = 0.30  # Increased from 0.25
-            section_weight = 0.20
-            formatting_weight = 0.11
             quality_weight = 0.07
 
         # Calculate weighted overall score with adaptive weights
@@ -1149,30 +1149,30 @@ class EnhancedATSChecker:
             + quality_score * quality_weight
         )
         
-        # Add aggressive bonus for high keyword match percentage (encourages improvement)
+        # Add conservative bonus for high keyword match percentage
         if keyword_match_score >= 60:
-            overall_score += min(8, (keyword_match_score - 60) * 0.2)  # Up to 8 points bonus
+            overall_score += min(5, (keyword_match_score - 60) * 0.125)  # Up to 5 points bonus
         elif keyword_match_score >= 50:
-            overall_score += min(5, (keyword_match_score - 50) * 0.5)  # Up to 5 points bonus
+            overall_score += min(3, (keyword_match_score - 50) * 0.3)  # Up to 3 points bonus
         elif keyword_match_score >= 40:
-            overall_score += min(3, (keyword_match_score - 40) * 0.3)  # Up to 3 points bonus
+            overall_score += min(2, (keyword_match_score - 40) * 0.2)  # Up to 2 points bonus
         
-        # Add bonus for high TF-IDF score
+        # Add conservative bonus for high TF-IDF score
         if tfidf_score >= 50:
-            overall_score += min(8, (tfidf_score - 50) * 0.16)  # Up to 8 points bonus
+            overall_score += min(5, (tfidf_score - 50) * 0.1)  # Up to 5 points bonus
         elif tfidf_score >= 40:
-            overall_score += min(4, (tfidf_score - 40) * 0.4)  # Up to 4 points bonus
+            overall_score += min(3, (tfidf_score - 40) * 0.3)  # Up to 3 points bonus
         
-        # Add bonus for having many matching keywords (progressive scaling)
+        # Add conservative bonus for having many matching keywords
         matching_count = tfidf_analysis.get("matched_keywords_count", 0)
         if matching_count > 20:
-            overall_score += min(6, (matching_count - 20) * 0.3)  # Up to 6 points
+            overall_score += min(4, (matching_count - 20) * 0.2)  # Up to 4 points
         elif matching_count > 15:
-            overall_score += min(4, (matching_count - 15) * 0.4)  # Up to 4 points
+            overall_score += min(3, (matching_count - 15) * 0.25)  # Up to 3 points
         elif matching_count > 10:
-            overall_score += min(3, (matching_count - 10) * 0.3)  # Up to 3 points
+            overall_score += min(2, (matching_count - 10) * 0.2)  # Up to 2 points
         elif matching_count > 5:
-            overall_score += min(2, (matching_count - 5) * 0.2)  # Up to 2 points
+            overall_score += min(1.5, (matching_count - 5) * 0.15)  # Up to 1.5 points
 
         # Generate improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)

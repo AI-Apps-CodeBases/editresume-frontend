@@ -13,7 +13,7 @@ from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import keyword_extractor
-from app.models import JobDescription, JobCoverLetter, JobResumeVersion, User
+from app.models import JobDescription, JobCoverLetter, JobResumeVersion, User, Resume, ResumeVersion
 from app.utils.job_helpers import (
     _classify_priority_keywords,
     _determine_final_job_title,
@@ -346,6 +346,68 @@ def create_or_update_job_description(
         db.commit()
         db.refresh(jd)
         logger.info(f"Successfully saved job description {jd.id} with user_id: {jd.user_id}")
+        
+        # Save current resume version if resume_id is provided
+        resume_id = getattr(payload, "resume_id", None)
+        if resume_id and user:
+            try:
+                resume = db.query(Resume).filter(
+                    Resume.id == resume_id,
+                    Resume.user_id == user.id
+                ).first()
+                
+                if resume:
+                    # Get the latest resume version
+                    latest_version = db.query(ResumeVersion).filter(
+                        ResumeVersion.resume_id == resume_id,
+                        ResumeVersion.user_id == user.id
+                    ).order_by(ResumeVersion.version_number.desc()).first()
+                    
+                    if latest_version:
+                        # Check if this resume version is already linked to this job
+                        existing_link = db.query(JobResumeVersion).filter(
+                            JobResumeVersion.job_description_id == jd.id,
+                            JobResumeVersion.resume_version_id == latest_version.id
+                        ).first()
+                        
+                        if not existing_link:
+                            # Create new link
+                            job_resume_version = JobResumeVersion(
+                                job_description_id=jd.id,
+                                resume_id=resume.id,
+                                resume_version_id=latest_version.id,
+                                resume_name=resume.name,
+                                resume_version_label=f"v{latest_version.version_number}",
+                            )
+                            db.add(job_resume_version)
+                            db.commit()
+                            logger.info(
+                                f"Linked resume version {latest_version.id} (v{latest_version.version_number}) "
+                                f"to job description {jd.id}"
+                            )
+                        else:
+                            # Update existing link timestamp
+                            existing_link.updated_at = datetime.utcnow()
+                            db.commit()
+                            logger.info(
+                                f"Updated existing resume version link for job description {jd.id}"
+                            )
+                    else:
+                        logger.warning(
+                            f"No resume versions found for resume {resume_id}"
+                        )
+                else:
+                    logger.warning(
+                        f"Resume {resume_id} not found or doesn't belong to user {user.id}"
+                    )
+            except Exception as link_error:
+                logger.error(
+                    f"Failed to link resume version to job description {jd.id}: {link_error}",
+                    exc_info=True,
+                )
+                # Don't fail the job save if resume linking fails
+                db.rollback()
+        
         return {
             "id": jd.id,
             "message": "saved",
