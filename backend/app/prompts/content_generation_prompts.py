@@ -359,12 +359,16 @@ Extract keywords in these categories:
 5. GENERAL_KEYWORDS: Important terms, methodologies, industry terms (e.g., Microservices, DevOps, Scrum)
 
 CRITICAL REQUIREMENTS:
+- Extract ONLY keywords that are ACTUALLY PRESENT in the job description text above
+- DO NOT infer, assume, or add keywords that are not explicitly mentioned in the text
+- DO NOT add related keywords that might be relevant but are not in the job description
 - Extract ONLY meaningful, ATS-relevant keywords (40-80 total, not hundreds)
 - Exclude generic words like "the", "and", "company", "team", "work", "experience" (unless part of a specific phrase)
-- Include multi-word phrases when relevant (e.g., "machine learning", "cloud computing")
+- Include multi-word phrases when relevant (e.g., "machine learning", "cloud computing") ONLY if they appear in the text
 - Prioritize keywords that appear in requirements/qualifications sections
 - Return keywords in lowercase for consistency
 - Focus on keywords that would actually be searched by ATS systems
+- If a keyword is not found in the job description text, DO NOT include it
 
 Return ONLY a valid JSON object with this exact structure:
 {{

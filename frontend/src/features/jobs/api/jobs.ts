@@ -1,15 +1,10 @@
 "use client"
 
 import config from '@/lib/config'
+import { getAuthHeaders } from '@/lib/auth'
 import type { CreateJobPayload, Job } from '../types'
 
 const baseUrl = config.apiBase
-
-const getAuthHeaders = (): Record<string, string> => {
-  if (typeof window === 'undefined') return {}
-  const token = localStorage.getItem('authToken')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 
 const getUserEmail = (): string | null => {
   if (typeof window === 'undefined') return null
@@ -63,6 +58,19 @@ export async function createJob(payload: CreateJobPayload): Promise<Job> {
       ...payload,
       skills: payload.skills ?? [],
     }),
+    credentials: 'include',
+  })
+  return handleResponse<Job>(response)
+}
+
+export async function fetchJob(jobId: number): Promise<Job> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  Object.assign(headers, getAuthHeaders())
+
+  const response = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
+    headers,
     credentials: 'include',
   })
   return handleResponse<Job>(response)

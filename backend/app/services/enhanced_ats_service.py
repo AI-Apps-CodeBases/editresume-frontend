@@ -937,8 +937,11 @@ class EnhancedATSChecker:
             # Calculate cosine similarity (industry-standard method)
             cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
 
-            # Convert to percentage score (0-100)
+            # Convert to percentage score (0-100) with base boost for better scaling
             cosine_score = cosine_sim * 100
+            # Add base boost to make scoring more generous (helps scores above 60)
+            if cosine_score > 0:
+                cosine_score = min(100, cosine_score * 1.1)  # 10% boost to base score
 
             # Extract feature names (keywords) and their TF-IDF scores
             feature_names = self.vectorizer.get_feature_names_out()
@@ -971,6 +974,15 @@ class EnhancedATSChecker:
             # Sort by weight (most important first)
             matching_keywords.sort(key=lambda x: x["job_weight"], reverse=True)
             missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
+            
+            # Add boost based on number of matching keywords (encourages adding more keywords)
+            matching_count = len(matching_keywords)
+            if matching_count > 15:
+                cosine_score = min(100, cosine_score + min(15, (matching_count - 15) * 0.6))
+            elif matching_count > 10:
+                cosine_score = min(100, cosine_score + min(10, (matching_count - 10) * 0.5))
+            elif matching_count > 5:
+                cosine_score = min(100, cosine_score + min(5, (matching_count - 5) * 0.4))
 
             # Calculate keyword match percentage with improved algorithm
             # Use extension's total_keywords if available (more accurate than TF-IDF count)
@@ -999,10 +1011,22 @@ class EnhancedATSChecker:
                 else 0
             )
             
-            # Use the higher of the two to be more forgiving
-            match_percentage = max(weighted_match_percentage, simple_match_percentage * 0.8)
+            # Use the higher of the two to be more forgiving, with boost for more matches
+            base_match_percentage = max(weighted_match_percentage, simple_match_percentage * 0.9)
+            
+            # Add boost for having many matching keywords (encourages adding more)
+            if len(matching_keywords) > 20:
+                match_percentage = min(100, base_match_percentage + min(8, (len(matching_keywords) - 20) * 0.3))
+            elif len(matching_keywords) > 15:
+                match_percentage = min(100, base_match_percentage + min(6, (len(matching_keywords) - 15) * 0.4))
+            elif len(matching_keywords) > 10:
+                match_percentage = min(100, base_match_percentage + min(4, (len(matching_keywords) - 10) * 0.4))
+            elif len(matching_keywords) > 5:
+                match_percentage = min(100, base_match_percentage + min(2, (len(matching_keywords) - 5) * 0.4))
+            else:
+                match_percentage = base_match_percentage
 
-            return {
+            result = {
                 "score": round(cosine_score, 2),
                 "method": "tfidf_cosine",
                 "cosine_similarity": round(float(cosine_sim), 4),
@@ -1013,6 +1037,18 @@ class EnhancedATSChecker:
                 "total_job_keywords": total_job_keywords,
                 "matched_keywords_count": len(matching_keywords),
             }
+            
+            # If using extracted_keywords, also include the original keywords for reference
+            if use_extracted_keywords and extracted_keywords:
+                result["original_keywords"] = {
+                    "technical_keywords": extracted_keywords.get("technical_keywords", []),
+                    "general_keywords": extracted_keywords.get("general_keywords", []),
+                    "soft_skills": extracted_keywords.get("soft_skills", []),
+                    "priority_keywords": extracted_keywords.get("priority_keywords", []),
+                    "high_frequency_keywords": extracted_keywords.get("high_frequency_keywords", []),
+                }
+            
+            return result
 
         except Exception as e:
             # Fallback to simple matching on error
@@ -1063,7 +1099,7 @@ class EnhancedATSChecker:
         resume_text = self.extract_text_from_resume(resume_data)
 
         # 1. TF-IDF + Cosine Similarity (35% weight, reduced from 40%)
-        tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description)
+        tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description, extracted_keywords=extracted_keywords)
         tfidf_score = tfidf_analysis.get("score", 0)
 
         # 2. Keyword Match Percentage (25% weight, reduced from 30%)
@@ -1081,21 +1117,28 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         quality_score = quality_analysis["score"]
 
-        # Adaptive weighting: if TF-IDF score is very low, give more weight to other factors
-        if tfidf_score < 30:
-            # When TF-IDF is low, redistribute weights to allow improvement
-            tfidf_weight = 0.25
-            keyword_weight = 0.20
-            section_weight = 0.25
-            formatting_weight = 0.15
-            quality_weight = 0.15
-        else:
-            # Standard weights
-            tfidf_weight = 0.35
-            keyword_weight = 0.25
+        # Adaptive weighting: prioritize keyword matching to allow better improvement
+        if tfidf_score < 40:
+            # When TF-IDF is low, heavily emphasize keyword matching
+            tfidf_weight = 0.20
+            keyword_weight = 0.40  # Increased significantly to reward keyword additions
             section_weight = 0.20
             formatting_weight = 0.12
             quality_weight = 0.08
+        elif tfidf_score < 60:
+            # Medium TF-IDF: balanced weights with strong emphasis on keywords
+            tfidf_weight = 0.28
+            keyword_weight = 0.35  # Increased to reward keyword additions
+            section_weight = 0.20
+            formatting_weight = 0.10
+            quality_weight = 0.07
+        else:
+            # High TF-IDF: standard weights with slightly increased keyword weight
+            tfidf_weight = 0.32
+            keyword_weight = 0.30  # Increased from 0.25
+            section_weight = 0.20
+            formatting_weight = 0.11
+            quality_weight = 0.07
 
         # Calculate weighted overall score with adaptive weights
         overall_score = (
@@ -1105,6 +1148,31 @@ class EnhancedATSChecker:
             + formatting_score * formatting_weight
             + quality_score * quality_weight
         )
+        
+        # Add aggressive bonus for high keyword match percentage (encourages improvement)
+        if keyword_match_score >= 60:
+            overall_score += min(8, (keyword_match_score - 60) * 0.2)  # Up to 8 points bonus
+        elif keyword_match_score >= 50:
+            overall_score += min(5, (keyword_match_score - 50) * 0.5)  # Up to 5 points bonus
+        elif keyword_match_score >= 40:
+            overall_score += min(3, (keyword_match_score - 40) * 0.3)  # Up to 3 points bonus
+        
+        # Add bonus for high TF-IDF score
+        if tfidf_score >= 50:
+            overall_score += min(8, (tfidf_score - 50) * 0.16)  # Up to 8 points bonus
+        elif tfidf_score >= 40:
+            overall_score += min(4, (tfidf_score - 40) * 0.4)  # Up to 4 points bonus
+        
+        # Add bonus for having many matching keywords (progressive scaling)
+        matching_count = tfidf_analysis.get("matched_keywords_count", 0)
+        if matching_count > 20:
+            overall_score += min(6, (matching_count - 20) * 0.3)  # Up to 6 points
+        elif matching_count > 15:
+            overall_score += min(4, (matching_count - 15) * 0.4)  # Up to 4 points
+        elif matching_count > 10:
+            overall_score += min(3, (matching_count - 10) * 0.3)  # Up to 3 points
+        elif matching_count > 5:
+            overall_score += min(2, (matching_count - 5) * 0.2)  # Up to 2 points
 
         # Generate improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)
