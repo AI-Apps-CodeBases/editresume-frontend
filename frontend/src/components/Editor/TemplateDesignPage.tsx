@@ -59,7 +59,34 @@ export default function TemplateDesignPage({
   }, [templateConfig, currentTemplate])
 
   const handleConfigUpdate = (updates: Partial<TemplateConfig>) => {
-    const newConfig = { ...localConfig!, ...updates }
+    // Deep merge the updates with existing config
+    const newConfig: TemplateConfig = {
+      layout: { ...localConfig!.layout, ...(updates.layout || {}) },
+      typography: {
+        ...localConfig!.typography,
+        ...(updates.typography || {}),
+        fontFamily: {
+          ...localConfig!.typography.fontFamily,
+          ...(updates.typography?.fontFamily || {}),
+        },
+        fontSize: {
+          ...localConfig!.typography.fontSize,
+          ...(updates.typography?.fontSize || {}),
+        },
+      },
+      design: {
+        ...localConfig!.design,
+        ...(updates.design || {}),
+        colors: {
+          ...localConfig!.design.colors,
+          ...(updates.design?.colors || {}),
+        },
+      },
+      spacing: {
+        ...localConfig!.spacing,
+        ...(updates.spacing || {}),
+      },
+    }
     setLocalConfig(newConfig)
     onTemplateConfigUpdate(newConfig)
   }

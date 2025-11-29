@@ -434,12 +434,12 @@ function TypographyControls({ config, onUpdate }: Props) {
       </div>
       <div>
         <label className="text-xs text-gray-600 mb-2 block">
-          Heading Size: {config.typography.fontSize.h1}px
+          Name/Title Size: {config.typography.fontSize.h1}pt
         </label>
         <input
           type="range"
-          min="16"
-          max="36"
+          min="14"
+          max="32"
           value={config.typography.fontSize.h1}
           onChange={(e) =>
             onUpdate({
@@ -451,14 +451,44 @@ function TypographyControls({ config, onUpdate }: Props) {
           }
           className="w-full"
         />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>14pt</span>
+          <span>23pt</span>
+          <span>32pt</span>
+        </div>
       </div>
       <div>
         <label className="text-xs text-gray-600 mb-2 block">
-          Body Size: {config.typography.fontSize.body}px
+          Section Title Size: {config.typography.fontSize.h2}pt
         </label>
         <input
           type="range"
-          min="9"
+          min="10"
+          max="20"
+          value={config.typography.fontSize.h2}
+          onChange={(e) =>
+            onUpdate({
+              typography: {
+                ...config.typography,
+                fontSize: { ...config.typography.fontSize, h2: parseInt(e.target.value) },
+              },
+            })
+          }
+          className="w-full"
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>10pt</span>
+          <span>15pt</span>
+          <span>20pt</span>
+        </div>
+      </div>
+      <div>
+        <label className="text-xs text-gray-600 mb-2 block">
+          Content/Body Size: {config.typography.fontSize.body}pt
+        </label>
+        <input
+          type="range"
+          min="8"
           max="14"
           value={config.typography.fontSize.body}
           onChange={(e) =>
@@ -471,6 +501,12 @@ function TypographyControls({ config, onUpdate }: Props) {
           }
           className="w-full"
         />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>8pt</span>
+          <span>11pt</span>
+          <span>14pt</span>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">Controls text size for content and bullets</p>
       </div>
       <div>
         <label className="text-xs text-gray-600 mb-2 block">
@@ -489,6 +525,11 @@ function TypographyControls({ config, onUpdate }: Props) {
           }
           className="w-full"
         />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>1.2</span>
+          <span>1.6</span>
+          <span>2.0</span>
+        </div>
       </div>
     </div>
   )

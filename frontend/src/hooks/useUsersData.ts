@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { User, UsersTableData } from '@/types/users'
+import { getApiBaseUrl } from '@/lib/config'
 
 export function useUsersData(page: number = 1, limit: number = 10, searchQuery: string = '', statusFilter: string = 'all') {
     const [loading, setLoading] = useState(true)
@@ -26,7 +27,7 @@ export function useUsersData(page: number = 1, limit: number = 10, searchQuery: 
                     return
                 }
 
-                const baseUrl = process.env.NEXT_PUBLIC_API_BASE || 'https://editresume-staging.onrender.com'
+                const baseUrl = getApiBaseUrl()
                 
                 // Build query params
                 const params = new URLSearchParams({
