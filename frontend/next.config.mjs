@@ -16,7 +16,7 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config) => {
+  webpack: (config, { webpack, isServer }) => {
     config.resolve.alias = config.resolve.alias || {}
     // Resolve @/* imports to src/*
     config.resolve.alias['@'] = path.resolve(__dirname, 'src')
@@ -27,6 +27,21 @@ const nextConfig = {
     config.resolve.alias['@/hooks'] = path.resolve(__dirname, 'src/hooks')
     config.resolve.alias['@/utils'] = path.resolve(__dirname, 'src/utils')
     config.resolve.alias['@/features'] = path.resolve(__dirname, 'src/features')
+    
+    // Fix Firebase postinstall.mjs import issue
+    // Replace the relative import of postinstall.mjs with postinstall.js
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(
+        /\.\/postinstall\.mjs$/,
+        (resource) => {
+          // Check if this is coming from @firebase/util
+          if (resource.context && resource.context.includes('@firebase/util')) {
+            resource.request = resource.request.replace('postinstall.mjs', 'postinstall.js')
+          }
+        }
+      )
+    )
+    
     return config
   },
   // App Router is now stable in Next.js 14, no experimental flag needed

@@ -38,8 +38,9 @@ export function SubscriberChart({ data, totalSubscriptions = 0, subscriptionsCha
                 </div>
             </div>
 
-            <div className="h-[250px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[250px] w-full min-h-[250px] min-w-0">
+                {data && data.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%" minHeight={250}>
                     <BarChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                         <XAxis
                             dataKey="date"
@@ -58,7 +59,12 @@ export function SubscriberChart({ data, totalSubscriptions = 0, subscriptionsCha
                             ))}
                         </Bar>
                     </BarChart>
-                </ResponsiveContainer>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                        No data available
+                    </div>
+                )}
             </div>
         </div>
     )

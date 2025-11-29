@@ -1,55 +1,67 @@
-version: '3.8'
+version: "3.9"
 
 services:
   db:
     image: postgres:15
-    container_name: editresume_db_local
+    container_name: editresume_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-editresume}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password123}
-      POSTGRES_DB: ${POSTGRES_DB:-editresume_db}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - db_data_local:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"  # Different port to avoid conflicts
+      - "5432:5432"
 
   backend:
     build:
       context: ./backend
-    container_name: editresume_backend_local
+    container_name: editresume_backend
     restart: unless-stopped
     volumes:
       - ./backend:/app
     environment:
-      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-editresume}:${POSTGRES_PASSWORD:-password123}@db:5432/${POSTGRES_DB:-editresume_db}
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PYTHONUNBUFFERED: "1"
       PREMIUM_MODE: ${PREMIUM_MODE:-false}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-4000}
-      ADDITIONAL_CORS_ORIGINS: ${ADDITIONAL_CORS_ORIGINS:-http://localhost:3001,http://127.0.0.1:3000}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_SERVICE_ACCOUNT_BASE64: ${FIREBASE_SERVICE_ACCOUNT_BASE64}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL}
     depends_on:
       - db
     ports:
-      - "8001:8000"
+      - "8000:8000"
 
   frontend:
     image: node:20-alpine
-    container_name: editresume_frontend_local
+    container_name: editresume_frontend
     working_dir: /app
     volumes:
       - ./frontend:/app
     command: sh -c "npm install && npm run dev"
     environment:
-      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8001}
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000
       - NEXT_PUBLIC_PREMIUM_MODE=${NEXT_PUBLIC_PREMIUM_MODE:-false}
+      - NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+      - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+      - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+      - NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
     ports:
-      - "3001:3000"
+      - "3000:3000"
     depends_on:
       - backend
 
 volumes:
-  db_data_local:
+  db_data:

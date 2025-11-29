@@ -10,6 +10,7 @@ import { LatestUsersTable } from '@/components/dashboard/LatestUsersTable'
 import { TopPerformerList } from '@/components/dashboard/TopPerformerList'
 import { TopCountriesMap } from '@/components/dashboard/TopCountriesMap'
 import { GeneratedContentChart } from '@/components/dashboard/GeneratedContentChart'
+import { FeedbackTable } from '@/components/dashboard/FeedbackTable'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 
 export default function DashboardPage() {
@@ -23,8 +24,13 @@ export default function DashboardPage() {
         contentGenData,
         latestUsers,
         latestSubscribers,
-        loading
+        feedbacks,
+        loading,
+        deleteFeedback
     } = useDashboardData()
+
+    // Debug log
+    console.log('📊 Dashboard page rendered. Feedbacks:', feedbacks?.length || 0)
 
     if (loading) {
         return (
@@ -115,8 +121,8 @@ export default function DashboardPage() {
                     <div className="col-span-1">
                         <SubscriberChart 
                             data={subscriberData}
-                            totalSubscriptions={stats.totalSubscriptions}
-                            subscriptionsChange={stats.subscriptionsChange}
+                            totalSubscriptions={stats.totalSubscriptions || 0}
+                            subscriptionsChange={stats.subscriptionsChange || 0}
                         />
                     </div>
                     <div className="col-span-1">
@@ -141,6 +147,11 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <TopCountriesMap data={topCountries} />
                     <GeneratedContentChart data={contentGenData} />
+                </div>
+
+                {/* Feedback Section */}
+                <div className="grid grid-cols-1 gap-6">
+                    <FeedbackTable feedbacks={feedbacks || []} onDeleteFeedback={deleteFeedback} />
                 </div>
 
             </div>

@@ -93,3 +93,13 @@ export interface ContentGenerationData {
     word: number
     image: number
 }
+
+export interface Feedback {
+    id: number
+    user_email: string | null
+    rating: number | null
+    feedback: string
+    category: string
+    page_url: string | null
+    created_at: string | null
+}
