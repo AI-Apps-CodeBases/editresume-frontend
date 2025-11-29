@@ -15,16 +15,46 @@ export default function FeedbackModal({ isOpen, onClose }: Props) {
   const [rating, setRating] = useState<number | null>(null)
   const [feedback, setFeedback] = useState('')
   const [category, setCategory] = useState<string>('general')
+  const [email, setEmail] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Check if user is authenticated
+  const isAuthenticated = !!user
+
+  // Email validation regex
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!feedback.trim()) return
 
+    // Validate email for anonymous users
+    if (!isAuthenticated) {
+      if (!email.trim()) {
+        await showAlert({
+          message: 'Please provide your email address to submit feedback.',
+          type: 'error',
+        })
+        return
+      }
+      if (!isValidEmail(email.trim())) {
+        await showAlert({
+          message: 'Please enter a valid email address.',
+          type: 'error',
+        })
+        return
+      }
+    }
+
     setIsSubmitting(true)
     try {
       const userStr = localStorage.getItem('user')
       const userData = userStr ? JSON.parse(userStr) : null
+      
+      // Use authenticated user's email or the provided email from the form
+      const userEmail = userData?.email || email.trim() || null
       
       const response = await fetch(`${config.apiBase}/api/feedback`, {
         method: 'POST',
@@ -34,7 +64,7 @@ export default function FeedbackModal({ isOpen, onClose }: Props) {
           feedback: feedback.trim(),
           category,
           page_url: window.location.pathname,
-          user_email: userData?.email || null,
+          user_email: userEmail,
         }),
       })
 
@@ -46,6 +76,7 @@ export default function FeedbackModal({ isOpen, onClose }: Props) {
         onClose()
         setFeedback('')
         setRating(null)
+        setEmail('') // Reset email field
       } else {
         const error = await response.json()
         await showAlert({
@@ -98,6 +129,26 @@ export default function FeedbackModal({ isOpen, onClose }: Props) {
                 <option value="performance">Performance</option>
               </select>
             </div>
+
+            {/* Email field - only show for anonymous users */}
+            {!isAuthenticated && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your.email@example.com"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  We'll use this to follow up on your feedback if needed.
+                </p>
+              </div>
+            )}
             
             <div>
               <label className="block text-sm font-medium mb-2">Rating (Optional)</label>
@@ -140,7 +191,11 @@ export default function FeedbackModal({ isOpen, onClose }: Props) {
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || !feedback.trim()}
+                disabled={
+                  isSubmitting || 
+                  !feedback.trim() || 
+                  (!isAuthenticated && (!email.trim() || !isValidEmail(email.trim())))
+                }
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isSubmitting ? 'Submitting...' : 'Submit'}
