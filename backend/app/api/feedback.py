@@ -4,8 +4,9 @@ from app.core.db import get_db
 from app.models.feedback import Feedback
 from app.models.user import User
 from app.services.email_service import send_feedback_notification
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
+import re
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,16 @@ class FeedbackCreate(BaseModel):
     category: str = "general"
     page_url: Optional[str] = None
     user_email: Optional[str] = None
+
+    @field_validator('user_email')
+    @classmethod
+    def validate_email_format(cls, v):
+        """Validate email format if provided"""
+        if v is not None and v.strip():
+            email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+            if not re.match(email_pattern, v.strip()):
+                raise ValueError('Invalid email format')
+        return v.strip() if v else None
 
 
 class FeedbackResponse(BaseModel):
@@ -39,13 +50,20 @@ async def create_feedback(
     payload: FeedbackCreate,
     db: Session = Depends(get_db)
 ):
+    # Validate that email is provided (required for anonymous users)
+    if not payload.user_email or not payload.user_email.strip():
+        raise HTTPException(
+            status_code=400, 
+            detail="Email address is required to submit feedback. Please provide a valid email address."
+        )
+
     user = None
     if payload.user_email:
         user = db.query(User).filter(User.email == payload.user_email).first()
     
     feedback = Feedback(
         user_id=user.id if user else None,
-        user_email=payload.user_email,
+        user_email=payload.user_email.strip() if payload.user_email else None,
         rating=payload.rating,
         feedback=payload.feedback,
         category=payload.category,
