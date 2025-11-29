@@ -187,6 +187,78 @@ export const useDashboardData = () => {
         fetchDashboardData()
     }, [])
 
+    // Function to fetch feedbacks separately (for refetching after deletion)
+    const fetchFeedbacks = async () => {
+        try {
+            const token = typeof window !== 'undefined' 
+                ? localStorage.getItem('authToken') 
+                : null
+            
+            if (!token) {
+                console.error('No auth token available')
+                return
+            }
+
+            const baseUrl = getApiBaseUrl()
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            }
+
+            const response = await fetch(`${baseUrl}/api/dashboard/feedback`, { headers })
+            
+            if (response.ok) {
+                const data = await response.json()
+                setFeedbacks(Array.isArray(data) ? data : [])
+            } else {
+                console.error('Failed to fetch feedbacks:', response.status, response.statusText)
+            }
+        } catch (err) {
+            console.error('Error fetching feedbacks:', err)
+        }
+    }
+
+    // Function to delete a feedback
+    const deleteFeedback = async (feedbackId: number): Promise<boolean> => {
+        try {
+            const token = typeof window !== 'undefined' 
+                ? localStorage.getItem('authToken') 
+                : null
+            
+            if (!token) {
+                console.error('No auth token available')
+                return false
+            }
+
+            const baseUrl = getApiBaseUrl()
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            }
+
+            const response = await fetch(`${baseUrl}/api/dashboard/feedback/${feedbackId}`, {
+                method: 'DELETE',
+                headers,
+            })
+
+            if (response.ok) {
+                // Remove the deleted feedback from state immediately for better UX
+                setFeedbacks(prevFeedbacks => prevFeedbacks.filter(f => f.id !== feedbackId))
+                
+                // Optionally refetch to ensure consistency
+                // await fetchFeedbacks()
+                
+                return true
+            } else {
+                console.error('Failed to delete feedback:', response.status, response.statusText)
+                return false
+            }
+        } catch (err) {
+            console.error('Error deleting feedback:', err)
+            return false
+        }
+    }
+
     return {
         stats,
         salesData,
@@ -199,6 +271,8 @@ export const useDashboardData = () => {
         latestSubscribers,
         feedbacks,
         loading,
-        error
+        error,
+        deleteFeedback,
+        fetchFeedbacks
     }
 }

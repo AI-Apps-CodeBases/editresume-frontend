@@ -1260,10 +1260,6 @@ const EditorPageContent = () => {
         }))
       }))
       
-      // Get column width from templateConfig if available, otherwise from localStorage
-      const columnWidth = templateConfig?.layout?.columnWidth || 
-                         (localStorage.getItem('twoColumnLeftWidth') ? Number(localStorage.getItem('twoColumnLeftWidth')!) : 50)
-      
       // Get cover letter content - use latestCoverLetter or from localStorage
       const coverLetterContent = isCoverLetterExport 
         ? (latestCoverLetter || (() => {
@@ -1280,6 +1276,21 @@ const EditorPageContent = () => {
           })())
         : undefined
 
+      // Ensure we always send a valid templateConfig
+      let configToSend = templateConfig
+      if (!configToSend) {
+        // If no templateConfig, get default from template registry
+        const mappedTemplateId = mapTemplateId(selectedTemplate)
+        const template = templateRegistry.find(t => t.id === mappedTemplateId)
+        if (template) {
+          configToSend = template.defaultConfig
+        }
+      }
+
+      // Get column width from templateConfig if available, otherwise from localStorage
+      const columnWidth = configToSend?.layout?.columnWidth || 
+                         (localStorage.getItem('twoColumnLeftWidth') ? Number(localStorage.getItem('twoColumnLeftWidth')!) : 50)
+
       const exportData = {
         cover_letter: coverLetterContent,
         name: resumeData.name,
@@ -1291,13 +1302,13 @@ const EditorPageContent = () => {
         sections: isCoverLetterExport ? [] : cleanedSections,
         replacements,
         template: selectedTemplate,
-        templateConfig: templateConfig || undefined, // Send full templateConfig
+        templateConfig: configToSend, // Always send templateConfig (never undefined)
         design: {
           colors: {
-            primary: templateConfig?.design?.colors?.primary || '#000000',
-            secondary: templateConfig?.design?.colors?.secondary || '#000000',
-            accent: templateConfig?.design?.colors?.accent || '#000000',
-            text: templateConfig?.design?.colors?.text || '#000000'
+            primary: configToSend?.design?.colors?.primary || '#000000',
+            secondary: configToSend?.design?.colors?.secondary || '#000000',
+            accent: configToSend?.design?.colors?.accent || '#000000',
+            text: configToSend?.design?.colors?.text || '#000000'
           }
         },
         two_column_left: localStorage.getItem('twoColumnLeft') ? JSON.parse(localStorage.getItem('twoColumnLeft')!) : [],
@@ -1306,6 +1317,12 @@ const EditorPageContent = () => {
       }
       
       console.log('Export data:', exportData)
+      console.log('TemplateConfig being sent:', configToSend)
+      console.log('Font sizes:', {
+        h1: configToSend?.typography?.fontSize?.h1,
+        h2: configToSend?.typography?.fontSize?.h2,
+        body: configToSend?.typography?.fontSize?.body
+      })
       
       const response = await fetch(url.toString(), {
         method: 'POST',

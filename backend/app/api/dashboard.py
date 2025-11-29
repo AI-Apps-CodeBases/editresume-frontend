@@ -544,3 +544,32 @@ async def get_feedback(
         logger.error(f"Error fetching feedback: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch feedback")
 
+
+@router.delete("/feedback/{feedback_id}")
+async def delete_feedback(
+    feedback_id: int,
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Delete a feedback by ID"""
+    try:
+        from app.models.feedback import Feedback
+        
+        feedback = db.query(Feedback).filter(Feedback.id == feedback_id).first()
+        
+        if not feedback:
+            raise HTTPException(status_code=404, detail="Feedback not found")
+        
+        db.delete(feedback)
+        db.commit()
+        
+        logger.info(f"Deleted feedback with ID: {feedback_id}")
+        
+        return {"success": True, "message": "Feedback deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting feedback: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete feedback")
+

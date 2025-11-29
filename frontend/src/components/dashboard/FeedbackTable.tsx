@@ -1,13 +1,16 @@
 'use client'
 
-import { MessageSquare, Star, ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { MessageSquare, Star, ExternalLink, Trash2 } from 'lucide-react'
 import { Feedback } from '@/types/dashboard'
 
 interface FeedbackTableProps {
     feedbacks: Feedback[]
+    onDeleteFeedback?: (feedbackId: number) => Promise<boolean>
 }
 
-export function FeedbackTable({ feedbacks }: FeedbackTableProps) {
+export function FeedbackTable({ feedbacks, onDeleteFeedback }: FeedbackTableProps) {
+    const [deletingId, setDeletingId] = useState<number | null>(null)
     // Debug log
     console.log('FeedbackTable received feedbacks:', feedbacks)
     
@@ -23,6 +26,28 @@ export function FeedbackTable({ feedbacks }: FeedbackTableProps) {
             hour: '2-digit',
             minute: '2-digit'
         })
+    }
+
+    const handleDelete = async (feedbackId: number) => {
+        if (!onDeleteFeedback) return
+        
+        // Confirm deletion
+        if (!confirm('Are you sure you want to delete this feedback? This action cannot be undone.')) {
+            return
+        }
+
+        setDeletingId(feedbackId)
+        try {
+            const success = await onDeleteFeedback(feedbackId)
+            if (!success) {
+                alert('Failed to delete feedback. Please try again.')
+            }
+        } catch (error) {
+            console.error('Error deleting feedback:', error)
+            alert('Failed to delete feedback. Please try again.')
+        } finally {
+            setDeletingId(null)
+        }
     }
 
     return (
@@ -51,6 +76,9 @@ export function FeedbackTable({ feedbacks }: FeedbackTableProps) {
                                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Category</th>
                                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Feedback</th>
                                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Page</th>
+                                {onDeleteFeedback && (
+                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
+                                )}
                             </tr>
                         </thead>
                         <tbody>
@@ -95,6 +123,19 @@ export function FeedbackTable({ feedbacks }: FeedbackTableProps) {
                                             <span className="text-sm text-gray-400">-</span>
                                         )}
                                     </td>
+                                    {onDeleteFeedback && (
+                                        <td className="py-3 px-4">
+                                            <button
+                                                onClick={() => handleDelete(feedback.id)}
+                                                disabled={deletingId === feedback.id}
+                                                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title="Delete feedback"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                                {deletingId === feedback.id ? 'Deleting...' : 'Delete'}
+                                            </button>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>

@@ -25,7 +25,8 @@ export default function DashboardPage() {
         latestUsers,
         latestSubscribers,
         feedbacks,
-        loading
+        loading,
+        deleteFeedback
     } = useDashboardData()
 
     // Debug log
@@ -150,7 +151,7 @@ export default function DashboardPage() {
 
                 {/* Feedback Section */}
                 <div className="grid grid-cols-1 gap-6">
-                    <FeedbackTable feedbacks={feedbacks || []} />
+                    <FeedbackTable feedbacks={feedbacks || []} onDeleteFeedback={deleteFeedback} />
                 </div>
 
             </div>
