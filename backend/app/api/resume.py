@@ -58,7 +58,12 @@ async def get_templates():
     """Get available resume templates"""
     return {
         "templates": [
-            {"id": tid, "name": t["name"], "industry": t.get("industry", "General")}
+            {
+                "id": tid, 
+                "name": t["name"], 
+                "industry": t.get("industry", "General"),
+                "preview": f"/templates/previews/{tid}.png"
+            }
             for tid, t in TEMPLATES.items()
         ]
     }
