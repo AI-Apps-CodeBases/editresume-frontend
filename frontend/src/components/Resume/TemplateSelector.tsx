@@ -6,6 +6,7 @@ interface Template {
   id: string
   name: string
   industry: string
+  preview: string
 }
 
 interface Props {
@@ -43,14 +44,26 @@ export default function TemplateSelector({ selected, onChange }: Props) {
           <button
             key={template.id}
             onClick={() => onChange(template.id)}
-            className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition text-left ${
+            className={`p-2 rounded-lg border-2 transition text-left ${
               selected === template.id
-                ? 'border-purple-600 bg-purple-100 text-purple-900'
+                ? 'border-purple-600 bg-purple-100'
                 : 'border-gray-200 bg-white hover:border-purple-300'
             }`}
           >
-            <div className="font-semibold">{template.name}</div>
-            <div className="text-[10px] opacity-60">{template.industry}</div>
+            <div className="mb-2 bg-gray-50 rounded border overflow-hidden" style={{ height: '60px' }}>
+              <img 
+                src={template.preview} 
+                alt={`${template.name} template preview`}
+                className="w-full h-full object-cover object-top"
+                onError={(e) => {
+                  // Fallback to placeholder if image fails to load
+                  const target = e.target as HTMLImageElement
+                  target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y5ZmFmYiIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNmI3MjgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5UZW1wbGF0ZTwvdGV4dD48L3N2Zz4='
+                }}
+              />
+            </div>
+            <div className="font-semibold text-xs text-gray-900">{template.name}</div>
+            <div className="text-[10px] text-gray-600 opacity-75">{template.industry}</div>
           </button>
         ))}
       </div>
