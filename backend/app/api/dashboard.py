@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.firebase_admin import verify_id_token
-from app.models import User, Resume, ResumeVersion, ExportAnalytics, VisitorAnalytics, Feedback
+from app.models import User, Resume, ResumeVersion, ExportAnalytics, VisitorAnalytics
 
 logger = logging.getLogger(__name__)
 
@@ -671,55 +671,6 @@ async def get_content_generation_data(
         raise HTTPException(status_code=500, detail="Failed to fetch content generation data")
 
 
-@router.get("/feedback")
-async def get_feedback_list(
-    db: Session = Depends(get_db),
-    token: dict = Depends(verify_admin_token),
-    page: int = 1,
-    limit: int = 20,
-    category: Optional[str] = None,
-):
-    """Get paginated list of feedbacks for dashboard"""
-    try:
-        query = db.query(Feedback)
-        
-        # Apply category filter
-        if category and category.lower() != 'all':
-            query = query.filter(Feedback.category == category.lower())
-        
-        # Get total count before pagination
-        total_feedbacks = query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * limit
-        feedbacks = query.order_by(Feedback.created_at.desc()).offset(offset).limit(limit).all()
-        
-        # Format feedbacks for frontend
-        formatted_feedbacks = [
-            {
-                "id": feedback.id,
-                "userEmail": feedback.user_email or "Anonymous",
-                "rating": feedback.rating,
-                "feedback": feedback.feedback,
-                "category": feedback.category or "general",
-                "pageUrl": feedback.page_url,
-                "createdAt": feedback.created_at.strftime("%d %b %Y %H:%M") if feedback.created_at else "",
-                "createdAtRaw": feedback.created_at.isoformat() if feedback.created_at else None,
-            }
-            for feedback in feedbacks
-        ]
-        
-        total_pages = (total_feedbacks + limit - 1) // limit if limit > 0 else 1
-        
-        return {
-            "feedbacks": formatted_feedbacks,
-            "totalFeedbacks": total_feedbacks,
-            "currentPage": page,
-            "totalPages": total_pages,
-        }
-    except Exception as e:
-        logger.error(f"Error fetching feedback list: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to fetch feedback list")
 
 
 @router.delete("/feedback/{feedback_id}")
