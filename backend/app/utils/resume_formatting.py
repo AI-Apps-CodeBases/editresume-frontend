@@ -24,8 +24,8 @@ def strip_bullet_markers(text: str) -> str:
     # This handles edge cases where ** might not have been properly converted
     cleaned = text.replace('**', '')
     
-    # Common bullet characters
-    bullet_chars = ['•', '-', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽']
+    # Common bullet characters (including square ■ which might appear in text)
+    bullet_chars = ['•', '-', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽', '■']
     
     # Remove all occurrences of each bullet character (not just first)
     for char in bullet_chars:
@@ -133,7 +133,9 @@ def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dic
             task_text = strip_bullet_markers(bullet_text)
             
             # Final safety check: remove any remaining * or ** characters
-            task_text = task_text.replace('**', '').replace('*', '')
+            # Use regex to remove standalone * that aren't part of HTML tags
+            task_text = re.sub(r'\*(?![*<>/])', '', task_text)  # Remove * not followed by *, <, >, or /
+            task_text = task_text.replace('**', '')  # Remove any remaining **
             
             if task_text and task_text.strip():
                 html_parts.append(f"<li>{task_text}</li>")
@@ -191,7 +193,9 @@ def format_regular_bullets(bullets: List[BulletParam], replacements: Dict[str, s
             clean_text = strip_bullet_markers(bullet_text)
             
             # Final safety check: remove any remaining * or ** characters
-            clean_text = clean_text.replace('**', '').replace('*', '')
+            # Use regex to remove standalone * that aren't part of HTML tags
+            clean_text = re.sub(r'\*(?![*<>/])', '', clean_text)  # Remove * not followed by *, <, >, or /
+            clean_text = clean_text.replace('**', '')  # Remove any remaining **
             
             if clean_text and clean_text.strip():
                 html_parts.append(f"<li>{clean_text}</li>")
