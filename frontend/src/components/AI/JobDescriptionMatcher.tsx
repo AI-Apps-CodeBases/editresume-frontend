@@ -296,6 +296,159 @@ const TECH_KEYWORD_SOURCE_LABEL: Record<TechnicalKeywordOption['source'], string
   extension: 'Extension',
 };
 
+// Filter out unwanted keywords (numbers, unnecessary verbs, company names)
+const filterIrrelevantKeywords = (keywords: string[], companyName?: string | null): string[] => {
+  // Common unnecessary verbs that shouldn't be keywords
+  const unnecessaryVerbs = new Set([
+    'be', 'am', 'is', 'are', 'was', 'were', 'been', 'being',
+    'have', 'has', 'had', 'having',
+    'do', 'does', 'did', 'doing', 'done',
+    'get', 'gets', 'got', 'getting', 'gotten',
+    'make', 'makes', 'made', 'making',
+    'go', 'goes', 'went', 'going', 'gone',
+    'come', 'comes', 'came', 'coming',
+    'take', 'takes', 'took', 'taking', 'taken',
+    'give', 'gives', 'gave', 'giving', 'given',
+    'see', 'sees', 'saw', 'seeing', 'seen',
+    'know', 'knows', 'knew', 'knowing', 'known',
+    'think', 'thinks', 'thought', 'thinking',
+    'say', 'says', 'said', 'saying',
+    'want', 'wants', 'wanted', 'wanting',
+    'use', 'uses', 'used', 'using',
+    'find', 'finds', 'found', 'finding',
+    'tell', 'tells', 'told', 'telling',
+    'work', 'works', 'worked', 'working',
+    'call', 'calls', 'called', 'calling',
+    'try', 'tries', 'tried', 'trying',
+    'ask', 'asks', 'asked', 'asking',
+    'need', 'needs', 'needed', 'needing',
+    'feel', 'feels', 'felt', 'feeling',
+    'become', 'becomes', 'became', 'becoming',
+    'leave', 'leaves', 'left', 'leaving',
+    'put', 'puts', 'putting',
+    'mean', 'means', 'meant', 'meaning',
+    'keep', 'keeps', 'kept', 'keeping',
+    'let', 'lets', 'letting',
+    'begin', 'begins', 'began', 'beginning', 'begun',
+    'seem', 'seems', 'seemed', 'seeming',
+    'help', 'helps', 'helped', 'helping',
+    'show', 'shows', 'showed', 'shown', 'showing',
+    'hear', 'hears', 'heard', 'hearing',
+    'play', 'plays', 'played', 'playing',
+    'run', 'runs', 'ran', 'running',
+    'move', 'moves', 'moved', 'moving',
+    'live', 'lives', 'lived', 'living',
+    'believe', 'believes', 'believed', 'believing',
+    'bring', 'brings', 'brought', 'bringing',
+    'happen', 'happens', 'happened', 'happening',
+    'write', 'writes', 'wrote', 'written', 'writing',
+    'sit', 'sits', 'sat', 'sitting',
+    'stand', 'stands', 'stood', 'standing',
+    'lose', 'loses', 'lost', 'losing',
+    'pay', 'pays', 'paid', 'paying',
+    'meet', 'meets', 'met', 'meeting',
+    'include', 'includes', 'included', 'including',
+    'continue', 'continues', 'continued', 'continuing',
+    'set', 'sets', 'setting',
+    'learn', 'learns', 'learned', 'learnt', 'learning',
+    'change', 'changes', 'changed', 'changing',
+    'lead', 'leads', 'led', 'leading',
+    'understand', 'understands', 'understood', 'understanding',
+    'watch', 'watches', 'watched', 'watching',
+    'follow', 'follows', 'followed', 'following',
+    'stop', 'stops', 'stopped', 'stopping',
+    'create', 'creates', 'created', 'creating',
+    'speak', 'speaks', 'spoke', 'spoken', 'speaking',
+    'read', 'reads', 'reading',
+    'spend', 'spends', 'spent', 'spending',
+    'grow', 'grows', 'grew', 'grown', 'growing',
+    'open', 'opens', 'opened', 'opening',
+    'walk', 'walks', 'walked', 'walking',
+    'win', 'wins', 'won', 'winning',
+    'offer', 'offers', 'offered', 'offering',
+    'remember', 'remembers', 'remembered', 'remembering',
+    'love', 'loves', 'loved', 'loving',
+    'consider', 'considers', 'considered', 'considering',
+    'appear', 'appears', 'appeared', 'appearing',
+    'buy', 'buys', 'bought', 'buying',
+    'wait', 'waits', 'waited', 'waiting',
+    'serve', 'serves', 'served', 'serving',
+    'die', 'dies', 'died', 'dying',
+    'send', 'sends', 'sent', 'sending',
+    'build', 'builds', 'built', 'building',
+    'stay', 'stays', 'stayed', 'staying',
+    'fall', 'falls', 'fell', 'fallen', 'falling',
+    'cut', 'cuts', 'cutting',
+    'reach', 'reaches', 'reached', 'reaching',
+    'kill', 'kills', 'killed', 'killing',
+    'raise', 'raises', 'raised', 'raising',
+    'pass', 'passes', 'passed', 'passing',
+    'sell', 'sells', 'sold', 'selling',
+    'decide', 'decides', 'decided', 'deciding',
+    'return', 'returns', 'returned', 'returning',
+    'explain', 'explains', 'explained', 'explaining',
+    'develop', 'develops', 'developed', 'developing',
+    'carry', 'carries', 'carried', 'carrying',
+    'break', 'breaks', 'broke', 'broken', 'breaking',
+    'receive', 'receives', 'received', 'receiving',
+    'agree', 'agrees', 'agreed', 'agreeing',
+    'support', 'supports', 'supported', 'supporting',
+    'hit', 'hits', 'hitting',
+    'produce', 'produces', 'produced', 'producing',
+    'eat', 'eats', 'ate', 'eaten', 'eating',
+    'cover', 'covers', 'covered', 'covering',
+    'catch', 'catches', 'caught', 'catching',
+    'draw', 'draws', 'drew', 'drawn', 'drawing',
+    'choose', 'chooses', 'chose', 'chosen', 'choosing',
+    'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+    'from', 'up', 'about', 'into', 'through', 'during', 'including', 'against', 'among',
+    'throughout', 'despite', 'towards', 'upon', 'concerning', 'to', 'of', 'in', 'for', 'on',
+    'with', 'at', 'by', 'from', 'up', 'about', 'into', 'through', 'during', 'including'
+  ]);
+
+  return keywords.filter(keyword => {
+    const trimmed = keyword.trim().toLowerCase();
+    
+    // Filter out empty or very short keywords
+    if (!trimmed || trimmed.length < 2) return false;
+    
+    // Filter out pure numbers (e.g., "2024", "100", "5")
+    if (/^\d+$/.test(trimmed)) return false;
+    
+    // Filter out numbers with units that are just metrics (e.g., "5+", "10+", "100%")
+    if (/^\d+[+\-%]?$/.test(trimmed)) return false;
+    
+    // Filter out unnecessary verbs
+    if (unnecessaryVerbs.has(trimmed)) return false;
+    
+    // Filter out company names (case-insensitive partial match)
+    if (companyName) {
+      const companyWords = companyName.toLowerCase().split(/\s+/);
+      const keywordWords = trimmed.split(/\s+/);
+      
+      // Check if keyword contains company name or vice versa
+      for (const cw of companyWords) {
+        if (cw.length > 2 && (trimmed.includes(cw) || cw.includes(trimmed))) {
+          return false;
+        }
+      }
+      
+      // Check if keyword matches company name exactly (ignoring case)
+      if (trimmed === companyName.toLowerCase()) return false;
+    }
+    
+    // Filter out single character keywords
+    if (trimmed.length === 1) return false;
+    
+    // Filter out common stop words and articles
+    if (['a', 'an', 'the', 'and', 'or', 'but', 'if', 'then', 'else', 'when', 'where', 'why', 'how'].includes(trimmed)) {
+      return false;
+    }
+    
+    return true;
+  });
+};
+
 // Highlight missing keywords in generated bullet text
 const highlightMissingKeywords = (text: string, missingKeywords: string[]): React.ReactNode => {
   if (!missingKeywords.length || !text) return text;
@@ -3307,69 +3460,85 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           </div>
         )}
 
-        {/* Keyword Comparison with Resume */}
-        {keywordComparison && resumeData && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                📊 Keyword Comparison with Your Resume
-              </h3>
-              <span className="text-xs text-gray-600">
-                {keywordComparison.matched.length} / {keywordComparison.matched.length + keywordComparison.missing.length} matched
-              </span>
+        {/* Keyword Comparison with Resume - Simplified */}
+        {(() => {
+          if (!keywordComparison || !resumeData || keywordComparison.missing.length === 0) return null;
+          const companyName = currentJDInfo?.company || selectedJobMetadata?.company || null;
+          const filteredMissingKeywords = filterIrrelevantKeywords(keywordComparison.missing, companyName);
+          if (filteredMissingKeywords.length === 0) return null;
+          
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                    Missing Keywords
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Add these {filteredMissingKeywords.length} keywords to improve your match score
+                  </p>
+                </div>
+                {selectedKeywords.size > 0 && (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                    <button
+                      onClick={() => {
+                        const workExpSections = resumeData.sections.filter((s: any) =>
+                          s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')
+                        );
+                        if (workExpSections.length > 0) {
+                          setSelectedWorkExpSection(workExpSections[0].id);
+                        }
+                        setShowBulletGenerator(true);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Create Bullets ({selectedKeywords.size})
+                    </button>
+                    <button
+                      onClick={() => addKeywordsToSkillsSection(Array.from(selectedKeywords))}
+                      className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add to Skills ({selectedKeywords.size})
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {filteredMissingKeywords.map((keyword: string, idx: number) => (
+                <label
+                  key={idx}
+                  className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer border transition-all flex items-center gap-2 ${selectedKeywords.has(keyword)
+                    ? 'bg-red-100 text-red-800 border-red-400 font-medium'
+                    : 'bg-red-50 text-red-700 border-red-200 hover:border-red-300'
+                    }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedKeywords.has(keyword)}
+                    onChange={(e) => {
+                      const newSelected = new Set(selectedKeywords);
+                      if (e.target.checked) {
+                        newSelected.add(keyword);
+                      } else {
+                        newSelected.delete(keyword);
+                      }
+                      setSelectedKeywords(newSelected);
+                    }}
+                    className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                  />
+                  <span>{keyword}</span>
+                </label>
+                ))}
+              </div>
             </div>
-            
-            {keywordComparison.missing.length > 0 && (
-              <div className="mb-3">
-                <div className="text-xs font-semibold text-red-700 mb-2">
-                  ⚠️ Missing Keywords ({keywordComparison.missing.length}) - Add these to improve ATS score:
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {keywordComparison.missing.slice(0, 15).map((keyword: string, idx: number) => (
-                    <span
-                      key={idx}
-                      className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300"
-                    >
-                      {keyword}
-                    </span>
-                  ))}
-                  {keywordComparison.missing.length > 15 && (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">
-                      +{keywordComparison.missing.length - 15} more
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {keywordComparison.matched.length > 0 && (
-              <div>
-                <div className="text-xs font-semibold text-green-700 mb-2">
-                  ✅ Matched Keywords ({keywordComparison.matched.length}):
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {keywordComparison.matched.slice(0, 10).map((keyword: string, idx: number) => (
-                    <span
-                      key={idx}
-                      className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-300"
-                    >
-                      {keyword}
-                    </span>
-                  ))}
-                  {keywordComparison.matched.length > 10 && (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-600 border border-green-200">
-                      +{keywordComparison.matched.length - 10} more
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <p className="text-xs text-gray-700 mt-3 pt-3 border-t border-gray-300">
-              <strong>🎯 Next Step:</strong> Click "Analyze Match" below for a detailed ATS score and personalized improvement suggestions.
-            </p>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Easy Apply Button - Always visible when JD is loaded */}
@@ -3847,42 +4016,19 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={analyzeMatch}
+                      disabled={isAnalyzing || !jobDescription.trim()}
+                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
+                    </button>
+                    <button
                       onClick={handleManualATSRefresh}
                       disabled={isManualATSRefreshing || !resumeData}
                       className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >
                       {isManualATSRefreshing ? 'Refreshing...' : 'Refresh'}
                     </button>
-                    {currentJobDescriptionId && (updatedResumeData || updatedATSScore !== null) && (
-                      <button
-                        onClick={async () => {
-                          if (!isAuthenticated || !user?.email) {
-                            await showAlert({
-                              type: 'warning',
-                              message: 'Please sign in to save matches',
-                              title: 'Authentication Required'
-                            });
-                            return;
-                          }
-                          
-                          const resumePayload = updatedResumeData ?? resumeData;
-                          const suggestedName = currentJDInfo?.company 
-                            ? `${currentJDInfo.company}${currentJDInfo.title ? ` - ${currentJDInfo.title}` : ''} Resume`
-                            : selectedJobMetadata?.title 
-                              ? `${selectedJobMetadata.title.trim()} Resume`
-                              : resumeData.name || 'My Resume';
-                          
-                          setResumeSaveName(suggestedName);
-                          setShowSaveNameModal(true);
-                        }}
-                        className="text-xs px-4 py-1.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-1.5"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Save Match
-                      </button>
-                    )}
                     {isAnalyzing && (
                       <span className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg font-medium">
                         Updating...
@@ -3893,7 +4039,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               </div>
 
               {/* Key Metrics */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                   <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                     Keyword Coverage
@@ -3922,19 +4068,19 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               </div>
 
-              {/* Combined Missing Keywords & Technical Skills Section */}
-              {(matchResult.match_analysis.missing_keywords.length > 0 || technicalKeywordOptions.length > 0 || (matchResult.keyword_suggestions?.tfidf_suggestions?.length || 0) > 0) && (
-                <div className="border-t border-gray-200 pt-6">
+              {/* Keywords to Improve ATS Score */}
+              {(matchResult.match_analysis.missing_keywords.length > 0 || 
+                (matchResult.match_analysis.matching_keywords && matchResult.match_analysis.matching_keywords.length > 0) ||
+                technicalKeywordOptions.length > 0 || 
+                (matchResult.keyword_suggestions?.tfidf_suggestions?.length || 0) > 0) && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-                    <div className="space-y-1">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Missing Keywords & Technical Skills
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                        Keywords to Improve ATS Score
                       </h3>
                       <p className="text-sm text-gray-500">
-                        Add these to improve your match score 
-                        {matchResult.match_analysis.missing_keywords.length > 0 && ` (${matchResult.match_analysis.missing_keywords.length} missing keywords)`}
-                        {technicalKeywordOptions.length > 0 && ` (${technicalKeywordOptions.length} technical skills)`}
-                        {(matchResult.keyword_suggestions?.tfidf_suggestions?.length || 0) > 0 && ` (${matchResult.keyword_suggestions.tfidf_suggestions.length} TF-IDF boost keywords)`}
+                        Select keywords to add to your resume
                       </p>
                     </div>
                     {selectedKeywords.size > 0 && (
@@ -3968,280 +4114,269 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  
+                  <div className="space-y-4">
                     {/* Missing Keywords */}
-                    {matchResult.match_analysis.missing_keywords.map((keyword, index) => (
-                      <label
-                        key={`missing-${index}`}
-                        className={`px-2 py-1 text-xs rounded-md cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
-                          ? 'bg-red-100 text-red-800 border-red-400 font-medium'
-                          : (matchResult as any).priority_keywords?.includes?.(keyword)
-                            ? 'bg-red-50 text-red-700 border-red-300 font-medium'
-                            : 'bg-red-50 text-red-600 border-red-200 hover:border-red-300'
-                          }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedKeywords.has(keyword)}
-                          onChange={(e) => {
-                            const newSelected = new Set(selectedKeywords);
-                            if (e.target.checked) {
-                              newSelected.add(keyword);
-                            } else {
-                              newSelected.delete(keyword);
-                            }
-                            setSelectedKeywords(newSelected);
-                          }}
-                          className="w-3 h-3 text-red-600 rounded focus:ring-red-500"
-                        />
-                        <span>{keyword}</span>
-                      </label>
-                    ))}
-                    {/* Technical Skills */}
-                    {technicalKeywordOptions.map(({ keyword, source }, index) => {
-                      const isSelected = selectedKeywords.has(keyword);
-                      const chipClass = isSelected
-                        ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
-                        : TECH_KEYWORD_CHIP_CLASS[source];
-
-                      return (
-                        <label
-                          key={`tech-${keyword}-${source}-${index}`}
-                          className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer border transition-all ${chipClass}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              const newSelected = new Set(selectedKeywords);
-                              if (e.target.checked) {
-                                newSelected.add(keyword);
-                              } else {
-                                newSelected.delete(keyword);
-                              }
-                              setSelectedKeywords(newSelected);
-                            }}
-                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <span className="font-medium">{keyword}</span>
-                        </label>
-                      );
-                    })}
-                    {/* TF-IDF Boost Keywords - Similar to JD but not in saved keywords */}
-                    {matchResult.keyword_suggestions?.tfidf_suggestions && matchResult.keyword_suggestions.tfidf_suggestions.length > 0 && (
-                      <>
-                        <div className="w-full mt-4 pt-4 border-t border-gray-200">
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
-                              🔥 TF-IDF Boost Keywords
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              (Similar to job description - add these for higher ATS score)
-                            </span>
+                    {(() => {
+                      const companyName = currentJDInfo?.company || selectedJobMetadata?.company || null;
+                      const filteredMissingKeywords = filterIrrelevantKeywords(matchResult.match_analysis.missing_keywords, companyName);
+                      return filteredMissingKeywords.length > 0 && (
+                        <div>
+                          <div className="text-sm font-semibold text-red-700 mb-2">
+                            Missing Keywords ({filteredMissingKeywords.length})
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {matchResult.keyword_suggestions.tfidf_suggestions.map((keyword, index) => {
-                              const isSelected = selectedKeywords.has(keyword);
-                              return (
-                                <label
-                                  key={`tfidf-${index}`}
-                                  className={`px-2 py-1 text-xs rounded-md cursor-pointer border transition-all flex items-center gap-1.5 ${
-                                    isSelected
-                                      ? 'bg-purple-100 text-purple-800 border-purple-400 font-medium'
-                                      : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-300'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      const newSelected = new Set(selectedKeywords);
-                                      if (e.target.checked) {
-                                        newSelected.add(keyword);
-                                      } else {
-                                        newSelected.delete(keyword);
-                                      }
-                                      setSelectedKeywords(newSelected);
-                                    }}
-                                    className="w-3 h-3 text-purple-600 rounded focus:ring-purple-500"
-                                  />
-                                  <span>{keyword}</span>
-                                </label>
-                              );
-                            })}
+                          <div className="flex flex-wrap gap-2">
+                            {filteredMissingKeywords.map((keyword, index) => (
+                            <label
+                              key={`missing-${index}`}
+                              className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer border transition-all flex items-center gap-2 ${selectedKeywords.has(keyword)
+                                ? 'bg-red-100 text-red-800 border-red-400 font-medium'
+                                : 'bg-red-50 text-red-700 border-red-200 hover:border-red-300'
+                                }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedKeywords.has(keyword)}
+                                onChange={(e) => {
+                                  const newSelected = new Set(selectedKeywords);
+                                  if (e.target.checked) {
+                                    newSelected.add(keyword);
+                                  } else {
+                                    newSelected.delete(keyword);
+                                  }
+                                  setSelectedKeywords(newSelected);
+                                }}
+                                className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                              />
+                              <span>{keyword}</span>
+                            </label>
+                            ))}
                           </div>
                         </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
+                      );
+                    })()}
 
-              {/* Matched Keywords Section - Keywords to reinforce */}
-              {matchResult.match_analysis.matching_keywords && matchResult.match_analysis.matching_keywords.length > 0 && (
-                <div className="border-t border-gray-200 pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Matched Keywords (Reinforce These)
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        These keywords are in the JD. Add more instances to your resume to strengthen your match ({matchResult.match_analysis.matching_keywords.length} keywords)
-                      </p>
-                    </div>
-                    {selectedKeywords.size > 0 && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            const workExpSections = resumeData.sections.filter((s: any) =>
-                              s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')
+                    {/* Matching Keywords (Reinforce) */}
+                    {matchResult.match_analysis.matching_keywords && matchResult.match_analysis.matching_keywords.length > 0 && (
+                      <div>
+                        <div className="text-sm font-semibold text-green-700 mb-2">
+                          Matched Keywords - Reinforce ({matchResult.match_analysis.matching_keywords.length})
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {matchResult.match_analysis.matching_keywords.slice(0, 30).map((keyword, index) => (
+                            <label
+                              key={`matched-${index}`}
+                              className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer border transition-all flex items-center gap-2 ${selectedKeywords.has(keyword)
+                                ? 'bg-green-100 text-green-800 border-green-400 font-medium'
+                                : 'bg-green-50 text-green-700 border-green-200 hover:border-green-300'
+                                }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedKeywords.has(keyword)}
+                                onChange={(e) => {
+                                  const newSelected = new Set(selectedKeywords);
+                                  if (e.target.checked) {
+                                    newSelected.add(keyword);
+                                  } else {
+                                    newSelected.delete(keyword);
+                                  }
+                                  setSelectedKeywords(newSelected);
+                                }}
+                                className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                              />
+                              <span>{keyword}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TF-IDF Boost Keywords */}
+                    {matchResult.keyword_suggestions?.tfidf_suggestions && matchResult.keyword_suggestions.tfidf_suggestions.length > 0 && (
+                      <div>
+                        <div className="text-sm font-semibold text-purple-700 mb-2">
+                          🔥 TF-IDF Boost Keywords ({matchResult.keyword_suggestions.tfidf_suggestions.length})
+                        </div>
+                        <div className="text-xs text-gray-600 mb-2">
+                          Similar to job description - add these for higher ATS score
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {matchResult.keyword_suggestions.tfidf_suggestions.map((keyword, index) => {
+                            const isSelected = selectedKeywords.has(keyword);
+                            return (
+                              <label
+                                key={`tfidf-${index}`}
+                                className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer border transition-all flex items-center gap-2 ${
+                                  isSelected
+                                    ? 'bg-purple-100 text-purple-800 border-purple-400 font-medium'
+                                    : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const newSelected = new Set(selectedKeywords);
+                                    if (e.target.checked) {
+                                      newSelected.add(keyword);
+                                    } else {
+                                      newSelected.delete(keyword);
+                                    }
+                                    setSelectedKeywords(newSelected);
+                                  }}
+                                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                                />
+                                <span>{keyword}</span>
+                              </label>
                             );
-                            if (workExpSections.length > 0) {
-                              setSelectedWorkExpSection(workExpSections[0].id);
-                            }
-                            setShowBulletGenerator(true);
-                          }}
-                          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          Create Bullets ({selectedKeywords.size})
-                        </button>
-                        <button
-                          onClick={() => addKeywordsToSkillsSection(Array.from(selectedKeywords))}
-                          className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          Add to Skills ({selectedKeywords.size})
-                        </button>
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Technical Skills */}
+                    {technicalKeywordOptions.length > 0 && (
+                      <div>
+                        <div className="text-sm font-semibold text-indigo-700 mb-2">
+                          Technical Skills ({technicalKeywordOptions.length})
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {technicalKeywordOptions.map(({ keyword, source }, index) => {
+                            const isSelected = selectedKeywords.has(keyword);
+                            const chipClass = isSelected
+                              ? 'bg-indigo-100 text-indigo-800 border-indigo-400 font-medium'
+                              : TECH_KEYWORD_CHIP_CLASS[source];
+                            return (
+                              <label
+                                key={`tech-${keyword}-${source}-${index}`}
+                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm cursor-pointer border transition-all ${chipClass}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const newSelected = new Set(selectedKeywords);
+                                    if (e.target.checked) {
+                                      newSelected.add(keyword);
+                                    } else {
+                                      newSelected.delete(keyword);
+                                    }
+                                    setSelectedKeywords(newSelected);
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                                />
+                                <span className="font-medium">{keyword}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {matchResult.match_analysis.matching_keywords.slice(0, 30).map((keyword, index) => (
-                      <label
-                        key={index}
-                        className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer border-2 transition-all flex items-center gap-2 ${selectedKeywords.has(keyword)
-                          ? 'bg-green-50 text-green-700 border-green-300 font-medium'
-                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
-                          }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedKeywords.has(keyword)}
-                          onChange={(e) => {
-                            const newSelected = new Set(selectedKeywords);
-                            if (e.target.checked) {
-                              newSelected.add(keyword);
-                            } else {
-                              newSelected.delete(keyword);
-                            }
-                            setSelectedKeywords(newSelected);
-                          }}
-                          className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-                        />
-                        <span>{keyword}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-3">
-                    💡 Tip: These keywords already appear in the job description. Adding them multiple times in your resume (in different contexts) will increase your ATS score.
-                  </p>
-                </div>
-              )}
-
-
-              {/* Save Button */}
-              {matchResult && currentJobDescriptionId && (
-                <div className="pt-4 border-t border-gray-200">
-                  <button
-                    onClick={async () => {
-                      if (!isAuthenticated || !user?.email) {
-                        await showAlert({
-                          type: 'warning',
-                          message: 'Please sign in to save resumes to your profile',
-                          title: 'Authentication Required'
-                        });
-                        return;
-                      }
-
-                      let suggestedName = '';
-                      if (currentJDInfo?.company) {
-                        const companyName = currentJDInfo.company.trim();
-                        const jobTitle = currentJDInfo.title ? ` - ${currentJDInfo.title.trim()}` : '';
-                        suggestedName = `${companyName}${jobTitle} Resume`;
-                      } else if (currentJDInfo?.title) {
-                        suggestedName = `${currentJDInfo.title.trim()} Resume`;
-                      } else if (selectedJobMetadata?.company) {
-                        const companyName = selectedJobMetadata.company.trim();
-                        const jobTitle = selectedJobMetadata.title ? ` - ${selectedJobMetadata.title.trim()}` : '';
-                        suggestedName = `${companyName}${jobTitle} Resume`;
-                      } else if (selectedJobMetadata?.title) {
-                        suggestedName = `${selectedJobMetadata.title.trim()} Resume`;
-                      } else {
-                        suggestedName = resumeData.name ? `${resumeData.name} Resume` : 'My Resume';
-                      }
-
-                      const resumePayload = updatedResumeData ?? resumeData;
-                      const savedJobId = await handleSaveJobDescription();
-                      if (savedJobId) {
-                        await handleSaveResumeWithName({
-                          nameOverride: suggestedName,
-                          resumeOverride: resumePayload,
-                          suppressModalReset: true,
-                          jobDescriptionIdOverride: savedJobId,
-                        });
-                      }
-                    }}
-                    data-save-job-btn
-                    className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Save to Jobs</span>
-                  </button>
                 </div>
               )}
             </div>
           )}
 
-          {/* Estimated ATS (when no match result) */}
+          {/* Estimated ATS (when no match result) - Simplified */}
           {!matchResult && estimatedATS && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Estimated ATS Score</h3>
-                {isATSUpdatePending && (
-                  <span className="text-xs font-medium text-gray-500">Pending sync</span>
-                )}
-              </div>
-              <div className="text-4xl font-bold text-indigo-600 mb-2">
-                {estimatedATS?.score}%
-              </div>
-              <div className="text-sm text-gray-600 mb-4">
-                Matching {estimatedATS?.matchedKeywords?.length || 0} of {estimatedATS?.totalKeywords || 0} key terms
-              </div>
-              {estimatedATS?.missingKeywords && estimatedATS.missingKeywords.length > 0 && (
-                <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
-                  <div className="text-sm font-medium text-red-900 mb-2">Top Missing Keywords:</div>
-                  <div className="flex flex-wrap gap-2">
-                    {estimatedATS.missingKeywords.slice(0, 5).map((keyword, idx) => (
-                      <span key={keyword} className="px-2 py-1 bg-white text-red-700 text-xs rounded border border-red-200">
-                        {prettifyKeyword(keyword)}
-                      </span>
-                    ))}
-                    {estimatedATS.missingKeywords.length > 5 && (
-                      <span className="px-2 py-1 text-xs text-red-600">+{estimatedATS.missingKeywords.length - 5} more</span>
-                    )}
+            <div className="space-y-4 mt-6">
+              {/* Simple Score Display */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Estimated Match Score
+                    </div>
+                    <div className="text-4xl font-bold text-indigo-600">
+                      {estimatedATS?.score}%
+                    </div>
                   </div>
+                  {isATSUpdatePending && (
+                    <span className="text-xs font-medium text-gray-500">Pending sync</span>
+                  )}
                 </div>
-              )}
-              <p className="text-xs text-gray-500 mt-4">
-                This is an estimate. Click "Analyze Match" for a full AI-powered comparison.
-              </p>
+              </div>
+
+              {/* Missing Keywords */}
+              {(() => {
+                const companyName = currentJDInfo?.company || selectedJobMetadata?.company || null;
+                const filteredMissingKeywords = estimatedATS?.missingKeywords 
+                  ? filterIrrelevantKeywords(estimatedATS.missingKeywords, companyName)
+                  : [];
+                return filteredMissingKeywords.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                          Missing Keywords
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          Add these {filteredMissingKeywords.length} keywords to improve your match score
+                        </p>
+                      </div>
+                      {selectedKeywords.size > 0 && (
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                          <button
+                            onClick={() => {
+                              const workExpSections = resumeData.sections.filter((s: any) =>
+                                s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')
+                              );
+                              if (workExpSections.length > 0) {
+                                setSelectedWorkExpSection(workExpSections[0].id);
+                              }
+                              setShowBulletGenerator(true);
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Create Bullets ({selectedKeywords.size})
+                          </button>
+                          <button
+                            onClick={() => addKeywordsToSkillsSection(Array.from(selectedKeywords))}
+                            className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add to Skills ({selectedKeywords.size})
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {filteredMissingKeywords.map((keyword, idx) => (
+                      <label
+                        key={keyword}
+                        className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer border transition-all flex items-center gap-2 ${selectedKeywords.has(keyword)
+                          ? 'bg-red-100 text-red-800 border-red-400 font-medium'
+                          : 'bg-red-50 text-red-700 border-red-200 hover:border-red-300'
+                          }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedKeywords.has(keyword)}
+                          onChange={(e) => {
+                            const newSelected = new Set(selectedKeywords);
+                            if (e.target.checked) {
+                              newSelected.add(keyword);
+                            } else {
+                              newSelected.delete(keyword);
+                            }
+                            setSelectedKeywords(newSelected);
+                          }}
+                          className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                        />
+                        <span>{prettifyKeyword(keyword)}</span>
+                      </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
