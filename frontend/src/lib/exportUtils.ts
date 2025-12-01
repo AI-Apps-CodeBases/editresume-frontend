@@ -463,7 +463,7 @@ export async function capturePreviewHTML(): Promise<string> {
   <style>
     @page {
       size: A4;
-      margin: 0.5in;
+      margin: 0.1cm;
     }
     * {
       box-sizing: border-box;
@@ -474,12 +474,13 @@ export async function capturePreviewHTML(): Promise<string> {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       color: #000;
       background: white;
+      width: 100%;
     }
     .preview-resume-container {
       width: 100%;
-      max-width: 8.5in;
-      margin: 0 auto;
-      padding: 20px;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
       background: white;
       color: #000;
     }

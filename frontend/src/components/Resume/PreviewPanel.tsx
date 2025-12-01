@@ -206,6 +206,16 @@ export default function PreviewPanel({
   const textColor = templateConfig?.design?.colors?.text || colors.text || '#000000'
   const sectionSpacing = templateConfig?.spacing?.sectionGap || spacing.section || 16
   const bulletSpacing = templateConfig?.spacing?.itemGap || spacing.bullet || 8
+  
+  // Get bullet style from templateConfig
+  const bulletStyle = templateConfig?.design?.bulletStyle || 'circle'
+  const bulletSymbols: Record<string, string> = {
+    circle: '•',
+    square: '■',
+    dash: '—',
+    none: ''
+  }
+  const bulletSymbol = bulletSymbols[bulletStyle] || '•'
 
   const renderBullets = (bullets: any[], sectionTitle: string) => {
     // Safety check: ensure bullets is an array
@@ -375,12 +385,14 @@ export default function PreviewPanel({
                 marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`
               }}
             >
-              <span 
-                className="mr-1.5"
-                style={{ color: primaryColor }}
-              >
-                •
-              </span>
+              {bulletStyle !== 'none' && (
+                <span 
+                  className="mr-1.5"
+                  style={{ color: primaryColor }}
+                >
+                  {bulletSymbol}
+                </span>
+              )}
               <span 
                 className="flex-1" 
                 dangerouslySetInnerHTML={{ 
@@ -425,12 +437,14 @@ export default function PreviewPanel({
                   marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`
                 }}
               >
-                <span 
-                  className="mr-1.5"
-                  style={{ color: primaryColor }}
-                >
-                  •
-                </span>
+                {bulletStyle !== 'none' && (
+                  <span 
+                    className="mr-1.5"
+                    style={{ color: primaryColor }}
+                  >
+                    {bulletSymbol}
+                  </span>
+                )}
                 <span 
                   className="flex-1" 
                   dangerouslySetInnerHTML={{ 
