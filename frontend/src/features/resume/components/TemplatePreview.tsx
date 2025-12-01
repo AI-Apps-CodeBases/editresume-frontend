@@ -47,14 +47,15 @@ export function TemplatePreview({ template, resumeData, scale = 0.3 }: Props) {
     fieldsVisible: {},
   }
 
+  const containerHeight = scale >= 0.12 ? 80 : 120
   return (
-    <div className="relative w-full" style={{ height: '120px', overflow: 'hidden' }}>
+    <div className="relative w-full" style={{ height: `${containerHeight}px`, overflow: 'hidden' }}>
       <div
         className="absolute top-0 left-0 origin-top-left bg-white"
         style={{
           transform: `scale(${scale})`,
           width: `${100 / scale}%`,
-          minHeight: `${120 / scale}px`,
+          minHeight: `${containerHeight / scale}px`,
         }}
       >
         <Suspense fallback={<div className="p-4 text-center text-gray-400 text-xs">Loading...</div>}>

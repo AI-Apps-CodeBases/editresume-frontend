@@ -8,6 +8,7 @@ import AISectionAssistant from '@/components/AI/AISectionAssistant'
 import Comments from './Comments'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useModal } from '@/contexts/ModalContext'
+import Tooltip from '@/components/Shared/Tooltip'
 import {
   DndContext,
   closestCenter,
@@ -1952,14 +1953,16 @@ export default function VisualResumeEditor({
       <div className="flex-1" ref={editorRef}>
         {/* Mobile Sidebar Toggle */}
         <div className="lg:hidden fixed top-4 left-4 z-40">
-          <button
-            onClick={() => {/* TODO: Add mobile sidebar toggle */ }}
-            className="bg-white shadow-lg rounded-lg p-3 border border-gray-200 hover:bg-gray-50 transition-colors"
-          >
-            <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          <Tooltip text="Open navigation menu" color="gray" position="bottom">
+            <button
+              onClick={() => {/* TODO: Add mobile sidebar toggle */ }}
+              className="bg-white shadow-lg rounded-lg p-3 border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </Tooltip>
         </div>
 
         {/* AI Loading Indicator */}
@@ -2097,25 +2100,28 @@ export default function VisualResumeEditor({
                                 >
                                   {(data as any)[customField.field] || 'Click to edit custom title'}
                                 </div>
-                                <button
-                                  onClick={() => removeCustomTitleField(customField.id)}
-                                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity flex-shrink-0"
-                                  title="Remove this field"
-                                >
-                                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
+                                <Tooltip text="Remove this custom title field" color="gray" position="top">
+                                  <button
+                                    onClick={() => removeCustomTitleField(customField.id)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity flex-shrink-0"
+                                  >
+                                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </Tooltip>
                               </div>
                             ))}
 
                             {/* Add Title Field Button */}
-                            <button
-                              onClick={addCustomTitleField}
-                              className="w-full mt-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
-                            >
-                              + Add Title Field
-                            </button>
+                            <Tooltip text="Add a custom field to the title section" color="gray" position="top">
+                              <button
+                                onClick={addCustomTitleField}
+                                className="w-full mt-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                              >
+                                + Add Title Field
+                              </button>
+                            </Tooltip>
                           </div>
                         </SortableSectionCard>
                       )
@@ -2199,12 +2205,14 @@ export default function VisualResumeEditor({
                           </DndContext>
 
                           {/* Add Contact Field Button */}
-                          <button
-                            onClick={addCustomContactField}
-                            className="w-full mt-3 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
-                          >
-                            + Add Contact Field
-                          </button>
+                          <Tooltip text="Add a custom contact field (e.g., portfolio, blog, etc.)" color="gray" position="top">
+                            <button
+                              onClick={addCustomContactField}
+                              className="w-full mt-3 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                            >
+                              + Add Contact Field
+                            </button>
+                          </Tooltip>
                         </SortableSectionCard>
                       )
                     }
@@ -2287,23 +2295,24 @@ export default function VisualResumeEditor({
                             >
                               {data.summary || 'Write a compelling professional summary that highlights your key skills and experience...'}
                             </div>
-                            <button
-                              onClick={generateSummaryFromExperience}
-                              disabled={isSummaryGenerating || !data.sections.length}
-                              className="mt-3 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
-                              title="AI will analyze your work experience and create an ATS-optimized summary"
-                            >
-                              {isSummaryGenerating ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                  Generating...
-                                </>
-                              ) : (
-                                <>
-                                  🤖 Generate Summary
-                                </>
-                              )}
-                            </button>
+                            <Tooltip text="AI will analyze your work experience and create an ATS-optimized summary" color="gray" position="top">
+                              <button
+                                onClick={generateSummaryFromExperience}
+                                disabled={isSummaryGenerating || !data.sections.length}
+                                className="mt-3 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                              >
+                                {isSummaryGenerating ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                    Generating...
+                                  </>
+                                ) : (
+                                  <>
+                                    🤖 Generate Summary
+                                  </>
+                                )}
+                              </button>
+                            </Tooltip>
                           </div>
                         </SortableSectionCard>
                       )
@@ -2384,48 +2393,56 @@ export default function VisualResumeEditor({
                               {/* Add New Item Button - At Top */}
                               {getSectionType(section.title) !== 'skill' && (
                                 <div className="flex flex-col items-center mb-6 gap-3">
-                                  <button
-                                    onClick={() => {
-                                      if (section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work')) {
-                                        // Add new company for work experience
-                                        const newItemBullet = {
-                                          id: `company-${Date.now()}`,
-                                          text: '**New Company / Location / New Role / Date Range**',
-                                          params: {}
-                                        }
-
-                                        const sections = data.sections.map(s =>
-                                          s.id === section.id
-                                            ? {
-                                              ...s,
-                                              bullets: [newItemBullet, ...s.bullets]
-                                            }
-                                            : s
-                                        )
-                                        onChange({ ...data, sections })
-                                      } else {
-                                        // Add simple bullet point for other sections
-                                        const newBullet = {
-                                          id: `bullet-${Date.now()}`,
-                                          text: '• ',
-                                          params: {}
-                                        }
-
-                                        const sections = data.sections.map(s =>
-                                          s.id === section.id
-                                            ? {
-                                              ...s,
-                                              bullets: [newBullet, ...s.bullets]
-                                            }
-                                            : s
-                                        )
-                                        onChange({ ...data, sections })
-                                      }
-                                    }}
-                                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                                  <Tooltip 
+                                    text={section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') 
+                                      ? "Add a new work experience entry" 
+                                      : "Add a new bullet point to this section"} 
+                                    color="gray" 
+                                    position="top"
                                   >
-                                    <span>+</span> Add {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? 'Company' : 'Bullet Point'}
-                                  </button>
+                                    <button
+                                      onClick={() => {
+                                        if (section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work')) {
+                                          // Add new company for work experience
+                                          const newItemBullet = {
+                                            id: `company-${Date.now()}`,
+                                            text: '**New Company / Location / New Role / Date Range**',
+                                            params: {}
+                                          }
+
+                                          const sections = data.sections.map(s =>
+                                            s.id === section.id
+                                              ? {
+                                                ...s,
+                                                bullets: [newItemBullet, ...s.bullets]
+                                              }
+                                              : s
+                                          )
+                                          onChange({ ...data, sections })
+                                        } else {
+                                          // Add simple bullet point for other sections
+                                          const newBullet = {
+                                            id: `bullet-${Date.now()}`,
+                                            text: '• ',
+                                            params: {}
+                                          }
+
+                                          const sections = data.sections.map(s =>
+                                            s.id === section.id
+                                              ? {
+                                                ...s,
+                                                bullets: [newBullet, ...s.bullets]
+                                              }
+                                              : s
+                                          )
+                                          onChange({ ...data, sections })
+                                        }
+                                      }}
+                                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                                    >
+                                      <span>+</span> Add {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? 'Company' : 'Bullet Point'}
+                                    </button>
+                                  </Tooltip>
 
                                 </div>
                               )}
@@ -2433,27 +2450,29 @@ export default function VisualResumeEditor({
                               {/* Skills Section - Add Skill Button */}
                               {getSectionType(section.title) === 'skill' && (
                                 <div className="mb-4">
-                                  <button
-                                    onClick={() => {
-                                      const newSkill = {
-                                        id: `skill-${Date.now()}`,
-                                        text: 'New Skill',
-                                        params: { visible: true }
-                                      }
-                                      const sections = data.sections.map(s =>
-                                        s.id === section.id
-                                          ? {
-                                            ...s,
-                                            bullets: [...s.bullets, newSkill]
-                                          }
-                                          : s
-                                      )
-                                      onChange({ ...data, sections })
-                                    }}
-                                    className="px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
-                                  >
-                                    <span>+</span> Add Skill
-                                  </button>
+                                  <Tooltip text="Add a new skill to this section" color="gray" position="top">
+                                    <button
+                                      onClick={() => {
+                                        const newSkill = {
+                                          id: `skill-${Date.now()}`,
+                                          text: 'New Skill',
+                                          params: { visible: true }
+                                        }
+                                        const sections = data.sections.map(s =>
+                                          s.id === section.id
+                                            ? {
+                                              ...s,
+                                              bullets: [...s.bullets, newSkill]
+                                            }
+                                            : s
+                                        )
+                                        onChange({ ...data, sections })
+                                      }}
+                                      className="px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+                                    >
+                                      <span>+</span> Add Skill
+                                    </button>
+                                  </Tooltip>
 
                                 </div>
                               )}
@@ -2627,47 +2646,49 @@ export default function VisualResumeEditor({
 
                                         <div className="flex items-center gap-2">
 
-                                          <button
-                                            onClick={() => {
-                                              setAiWorkExperienceContext({
-                                                companyName,
-                                                location: location || '',
-                                                jobTitle,
-                                                dateRange,
-                                                sectionId: section.id,
-                                                bulletId: headerBullet.id,
-                                                mode: 'new'
-                                              })
-                                              setShowAIWorkExperience(true)
-                                            }}
-                                            className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white text-xs font-semibold rounded-lg hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 transition-all shadow-md hover:shadow-lg flex items-center gap-1.5"
-                                            title="🤖 AI Assistant - Generate work experience content"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                            </svg>
-                                            <span>AI Assistant</span>
-                                          </button>
+                                          <Tooltip text="AI Assistant - Generate work experience content using AI" color="gray" position="top">
+                                            <button
+                                              onClick={() => {
+                                                setAiWorkExperienceContext({
+                                                  companyName,
+                                                  location: location || '',
+                                                  jobTitle,
+                                                  dateRange,
+                                                  sectionId: section.id,
+                                                  bulletId: headerBullet.id,
+                                                  mode: 'new'
+                                                })
+                                                setShowAIWorkExperience(true)
+                                              }}
+                                              className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white text-xs font-semibold rounded-lg hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 transition-all shadow-md hover:shadow-lg flex items-center gap-1.5"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                              </svg>
+                                              <span>AI Assistant</span>
+                                            </button>
+                                          </Tooltip>
 
-                                          <button
-                                            onClick={() => {
-                                              const companyBulletIds = companyBullets.map(b => b.id)
-                                              const updatedBullets = section.bullets.filter(b =>
-                                                b.id !== headerBullet.id && !companyBulletIds.includes(b.id)
-                                              )
-                                              const sections = data.sections.map(s =>
-                                                s.id === section.id ? { ...s, bullets: updatedBullets } : s
-                                              )
-                                              onChange({ ...data, sections })
-                                            }}
-                                            className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 text-xs transition-all shadow-sm hover:shadow-md"
-                                            title="Delete company panel"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                            <span>Delete Company</span>
-                                          </button>
+                                          <Tooltip text="Delete this company and all its bullet points" color="gray" position="top">
+                                            <button
+                                              onClick={() => {
+                                                const companyBulletIds = companyBullets.map(b => b.id)
+                                                const updatedBullets = section.bullets.filter(b =>
+                                                  b.id !== headerBullet.id && !companyBulletIds.includes(b.id)
+                                                )
+                                                const sections = data.sections.map(s =>
+                                                  s.id === section.id ? { ...s, bullets: updatedBullets } : s
+                                                )
+                                                onChange({ ...data, sections })
+                                              }}
+                                              className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 text-xs transition-all shadow-sm hover:shadow-md"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                              </svg>
+                                              <span>Delete Company</span>
+                                            </button>
+                                          </Tooltip>
                                         </div>
                                       </div>
 
