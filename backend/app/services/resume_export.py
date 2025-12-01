@@ -80,16 +80,22 @@ async def export_pdf(
         replacements = payload.replacements or {}
         template_id = payload.template or "tech"
         template_style = TEMPLATES.get(template_id, TEMPLATES["tech"])
-        template_config = payload.templateConfig or {}
+        template_config = payload.templateConfig if payload.templateConfig is not None else {}
 
         logger.info(f"Exporting PDF with template: {template_id}")
         logger.info(f"Template config provided: {bool(template_config)}")
+        logger.info(f"Template config type: {type(template_config)}")
+        logger.info(f"Template config keys: {list(template_config.keys()) if isinstance(template_config, dict) else 'N/A'}")
+        if isinstance(template_config, dict) and template_config.get("typography"):
+            typo = template_config.get("typography", {})
+            font_sizes = typo.get("fontSize", {})
+            logger.info(f"Font sizes in config: h1={font_sizes.get('h1')}, h2={font_sizes.get('h2')}, body={font_sizes.get('body')}")
         logger.info(
             f"Two-column settings: left={payload.two_column_left}, right={payload.two_column_right}, width={payload.two_column_left_width}"
         )
 
-        # Use templateConfig if available, otherwise fall back to template lookup
-        if template_config:
+        # Use templateConfig if available and not empty, otherwise fall back to template lookup
+        if template_config and isinstance(template_config, dict) and len(template_config) > 0:
             # Typography
             typography = template_config.get("typography", {})
             font_family_heading = typography.get("fontFamily", {}).get("heading", "Arial")
@@ -99,14 +105,29 @@ async def export_pdf(
             # Design
             design = template_config.get("design", {})
             header_style = design.get("headerStyle", "left-aligned")
-            header_align = "center" if header_style == "centered" else "left"
+            # Match frontend logic: center if headerStyle is 'centered' OR template is one of: clean, two-column, compact, classic
+            templates_that_center = ["clean", "two-column", "compact", "classic"]
+            header_align = "center" if (header_style == "centered" or template_id in templates_that_center) else "left"
             header_border = "2px solid #000" if design.get("dividers", True) else "none"
             section_uppercase = "text-transform: uppercase;" if design.get("sectionUppercase", False) else ""
+            
+            # Bullet style
+            bullet_style = design.get("bulletStyle", "circle")
+            bullet_symbols = {
+                "circle": "•",
+                "square": "■",
+                "dash": "—",
+                "none": ""
+            }
+            bullet_symbol = bullet_symbols.get(bullet_style, "•")
             
             # Layout
             layout_config = template_config.get("layout", {})
             layout_columns = layout_config.get("columns", "single")
             layout = "two-column" if layout_columns in ["two-column", "asymmetric"] else "single"
+            # Get column width from templateConfig if available
+            template_column_width = layout_config.get("columnWidth")
+            logger.info(f"Layout config: columns={layout_columns}, columnWidth from templateConfig={template_column_width}")
             
             # Colors
             colors = design.get("colors", {})
@@ -117,12 +138,19 @@ async def export_pdf(
             spacing_config = template_config.get("spacing", {})
             section_gap = spacing_config.get("sectionGap", 15)
             item_gap = spacing_config.get("itemGap", 6)
+            page_margin = spacing_config.get("pageMargin", 24)
             
             # Font sizes
             h1_size = typography.get("fontSize", {}).get("h1", 24)
             h2_size = typography.get("fontSize", {}).get("h2", 12)
             body_size = typography.get("fontSize", {}).get("body", 11)
             line_height = typography.get("lineHeight", 1.4)
+            
+            logger.info(f"Using templateConfig values:")
+            logger.info(f"  Font sizes: h1={h1_size}px, h2={h2_size}px, body={body_size}px, lineHeight={line_height}")
+            logger.info(f"  Spacing: sectionGap={section_gap}px, itemGap={item_gap}px, pageMargin={page_margin}px")
+            logger.info(f"  Colors: primary={primary_color}, text={text_color}")
+            logger.info(f"  Layout: columns={layout_columns}, columnWidth={template_column_width}")
         else:
             # Fallback to template lookup
             font_family = template_style["styles"]["font"]
@@ -142,6 +170,17 @@ async def export_pdf(
             h2_size = 12
             body_size = 11
             line_height = 1.4
+            # Default bullet style for fallback
+            bullet_style = "circle"
+            bullet_symbols = {
+                "circle": "•",
+                "square": "■",
+                "dash": "—",
+                "none": ""
+            }
+            bullet_symbol = bullet_symbols.get(bullet_style, "•")
+            
+            logger.info(f"Using fallback font sizes: h1={h1_size}px, h2={h2_size}px, body={body_size}px, lineHeight={line_height}")
 
         # Build HTML content sections
         contact_info = apply_replacements(payload.email or "", replacements)
@@ -326,10 +365,24 @@ async def export_pdf(
                         right_sections_html += section_html
 
             # Calculate column widths with spacing
-            left_width_percent = payload.two_column_left_width or 50
+            # Use templateConfig columnWidth if available, otherwise use payload value, otherwise default to 50
+            if template_config and isinstance(template_config, dict):
+                layout_config = template_config.get("layout", {})
+                template_column_width = layout_config.get("columnWidth")
+                if template_column_width is not None:
+                    left_width_percent = template_column_width
+                    logger.info(f"Using column width from templateConfig: {left_width_percent}%")
+                else:
+                    left_width_percent = payload.two_column_left_width or 50
+                    logger.info(f"templateConfig columnWidth not found, using payload value: {left_width_percent}%")
+            else:
+                left_width_percent = payload.two_column_left_width or 50
+                logger.info(f"No templateConfig, using payload value: {left_width_percent}%")
+            
             gap_percent = 2
             # Adjust right width to account for gap
             right_width_percent = 100 - left_width_percent - gap_percent
+            logger.info(f"Final column widths: left={left_width_percent}%, right={right_width_percent}% (gap={gap_percent}%)")
 
             content_html = f"""
             {cover_letter_html}
@@ -392,11 +445,16 @@ async def export_pdf(
                         </div>"""
             content_html = cover_letter_html + summary_html + sections_html
 
-        # Get page margin from templateConfig
-        # For cover letter only, use larger margins for professional appearance
-        base_page_margin = template_config.get("spacing", {}).get("pageMargin", 24) if template_config else 24
-        page_margin = base_page_margin + 20 if is_cover_letter_only else base_page_margin
-        page_margin_cm = f"{page_margin / 10:.1f}cm"  # Convert from px to cm (assuming 1cm ≈ 10px)
+        # Set minimal page margin to fill entire A4 page
+        # Use very small margin (0.1cm) to maximize content area while avoiding PDF rendering issues
+        page_margin_cm = "0.1cm"
+        logger.info(f"Page margin set to 0.1cm to fill entire A4 page")
+        
+        # Build bullet CSS based on bullet style
+        bullet_css = ""
+        if bullet_style != 'none':
+            bullet_css = f'.section li::before {{ content: "{bullet_symbol}"; font-weight: bold; color: {primary_color}; position: absolute; left: 0; top: 0; }}'
+        bullet_padding = "padding-left: 14px;" if bullet_style != 'none' else "padding-left: 0;"
         
         html_content = f"""<!DOCTYPE html>
 <html>
@@ -404,25 +462,29 @@ async def export_pdf(
     <meta charset="utf-8">
     <style>
         @page {{ size: A4; margin: {page_margin_cm}; }}
-        body {{ font-family: {font_family}; font-size: {body_size}pt; line-height: {line_height}; color: {text_color}; {'text-align: justify;' if is_cover_letter_only else ''} }}
+        body {{ margin: 0; padding: 0 0 0 0.3cm; width: 100%; font-family: {font_family}; font-size: {body_size}px; line-height: {line_height}; color: {text_color}; {'text-align: justify;' if is_cover_letter_only else ''} }}
         .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: {section_gap}px; }}
-        .header h1 {{ margin: 0; font-size: {h1_size}pt; font-weight: bold; color: {primary_color}; }}
-        .header .title {{ font-size: {h2_size + 2}pt; margin: 5px 0; color: {text_color}; }}
-        .header .contact {{ font-size: {body_size}pt; color: {text_color}; margin-top: 5px; }}
-        .summary {{ margin-bottom: {section_gap}px; font-size: {body_size}pt; line-height: {line_height}; color: {text_color}; }}
+        .header h1 {{ margin: 0; font-size: {h1_size}px; font-weight: bold; color: {primary_color}; }}
+        .header .title {{ font-size: {h2_size + 2}px; margin: 5px 0; color: {text_color}; }}
+        .header .contact {{ font-size: {body_size}px; color: {text_color}; margin-top: 5px; }}
+        .summary {{ margin-bottom: {section_gap}px; font-size: {body_size}px; line-height: {line_height}; color: {text_color}; }}
         .section {{ margin-bottom: {section_gap}px; }}
-        .section h2 {{ font-size: {h2_size}pt; font-weight: bold; color: {primary_color}; {section_uppercase}
+        .section h2 {{ font-size: {h2_size}px; font-weight: bold; color: {primary_color}; {section_uppercase}
                        border-bottom: 1px solid {primary_color}; padding-bottom: 3px; margin-bottom: 8px; }}
         .section ul {{ margin: 0; padding-left: 0; list-style: none; }}
-        .section li {{ margin-bottom: {item_gap}px; font-size: {body_size}pt; color: {text_color}; position: relative; padding-left: 14px; }}
-        .section li::before {{ content: "•"; font-weight: bold; color: {primary_color}; position: absolute; left: 0; top: 0; }}
+        .section li {{ margin-bottom: {item_gap}px; font-size: {body_size}px; color: {text_color}; position: relative; {bullet_padding} }}
+        {bullet_css}
+        .section li * {{ display: inline; }}
+        .section li strong {{ font-weight: bold; }}
+        .company-name-line strong {{ font-weight: bold; }}
+        .job-title strong {{ font-weight: bold; }}
         .job-entry {{ margin-bottom: 20px; }}
         .company-header {{ margin-bottom: 8px; }}
         .company-name-line {{ font-weight: bold; font-size: 1.1em; color: {primary_color}; margin-bottom: 3px; }}
-        .company-title-line {{ display: flex; justify-content: space-between; align-items: center; font-size: {body_size}pt; }}
+        .company-title-line {{ display: flex; justify-content: space-between; align-items: center; font-size: {body_size}px; }}
         .job-title {{ font-weight: 500; color: {text_color}; }}
-        .job-date {{ color: #666666; font-size: {body_size - 1}pt; }}
-        .skills-section {{ font-size: {body_size}pt; color: {text_color}; line-height: {line_height}; }}
+        .job-date {{ color: #666666; font-size: {body_size - 1}px; }}
+        .skills-section {{ font-size: {body_size}px; color: {text_color}; line-height: {line_height}; }}
         .job-separator {{ height: 10px; }}
         .two-column {{ 
             width: 100%; 
@@ -439,7 +501,7 @@ async def export_pdf(
         .clearfix {{ clear: both; }}
         .cover-letter-section {{ margin-bottom: 20px; {'page-break-after: always;' if not is_cover_letter_only else ''} }}
         .cover-letter-section h2 {{ 
-            font-size: {h2_size + 4 if is_cover_letter_only else h2_size + 2}pt; 
+            font-size: {h2_size + 4 if is_cover_letter_only else h2_size + 2}px; 
             font-weight: bold; 
             margin-bottom: 15px; 
             {'border-bottom: 2px solid ' + primary_color + ';' if not is_cover_letter_only else ''} 
@@ -447,7 +509,7 @@ async def export_pdf(
             {'color: ' + primary_color + ';' if not is_cover_letter_only else ''} 
         }}
         .cover-letter-content {{ 
-            font-size: {body_size + 2 if is_cover_letter_only else body_size + 1}pt; 
+            font-size: {body_size + 2 if is_cover_letter_only else body_size + 1}px; 
             line-height: {line_height + 0.2 if is_cover_letter_only else line_height}; 
             text-align: justify; 
             margin-top: {20 if is_cover_letter_only else 0}px; 
@@ -462,6 +524,12 @@ async def export_pdf(
 
         logger.info(f"Generated HTML length: {len(html_content)}")
         logger.info(f"Layout type: {layout}")
+        
+        # Final cleanup: remove any remaining ** characters that might have slipped through
+        # This ensures no ** characters appear in the final PDF
+        # Do this multiple times to catch nested or edge cases
+        while '**' in html_content:
+            html_content = html_content.replace('**', '')
 
         pdf_bytes = HTML(string=html_content).write_pdf()
         logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes")
@@ -561,7 +629,9 @@ async def export_docx(
             
             design = template_config.get("design", {})
             header_style = design.get("headerStyle", "left-aligned")
-            header_align = "center" if header_style == "centered" else "left"
+            # Match frontend logic: center if headerStyle is 'centered' OR template is one of: clean, two-column, compact, classic
+            templates_that_center = ["clean", "two-column", "compact", "classic"]
+            header_align = "center" if (header_style == "centered" or template_id in templates_that_center) else "left"
             
             spacing_config = template_config.get("spacing", {})
             page_margin = spacing_config.get("pageMargin", 24)
