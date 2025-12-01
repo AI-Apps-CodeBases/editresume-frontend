@@ -330,6 +330,7 @@ async def create_version(
             resume_data=payload.resume_data,
             change_summary=payload.change_summary,
             is_auto_save=payload.is_auto_save,
+            tokens_used=payload.tokens_used,
         )
 
         return {

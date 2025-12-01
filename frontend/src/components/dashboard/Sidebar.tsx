@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Users, Mail, ChevronRight } from 'lucide-react'
+import { Home, Users, Mail, MessageSquare, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
@@ -27,6 +27,12 @@ const menuItems = [
         title: 'Email',
         icon: Mail,
         href: '/dashboard/email',
+        hasSubmenu: false
+    },
+    {
+        title: 'Feedback',
+        icon: MessageSquare,
+        href: '/dashboard/feedback',
         hasSubmenu: false
     }
 ]

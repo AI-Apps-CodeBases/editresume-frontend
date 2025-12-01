@@ -244,3 +244,21 @@ def migrate_schema() -> None:
                     )
                 )
                 conn.commit()
+
+        # Add tokens_used column to resume_versions if it doesn't exist
+        result = conn.execute(
+            text(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='resume_versions' AND column_name='tokens_used'
+                """
+            )
+        )
+        row = result.fetchone()
+        if not row:
+            conn.execute(
+                text(
+                    "ALTER TABLE resume_versions ADD COLUMN tokens_used INTEGER DEFAULT 0"
+                )
+            )
+            conn.commit()

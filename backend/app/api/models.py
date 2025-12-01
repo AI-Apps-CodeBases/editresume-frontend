@@ -142,6 +142,7 @@ class CreateVersionPayload(BaseModel):
     resume_data: Dict[str, Any]
     change_summary: Optional[str] = None
     is_auto_save: bool = False
+    tokens_used: Optional[int] = None  # Track OpenAI token usage
 
 
 class RollbackVersionPayload(BaseModel):

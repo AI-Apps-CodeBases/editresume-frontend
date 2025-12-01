@@ -6,7 +6,6 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, extract, case, cast, Integer, text
@@ -14,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.firebase_admin import verify_id_token
-from app.models import User, Resume, ResumeVersion, ExportAnalytics, VisitorAnalytics
+from app.models import User, Resume, ResumeVersion, ExportAnalytics, VisitorAnalytics, Feedback
 
 logger = logging.getLogger(__name__)
 
@@ -110,13 +109,19 @@ async def get_dashboard_stats(
         resumes_last_30 = resume_stats_result.resumes_last_30 or 0
         resumes_previous_30 = resume_stats_result.resumes_previous_30 or 0
         
-        # Expense calculation (OpenAI API costs)
-        estimated_tokens = total_resumes * 2000
-        total_expense = round(estimated_tokens * 0.0003 / 1000, 2)
-        estimated_tokens_last_30 = resumes_last_30 * 2000
-        expense_last_30 = round(estimated_tokens_last_30 * 0.0003 / 1000, 2)
-        estimated_tokens_previous_30 = resumes_previous_30 * 2000
-        expense_previous_30 = round(estimated_tokens_previous_30 * 0.0003 / 1000, 2)
+        # Expense calculation (OpenAI API costs) - Use actual token usage from database
+        total_tokens = db.query(func.sum(ResumeVersion.tokens_used)).scalar() or 0
+        tokens_last_30 = db.query(func.sum(ResumeVersion.tokens_used)).filter(
+            ResumeVersion.created_at >= thirty_days_ago
+        ).scalar() or 0
+        tokens_previous_30 = db.query(func.sum(ResumeVersion.tokens_used)).filter(
+            ResumeVersion.created_at >= sixty_days_ago,
+            ResumeVersion.created_at < thirty_days_ago
+        ).scalar() or 0
+        
+        total_expense = round(total_tokens * 0.0003 / 1000, 2)
+        expense_last_30 = round(tokens_last_30 * 0.0003 / 1000, 2)
+        expense_previous_30 = round(tokens_previous_30 * 0.0003 / 1000, 2)
         expense_change = round(expense_last_30 - expense_previous_30, 2)
         
         return {
@@ -539,6 +544,82 @@ async def get_users(
         raise HTTPException(status_code=500, detail="Failed to fetch users")
 
 
+@router.get("/users/{user_id}")
+async def get_user_details(
+    user_id: int,
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Get detailed user information including token usage, activity dates, etc."""
+    try:
+        # Get user
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get total resume count
+        total_resumes = db.query(func.count(Resume.id)).filter(
+            Resume.user_id == user_id
+        ).scalar() or 0
+        
+        # Get total resume versions (for token calculation)
+        total_versions = db.query(func.count(ResumeVersion.id)).filter(
+            ResumeVersion.user_id == user_id
+        ).scalar() or 0
+        
+        # Calculate token usage more realistically:
+        # - max_tokens is set to 1000 in content generation
+        # - But actual usage is usually 300-600 tokens per generation
+        # - Not all versions use AI (some are manual edits/auto-saves)
+        # - Estimate: ~500 tokens per version (conservative average)
+        total_tokens = total_versions * 500
+        
+        # Get last login (from VisitorAnalytics - most recent activity)
+        last_login = db.query(func.max(VisitorAnalytics.created_at)).filter(
+            VisitorAnalytics.user_id == user_id
+        ).scalar()
+        
+        # Get first activity date (earliest resume or resume version creation)
+        first_resume_date = db.query(func.min(Resume.created_at)).filter(
+            Resume.user_id == user_id
+        ).scalar()
+        
+        first_version_date = db.query(func.min(ResumeVersion.created_at)).filter(
+            ResumeVersion.user_id == user_id
+        ).scalar()
+        
+        # First activity is the earliest of resume creation or version creation
+        first_activity_date = None
+        if first_resume_date and first_version_date:
+            first_activity_date = min(first_resume_date, first_version_date)
+        elif first_resume_date:
+            first_activity_date = first_resume_date
+        elif first_version_date:
+            first_activity_date = first_version_date
+        
+        return {
+            "id": str(user.id),
+            "name": user.name or "Unknown",
+            "email": user.email,
+            "plan": "Premium" if user.is_premium else "Free",
+            "joinDate": user.created_at.strftime("%d %b %Y") if user.created_at else "",
+            "joinDateRaw": user.created_at.isoformat() if user.created_at else None,
+            "status": "Active" if user.is_premium else "Inactive",
+            "totalResumes": total_resumes,
+            "totalTokens": total_tokens,
+            "totalVersions": total_versions,
+            "lastLogin": last_login.isoformat() if last_login else None,
+            "lastLoginFormatted": last_login.strftime("%d %b %Y %H:%M") if last_login else "Never",
+            "firstActivityDate": first_activity_date.isoformat() if first_activity_date else None,
+            "firstActivityDateFormatted": first_activity_date.strftime("%d %b %Y") if first_activity_date else "No activity",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching user details: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch user details")
+
+
 @router.get("/content-generation")
 async def get_content_generation_data(
     db: Session = Depends(get_db),
@@ -566,13 +647,22 @@ async def get_content_generation_data(
         # Build result array for all 12 months
         content_by_month = []
         for month_num in range(1, 13):
-            version_count = content_dict.get(month_num, 0)
-            # Estimate tokens: each version generation uses ~2000 tokens
-            estimated_tokens = version_count * 2000
+            month_start = datetime(current_year, month_num, 1)
+            if month_num == 12:
+                month_end = datetime(current_year + 1, 1, 1)
+            else:
+                month_end = datetime(current_year, month_num + 1, 1)
+            
+            # Get actual token usage for this month from database
+            estimated_tokens = db.query(func.sum(ResumeVersion.tokens_used)).filter(
+                ResumeVersion.created_at >= month_start,
+                ResumeVersion.created_at < month_end
+            ).scalar() or 0
             
             content_by_month.append({
                 "date": months[month_num - 1],
-                "word": estimated_tokens,  # Using "word" as key to match frontend
+                "word": estimated_tokens or 0,  # Using "word" as key to match frontend
+                "image": 0,  # Placeholder for future image generation tracking
             })
         
         return content_by_month
@@ -582,42 +672,54 @@ async def get_content_generation_data(
 
 
 @router.get("/feedback")
-async def get_feedback(
+async def get_feedback_list(
     db: Session = Depends(get_db),
     token: dict = Depends(verify_admin_token),
-    limit: int = 50,
+    page: int = 1,
+    limit: int = 20,
+    category: Optional[str] = None,
 ):
-    """Get all feedbacks for dashboard display"""
-    logger.info("=" * 50)
-    logger.info("Dashboard feedback endpoint CALLED!")
-    logger.info(f"Token email: {token.get('email', 'N/A')}")
-    logger.info("=" * 50)
+    """Get paginated list of feedbacks for dashboard"""
     try:
-        from app.models.feedback import Feedback
+        query = db.query(Feedback)
         
-        feedbacks = db.query(Feedback).order_by(
-            Feedback.created_at.desc()
-        ).limit(limit).all()
+        # Apply category filter
+        if category and category.lower() != 'all':
+            query = query.filter(Feedback.category == category.lower())
         
-        logger.info(f"Fetched {len(feedbacks)} feedbacks for dashboard")
+        # Get total count before pagination
+        total_feedbacks = query.count()
         
-        result = [
+        # Apply pagination
+        offset = (page - 1) * limit
+        feedbacks = query.order_by(Feedback.created_at.desc()).offset(offset).limit(limit).all()
+        
+        # Format feedbacks for frontend
+        formatted_feedbacks = [
             {
                 "id": feedback.id,
-                "user_email": feedback.user_email,
+                "userEmail": feedback.user_email or "Anonymous",
                 "rating": feedback.rating,
                 "feedback": feedback.feedback,
-                "category": feedback.category,
-                "page_url": feedback.page_url,
-                "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+                "category": feedback.category or "general",
+                "pageUrl": feedback.page_url,
+                "createdAt": feedback.created_at.strftime("%d %b %Y %H:%M") if feedback.created_at else "",
+                "createdAtRaw": feedback.created_at.isoformat() if feedback.created_at else None,
             }
             for feedback in feedbacks
         ]
         
-        return result
+        total_pages = (total_feedbacks + limit - 1) // limit if limit > 0 else 1
+        
+        return {
+            "feedbacks": formatted_feedbacks,
+            "totalFeedbacks": total_feedbacks,
+            "currentPage": page,
+            "totalPages": total_pages,
+        }
     except Exception as e:
-        logger.error(f"Error fetching feedback: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to fetch feedback")
+        logger.error(f"Error fetching feedback list: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch feedback list")
 
 
 @router.delete("/feedback/{feedback_id}")

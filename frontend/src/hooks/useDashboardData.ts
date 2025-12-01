@@ -135,7 +135,16 @@ export const useDashboardData = () => {
                 // Update content generation data
                 if (contentGenRes.status === 'fulfilled' && contentGenRes.value.ok) {
                     const data = await contentGenRes.value.json()
-                    setContentGenData(data)
+                    console.log('Content generation data:', data) // Debug log
+                    // Ensure data has the correct format with word and image fields
+                    const formattedData = Array.isArray(data) ? data.map(item => ({
+                        date: item.date || '',
+                        word: item.word || 0,
+                        image: item.image || 0
+                    })) : []
+                    setContentGenData(formattedData)
+                } else {
+                    console.error('Content generation API error:', contentGenRes.status === 'rejected' ? contentGenRes.reason : 'Response not OK')
                 }
 
                 // Update latest users

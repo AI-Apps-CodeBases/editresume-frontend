@@ -25,8 +25,8 @@ export function UserOverviewChart({ data }: UserOverviewChartProps) {
                 </select>
             </div>
 
-            <div className="h-[200px] w-full relative min-w-0">
-                <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+            <div className="h-[200px] w-full min-w-0 relative">
+                <ResponsiveContainer width="100%" height="100%" minHeight={200} minWidth={0}>
                     <PieChart>
                         <Pie
                             data={pieData}
