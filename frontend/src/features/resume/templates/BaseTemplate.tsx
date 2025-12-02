@@ -91,12 +91,26 @@ export function renderBulletPoints(
         } else {
           // Regular bullet point
           let cleanText = item.bullet.text
+          // Remove leading bullet markers
           if (cleanText.startsWith('• ')) cleanText = cleanText.substring(2)
           else if (cleanText.startsWith('•')) cleanText = cleanText.substring(1)
           else if (cleanText.startsWith('- ')) cleanText = cleanText.substring(2)
+          else if (cleanText.startsWith('* ')) cleanText = cleanText.substring(2)
 
-          const processedText = applyReplacements(cleanText, replacements)
+          // Convert **text** to <strong>text</strong> first
+          let processedText = applyReplacements(cleanText, replacements)
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          
+          // Remove ALL bullet characters from anywhere in the text (not just at start)
+          // This ensures no bullet characters appear in the content when we're using CSS bullets
+          const bulletChars = ['•', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽', '■']
+          bulletChars.forEach(char => {
+            processedText = processedText.replace(new RegExp(char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '')
+          })
+          
+          // Remove any remaining standalone * characters (not part of HTML tags)
+          // This handles cases where * appears in the text after conversion
+          processedText = processedText.replace(/\*(?![*<>/])/g, '')
 
           return (
             <div key={item.bullet.id} className="flex items-start gap-2" style={{ paddingLeft: style === 'none' ? 0 : '1.5rem' }}>

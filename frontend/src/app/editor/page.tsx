@@ -2037,7 +2037,12 @@ const EditorPageContent = () => {
 
   // Handler for New Resume button
   const handleNewResume = () => {
-    setShowWizard(true)
+    // Clear any cached resume data
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('resumeData')
+      // Navigate to the new resume flow
+      router.push('/editor?new=true')
+    }
   }
 
   // Handler for AI Content Wizard from sidebar
