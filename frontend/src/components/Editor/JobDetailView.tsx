@@ -489,7 +489,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         id: letter.id,
         content: letter.content,
         title: letter.title,
-        jobId: jobId
+        jobId: jobId,
+        companyName: job?.company || '',
+        positionTitle: job?.title || ''
       }))
       
       // Dispatch event to notify editor page
