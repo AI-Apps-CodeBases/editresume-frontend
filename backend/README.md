@@ -175,9 +175,28 @@ OPENAI_API_KEY=sk-your-key-here
 
 ### 2. Install Dependencies
 
+#### macOS Users (Required for PDF Export)
+
+WeasyPrint requires system libraries. Install via Homebrew:
+
 ```bash
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install required system libraries
+brew install cairo pango gdk-pixbuf libffi
+
+# Then install Python dependencies
 pip install -r requirements.txt
 ```
+
+#### Linux/Docker Users
+
+System dependencies are included in Dockerfiles. No additional setup needed.
+
+#### Windows Users
+
+Install dependencies using the Windows installer packages for Cairo and Pango, or use WSL.
 
 ### 3. Start the Application
 

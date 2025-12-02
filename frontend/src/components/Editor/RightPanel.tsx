@@ -215,14 +215,16 @@ export default function RightPanel({
         )}
 
         {activeTab === 'match' && resumeData && (
-          <div className="h-full overflow-y-auto custom-scrollbar">
-            <JobDescriptionMatcher
-              resumeData={resumeData}
-              onResumeUpdate={onResumeUpdate}
-              standalone={false}
-              initialJobDescription={deepLinkedJD || undefined}
-              currentJobDescriptionId={activeJobDescriptionId || undefined}
-            />
+          <div className="h-full overflow-hidden flex flex-col">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
+              <JobDescriptionMatcher
+                resumeData={resumeData}
+                onResumeUpdate={onResumeUpdate}
+                standalone={false}
+                initialJobDescription={deepLinkedJD || undefined}
+                currentJobDescriptionId={activeJobDescriptionId || undefined}
+              />
+            </div>
           </div>
         )}
 
@@ -269,6 +271,7 @@ export default function RightPanel({
                     replacements={{}}
                     template={template}
                     templateConfig={templateConfig}
+                    constrained={true}
                   />
                 </div>
               </div>

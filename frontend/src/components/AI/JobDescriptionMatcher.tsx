@@ -3402,14 +3402,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       : 'Score Pending';
 
   const content = (
-    <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+    <div className={`p-3 sm:p-6 w-full max-w-full overflow-x-hidden ${standalone ? 'overflow-y-auto max-h-[calc(90vh-80px)]' : ''}`}>
       {/* Match Results (if available) - Moved to top */}
       {matchResult && (
         <div className="space-y-6 mb-6">
           {/* ATS Score Header */}
-          <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
+          <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 p-3 sm:p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                 <div className="relative inline-flex h-20 w-20 flex-shrink-0 items-center justify-center">
                   <svg viewBox="0 0 120 120" className="h-full w-full">
                     <circle
@@ -3470,13 +3470,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
                 <Tooltip text="Save this job description with your current resume version to the Jobs section" color="green" position="bottom">
                   <button
                     data-save-job-btn
                     onClick={handleSaveJobDescription}
                     disabled={!jobDescription.trim()}
-                    className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 whitespace-nowrap"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -3488,7 +3488,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   <button
                     onClick={analyzeMatch}
                     disabled={isAnalyzing || !jobDescription.trim()}
-                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                   >
                     {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
                   </button>
@@ -3497,7 +3497,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 <button
                   onClick={handleManualATSRefresh}
                   disabled={isManualATSRefreshing || !resumeData}
-                  className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap"
                 >
                   {isManualATSRefreshing ? 'Refreshing...' : 'Refresh'}
                 </button>
@@ -3512,8 +3512,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           </div>
 
           {/* Key Metrics */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
               <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                 Keyword Coverage
               </div>
@@ -3526,7 +3526,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               )}
             </div>
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <div className="bg-blue-50 rounded-lg p-3 sm:p-4 border border-blue-200">
               <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
                 Estimated Fit
               </div>
@@ -3922,7 +3922,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         </div>
       )}
 
-      <div className={`grid grid-cols-1 gap-6 ${shouldUseSingleColumnLayout ? 'lg:grid-cols-1' : 'lg:grid-cols-2'}`}>
+      <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${shouldUseSingleColumnLayout ? 'lg:grid-cols-1' : 'xl:grid-cols-2'}`}>
         {/* Left Column: Job Description Input */}
         <div className="space-y-4">
           {/* High-Frequency Keywords (Most Important for ATS) */}

@@ -1487,17 +1487,34 @@ const EditorPageContent = () => {
       console.log('Export payload two-column settings:', debugInfo)
 
       if (response.ok) {
+        const contentType = response.headers.get('content-type')
         const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        const downloadExtension = exportFormat
         const downloadNameBase = isCoverLetterExport ? (resumeData.name || 'cover_letter') : (resumeData.name || 'resume')
-        a.href = url
-        a.download = `${downloadNameBase}.${downloadExtension}`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
+        
+        if (exportFormat === 'pdf') {
+          try {
+            const { validateAndSavePDF } = await import('@/lib/pdfValidation')
+            await validateAndSavePDF(blob, `${downloadNameBase}.pdf`, contentType)
+          } catch (pdfError) {
+            console.error('PDF validation failed:', pdfError)
+            await showAlert({
+              type: 'error',
+              message: pdfError instanceof Error ? pdfError.message : 'Failed to validate PDF file. Please try again.',
+              title: 'Export Failed'
+            })
+            return
+          }
+        } else {
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          const downloadExtension = exportFormat
+          a.href = url
+          a.download = `${downloadNameBase}.${downloadExtension}`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+        }
       } else {
         const errorText = await response.text()
         console.error('Export failed:', response.status, errorText)

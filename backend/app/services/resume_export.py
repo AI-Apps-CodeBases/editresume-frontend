@@ -81,7 +81,16 @@ async def export_pdf(
 ) -> Response:
     """Export resume as PDF"""
     try:
+        import weasyprint
         from weasyprint import HTML
+        
+        weasyprint_version = weasyprint.__version__
+        logger.info(f"WeasyPrint version: {weasyprint_version}")
+        
+        if weasyprint_version.startswith("62."):
+            logger.error(
+                f"WeasyPrint {weasyprint_version} has known bugs. Please upgrade to 63.0+ using: pip install --upgrade 'weasyprint>=63.0'"
+            )
 
         replacements = payload.replacements or {}
         template_id = payload.template or "tech"
@@ -582,8 +591,58 @@ async def export_pdf(
         while '**' in html_content:
             html_content = html_content.replace('**', '')
 
-        pdf_bytes = HTML(string=html_content).write_pdf()
-        logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes")
+        try:
+            pdf_bytes = HTML(string=html_content).write_pdf()
+            
+            if not pdf_bytes or len(pdf_bytes) == 0:
+                logger.error("PDF generation returned empty bytes")
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed: Empty PDF file was generated. Please check your resume content."
+                )
+            
+            if not isinstance(pdf_bytes, bytes):
+                logger.error(f"PDF generation returned invalid type: {type(pdf_bytes)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed: Invalid PDF data type."
+                )
+            
+            if not pdf_bytes.startswith(b"%PDF-"):
+                logger.error(f"PDF validation failed: Invalid PDF header. First 20 bytes: {pdf_bytes[:20]}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed: Generated file is not a valid PDF. Please try again or contact support."
+                )
+            
+            logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes, header: {pdf_bytes[:8]}")
+        except AttributeError as e:
+            if "'super' object has no attribute" in str(e) or "transform" in str(e):
+                logger.error(f"WeasyPrint compatibility error: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed due to a compatibility issue. Please upgrade WeasyPrint to 63.0+ or contact support."
+                )
+            raise
+        except Exception as pdf_error:
+            error_msg = str(pdf_error)
+            logger.error(f"WeasyPrint PDF generation error: {error_msg}")
+            
+            if "transform" in error_msg.lower() or "super" in error_msg.lower():
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed due to a compatibility issue. Please upgrade WeasyPrint to 63.0+ or contact support."
+                )
+            elif "font" in error_msg.lower() or "glyph" in error_msg.lower():
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed due to font issues. Please try a different font or contact support."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"PDF generation failed: {error_msg}. Please check your resume content and try again."
+                )
 
         # Track export analytics
         if user_email and db:
@@ -635,12 +694,30 @@ async def export_pdf(
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename=resume.pdf"},
         )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"PDF export validation error: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid resume data: {str(e)}"
+        )
     except Exception as e:
-        logger.error(f"PDF export error: {str(e)}")
+        error_msg = str(e)
+        logger.error(f"PDF export error: {error_msg}")
         import traceback
-
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(e))
+        
+        if "template" in error_msg.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid template configuration. Please select a valid template and try again."
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="An error occurred while generating the PDF. Please try again or contact support if the issue persists."
+            )
 
 
 async def export_docx(
