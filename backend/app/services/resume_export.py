@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from io import BytesIO
 from typing import Optional
@@ -29,41 +30,46 @@ def replace_cover_letter_placeholders(content: str, payload: ExportPayload) -> s
     if not content:
         return content
     
+    # Remove email, phone, and date placeholders completely
+    placeholders_to_remove = [
+        '[Your Email]', '[Your email]', '[your email]', '[YOUR EMAIL]',
+        '[Your Phone Number]', '[Your Phone]', '[Your phone]', '[your phone]', '[YOUR PHONE]',
+        '[Date]', '[date]', '[DATE]',
+        '{{email}}', '{{phone}}', '{{date}}',
+        '[Your Phone Number]', '[Phone Number]', '[Phone]'
+    ]
+    
+    result = content
+    for placeholder in placeholders_to_remove:
+        result = result.replace(placeholder, '')
+    
+    # Replace name and location placeholders
     replacements_map = {
         '[Your Name]': payload.name or '',
         '[Your Address]': payload.location or '',
         '[City, State, Zip]': payload.location or '',
-        '[Your Email]': payload.email or '',
-        '[Your Phone Number]': payload.phone or '',
-        '[Date]': datetime.now().strftime('%B %d, %Y'),
         '{{name}}': payload.name or '',
-        '{{email}}': payload.email or '',
-        '{{phone}}': payload.phone or '',
         '{{location}}': payload.location or '',
         '{{address}}': payload.location or '',
-        '{{date}}': datetime.now().strftime('%B %d, %Y'),
     }
     
-    # Also replace in different formats
     replacements_map.update({
         '[Your name]': payload.name or '',
-        '[Your email]': payload.email or '',
-        '[Your phone]': payload.phone or '',
         '[your name]': payload.name or '',
-        '[your email]': payload.email or '',
-        '[your phone]': payload.phone or '',
         '[YOUR NAME]': payload.name or '',
-        '[YOUR EMAIL]': payload.email or '',
-        '[YOUR PHONE]': payload.phone or '',
     })
     
-    result = content
     for placeholder, value in replacements_map.items():
         result = result.replace(placeholder, value)
     
     # Apply any additional replacements from payload.replacements
     if payload.replacements:
         result = apply_replacements(result, payload.replacements)
+    
+    # Clean up multiple spaces and empty lines
+    result = re.sub(r'\n\s*\n\s*\n+', '\n\n', result)
+    result = re.sub(r' +', ' ', result)
+    result = result.strip()
     
     return result
 
@@ -197,14 +203,39 @@ async def export_pdf(
         if payload.cover_letter:
             # Replace placeholders with actual values
             cover_letter_content = replace_cover_letter_placeholders(payload.cover_letter, payload)
-            cover_letter_content = cover_letter_content.replace("\n", "<br>")
-            # Use company name for title if provided, otherwise "Cover Letter"
-            cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
+            
+            # Convert to proper paragraphs instead of just <br> tags
+            paragraphs = []
+            for para in cover_letter_content.split('\n\n'):
+                para = para.strip()
+                if para:
+                    # Replace single newlines within paragraph with spaces, then wrap in <p>
+                    para = para.replace('\n', ' ').strip()
+                    # Clean up multiple spaces
+                    para = re.sub(r' +', ' ', para)
+                    if para:
+                        paragraphs.append(f'<p>{para}</p>')
+            
+            cover_letter_body = '\n                    '.join(paragraphs) if paragraphs else ''
+            
+            # For cover letter only exports, show title with company name and position title
+            if is_cover_letter_only:
+                title_parts = []
+                if payload.company_name:
+                    title_parts.append(payload.company_name)
+                if payload.position_title:
+                    title_parts.append(payload.position_title)
+                cover_letter_title = ' - '.join(title_parts) if title_parts else "Cover Letter"
+                title_html = f'<h1 class="cover-letter-title">{cover_letter_title}</h1>' if cover_letter_title else ''
+            else:
+                cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
+                title_html = f'<h2>{cover_letter_title}</h2>'
+            
             cover_letter_html = f"""
             <div class="cover-letter-section">
-                <h2>{cover_letter_title}</h2>
+                {title_html}
                 <div class="cover-letter-content">
-                    {cover_letter_content}
+                    {cover_letter_body}
                 </div>
             </div>
             """
@@ -445,10 +476,15 @@ async def export_pdf(
                         </div>"""
             content_html = cover_letter_html + summary_html + sections_html
 
-        # Set minimal page margin to fill entire A4 page
-        # Use very small margin (0.1cm) to maximize content area while avoiding PDF rendering issues
-        page_margin_cm = "0.1cm"
-        logger.info(f"Page margin set to 0.1cm to fill entire A4 page")
+        # Set page margin based on export type
+        if is_cover_letter_only:
+            # Professional margins for cover letter (2.5cm = ~1 inch)
+            page_margin_cm = "2.5cm"
+            logger.info(f"Page margin set to 2.5cm for cover letter only export")
+        else:
+            # Minimal margin for resume to maximize content area
+            page_margin_cm = "0.1cm"
+            logger.info(f"Page margin set to 0.1cm to fill entire A4 page")
         
         # Build bullet CSS based on bullet style
         bullet_css = ""
@@ -503,16 +539,31 @@ async def export_pdf(
         .cover-letter-section h2 {{ 
             font-size: {h2_size + 4 if is_cover_letter_only else h2_size + 2}px; 
             font-weight: bold; 
-            margin-bottom: 15px; 
+            margin-bottom: {20 if is_cover_letter_only else 15}px; 
             {'border-bottom: 2px solid ' + primary_color + ';' if not is_cover_letter_only else ''} 
             padding-bottom: {10 if is_cover_letter_only else 5}px; 
             {'color: ' + primary_color + ';' if not is_cover_letter_only else ''} 
         }}
+        .cover-letter-title {{
+            font-size: {h1_size}px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            margin-top: 0;
+            text-align: center;
+            color: {primary_color};
+        }}
         .cover-letter-content {{ 
             font-size: {body_size + 2 if is_cover_letter_only else body_size + 1}px; 
-            line-height: {line_height + 0.2 if is_cover_letter_only else line_height}; 
+            line-height: {line_height + 0.3 if is_cover_letter_only else line_height + 0.1}; 
             text-align: justify; 
             margin-top: {20 if is_cover_letter_only else 0}px; 
+        }}
+        .cover-letter-content p {{
+            margin: 0 0 {12 if is_cover_letter_only else 8}px 0;
+            padding: 0;
+        }}
+        .cover-letter-content p:last-child {{
+            margin-bottom: 0;
         }}
     </style>
 </head>
@@ -700,29 +751,49 @@ async def export_docx(
             # Replace placeholders with actual values
             cover_letter_content = replace_cover_letter_placeholders(payload.cover_letter, payload)
             
-            # Use company name for title if provided, otherwise "Cover Letter"
-            cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
-            
-            cover_letter_heading = doc.add_paragraph()
-            cover_letter_heading_run = cover_letter_heading.add_run(cover_letter_title)
-            cover_letter_heading_run.font.size = Pt(18 if is_cover_letter_only else 14)
-            cover_letter_heading_run.font.bold = True
-            cover_letter_heading_run.font.name = font_family_heading
-            
-            # Add spacing after heading for cover letter only
+            # For cover letter only exports, show title with company name and position title
             if is_cover_letter_only:
+                title_parts = []
+                if payload.company_name:
+                    title_parts.append(payload.company_name)
+                if payload.position_title:
+                    title_parts.append(payload.position_title)
+                cover_letter_title = ' - '.join(title_parts) if title_parts else "Cover Letter"
+                
+                if cover_letter_title:
+                    cover_letter_heading = doc.add_paragraph()
+                    cover_letter_heading_run = cover_letter_heading.add_run(cover_letter_title)
+                    cover_letter_heading_run.font.size = Pt(18)
+                    cover_letter_heading_run.font.bold = True
+                    cover_letter_heading_run.font.name = font_family_heading
+                    cover_letter_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    doc.add_paragraph()
+            else:
+                # Use company name for title if provided, otherwise "Cover Letter"
+                cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
+                cover_letter_heading = doc.add_paragraph()
+                cover_letter_heading_run = cover_letter_heading.add_run(cover_letter_title)
+                cover_letter_heading_run.font.size = Pt(14)
+                cover_letter_heading_run.font.bold = True
+                cover_letter_heading_run.font.name = font_family_heading
                 doc.add_paragraph()
 
-            # Format cover letter content with better styling for cover letter only
-            cover_letter_lines = cover_letter_content.split('\n')
-            for i, line in enumerate(cover_letter_lines):
-                if line.strip():
-                    cover_letter_para = doc.add_paragraph(line.strip())
-                    cover_letter_para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
-                    cover_letter_para.runs[0].font.name = font_family_body
-                    cover_letter_para.paragraph_format.space_after = Pt(6)
-                elif i < len(cover_letter_lines) - 1:  # Add spacing for empty lines (except last)
-                    doc.add_paragraph()
+            # Format cover letter content with proper paragraphs
+            # Split by double newlines to get paragraphs
+            paragraphs = cover_letter_content.split('\n\n')
+            for para in paragraphs:
+                para = para.strip()
+                if para:
+                    # Replace single newlines within paragraph with spaces
+                    para = para.replace('\n', ' ').strip()
+                    # Clean up multiple spaces
+                    para = re.sub(r' +', ' ', para)
+                    if para:
+                        cover_letter_para = doc.add_paragraph(para)
+                        cover_letter_para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
+                        cover_letter_para.runs[0].font.name = font_family_body
+                        cover_letter_para.paragraph_format.space_after = Pt(12 if is_cover_letter_only else 8)
+                        cover_letter_para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
             doc.add_paragraph()  # Add spacing
 

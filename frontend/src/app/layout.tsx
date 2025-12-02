@@ -5,6 +5,7 @@ import { SettingsProvider } from '@/contexts/SettingsContext'
 import { ModalProvider } from '@/contexts/ModalContext'
 import Footer from '@/components/layout/Footer'
 import FeedbackWidget from '@/components/Feedback/FeedbackWidget'
+import { Analytics } from '@vercel/analytics/react'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Footer />
               </div>
               <FeedbackWidget />
+              <Analytics />
             </ModalProvider>
           </SettingsProvider>
         </AuthProvider>

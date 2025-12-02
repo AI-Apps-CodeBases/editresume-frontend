@@ -63,6 +63,7 @@ class ExportPayload(BaseModel):
     two_column_left_width: Optional[int] = 50
     cover_letter: Optional[str] = None
     company_name: Optional[str] = None  # Company name for cover letter title
+    position_title: Optional[str] = None  # Position title for cover letter title
 
 
 class LoginPayload(BaseModel):

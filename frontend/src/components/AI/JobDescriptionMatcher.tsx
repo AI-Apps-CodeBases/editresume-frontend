@@ -3471,6 +3471,19 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Tooltip text="Save this job description with your current resume version to the Jobs section" color="green" position="bottom">
+                  <button
+                    data-save-job-btn
+                    onClick={handleSaveJobDescription}
+                    disabled={!jobDescription.trim()}
+                    className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save to Jobs
+                  </button>
+                </Tooltip>
                 <Tooltip text="Analyze your resume against the job description to get a detailed ATS score and improvement suggestions" color="blue" position="bottom">
                   <button
                     onClick={analyzeMatch}
@@ -3939,19 +3952,34 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             </div>
           )}
           
-          {/* Analyze Button */}
-          <div>
+          {/* Analyze Button and Save Button */}
+          <div className="space-y-2">
             {!matchResult && (
               <>
-                <Tooltip text="Analyze your resume against the job description to get a detailed ATS score and improvement suggestions" color="blue" position="top">
-                  <button
-                    onClick={analyzeMatch}
-                    disabled={isAnalyzing || !jobDescription.trim()}
-                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
-                  </button>
-                </Tooltip>
+                <div className="flex gap-2">
+                  <Tooltip text="Save this job description with your current resume version to the Jobs section" color="green" position="top">
+                    <button
+                      data-save-job-btn
+                      onClick={handleSaveJobDescription}
+                      disabled={!jobDescription.trim()}
+                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Save to Jobs
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Analyze your resume against the job description to get a detailed ATS score and improvement suggestions" color="blue" position="top">
+                    <button
+                      onClick={analyzeMatch}
+                      disabled={isAnalyzing || !jobDescription.trim()}
+                      className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
+                    </button>
+                  </Tooltip>
+                </div>
                 {!jobDescription.trim() && (
                   <p className="text-sm text-gray-500 mt-2 text-center">
                     Paste or scan a job description above to analyze the match

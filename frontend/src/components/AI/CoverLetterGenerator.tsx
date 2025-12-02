@@ -381,7 +381,9 @@ export default function CoverLetterGenerator({
             id: saved.id,
             content: contentToSave,
             title: coverLetterTitle,
-            jobId: jobId
+            jobId: jobId,
+            companyName: companyName || '',
+            positionTitle: positionTitle || ''
           }))
           
           // Dispatch event to notify editor page
@@ -449,6 +451,7 @@ export default function CoverLetterGenerator({
           sections: [],
           cover_letter: contentToExport,
           company_name: companyName || '',
+          position_title: positionTitle || '',
           template: 'tech',
           two_column_left: [],
           two_column_right: [],
