@@ -1260,21 +1260,27 @@ const EditorPageContent = () => {
         }))
       }))
       
-      // Get cover letter content - use latestCoverLetter or from localStorage
-      const coverLetterContent = isCoverLetterExport 
-        ? (latestCoverLetter || (() => {
-            try {
-              const stored = localStorage.getItem('selectedCoverLetter')
-              if (stored) {
-                const parsed = JSON.parse(stored)
-                return parsed.content
-              }
-            } catch (e) {
-              console.error('Failed to read cover letter from localStorage:', e)
-            }
-            return null
-          })())
-        : undefined
+      // Get cover letter content and job info - use latestCoverLetter or from localStorage
+      let coverLetterContent: string | undefined = undefined
+      let companyName: string | undefined = undefined
+      let positionTitle: string | undefined = undefined
+      
+      if (isCoverLetterExport) {
+        try {
+          const stored = localStorage.getItem('selectedCoverLetter')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            coverLetterContent = parsed.content || latestCoverLetter
+            companyName = parsed.companyName
+            positionTitle = parsed.positionTitle
+          } else {
+            coverLetterContent = latestCoverLetter || undefined
+          }
+        } catch (e) {
+          console.error('Failed to read cover letter from localStorage:', e)
+          coverLetterContent = latestCoverLetter || undefined
+        }
+      }
 
       // Ensure we always send a valid templateConfig
       let configToSend = templateConfig
@@ -1313,7 +1319,9 @@ const EditorPageContent = () => {
         },
         two_column_left: localStorage.getItem('twoColumnLeft') ? JSON.parse(localStorage.getItem('twoColumnLeft')!) : [],
         two_column_right: localStorage.getItem('twoColumnRight') ? JSON.parse(localStorage.getItem('twoColumnRight')!) : [],
-        two_column_left_width: columnWidth
+        two_column_left_width: columnWidth,
+        company_name: isCoverLetterExport ? companyName : undefined,
+        position_title: isCoverLetterExport ? positionTitle : undefined
       }
       
       console.log('Export data:', exportData)

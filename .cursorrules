@@ -1,0 +1,68 @@
+# Cursor Rules for EditResume Frontend
+
+## Regression Prevention Rules
+
+### Before Making Changes
+1. **Always search for existing implementations** before creating new code
+2. **Identify all files that use the code** you're modifying using grep/codebase_search
+3. **Check for related features** that might be affected by your changes
+4. **Review the architecture document** (`docs/architecture.md`) to understand layering rules
+
+### When Adding New Features
+1. **Never modify shared components** (`src/components/Shared/`) without checking all usages
+2. **Use feature flags** for new features that might affect existing functionality
+3. **Follow the feature structure**: `src/features/<feature>/` with components, hooks, api, types, utils
+4. **Keep components under 300 LOC** - split if needed
+5. **Add tests** for new features (unit tests for components/hooks, integration tests for API)
+
+### When Modifying Existing Code
+1. **Preserve existing API contracts** - don't change function signatures without checking all callers
+2. **Maintain backward compatibility** when possible
+3. **Check for side effects** - search for all imports/usages of modified code
+4. **Verify TypeScript types** still compile (`npm run type-check`)
+5. **Run linting** before committing (`npm run lint`)
+
+### Critical Areas to Protect
+- **Authentication flow** (`src/contexts/`, `src/lib/firebaseClient.ts`)
+- **Resume editor** (`src/app/editor/`, `src/components/Editor/`)
+- **API services** (`src/lib/services/`)
+- **Shared components** (`src/components/Shared/`)
+- **Core hooks** (`src/hooks/`)
+- **Configuration** (`src/lib/config.ts`)
+
+### Testing Requirements
+1. **New features must include tests**
+2. **Bug fixes must include regression tests**
+3. **Before modifying existing code**, check if tests exist and update them
+4. **Run type-check and lint** before suggesting changes
+
+### Code Quality Gates
+- All code must pass `npm run type-check`
+- All code must pass `npm run lint`
+- Components must be under 300 LOC
+- No `any` types allowed
+- Follow the architecture layering rules
+
+### When Refactoring
+1. **Search for all usages** of the code being refactored
+2. **Update all callers** in the same change
+3. **Maintain the same public API** if possible
+4. **Add tests** if they don't exist
+5. **Document breaking changes** if API changes are necessary
+
+### Import Rules
+- Feature components use their own hooks/services
+- Cross-feature shared logic lives in `src/lib/` or `src/components/Shared/`
+- Never create circular dependencies
+
+### Error Handling
+- Always handle errors gracefully
+- Don't break existing error handling patterns
+- Maintain consistent error message formats
+
+## Architecture Compliance
+- Follow `docs/architecture.md` strictly
+- Enforce one-directional dependencies: presentation → application services → domain → infrastructure
+- Use typed contracts (TypeScript types, Zod schemas)
+- Keep domain logic separate from UI concerns
+
