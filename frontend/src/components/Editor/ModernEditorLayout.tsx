@@ -6,6 +6,7 @@ import VisualResumeEditor from './VisualResumeEditor'
 import RightPanel from './RightPanel'
 import JobsView from './JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
+import Tooltip from '@/components/Shared/Tooltip'
 
 interface ModernEditorLayoutProps {
   resumeData: {
@@ -220,14 +221,16 @@ export default function ModernEditorLayout({
                   <div className="h-full flex flex-col">
                     <div className="flex items-center justify-between p-4 border-b">
                       <h2 className="text-lg font-semibold">AI Tools</h2>
-                      <button
-                        onClick={() => setShowRightDrawer(false)}
-                        className="p-2 hover:bg-gray-100 rounded-lg touch-target"
-                      >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                      <Tooltip text="Close AI Tools panel" color="gray" position="left">
+                        <button
+                          onClick={() => setShowRightDrawer(false)}
+                          className="p-2 hover:bg-gray-100 rounded-lg touch-target"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </Tooltip>
                     </div>
                     <div className="flex-1 overflow-hidden">
                       <RightPanel 
@@ -254,36 +257,44 @@ export default function ModernEditorLayout({
       {currentView === 'editor' && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-inset-bottom shadow-lg">
           <div className="flex items-center justify-around px-2 py-2">
-            <button
-              onClick={() => setShowLeftDrawer(true)}
-              className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target"
-            >
-              <span className="text-lg">📝</span>
-              <span className="font-medium">Menu</span>
-            </button>
-            <button
-              onClick={() => setShowRightDrawer(true)}
-              className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target"
-            >
-              <span className="text-lg">⚡</span>
-              <span className="font-medium">AI Tools</span>
-            </button>
-            <button
-              onClick={() => onExport?.('pdf')}
-              disabled={!resumeData.name || isExporting}
-              className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target disabled:opacity-50"
-            >
-              <span className="text-lg">📤</span>
-              <span className="font-medium">Export</span>
-            </button>
-            {onSaveResume && isAuthenticated && (
+            <Tooltip text="Open navigation menu" color="gray" position="top">
               <button
-                onClick={onSaveResume}
+                onClick={() => setShowLeftDrawer(true)}
                 className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target"
               >
-                <span className="text-lg">💾</span>
-                <span className="font-medium">Save</span>
+                <span className="text-lg">📝</span>
+                <span className="font-medium">Menu</span>
               </button>
+            </Tooltip>
+            <Tooltip text="Open AI Tools panel" color="purple" position="top">
+              <button
+                onClick={() => setShowRightDrawer(true)}
+                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target"
+              >
+                <span className="text-lg">⚡</span>
+                <span className="font-medium">AI Tools</span>
+              </button>
+            </Tooltip>
+            <Tooltip text="Export resume as PDF" color="blue" position="top">
+              <button
+                onClick={() => onExport?.('pdf')}
+                disabled={!resumeData.name || isExporting}
+                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target disabled:opacity-50"
+              >
+                <span className="text-lg">📤</span>
+                <span className="font-medium">Export</span>
+              </button>
+            </Tooltip>
+            {onSaveResume && isAuthenticated && (
+              <Tooltip text="Save resume to your account" color="green" position="top">
+                <button
+                  onClick={onSaveResume}
+                  className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target"
+                >
+                  <span className="text-lg">💾</span>
+                  <span className="font-medium">Save</span>
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>

@@ -16,24 +16,34 @@ def apply_replacements(text: str, replacements: Dict[str, str]) -> str:
 
 
 def strip_bullet_markers(text: str) -> str:
-    """Remove all bullet point markers from text"""
+    """Remove all bullet point markers from text, and any remaining ** that weren't converted"""
     if not text:
         return text
     
-    # Common bullet characters and patterns
-    bullet_chars = ['•', '*', '-', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽']
-    cleaned = text
+    # Remove any remaining ** characters that weren't converted to <strong> tags
+    # This handles edge cases where ** might not have been properly converted
+    cleaned = text.replace('**', '')
+    
+    # Common bullet characters (including square ■ which might appear in text)
+    bullet_chars = ['•', '-', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽', '■']
     
     # Remove all occurrences of each bullet character (not just first)
     for char in bullet_chars:
         cleaned = cleaned.replace(char, '')
     
-    # Remove bullet patterns at the start: "• ", "* ", "- ", " •", etc.
-    # This regex matches one or more bullet chars followed by optional whitespace at the start
-    cleaned = re.sub(r'^[\s•*\-▪▫◦‣⁃→·○●◾◽]+\s*', '', cleaned, flags=re.MULTILINE)
+    # Remove standalone * patterns (single asterisk used as bullet)
+    # Remove * at start followed by space
+    cleaned = re.sub(r'^\*\s+', '', cleaned, flags=re.MULTILINE)
+    # Remove standalone * at start of line
+    cleaned = re.sub(r'^\*$', '', cleaned, flags=re.MULTILINE)
+    # Remove * at end
+    cleaned = re.sub(r'\s+\*$', '', cleaned, flags=re.MULTILINE)
+    
+    # Remove bullet patterns at the start: "• ", "- ", etc.
+    cleaned = re.sub(r'^[\s•\-▪▫◦‣⁃→·○●◾◽]+\s*', '', cleaned, flags=re.MULTILINE)
     
     # Remove bullet patterns at the end
-    cleaned = re.sub(r'\s*[\s•*\-▪▫◦‣⁃→·○●◾◽]+$', '', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'\s*[\s•\-▪▫◦‣⁃→·○●◾◽]+$', '', cleaned, flags=re.MULTILINE)
     
     # Remove any remaining leading/trailing whitespace
     cleaned = cleaned.strip()
@@ -42,8 +52,32 @@ def strip_bullet_markers(text: str) -> str:
 
 
 def format_bold_text(text: str) -> str:
-    """Convert **text** to <strong>text</strong> for HTML"""
-    return text.replace("**", "<strong>").replace("**", "</strong>")
+    """Convert **text** to <strong>text</strong> for HTML and remove any remaining **"""
+    if not text:
+        return text
+    
+    # Use regex to properly handle multiple bold sections
+    # Match **text** and replace with <strong>text</strong>
+    # This regex handles:
+    # - **text** -> <strong>text</strong>
+    # - **text with spaces** -> <strong>text with spaces</strong>
+    # - Multiple bold sections in one line
+    # Use non-greedy matching to handle multiple bold sections
+    result = re.sub(r'\*\*([^*]+?)\*\*', r'<strong>\1</strong>', text)
+    
+    # Aggressively remove ALL remaining ** characters (safety net)
+    # This handles edge cases like unmatched ** or ** that didn't match the pattern
+    # Replace all occurrences of ** with empty string
+    while '**' in result:
+        result = result.replace('**', '')
+    
+    # Also remove any single * that might be left (but not inside <strong> tags)
+    # Only remove * at word boundaries or standalone
+    result = re.sub(r'\s+\*\s+', ' ', result)  # Remove * with spaces around it
+    result = re.sub(r'^\*\s+', '', result)  # Remove * at start
+    result = re.sub(r'\s+\*$', '', result)  # Remove * at end
+    
+    return result
 
 
 def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dict[str, str]) -> str:
@@ -85,9 +119,25 @@ def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dic
             )
             current_company = company_name
         else:
-            # Regular task bullet - remove all bullet markers
+            # Regular task bullet - remove leading bullet markers first
+            bullet_text = bullet_text.lstrip('•').lstrip('-').lstrip('*').lstrip()
+            if bullet_text.startswith('• '):
+                bullet_text = bullet_text[2:]
+            elif bullet_text.startswith('- '):
+                bullet_text = bullet_text[2:]
+            elif bullet_text.startswith('* '):
+                bullet_text = bullet_text[2:]
+            
+            # Convert ** to <strong> first, then remove ALL remaining ** and * characters
+            bullet_text = format_bold_text(bullet_text)
             task_text = strip_bullet_markers(bullet_text)
-            if task_text:
+            
+            # Final safety check: remove any remaining * or ** characters
+            # Use regex to remove standalone * that aren't part of HTML tags
+            task_text = re.sub(r'\*(?![*<>/])', '', task_text)  # Remove * not followed by *, <, >, or /
+            task_text = task_text.replace('**', '')  # Remove any remaining **
+            
+            if task_text and task_text.strip():
                 html_parts.append(f"<li>{task_text}</li>")
 
     # Close the last job entry if needed
@@ -116,7 +166,8 @@ def format_regular_bullets(bullets: List[BulletParam], replacements: Dict[str, s
         for bullet in bullets:
             if bullet.text.strip():
                 bullet_text = apply_replacements(bullet.text, replacements)
-                # Remove all bullet markers
+                # Convert ** to <strong> first, then remove bullet markers
+                bullet_text = format_bold_text(bullet_text)
                 clean_text = strip_bullet_markers(bullet_text)
                 if clean_text:
                     skill_items.append(clean_text)
@@ -127,10 +178,27 @@ def format_regular_bullets(bullets: List[BulletParam], replacements: Dict[str, s
     for bullet in bullets:
         if bullet.text.strip():
             bullet_text = apply_replacements(bullet.text, replacements)
-            # Remove all bullet markers
+            
+            # Remove any leading bullet markers first (•, -, *, etc.)
+            bullet_text = bullet_text.lstrip('•').lstrip('-').lstrip('*').lstrip()
+            if bullet_text.startswith('• '):
+                bullet_text = bullet_text[2:]
+            elif bullet_text.startswith('- '):
+                bullet_text = bullet_text[2:]
+            elif bullet_text.startswith('* '):
+                bullet_text = bullet_text[2:]
+            
+            # Convert ** to <strong> first, then remove ALL remaining ** and * characters
+            bullet_text = format_bold_text(bullet_text)
             clean_text = strip_bullet_markers(bullet_text)
-            if clean_text:
-                html_parts.append(f"<li>{format_bold_text(clean_text)}</li>")
+            
+            # Final safety check: remove any remaining * or ** characters
+            # Use regex to remove standalone * that aren't part of HTML tags
+            clean_text = re.sub(r'\*(?![*<>/])', '', clean_text)  # Remove * not followed by *, <, >, or /
+            clean_text = clean_text.replace('**', '')  # Remove any remaining **
+            
+            if clean_text and clean_text.strip():
+                html_parts.append(f"<li>{clean_text}</li>")
 
     return "\n".join(html_parts)
 

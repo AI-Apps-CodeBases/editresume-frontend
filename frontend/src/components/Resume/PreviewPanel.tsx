@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 interface ResumeData {
   name: string
@@ -59,13 +59,163 @@ export default function PreviewPanel({
   template = 'clean' as const,
   templateConfig
 }: Props) {
-  // Add page break styles
+  // Add A4 page break styles and dimensions
   useEffect(() => {
     const style = document.createElement('style')
     style.textContent = `
       .preview-resume-container {
         position: relative;
         page-break-inside: avoid;
+      }
+      
+      /* A4 Page dimensions: 210mm x 297mm (8.27in x 11.69in) */
+      .a4-page-view {
+        width: 8.27in;
+        min-height: 11.69in;
+        background: white;
+        margin: 0 auto 20px auto;
+        padding: 0.3cm;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        position: relative;
+        page-break-after: always;
+      }
+      
+      .a4-page-view .preview-resume-container {
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        max-width: 100%;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+      }
+      
+      /* Ensure bullet points fit within page width */
+      .a4-page-view li {
+        max-width: 100%;
+        width: 100%;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: break-word;
+        box-sizing: border-box;
+      }
+      
+      .a4-page-view ul {
+        max-width: 100%;
+        width: 100%;
+        padding-left: 0;
+        margin-left: 0;
+        box-sizing: border-box;
+      }
+      
+      /* Ensure flex containers don't overflow */
+      .a4-page-view .flex {
+        max-width: 100%;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      
+      /* Ensure text doesn't overflow */
+      .a4-page-view * {
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      
+      /* Ensure bullet text spans wrap properly */
+      .a4-page-view li span {
+        min-width: 0;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+      }
+      
+      /* Page break indicator line at A4 page height (11.69in) - only show on pages that aren't the last */
+      .a4-page-view:not(:last-child)::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: repeating-linear-gradient(
+          to right,
+          #ef4444 0px,
+          #ef4444 15px,
+          transparent 15px,
+          transparent 30px
+        );
+        z-index: 10;
+        pointer-events: none;
+      }
+      
+      /* Page break label - only show on pages that aren't the last */
+      .a4-page-view:not(:last-child)::before {
+        content: "Page Break";
+        position: absolute;
+        bottom: 0.2cm;
+        right: 0.3cm;
+        font-size: 9px;
+        color: #ef4444;
+        background: white;
+        padding: 2px 8px;
+        border-radius: 3px;
+        border: 1px solid #ef4444;
+        z-index: 11;
+        font-weight: 600;
+        pointer-events: none;
+      }
+      
+      /* Container for all pages */
+      .a4-pages-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        background: #f3f4f6;
+        min-height: 100vh;
+      }
+      
+      /* Page break indicators within content - show at every 11.69in */
+      .page-break-marker {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: repeating-linear-gradient(
+          to right,
+          #3b82f6 0px,
+          #3b82f6 10px,
+          transparent 10px,
+          transparent 20px
+        );
+        z-index: 5;
+        pointer-events: none;
+      }
+      
+      .page-break-label {
+        position: absolute;
+        right: 0.3cm;
+        font-size: 9px;
+        color: #3b82f6;
+        background: white;
+        padding: 2px 8px;
+        border-radius: 3px;
+        border: 1px solid #3b82f6;
+        z-index: 6;
+        font-weight: 600;
+        pointer-events: none;
+      }
+      
+      .page-number {
+        position: absolute;
+        top: 0.2cm;
+        right: 0.3cm;
+        font-size: 10px;
+        color: #6b7280;
+        background: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        border: 1px solid #d1d5db;
+        z-index: 11;
+        font-weight: 500;
       }
       
       .page-layout-indicator {
@@ -93,6 +243,19 @@ export default function PreviewPanel({
         .preview-resume-container {
           box-shadow: none !important;
           border: none !important;
+        }
+        
+        .a4-page-view {
+          box-shadow: none !important;
+          margin: 0 !important;
+        }
+        
+        .a4-page-view::after {
+          display: none;
+        }
+        
+        .page-number {
+          display: none;
         }
         
         .page-break-indicator {
@@ -206,6 +369,16 @@ export default function PreviewPanel({
   const textColor = templateConfig?.design?.colors?.text || colors.text || '#000000'
   const sectionSpacing = templateConfig?.spacing?.sectionGap || spacing.section || 16
   const bulletSpacing = templateConfig?.spacing?.itemGap || spacing.bullet || 8
+  
+  // Get bullet style from templateConfig
+  const bulletStyle = templateConfig?.design?.bulletStyle || 'circle'
+  const bulletSymbols: Record<string, string> = {
+    circle: '•',
+    square: '■',
+    dash: '—',
+    none: ''
+  }
+  const bulletSymbol = bulletSymbols[bulletStyle] || '•'
 
   const renderBullets = (bullets: any[], sectionTitle: string) => {
     // Safety check: ensure bullets is an array
@@ -354,6 +527,7 @@ export default function PreviewPanel({
         } else {
           // Add bullet to current list
           let cleanText = bullet.text
+          // Remove leading bullet markers
           if (cleanText.startsWith('• ')) {
             cleanText = cleanText.substring(2)
           } else if (cleanText.startsWith('•')) {
@@ -364,6 +538,20 @@ export default function PreviewPanel({
             cleanText = cleanText.substring(2)
           }
           
+          // Convert **text** to <strong>text</strong> first
+          cleanText = applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          
+          // Remove ALL bullet characters from anywhere in the text (not just at start)
+          // This ensures no bullet characters appear in the content when we're using CSS bullets
+          const bulletChars = ['•', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽', '■']
+          bulletChars.forEach(char => {
+            cleanText = cleanText.replace(new RegExp(char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '')
+          })
+          
+          // Remove any remaining standalone * characters (not part of HTML tags)
+          // This handles cases where * appears in the text after conversion
+          cleanText = cleanText.replace(/\*(?![*<>/])/g, '')
+          
           currentList.push(
             <li 
               key={bullet.id} 
@@ -372,19 +560,31 @@ export default function PreviewPanel({
                 fontFamily: bodyFont,
                 fontSize: `${bodySize}px`,
                 color: textColor,
-                marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`
+                marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`,
+                maxWidth: '100%',
+                width: '100%',
+                boxSizing: 'border-box'
               }}
             >
+              {bulletStyle !== 'none' && (
+                <span 
+                  className="mr-1.5 flex-shrink-0"
+                  style={{ color: primaryColor }}
+                >
+                  {bulletSymbol}
+                </span>
+              )}
               <span 
-                className="mr-1.5"
-                style={{ color: primaryColor }}
-              >
-                •
-              </span>
-              <span 
-                className="flex-1" 
+                className="flex-1 min-w-0" 
+                style={{ 
+                  maxWidth: '100%',
+                  overflowWrap: 'break-word',
+                  wordWrap: 'break-word',
+                  wordBreak: 'break-word',
+                  boxSizing: 'border-box'
+                }}
                 dangerouslySetInnerHTML={{ 
-                  __html: applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                  __html: cleanText
                 }} 
               />
             </li>
@@ -395,16 +595,17 @@ export default function PreviewPanel({
       // Close final list if exists
       if (currentList.length > 0) {
         elements.push(
-          <ul key="list-final" className="space-y-1">
+          <ul key="list-final" className="space-y-1" style={{ maxWidth: '100%', width: '100%' }}>
             {currentList}
           </ul>
         )
       }
       
       return elements.length > 0 ? elements : (
-        <ul className="space-y-1">
+        <ul className="space-y-1" style={{ maxWidth: '100%', width: '100%' }}>
           {validBullets.map((bullet) => {
             let cleanText = bullet.text
+            // Remove leading bullet markers
             if (cleanText.startsWith('• ')) {
               cleanText = cleanText.substring(2)
             } else if (cleanText.startsWith('•')) {
@@ -414,6 +615,21 @@ export default function PreviewPanel({
             } else if (cleanText.startsWith('* ')) {
               cleanText = cleanText.substring(2)
             }
+            
+            // Convert **text** to <strong>text</strong> first
+            cleanText = applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            
+            // Remove ALL bullet characters from anywhere in the text (not just at start)
+            // This ensures no bullet characters appear in the content when we're using CSS bullets
+            const bulletChars = ['•', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽', '■']
+            bulletChars.forEach(char => {
+              cleanText = cleanText.replace(new RegExp(char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '')
+            })
+            
+            // Remove any remaining standalone * characters (not part of HTML tags)
+            // This handles cases where * appears in the text after conversion
+            cleanText = cleanText.replace(/\*(?![*<>/])/g, '')
+            
             return (
               <li 
                 key={bullet.id} 
@@ -422,19 +638,31 @@ export default function PreviewPanel({
                   fontFamily: bodyFont,
                   fontSize: `${bodySize}px`,
                   color: textColor,
-                  marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`
+                  marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`,
+                  maxWidth: '100%',
+                  width: '100%',
+                  boxSizing: 'border-box'
                 }}
               >
+                {bulletStyle !== 'none' && (
+                  <span 
+                    className="mr-1.5 flex-shrink-0"
+                    style={{ color: primaryColor }}
+                  >
+                    {bulletSymbol}
+                  </span>
+                )}
                 <span 
-                  className="mr-1.5"
-                  style={{ color: primaryColor }}
-                >
-                  •
-                </span>
-                <span 
-                  className="flex-1" 
+                  className="flex-1 min-w-0" 
+                  style={{ 
+                    maxWidth: '100%',
+                    overflowWrap: 'break-word',
+                    wordWrap: 'break-word',
+                    wordBreak: 'break-word',
+                    boxSizing: 'border-box'
+                  }}
                   dangerouslySetInnerHTML={{ 
-                    __html: applyReplacements(cleanText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                    __html: cleanText
                   }} 
                 />
               </li>
@@ -547,9 +775,39 @@ export default function PreviewPanel({
     }
   }, [isTwoColumn, data.sections, template])
 
-  return (
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [pageCount, setPageCount] = useState(1)
+  
+  // Calculate number of pages needed
+  useEffect(() => {
+    const calculatePages = () => {
+      if (contentRef.current) {
+        // Wait for content to render
+        setTimeout(() => {
+          if (contentRef.current) {
+            const contentHeight = contentRef.current.scrollHeight
+            // A4 page height: 11.69in = ~1123px (at 96 DPI, but we need to account for padding)
+            // With 0.3cm padding top and bottom, usable height is ~11.69in - 0.6cm = ~11.39in
+            const pageHeightIn = 11.39 // Usable height per page in inches
+            const pageHeightPx = pageHeightIn * 96 // Convert to pixels
+            const pages = Math.ceil(contentHeight / pageHeightPx)
+            setPageCount(Math.max(1, pages))
+          }
+        }, 100)
+      }
+    }
+    
+    calculatePages()
+    const timer = setInterval(calculatePages, 500)
+    
+    return () => clearInterval(timer)
+  }, [data, templateConfig, sectionSpacing, bulletSpacing])
+  
+  // Render the actual content
+  const renderContent = () => (
     <div 
-      className="bg-white rounded-2xl border border-gray-200 shadow-soft-lg p-8 preview-resume-container hover-lift"
+      ref={contentRef}
+      className="preview-resume-container"
       style={{
         fontFamily: bodyFont,
         color: textColor,
@@ -837,6 +1095,39 @@ export default function PreviewPanel({
             <p>Start editing to see your resume preview</p>
           </div>
         )}
+      </div>
+    </div>
+  )
+  
+  return (
+    <div className="a4-pages-container">
+      <div className="a4-page-view" style={{ position: 'relative', minHeight: 'auto' }}>
+        <div className="page-number">Page 1</div>
+        {renderContent()}
+        {/* Add page break markers dynamically */}
+        {Array.from({ length: pageCount - 1 }, (_, index) => {
+          const pageBreakPosition = (index + 1) * 11.69 // Position in inches
+          return (
+            <React.Fragment key={`break-${index}`}>
+              <div 
+                className="page-break-marker"
+                style={{ 
+                  top: `${pageBreakPosition}in`,
+                  position: 'absolute'
+                }}
+              />
+              <div 
+                className="page-break-label"
+                style={{ 
+                  top: `calc(${pageBreakPosition}in - 18px)`,
+                  position: 'absolute'
+                }}
+              >
+                Page {index + 2} Start
+              </div>
+            </React.Fragment>
+          )
+        })}
       </div>
     </div>
   )

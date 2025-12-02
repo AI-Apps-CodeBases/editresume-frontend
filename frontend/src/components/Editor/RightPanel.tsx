@@ -3,6 +3,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
 import config from '@/lib/config'
+import Tooltip from '@/components/Shared/Tooltip'
 
 
 interface RightPanelProps {
@@ -164,18 +165,28 @@ export default function RightPanel({
       {/* Tabs */}
       <div className="flex items-center border-b border-gray-200 bg-gray-50">
         {tabs.map((tab) => (
-          <button
+          <Tooltip 
             key={tab.id}
-            onClick={() => onTabChange?.(tab.id)}
-            className={`flex-1 flex flex-col items-center gap-1 px-2 sm:px-3 py-2 sm:py-2 text-xs font-medium transition-colors touch-target ${
-              activeTab === tab.id
-                ? 'text-blue-600 bg-white border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
+            text={
+              tab.id === 'live' ? 'Live preview of your resume' :
+              tab.id === 'match' ? 'Match your resume against job descriptions' :
+              'View and manage comments on your resume'
+            }
+            color="blue"
+            position="bottom"
           >
-            <span>{tab.icon}</span>
-            <span className="hidden sm:inline">{tab.label}</span>
-          </button>
+            <button
+              onClick={() => onTabChange?.(tab.id)}
+              className={`flex-1 flex flex-col items-center gap-1 px-2 sm:px-3 py-2 sm:py-2 text-xs font-medium transition-colors touch-target ${
+                activeTab === tab.id
+                  ? 'text-blue-600 bg-white border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <span>{tab.icon}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          </Tooltip>
         ))}
       </div>
 
@@ -188,9 +199,11 @@ export default function RightPanel({
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Comments</h3>
-                <button className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                  + Add Comment
-                </button>
+                <Tooltip text="Add a new comment to collaborate on your resume" color="blue" position="bottom">
+                  <button className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                    + Add Comment
+                  </button>
+                </Tooltip>
               </div>
               <div className="text-center py-12 text-gray-400">
                 <div className="text-4xl mb-2">💬</div>

@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
+import Tooltip from '@/components/Shared/Tooltip'
 
 interface ModernLeftSidebarProps {
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
@@ -80,36 +81,7 @@ export default function ModernLeftSidebar({
     },
   ]
 
-  const aiTools = [
-    {
-      id: 'ai-work-experience',
-      title: 'Work Experience',
-      icon: '💼',
-      description: 'Add a new job or position',
-      contentType: 'job' as const,
-    },
-    {
-      id: 'ai-project',
-      title: 'Project',
-      icon: '🚀',
-      description: 'Add a project or achievement',
-      contentType: 'project' as const,
-    },
-    {
-      id: 'ai-skills',
-      title: 'Skills',
-      icon: '🛠️',
-      description: 'Add technical or soft skills',
-      contentType: 'skill' as const,
-    },
-    {
-      id: 'ai-education',
-      title: 'Education',
-      icon: '🎓',
-      description: 'Add education or certification',
-      contentType: 'education' as const,
-    },
-  ]
+
 
   const secondaryItems: Array<{ id: string; title: string; icon: string }> = []
 
@@ -118,11 +90,7 @@ export default function ModernLeftSidebar({
       onViewChange?.('editor')
     } else if (itemId === 'jobs' || itemId === 'resumes') {
       onViewChange?.(itemId as 'jobs' | 'resumes')
-    } else if (itemId.startsWith('ai-')) {
-      const aiTool = aiTools.find(tool => tool.id === itemId)
-      if (aiTool && aiTool.contentType && onAIContentWizard) {
-        onAIContentWizard(aiTool.contentType)
-      }
+
     } else if (itemId === 'templates') {
       onTemplatesClick?.()
     }
@@ -135,18 +103,20 @@ export default function ModernLeftSidebar({
     return (
       <div className="lg:hidden fixed inset-0 z-50">
         <div className="absolute inset-0 bg-black/50" onClick={onCloseDrawer} />
-        <div className="absolute left-0 top-0 bottom-0 w-[85vw] max-w-sm bg-white shadow-xl">
+        <div className="absolute left-0 top-0 bottom-0 w-[85vw] max-w-sm shadow-xl">
           <div className="h-full flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="text-lg font-semibold">Menu</h2>
-              <button
-                onClick={onCloseDrawer}
-                className="p-2 hover:bg-gray-100 rounded-lg touch-target"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <Tooltip text="Close menu" color="gray" position="left">
+                <button
+                  onClick={onCloseDrawer}
+                  className="p-2 hover:bg-gray-100 rounded-lg touch-target"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto">
               <div className="p-3 space-y-1">
@@ -175,26 +145,7 @@ export default function ModernLeftSidebar({
                   )
                 })}
               </div>
-              <div className="mt-6 px-3">
-                <div className="px-3 mb-2">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI Content</p>
-                </div>
-                <div className="space-y-1">
-                  {aiTools.map((tool) => (
-                    <button
-                      key={tool.id}
-                      onClick={() => handleItemClick(tool.id)}
-                      className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors touch-target"
-                    >
-                      <span className="text-base">{tool.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium">{tool.title}</div>
-                        <div className="text-xs text-gray-500">{tool.description}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+
               {secondaryItems.length > 0 && (
                 <div className="mt-6 px-3">
                   <div className="px-3 mb-2">
@@ -215,7 +166,7 @@ export default function ModernLeftSidebar({
                 </div>
               )}
             </div>
-            <div className="border-t border-gray-200 p-3 bg-gray-50">
+            <div className="border-t border-gray-200 p-3">
               <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
                   {(userName || user?.name)?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
@@ -238,37 +189,29 @@ export default function ModernLeftSidebar({
 
   if (collapsed) {
     return (
-      <div className="hidden lg:flex w-16 bg-white border-r border-gray-200 flex flex-col h-full">
+      <div className="hidden lg:flex w-16 border-r border-gray-200 flex flex-col h-full">
         <div className="flex flex-col items-center py-4 gap-4 flex-1">
-          <button
-            onClick={handleCollapseToggle}
-            className="p-2 hover:bg-gray-50 rounded-lg transition-colors touch-target"
-            title="Expand sidebar"
-          >
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+          <Tooltip text="Expand sidebar" color="gray" position="right">
+            <button
+              onClick={handleCollapseToggle}
+              className="p-2 hover:bg-gray-50 rounded-lg transition-colors touch-target"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </Tooltip>
           {mainItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleItemClick(item.id)}
-              className="p-2 hover:bg-gray-50 rounded-lg transition-colors"
-              title={item.title}
-            >
-              <span className="text-xl">{item.icon}</span>
-            </button>
+            <Tooltip key={item.id} text={`${item.title} - ${item.description}`} color="blue" position="right">
+              <button
+                onClick={() => handleItemClick(item.id)}
+                className="p-2 hover:bg-gray-50 rounded-lg transition-colors"
+              >
+                <span className="text-xl">{item.icon}</span>
+              </button>
+            </Tooltip>
           ))}
-          {aiTools.map((tool) => (
-            <button
-              key={tool.id}
-              onClick={() => handleItemClick(tool.id)}
-              className="p-2 hover:bg-gray-50 rounded-lg transition-colors"
-              title={tool.title}
-            >
-              <span className="text-xl">{tool.icon}</span>
-            </button>
-          ))}
+
         </div>
         <div className="border-t border-gray-200 p-2">
           <div className="w-full p-2" title={userName || user?.email || 'Profile'}>
@@ -282,20 +225,21 @@ export default function ModernLeftSidebar({
   }
 
   return (
-    <div className="hidden lg:flex w-64 bg-white border-r border-gray-200 flex flex-col h-full">
+    <div className="hidden lg:flex w-48 border-r border-gray-200 flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-gray-100">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Tools</h2>
-          <button
-            onClick={handleCollapseToggle}
-            className="p-1 hover:bg-gray-50 rounded transition-colors"
-            title="Collapse sidebar"
-          >
-            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
+          <Tooltip text="Collapse sidebar" color="gray" position="bottom">
+            <button
+              onClick={handleCollapseToggle}
+              className="p-1 hover:bg-gray-50 rounded transition-colors"
+            >
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -328,27 +272,7 @@ export default function ModernLeftSidebar({
           })}
         </div>
 
-        {/* AI Content Wizard Tools */}
-        <div className="mt-6 px-3">
-          <div className="px-3 mb-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI Content</p>
-          </div>
-          <div className="space-y-1">
-            {aiTools.map((tool) => (
-              <button
-                key={tool.id}
-                onClick={() => handleItemClick(tool.id)}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors touch-target"
-              >
-                <span className="text-base">{tool.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{tool.title}</div>
-                  <div className="text-xs text-gray-500">{tool.description}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+
 
         {secondaryItems.length > 0 && (
           <div className="mt-6 px-3">
