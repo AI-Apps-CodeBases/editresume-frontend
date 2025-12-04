@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Eye, Pencil, Trash2, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+import { UserDetailsModal } from '@/components/dashboard/UserDetailsModal'
 import { useUsersData } from '@/hooks/useUsersData'
 import { User } from '@/types/users'
 
@@ -11,6 +12,8 @@ export default function UsersPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [statusFilter, setStatusFilter] = useState('all')
     const [activePage, setActivePage] = useState(1)
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+    const [isModalOpen, setIsModalOpen] = useState(false)
     
     // Use debounced search query to avoid too many API calls
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
@@ -156,7 +159,14 @@ export default function UsersPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
-                                                <button className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
+                                                <button 
+                                                    onClick={() => {
+                                                        setSelectedUserId(user.id)
+                                                        setIsModalOpen(true)
+                                                    }}
+                                                    className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+                                                    title="View Details"
+                                                >
                                                     <Eye className="w-4 h-4" />
                                                 </button>
                                                 <button className="p-2 hover:bg-green-50 rounded-lg text-green-600 transition-colors">
@@ -213,6 +223,16 @@ export default function UsersPage() {
                     </div>
                 </div>
             </div>
+
+            {/* User Details Modal */}
+            <UserDetailsModal
+                userId={selectedUserId}
+                isOpen={isModalOpen}
+                onClose={() => {
+                    setIsModalOpen(false)
+                    setSelectedUserId(null)
+                }}
+            />
         </DashboardLayout>
     )
 }

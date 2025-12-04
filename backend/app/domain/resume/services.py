@@ -28,6 +28,7 @@ class ResumeVersionService:
         resume_data: Dict[str, Any],
         change_summary: Optional[str] = None,
         is_auto_save: bool = False,
+        tokens_used: Optional[int] = None,
     ) -> ResumeVersion:
         latest_version = self._repository.latest_for_resume(resume_id, user_id)
         version_number = (
@@ -41,6 +42,7 @@ class ResumeVersionService:
             resume_data=resume_data,
             change_summary=change_summary,
             is_auto_save=is_auto_save,
+            tokens_used=tokens_used or 0,
         )
 
         return self._repository.save(version)

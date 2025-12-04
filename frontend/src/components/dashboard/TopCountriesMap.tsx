@@ -43,6 +43,28 @@ const markerLocations: Record<string, [number, number]> = {
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
 
 export function TopCountriesMap({ data }: TopCountriesMapProps) {
+    // Boş durum kontrolü
+    if (!data || data.length === 0) {
+        return (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-full">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900">Top Countries</h3>
+                    <select className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
+                        <option>Today</option>
+                        <option>Weekly</option>
+                        <option>Monthly</option>
+                    </select>
+                </div>
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                    <div className="text-center">
+                        <p className="text-sm">No visitor data available yet</p>
+                        <p className="text-xs mt-2">Visitor tracking will start automatically</p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     // Verilerden ülke ISO kodlarını çıkar
     const highlightedCountries = data.map(country => {
         const iso = countryNameToISO[country.country] || country.country.substring(0, 3).toUpperCase()
