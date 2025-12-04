@@ -3402,12 +3402,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       : 'Score Pending';
 
   const content = (
-    <div className={`p-3 sm:p-6 w-full max-w-full overflow-x-hidden ${standalone ? 'overflow-y-auto max-h-[calc(90vh-80px)]' : ''}`}>
+    <div className={`w-full max-w-full ${standalone ? 'overflow-y-auto max-h-[calc(90vh-80px)]' : ''}`}>
       {/* Match Results (if available) - Moved to top */}
       {matchResult && (
-        <div className="space-y-6 mb-6">
-          {/* ATS Score Header */}
-          <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 p-3 sm:p-6 shadow-sm">
+        <>
+          {/* ATS Score Header - Sticky at top - Always visible when scrolling */}
+          <div className={`sticky top-0 z-50 bg-white border-b-2 border-blue-300 p-3 sm:p-6 shadow-lg ${!standalone ? 'w-full' : ''}`}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
               <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                 <div className="relative inline-flex h-20 w-20 flex-shrink-0 items-center justify-center">
@@ -3511,8 +3511,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             </div>
           </div>
 
-          {/* Key Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          {/* Scrollable content below sticky panel */}
+          <div className="p-3 sm:p-6 space-y-6">
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
               <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                 Keyword Coverage
@@ -3753,11 +3755,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               </div>
             </div>
           )}
-        </div>
+          </div>
+        </>
       )}
 
       {/* Job Description Paste Area */}
-      <div className="mb-6 space-y-4">
+      <div className="p-3 sm:p-6">
+        <div className="mb-6 space-y-4">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             📋 Job Description
@@ -3780,9 +3784,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             </p>
           )}
         </div>
+        </div>
       </div>
 
       {/* Easy Apply Button - Always visible when JD is loaded */}
+      <div className="p-3 sm:p-6">
       {currentJDInfo?.easy_apply_url && (
         <div className="mb-4 flex items-center justify-end">
           <Tooltip text="Apply to this job directly on LinkedIn with one click" color="blue" position="left">
@@ -4217,7 +4223,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           {!matchResult && estimatedATS && (
             <div className="space-y-4 mt-6">
               {/* Simple Score Display */}
-              <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 p-6 shadow-sm">
+              <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-6 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div>
                     <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
@@ -4318,6 +4324,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               )}
             </div>
+      </div>
       </div>
     </div>
   );

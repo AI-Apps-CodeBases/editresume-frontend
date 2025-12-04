@@ -215,7 +215,7 @@ export default function RightPanel({
         )}
 
         {activeTab === 'match' && resumeData && (
-          <div className="h-full overflow-hidden flex flex-col">
+          <div className="h-full flex flex-col">
             <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
               <JobDescriptionMatcher
                 resumeData={resumeData}
