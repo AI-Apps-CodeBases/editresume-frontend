@@ -8,7 +8,10 @@ export function TopPerformerList({ data }: TopPerformerListProps) {
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-full">
             <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Top Performer</h3>
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Top Performer</h3>
+                    <p className="text-xs text-gray-500 mt-1">Most active users by resume versions</p>
+                </div>
                 <button className="text-blue-600 text-sm font-medium hover:underline">View All &gt;</button>
             </div>
 
@@ -27,7 +30,7 @@ export function TopPerformerList({ data }: TopPerformerListProps) {
                             </div>
                             <div className="text-right">
                                 <div className="font-bold text-gray-900 text-sm">{performer.revenue.toLocaleString()}</div>
-                                <div className="text-gray-500 text-xs">versions</div>
+                                <div className="text-gray-500 text-xs">resume versions</div>
                             </div>
                         </div>
                     ))

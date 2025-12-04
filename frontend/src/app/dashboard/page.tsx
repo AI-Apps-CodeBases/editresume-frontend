@@ -26,19 +26,12 @@ export default function DashboardPage() {
         latestSubscribers,
         feedbacks,
         loading,
-        deleteFeedback
+        deleteFeedback,
+        statsLoading
     } = useDashboardData()
 
-    // Debug log
-    console.log('📊 Dashboard page rendered. Feedbacks:', feedbacks?.length || 0)
-
-    if (loading) {
-        return (
-            <DashboardLayout>
-                <div className="flex items-center justify-center min-h-screen">Loading...</div>
-            </DashboardLayout>
-        )
-    }
+    // Show page immediately, only show loading for non-critical data
+    // Stats will show as soon as they're loaded (progressive loading)
 
     return (
         <DashboardLayout>
@@ -56,16 +49,29 @@ export default function DashboardPage() {
 
                 {/* Metric Cards - Always 5 columns side by side */}
                 <div className="grid grid-cols-5 gap-4">
-                    <MetricCard
-                        title="Total Users"
-                        value={stats.totalUsers.toLocaleString()}
-                        change={`+${stats.usersChange}`}
-                        changeLabel="Last 30 days users"
-                        icon={Users}
-                        iconBgColor="bg-cyan-500"
-                        iconColor="text-white"
-                        trend="up"
-                    />
+                    {statsLoading ? (
+                        // Loading skeleton for metrics
+                        <>
+                            {[...Array(5)].map((_, i) => (
+                                <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 animate-pulse">
+                                    <div className="h-4 bg-gray-200 rounded w-24 mb-4"></div>
+                                    <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
+                                    <div className="h-3 bg-gray-200 rounded w-32"></div>
+                                </div>
+                            ))}
+                        </>
+                    ) : (
+                        <>
+                            <MetricCard
+                                title="Total Users"
+                                value={stats.totalUsers.toLocaleString()}
+                                change={`+${stats.usersChange}`}
+                                changeLabel="Last 30 days users"
+                                icon={Users}
+                                iconBgColor="bg-cyan-500"
+                                iconColor="text-white"
+                                trend="up"
+                            />
                     <MetricCard
                         title="Total Subscription"
                         value={stats.totalSubscriptions.toLocaleString()}
@@ -107,6 +113,8 @@ export default function DashboardPage() {
                         iconColor="text-white"
                         trend="up"
                     />
+                        </>
+                    )}
                 </div>
 
                 {/* Charts Row 1 - Sales Statistic wider (2 cols), others 1 col each */}

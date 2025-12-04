@@ -37,6 +37,7 @@ from app.core.dependencies import (
 )
 from app.core.logging import setup_logging
 from app.middleware.firebase_auth import FirebaseAuthMiddleware
+from app.middleware.visitor_tracking import VisitorTrackingMiddleware
 
 # Initialize logging
 setup_logging()
@@ -47,6 +48,9 @@ migrate_schema()
 
 # Create FastAPI app
 app = FastAPI(title=settings.app_name, version=settings.version)
+
+# Add Visitor Tracking Middleware (track before auth)
+app.add_middleware(VisitorTrackingMiddleware)
 
 # Add Firebase Auth Middleware
 app.add_middleware(

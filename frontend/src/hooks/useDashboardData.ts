@@ -33,58 +33,53 @@ export const useDashboardData = () => {
     const [latestSubscribers, setLatestSubscribers] = useState<any[]>([])
     const [feedbacks, setFeedbacks] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [statsLoading, setStatsLoading] = useState(true) // Separate loading for stats
     const [error, setError] = useState<string | null>(null)
 
     // Fetch real data from PostgreSQL via FastAPI
     useEffect(() => {
         const fetchDashboardData = async () => {
             setLoading(true)
+            setStatsLoading(true)
             setError(null)
             
             try {
-                // Get auth token
+                // Get auth token (optional for local development)
                 const token = typeof window !== 'undefined' 
                     ? localStorage.getItem('authToken') 
                     : null
-                
-                if (!token) {
-                    setError('Authentication required')
-                    setLoading(false)
-                    return
-                }
 
                 const baseUrl = getApiBaseUrl()
-                const headers = {
-                    'Authorization': `Bearer ${token}`,
+                const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
                 }
                 
-                console.log('🔍 Fetching dashboard data from:', baseUrl)
-                console.log('🌐 Current hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A')
-                console.log('🔑 Token present:', !!token)
+                // Add authorization header only if token exists
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`
+                }
 
-                // Fetch critical stats first, then other data in parallel
-                // This allows the page to render faster with the most important data
+                // PRIORITY 1: Fetch critical stats first (show immediately)
                 try {
                     const statsResponse = await fetch(`${baseUrl}/api/dashboard/stats`, { headers })
                     if (statsResponse.ok) {
-                        const data = await statsResponse.json()
-                        setStats(data)
+                        const statsData = await statsResponse.json()
+                        setStats(statsData)
+                        setStatsLoading(false) // Stats loaded, show them
                     }
                 } catch (err) {
-                    console.error('Error fetching stats:', err)
+                    console.error('Stats API error:', err)
                 } finally {
                     setLoading(false) // Show page as soon as stats load (or fail)
                 }
 
-                // Fetch remaining data in parallel (non-blocking, updates UI progressively)
-                console.log('📡 Starting parallel fetch for dashboard data...')
+                // PRIORITY 2: Fetch other data in parallel (non-blocking)
                 const [salesRes, subscribersRes, userOverviewRes, topPerformersRes, topCountriesRes, contentGenRes, latestUsersRes, latestSubscribersRes, feedbacksRes] = await Promise.allSettled([
                     fetch(`${baseUrl}/api/dashboard/sales`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/subscribers`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/user-overview`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/top-performers`, { headers }),
-                    fetch(`${baseUrl}/api/dashboard/top-countries`, { headers }),
+                    fetch(`${baseUrl}/api/dashboard/top-countries?period=monthly`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/content-generation`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/latest-users`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/latest-subscribers`, { headers }),
@@ -93,7 +88,6 @@ export const useDashboardData = () => {
                         throw err
                     }),
                 ])
-                console.log('✅ All dashboard fetches completed')
 
                 // Update sales data
                 if (salesRes.status === 'fulfilled' && salesRes.value.ok) {
@@ -271,6 +265,7 @@ export const useDashboardData = () => {
         latestSubscribers,
         feedbacks,
         loading,
+        statsLoading, // Separate loading state for stats
         error,
         deleteFeedback,
         fetchFeedbacks

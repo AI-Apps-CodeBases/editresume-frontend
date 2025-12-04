@@ -87,10 +87,12 @@ def migrate_schema() -> None:
         return
 
     from app.models.job import JobCoverLetter, JobResumeVersion  # noqa: WPS433
+    from app.models.analytics import VisitorAnalytics  # noqa: WPS433
 
     # Ensure auxiliary tables exist
     JobResumeVersion.__table__.create(bind=engine, checkfirst=True)
     JobCoverLetter.__table__.create(bind=engine, checkfirst=True)
+    VisitorAnalytics.__table__.create(bind=engine, checkfirst=True)
 
     with engine.connect() as conn:
         # Check and fix job_descriptions.user_id nullability

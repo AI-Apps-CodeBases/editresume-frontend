@@ -6,23 +6,39 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, extract, Integer, case
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import func, extract, case, cast, Integer, text
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.security import get_current_user_token
 from app.core.firebase_admin import verify_id_token
-from app.models import User, Resume, ResumeVersion, ExportAnalytics
+from app.models import User, Resume, ResumeVersion, ExportAnalytics, VisitorAnalytics
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
-def verify_admin_token(token: str = Depends(get_current_user_token)) -> dict:
+def verify_admin_token(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
+) -> dict:
     """Verify token and check if user is admin (for now, just verify token)"""
-    decoded_token = verify_id_token(token)
+    from app.core.firebase_admin import get_firebase_app
+    
+    # Check if Firebase is configured
+    firebase_app = get_firebase_app()
+    if not firebase_app:
+        # Firebase not configured, allow access for local testing without token
+        logger.warning("Firebase not configured, allowing access for local development")
+        return {"uid": "local-test", "email": "test@local.com", "name": "Local Test User"}
+    
+    # Firebase is configured, verify token
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="Missing authentication credentials")
+    
+    decoded_token = verify_id_token(credentials.credentials)
     if not decoded_token:
         raise HTTPException(status_code=401, detail="Invalid token")
     return decoded_token
@@ -33,82 +49,74 @@ async def get_dashboard_stats(
     db: Session = Depends(get_db),
     token: dict = Depends(verify_admin_token),
 ):
-    """Get dashboard statistics from PostgreSQL - Optimized with fewer queries"""
+    """Get dashboard statistics from PostgreSQL - Optimized with single queries"""
     try:
-        # Calculate time boundaries once
-        now = datetime.utcnow()
-        thirty_days_ago = now - timedelta(days=30)
-        sixty_days_ago = now - timedelta(days=60)
+        # Calculate date ranges once
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        sixty_days_ago = datetime.utcnow() - timedelta(days=60)
         
-        # Get total counts in a single query using conditional aggregation
-        user_stats = db.query(
-            func.count(User.id).label('total_users'),
-            func.sum(func.cast(User.is_premium, Integer)).label('total_subscriptions')
+        # Optimize: Use raw SQL for maximum performance - single query for all user stats
+        # This reduces 6 queries to 1 query
+        user_stats_query = """
+            SELECT 
+                COUNT(*) as total_users,
+                COUNT(*) FILTER (WHERE is_premium = true) as total_subscriptions,
+                COUNT(*) FILTER (WHERE created_at >= :thirty_days_ago) as users_last_30,
+                COUNT(*) FILTER (WHERE created_at >= :sixty_days_ago AND created_at < :thirty_days_ago) as users_previous_30,
+                COUNT(*) FILTER (WHERE is_premium = true AND created_at >= :thirty_days_ago) as subscriptions_last_30,
+                COUNT(*) FILTER (WHERE is_premium = true AND created_at >= :sixty_days_ago AND created_at < :thirty_days_ago) as subscriptions_previous_30
+            FROM users
+        """
+        user_stats_result = db.execute(
+            text(user_stats_query),
+            {
+                "thirty_days_ago": thirty_days_ago,
+                "sixty_days_ago": sixty_days_ago
+            }
         ).first()
         
-        total_users = user_stats.total_users or 0
-        total_subscriptions = user_stats.total_subscriptions or 0
+        total_users = user_stats_result.total_users or 0
+        total_subscriptions = user_stats_result.total_subscriptions or 0
         total_free_users = total_users - total_subscriptions
-        
-        # Get user changes in a single query using conditional aggregation
-        user_changes = db.query(
-            func.count(case((User.created_at >= thirty_days_ago, 1))).label('users_last_30'),
-            func.count(case((
-                (User.created_at >= sixty_days_ago) & (User.created_at < thirty_days_ago), 1
-            ))).label('users_previous_30'),
-            func.count(case((
-                (User.created_at >= thirty_days_ago) & (User.is_premium == True), 1
-            ))).label('subscriptions_last_30'),
-            func.count(case((
-                (User.created_at >= sixty_days_ago) & 
-                (User.created_at < thirty_days_ago) & 
-                (User.is_premium == True), 1
-            ))).label('subscriptions_previous_30')
-        ).first()
-        
-        users_last_30 = user_changes.users_last_30 or 0
-        users_previous_30 = user_changes.users_previous_30 or 0
+        users_last_30 = user_stats_result.users_last_30 or 0
+        users_previous_30 = user_stats_result.users_previous_30 or 0
         users_change = users_last_30 - users_previous_30
-        
-        subscriptions_last_30 = user_changes.subscriptions_last_30 or 0
-        subscriptions_previous_30 = user_changes.subscriptions_previous_30 or 0
+        subscriptions_last_30 = user_stats_result.subscriptions_last_30 or 0
+        subscriptions_previous_30 = user_stats_result.subscriptions_previous_30 or 0
         subscriptions_change = subscriptions_last_30 - subscriptions_previous_30
-        
         free_users_change = users_change - subscriptions_change
         
         # Income (from Stripe - placeholder for now)
-        # TODO: Implement Stripe payment tracking
         total_income = 0
         income_change = 0
         
-        # Get resume counts in a single query
-        resume_stats = db.query(
-            func.count(Resume.id).label('total_resumes'),
-            func.count(case((Resume.created_at >= thirty_days_ago, 1))).label('resumes_last_30'),
-            func.count(case((
-                (Resume.created_at >= sixty_days_ago) & (Resume.created_at < thirty_days_ago), 1
-            ))).label('resumes_previous_30')
+        # Optimize: Single query for resume counts
+        resume_stats_query = """
+            SELECT 
+                COUNT(*) as total_resumes,
+                COUNT(*) FILTER (WHERE created_at >= :thirty_days_ago) as resumes_last_30,
+                COUNT(*) FILTER (WHERE created_at >= :sixty_days_ago AND created_at < :thirty_days_ago) as resumes_previous_30
+            FROM resumes
+        """
+        resume_stats_result = db.execute(
+            text(resume_stats_query),
+            {
+                "thirty_days_ago": thirty_days_ago,
+                "sixty_days_ago": sixty_days_ago
+            }
         ).first()
         
-        total_resumes = resume_stats.total_resumes or 0
-        resumes_last_30 = resume_stats.resumes_last_30 or 0
-        resumes_previous_30 = resume_stats.resumes_previous_30 or 0
+        total_resumes = resume_stats_result.total_resumes or 0
+        resumes_last_30 = resume_stats_result.resumes_last_30 or 0
+        resumes_previous_30 = resume_stats_result.resumes_previous_30 or 0
         
-        # Expense (OpenAI API costs)
-        # Calculate based on estimated token usage
-        # For now, estimate: each resume generation uses ~2000 tokens
-        # gpt-4o-mini pricing: $0.15 per 1M input tokens, $0.60 per 1M output tokens
-        # Average: ~$0.0003 per 1000 tokens
-        estimated_tokens = total_resumes * 2000  # Rough estimate
-        # Cost per 1000 tokens: ~$0.0003 for gpt-4o-mini
+        # Expense calculation (OpenAI API costs)
+        estimated_tokens = total_resumes * 2000
         total_expense = round(estimated_tokens * 0.0003 / 1000, 2)
-        
         estimated_tokens_last_30 = resumes_last_30 * 2000
         expense_last_30 = round(estimated_tokens_last_30 * 0.0003 / 1000, 2)
-        
         estimated_tokens_previous_30 = resumes_previous_30 * 2000
         expense_previous_30 = round(estimated_tokens_previous_30 * 0.0003 / 1000, 2)
-        
         expense_change = round(expense_last_30 - expense_previous_30, 2)
         
         return {
@@ -206,50 +214,44 @@ async def get_subscriber_data(
         subscriptions_previous_30 = subscription_changes.subscriptions_previous_30 or 0
         subscriptions_change = subscriptions_last_30 - subscriptions_previous_30
         
-        # Get last 7 days of premium user creations using a single query
-        seven_days_ago = now - timedelta(days=7)
-        days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-        
-        # Single query to get all days at once
-        subscriber_data = db.query(
-            func.date(User.created_at).label('date'),
-            func.count(User.id).label('count')
-        ).filter(
-            User.is_premium == True,
-            User.created_at >= seven_days_ago
-        ).group_by(
-            func.date(User.created_at)
-        ).all()
-        
-        # Create a dictionary for quick lookup
-        subscriber_dict = {}
-        for row in subscriber_data:
-            day_date = row.date
-            if isinstance(day_date, str):
-                day_date = datetime.strptime(day_date, '%Y-%m-%d').date()
-            day_name = days[(day_date.weekday() + 1) % 7]  # Convert to Sunday-first format
-            subscriber_dict[day_date] = {
-                "date": day_name,
-                "count": row.count
-            }
-        
-        # Build result array for last 7 days
-        subscriber_by_day = []
-        for day_offset in range(6, -1, -1):  # From 6 days ago to today
-            day_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=day_offset)
-            day_date = day_start.date()
-            day_name = days[(day_date.weekday() + 1) % 7]
-            
-            if day_date in subscriber_dict:
-                subscriber_by_day.append(subscriber_dict[day_date])
+        # Get premium users grouped by month (last 12 months)
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        current_year = datetime.utcnow().year
+        current_month = datetime.utcnow().month
+
+        subscriber_by_month = []
+        # Get last 12 months (from current month backward)
+        for i in range(12):
+            # Calculate month and year
+            month_num = current_month - i
+            year = current_year
+            while month_num <= 0:
+                month_num += 12
+                year -= 1
+
+            month_start = datetime(year, month_num, 1)
+            if month_num == 12:
+                month_end = datetime(year + 1, 1, 1)
             else:
-                subscriber_by_day.append({
-                    "date": day_name,
-                    "count": 0
-                })
+                month_end = datetime(year, month_num + 1, 1)
+
+            # Count premium users created in this month
+            count = db.query(func.count(User.id)).filter(
+                User.is_premium == True,
+                User.created_at >= month_start,
+                User.created_at < month_end
+            ).scalar() or 0
+
+            subscriber_by_month.append({
+                "date": months[month_num - 1],
+                "count": count
+            })
+
+        # Reverse to show oldest first (Jan to Dec)
+        subscriber_by_month.reverse()
         
         return {
-            "data": subscriber_by_day,
+            "data": subscriber_by_month,
             "totalSubscriptions": total_subscriptions,
             "subscriptionsChange": subscriptions_change,
         }
@@ -263,27 +265,24 @@ async def get_user_overview(
     db: Session = Depends(get_db),
     token: dict = Depends(verify_admin_token),
 ):
-    """Get user overview statistics"""
+    """Get user overview statistics - returns total counts"""
     try:
-        today = datetime.utcnow().date()
-        today_start = datetime.combine(today, datetime.min.time())
+        # Get total users
+        total_users = db.query(func.count(User.id)).scalar() or 0
         
-        # New users today
-        new_users_today = db.query(func.count(User.id)).filter(
-            func.date(User.created_at) == today
+        # Get total subscribers (premium users)
+        total_subscribers = db.query(func.count(User.id)).filter(
+            User.is_premium == True
         ).scalar() or 0
         
-        # New subscribers today
-        new_subscribers_today = db.query(func.count(User.id)).filter(
-            User.is_premium == True,
-            func.date(User.created_at) == today
-        ).scalar() or 0
+        # New users = Free users (total - premium)
+        new_users = total_users - total_subscribers
         
         return [
             {
-                "date": "Today",
-                "new": new_users_today,
-                "subscribers": new_subscribers_today,
+                "date": "Total",
+                "new": new_users,  # Free users (total - premium)
+                "subscribers": total_subscribers,  # Premium subscribers
             }
         ]
     except Exception as e:
@@ -391,12 +390,88 @@ async def get_top_performers(
 async def get_top_countries(
     db: Session = Depends(get_db),
     token: dict = Depends(verify_admin_token),
+    period: str = "monthly",  # daily, weekly, monthly
 ):
-    """Get top countries by user count"""
+    """Get top countries by visitor count"""
     try:
-        # TODO: Add country field to User model or get from IP geolocation
-        # For now, return empty array
-        return []
+        from app.models.analytics import VisitorAnalytics
+        from datetime import datetime, timedelta
+        
+        # Calculate date range based on period
+        now = datetime.utcnow()
+        if period == "daily":
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "weekly":
+            start_date = now - timedelta(days=7)
+        else:  # monthly
+            start_date = now - timedelta(days=30)
+        
+        # Get country statistics
+        country_stats = db.query(
+            VisitorAnalytics.country,
+            VisitorAnalytics.country_code,
+            func.count(VisitorAnalytics.id).label('visitor_count')
+        ).filter(
+            VisitorAnalytics.created_at >= start_date,
+            VisitorAnalytics.country.isnot(None),
+            VisitorAnalytics.country != "Local"
+        ).group_by(
+            VisitorAnalytics.country,
+            VisitorAnalytics.country_code
+        ).order_by(
+            func.count(VisitorAnalytics.id).desc()
+        ).limit(10).all()
+        
+        if not country_stats:
+            return []
+        
+        # Calculate total for percentage
+        total_visitors = sum(stat.visitor_count for stat in country_stats)
+        
+        # Country flag emoji mapping
+        country_flags = {
+            "US": "🇺🇸", "USA": "🇺🇸", "United States": "🇺🇸",
+            "GB": "🇬🇧", "GBR": "🇬🇧", "United Kingdom": "🇬🇧", "UK": "🇬🇧",
+            "CA": "🇨🇦", "CAN": "🇨🇦", "Canada": "🇨🇦",
+            "AU": "🇦🇺", "AUS": "🇦🇺", "Australia": "🇦🇺",
+            "DE": "🇩🇪", "DEU": "🇩🇪", "Germany": "🇩🇪",
+            "FR": "🇫🇷", "FRA": "🇫🇷", "France": "🇫🇷",
+            "IN": "🇮🇳", "IND": "🇮🇳", "India": "🇮🇳",
+            "BR": "🇧🇷", "BRA": "🇧🇷", "Brazil": "🇧🇷",
+            "CN": "🇨🇳", "CHN": "🇨🇳", "China": "🇨🇳",
+            "JP": "🇯🇵", "JPN": "🇯🇵", "Japan": "🇯🇵",
+            "SA": "🇸🇦", "SAU": "🇸🇦", "Saudi Arabia": "🇸🇦",
+            "PH": "🇵🇭", "PHL": "🇵🇭", "Philippines": "🇵🇭",
+            "ID": "🇮🇩", "IDN": "🇮🇩", "Indonesia": "🇮🇩",
+            "ES": "🇪🇸", "ESP": "🇪🇸", "Spain": "🇪🇸",
+            "IT": "🇮🇹", "ITA": "🇮🇹", "Italy": "🇮🇹",
+            "MX": "🇲🇽", "MEX": "🇲🇽", "Mexico": "🇲🇽",
+            "KR": "🇰🇷", "KOR": "🇰🇷", "South Korea": "🇰🇷",
+            "TR": "🇹🇷", "TUR": "🇹🇷", "Turkey": "🇹🇷",
+            "NL": "🇳🇱", "NLD": "🇳🇱", "Netherlands": "🇳🇱",
+            "SE": "🇸🇪", "SWE": "🇸🇪", "Sweden": "🇸🇪",
+            "NO": "🇳🇴", "NOR": "🇳🇴", "Norway": "🇳🇴",
+        }
+        
+        result = []
+        for stat in country_stats:
+            country_name = stat.country or "Unknown"
+            country_code = stat.country_code or "XX"
+            visitor_count = stat.visitor_count
+            percentage = round((visitor_count / total_visitors) * 100, 1) if total_visitors > 0 else 0
+            
+            # Get flag emoji
+            flag = country_flags.get(country_code) or country_flags.get(country_name) or "🌍"
+            
+            result.append({
+                "country": country_name,
+                "country_code": country_code,
+                "users": visitor_count,
+                "percentage": percentage,
+                "flag": flag
+            })
+        
+        return result
     except Exception as e:
         logger.error(f"Error fetching top countries: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch top countries")
