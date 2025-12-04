@@ -39,9 +39,9 @@ export function SubscriberChart({ data, totalSubscriptions = 0, subscriptionsCha
                 </div>
             </div>
 
-            <div className="h-[250px] w-full min-h-[250px] min-w-0">
+            <div className="h-[250px] w-full min-h-[250px]" style={{ width: '100%' }}>
                 {data && data.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%" minHeight={250} minWidth={0}>
+                    <ResponsiveContainer width="100%" height="100%" minHeight={250}>
                     <BarChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                         <XAxis
                             dataKey="date"

@@ -17,9 +17,9 @@ export function GeneratedContentChart({ data }: GeneratedContentChartProps) {
                 </select>
             </div>
 
-            <div className="h-[300px] w-full min-h-[300px] min-w-0">
+            <div className="h-[300px] w-full min-h-[300px]" style={{ width: '100%' }}>
                 {data && data.length > 0 && data.some(item => (item.word || 0) > 0) ? (
-                    <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={0}>
+                    <ResponsiveContainer width="100%" height="100%" minHeight={300}>
                         <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} barGap={8}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                             <XAxis
