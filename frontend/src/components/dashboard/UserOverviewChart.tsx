@@ -6,12 +6,13 @@ interface UserOverviewChartProps {
 }
 
 export function UserOverviewChart({ data }: UserOverviewChartProps) {
-    // Transform data for Pie Chart
+    // Transform data for Pie Chart - only show New and Subscribed (no inactive)
+    const newCount = data[0]?.new || 0
+    const subscribedCount = data[0]?.subscribers || 0
     const pieData = [
-        { name: 'New', value: data[0]?.new || 0, color: '#3B82F6' },
-        { name: 'Subscribed', value: data[0]?.subscribers || 0, color: '#F59E0B' },
-        { name: 'Inactive', value: 200, color: '#E0F2FE' } // Mock inactive for visual completeness
-    ]
+        { name: 'New', value: newCount, color: '#3B82F6' },
+        { name: 'Subscribed', value: subscribedCount, color: '#F59E0B' },
+    ].filter(item => item.value > 0) // Only show segments with data
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-full">
@@ -24,7 +25,7 @@ export function UserOverviewChart({ data }: UserOverviewChartProps) {
                 </select>
             </div>
 
-            <div className="h-[200px] w-full relative min-w-0">
+            <div className="h-[200px] w-full relative" style={{ width: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                     <PieChart>
                         <Pie
@@ -45,7 +46,15 @@ export function UserOverviewChart({ data }: UserOverviewChartProps) {
                         <Tooltip />
                     </PieChart>
                 </ResponsiveContainer>
-                {/* Center Text (Optional, not in screenshot but common) */}
+                {/* Center Text - Total Users */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-gray-900">
+                            {(data[0]?.new || 0) + (data[0]?.subscribers || 0)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">Total Users</div>
+                    </div>
+                </div>
             </div>
 
             <div className="flex justify-center gap-8 mt-4">

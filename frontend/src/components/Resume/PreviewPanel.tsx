@@ -51,13 +51,15 @@ interface Props {
   replacements: Record<string, string>
   template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'modern-one' | 'classic-one' | 'minimal-one' | 'executive-one' | 'classic' | 'creative' | 'ats-friendly' | 'executive'
   templateConfig?: any
+  constrained?: boolean // When true, adapts layout for constrained spaces like panels
 }
 
 export default function PreviewPanel({ 
   data, 
   replacements, 
   template = 'clean' as const,
-  templateConfig
+  templateConfig,
+  constrained = false
 }: Props) {
   // Add A4 page break styles and dimensions
   useEffect(() => {
@@ -171,6 +173,33 @@ export default function PreviewPanel({
         padding: 20px;
         background: #f3f4f6;
         min-height: 100vh;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      
+      /* Responsive container for constrained spaces */
+      .a4-pages-container.constrained {
+        min-height: auto;
+        padding: 10px;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+      
+      /* Responsive page view for constrained spaces */
+      .a4-pages-container.constrained .a4-page-view {
+        width: 100%;
+        max-width: min(8.27in, calc(100vw - 40px));
+        min-height: auto;
+        transform: scale(1);
+        transform-origin: top center;
+      }
+      
+      /* Scale down content in very narrow containers */
+      @media (max-width: 640px) {
+        .a4-pages-container.constrained .a4-page-view {
+          transform: scale(0.8);
+          margin-bottom: 10px;
+        }
       }
       
       /* Page break indicators within content - show at every 11.69in */
@@ -1100,7 +1129,7 @@ export default function PreviewPanel({
   )
   
   return (
-    <div className="a4-pages-container">
+    <div className={`a4-pages-container${constrained ? ' constrained' : ''}`}>
       <div className="a4-page-view" style={{ position: 'relative', minHeight: 'auto' }}>
         <div className="page-number">Page 1</div>
         {renderContent()}

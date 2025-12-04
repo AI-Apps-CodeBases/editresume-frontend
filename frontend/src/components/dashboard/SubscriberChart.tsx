@@ -8,15 +8,16 @@ interface SubscriberChartProps {
 }
 
 export function SubscriberChart({ data, totalSubscriptions = 0, subscriptionsChange = 0 }: SubscriberChartProps) {
-    // Calculate total from data if available
-    const calculatedTotal = data.length > 0
-        ? data.reduce((sum, item) => sum + (item.count || 0), 0)
-        : totalSubscriptions
+    // Use totalSubscriptions prop if provided (from backend), otherwise calculate from data
+    const calculatedTotal = totalSubscriptions > 0 
+        ? totalSubscriptions 
+        : (data.length > 0 ? data.reduce((sum, item) => sum + (item.count || 0), 0) : 0)
     
-    // Calculate average per day (last 7 days)
-    const avgPerDay = data.length > 0
-        ? Math.round(calculatedTotal / 7)
-        : Math.round(Math.abs(subscriptionsChange) / 30)
+    // Calculate average per day from last 7 days data
+    const sumLast7Days = data.length > 0 ? data.reduce((sum, item) => sum + (item.count || 0), 0) : 0
+    const avgPerDay = sumLast7Days > 0 
+        ? Math.round(sumLast7Days / 7)
+        : (subscriptionsChange !== 0 ? Math.round(Math.abs(subscriptionsChange) / 30) : 0)
     
     // Calculate percentage change
     const percentageChange = data.length > 1 && calculatedTotal > 0
@@ -38,7 +39,7 @@ export function SubscriberChart({ data, totalSubscriptions = 0, subscriptionsCha
                 </div>
             </div>
 
-            <div className="h-[250px] w-full min-h-[250px] min-w-0">
+            <div className="h-[250px] w-full min-h-[250px]" style={{ width: '100%' }}>
                 {data && data.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%" minHeight={250}>
                     <BarChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
@@ -52,6 +53,7 @@ export function SubscriberChart({ data, totalSubscriptions = 0, subscriptionsCha
                         <Tooltip
                             cursor={{ fill: 'transparent' }}
                             contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            formatter={(value: number) => [`Sales: ${value}`, '']}
                         />
                         <Bar dataKey="count" radius={[10, 10, 10, 10]} barSize={20}>
                             {data.map((entry, index) => (

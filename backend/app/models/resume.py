@@ -63,6 +63,7 @@ class ResumeVersion(Base):
     resume_data = Column(JSON, nullable=False)
     change_summary = Column(Text)
     is_auto_save = Column(Boolean, default=False)
+    tokens_used = Column(Integer, nullable=True, default=0)  # Track actual OpenAI token usage
     created_at = Column(DateTime, default=datetime.utcnow)
 
     resume = relationship("Resume", back_populates="versions")

@@ -164,7 +164,7 @@ export default function ModernEditorLayout({
           onCloseDrawer={() => setShowLeftDrawer(false)}
         />
 
-        <div className={`flex-1 lg:flex-[3] overflow-hidden transition-all duration-300 h-full ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
+        <div className={`flex-1 lg:flex-[55] overflow-hidden transition-all duration-300 h-full ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
           {currentView === 'editor' ? (
             <div className="h-full overflow-y-auto bg-gray-50 pb-20 lg:pb-0">
               <VisualResumeEditor
@@ -199,7 +199,7 @@ export default function ModernEditorLayout({
 
         {currentView === 'editor' && (
           <>
-            <div className="hidden lg:block lg:flex-[2] overflow-hidden h-full">
+            <div className="hidden lg:block lg:flex-[45] overflow-hidden h-full">
               <RightPanel 
                 activeTab={activeRightTab} 
                 onTabChange={setActiveRightTab}
