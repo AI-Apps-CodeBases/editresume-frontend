@@ -2011,7 +2011,116 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
     });
 
-    const score = Math.round((matchedKeywords.length / totalKeywords) * 100);
+    // Calculate keyword match percentage (primary factor, but capped)
+    const keywordMatchPercentage = totalKeywords > 0 
+      ? (matchedKeywords.length / totalKeywords) * 100 
+      : 0;
+
+    // Calculate section completeness score
+    let sectionScore = 0;
+    const sections = resumeData.sections || [];
+    const requiredSections = ['experience', 'work', 'education', 'skills'];
+    const sectionTitles = sections.map((s: any) => s.title?.toLowerCase() || '');
+    
+    let foundSections = 0;
+    requiredSections.forEach((reqSection) => {
+      if (sectionTitles.some((title: string) => title.includes(reqSection))) {
+        foundSections++;
+      }
+    });
+    
+    sectionScore = (foundSections / requiredSections.length) * 100;
+    
+    // Additional section quality: check if sections have content
+    let sectionQualityScore = 0;
+    if (sections.length > 0) {
+      const sectionsWithContent = sections.filter((s: any) => {
+        const bullets = s.bullets || [];
+        const visibleBullets = bullets.filter((b: any) => b?.params?.visible !== false);
+        return visibleBullets.length > 0;
+      }).length;
+      sectionQualityScore = (sectionsWithContent / sections.length) * 100;
+    }
+    
+    // Combined section score (average of completeness and quality)
+    const combinedSectionScore = (sectionScore + sectionQualityScore) / 2;
+
+    // Calculate content quality indicators
+    let contentQualityScore = 50; // Base score
+    
+    // Check for summary
+    if (resumeData.summary && resumeData.summary.trim().length > 50) {
+      contentQualityScore += 10;
+    }
+    
+    // Check for contact info
+    if (resumeData.email || resumeData.phone) {
+      contentQualityScore += 5;
+    }
+    
+    // Check for title
+    if (resumeData.title && resumeData.title.trim().length > 0) {
+      contentQualityScore += 5;
+    }
+    
+    // Check for sufficient content length
+    const totalContentLength = resumeText.length;
+    if (totalContentLength > 500) {
+      contentQualityScore += 10;
+    } else if (totalContentLength > 200) {
+      contentQualityScore += 5;
+    }
+    
+    // Cap content quality at 100
+    contentQualityScore = Math.min(100, contentQualityScore);
+
+    // Apply weighted scoring similar to backend
+    // Keyword match: 75% (reduced from 100% to prevent unrealistic scores)
+    // Section completeness: 15%
+    // Content quality: 10%
+    const keywordWeight = 0.75;
+    const sectionWeight = 0.15;
+    const qualityWeight = 0.10;
+
+    // Apply cap to keyword-only contributions to prevent 100% from keyword stuffing
+    // Even with 100% keyword match, max contribution is 75 points
+    // This ensures other factors (sections, quality) are always considered
+    const maxKeywordContribution = 75;
+    const actualKeywordContribution = Math.min(
+      keywordMatchPercentage * keywordWeight,
+      maxKeywordContribution
+    );
+    
+    // Calculate base score with capped keyword contribution
+    const baseScore = 
+      actualKeywordContribution +
+      (combinedSectionScore * sectionWeight) +
+      (contentQualityScore * qualityWeight);
+
+    // Apply normalization: prevent scores above 90% unless all factors are strong
+    // This prevents unrealistic 100% scores from keyword matching alone
+    let finalScore = baseScore;
+    
+    if (finalScore > 90) {
+      // Require strong performance across all factors for scores above 90%
+      const allFactorsStrong = 
+        keywordMatchPercentage >= 80 &&
+        combinedSectionScore >= 70 &&
+        contentQualityScore >= 70;
+      
+      if (!allFactorsStrong) {
+        // Cap at 90% if not all factors are strong
+        finalScore = Math.min(90, finalScore);
+      }
+    }
+
+    // Ensure minimum score if resume has content
+    if (resumeText.trim() && sections.length > 0) {
+      finalScore = Math.max(30, finalScore);
+    }
+
+    // Round to nearest integer
+    const score = Math.round(Math.min(100, Math.max(0, finalScore)));
 
     return {
       score,
