@@ -3516,7 +3516,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       {matchResult && (
         <>
           {/* ATS Score Header - Sticky at top - Always visible when scrolling */}
-          <div className={`sticky top-0 z-50 bg-white border-b-2 border-blue-300 p-3 sm:p-6 shadow-lg ${!standalone ? 'w-full' : ''}`}>
+          <div className={`sticky top-0 z-40 bg-white border-b-2 border-blue-300 p-3 sm:p-6 shadow-lg ${!standalone ? 'w-full' : ''}`}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
               <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                 <div className="relative inline-flex h-20 w-20 flex-shrink-0 items-center justify-center">
