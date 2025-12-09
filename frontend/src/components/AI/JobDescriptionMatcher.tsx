@@ -160,15 +160,52 @@ const extractBudget = (text: string): string | null => {
 
 const extractTopKeywords = (text: string): string[] => {
   if (!text) return [];
-  const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they']);
+  const commonWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 
+    'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 
+    'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can', 'this', 'that', 
+    'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+    // Additional non-technical job posting words
+    'opportunity', 'opportunities', 'position', 'positions', 'join', 'seeking', 'hiring',
+    'apply', 'applicant', 'applicants', 'job', 'jobs', 'career', 'careers', 'employment',
+    'employee', 'employees', 'description', 'posting', 'opening', 'openings', 'vacancy',
+    'offer', 'offers', 'provide', 'provides', 'providing', 'day', 'days', 'week', 'weeks',
+    'month', 'months', 'time', 'times', 'people', 'person', 'individual', 'individuals',
+    'successful', 'success', 'ideal', 'perfect', 'best', 'top', 'leading', 'premier',
+    'world', 'class', 'award', 'winning', 'innovative', 'dynamic', 'growing', 'established',
+    'well', 'known', 'recognized', 'industry', 'industries', 'sector', 'sectors', 'field',
+    'fields', 'candidate', 'candidates', 'looking', 'work', 'team', 'role', 'company',
+    'your', 'our', 'able', 'also', 'ensure', 'using', 'use', 'make', 'year', 'years',
+    'plus', 'nice', 'preferred', 'strong', 'excellent', 'great', 'good', 'fast', 'paced',
+    'environment', 'responsible', 'responsibilities', 'requirements', 'requirement',
+    'qualification', 'qualifications', 'skills', 'experience', 'experiences'
+  ]);
+  
+  // Extract words (minimum 4 characters, letters only - no numbers)
   const words = text.toLowerCase().match(/\b[a-z]{4,}\b/gi) || [];
   const wordCount: Record<string, number> = {};
+  
   words.forEach(word => {
     const w = word.toLowerCase();
-    if (!commonWords.has(w)) {
-      wordCount[w] = (wordCount[w] || 0) + 1;
+    
+    // Skip common words
+    if (commonWords.has(w)) {
+      return;
     }
+    
+    // Skip if word contains numbers (shouldn't happen with current regex, but double-check)
+    if (/\d/.test(w)) {
+      return;
+    }
+    
+    // Skip if word is just a number (shouldn't happen, but safety check)
+    if (/^\d+$/.test(w)) {
+      return;
+    }
+    
+    wordCount[w] = (wordCount[w] || 0) + 1;
   });
+  
   return Object.entries(wordCount)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 12)
