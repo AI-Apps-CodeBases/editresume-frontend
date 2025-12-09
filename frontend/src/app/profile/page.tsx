@@ -1317,6 +1317,7 @@ function ProfilePageContent() {
               <SettingsPanel
                 user={user}
                 onDeleteAccount={handleDeleteAccount}
+                onLogout={logout}
               />
             )}
           </div>
