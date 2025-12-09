@@ -235,15 +235,61 @@ async def export_html_to_pdf(payload: dict):
 
         logger.info(f"Converting HTML to PDF: {len(html_content)} characters")
 
-        pdf_bytes = HTML(string=html_content).write_pdf()
-
-        logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes")
+        try:
+            pdf_bytes = HTML(string=html_content).write_pdf()
+            
+            if not pdf_bytes or len(pdf_bytes) == 0:
+                logger.error("PDF generation returned empty bytes")
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed: Empty PDF file was generated."
+                )
+            
+            if not isinstance(pdf_bytes, bytes):
+                logger.error(f"PDF generation returned invalid type: {type(pdf_bytes)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed: Invalid PDF data type."
+                )
+            
+            if not pdf_bytes.startswith(b"%PDF-"):
+                logger.error(f"PDF validation failed: Invalid PDF header. First 20 bytes: {pdf_bytes[:20]}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed: Generated file is not a valid PDF."
+                )
+            
+            logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes, header: {pdf_bytes[:8]}")
+        except AttributeError as e:
+            if "'super' object has no attribute" in str(e) or "transform" in str(e):
+                logger.error(f"WeasyPrint compatibility error: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed due to a compatibility issue. Please upgrade WeasyPrint or contact support."
+                )
+            raise
+        except Exception as pdf_error:
+            error_msg = str(pdf_error)
+            logger.error(f"WeasyPrint PDF generation error: {error_msg}")
+            
+            if "transform" in error_msg.lower() or "super" in error_msg.lower():
+                raise HTTPException(
+                    status_code=500,
+                    detail="PDF generation failed due to a compatibility issue. Please upgrade WeasyPrint or contact support."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"PDF generation failed: {error_msg}"
+                )
 
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"HTML to PDF export error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -284,6 +330,7 @@ async def create_version(
             resume_data=payload.resume_data,
             change_summary=payload.change_summary,
             is_auto_save=payload.is_auto_save,
+            tokens_used=payload.tokens_used,
         )
 
         return {

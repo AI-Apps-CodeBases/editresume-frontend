@@ -21,8 +21,13 @@ services:
     restart: unless-stopped
     volumes:
       - .:/app
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-editresume}:${POSTGRES_PASSWORD:-password123}@db:5432/${POSTGRES_DB:-editresume_db}
+      # .env dosyasındaki DATABASE_URL kullanılacak
+      # Render PostgreSQL için: Render'dan aldığınız External Database URL'i .env'e ekleyin
+      # Local PostgreSQL için: postgresql+psycopg2://editresume:password123@db:5432/editresume_db
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://${POSTGRES_USER:-editresume}:${POSTGRES_PASSWORD:-password123}@db:5432/${POSTGRES_DB:-editresume_db}}
       PYTHONUNBUFFERED: "1"
       PREMIUM_MODE: ${PREMIUM_MODE:-false}
       OPENAI_API_KEY: ${OPENAI_API_KEY}

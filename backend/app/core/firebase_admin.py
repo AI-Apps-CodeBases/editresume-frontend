@@ -4,6 +4,8 @@ import base64
 import json
 import logging
 import secrets
+import threading
+import time
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
@@ -11,12 +13,18 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials, firestore
 from firebase_admin import exceptions as firebase_exceptions
+from google.auth import exceptions as google_auth_exceptions
 
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
+
+# Track initialization state to avoid repeated timeouts
+_firebase_init_lock = threading.Lock()
+_firebase_init_attempted = False
+_firebase_init_failed = False
 
 
 def _load_service_account_info() -> Optional[Dict[str, Any]]:
@@ -38,12 +46,58 @@ def _load_service_account_info() -> Optional[Dict[str, Any]]:
     return None
 
 
+def _initialize_firebase_with_timeout(cred, options, timeout: int = 10) -> Optional[firebase_admin.App]:
+    """Initialize Firebase with timeout to prevent hanging on network issues."""
+    result = [None]
+    exception = [None]
+
+    def init_worker():
+        try:
+            result[0] = firebase_admin.initialize_app(cred, options)
+        except Exception as e:  # noqa: BLE001
+            exception[0] = e
+
+    thread = threading.Thread(target=init_worker, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout)
+
+    if thread.is_alive():
+        logger.warning(
+            "Firebase initialization timed out after %d seconds. "
+            "This may indicate network connectivity issues to oauth2.googleapis.com. "
+            "Firebase features will be unavailable.",
+            timeout
+        )
+        return None
+
+    if exception[0]:
+        raise exception[0]
+
+    return result[0]
+
+
 @lru_cache
 def get_firebase_app() -> Optional[firebase_admin.App]:
+    global _firebase_init_attempted, _firebase_init_failed
+
     if firebase_admin._apps:
         return firebase_admin.get_app()
 
+    # Check if we've already failed initialization to avoid repeated timeouts
+    with _firebase_init_lock:
+        if _firebase_init_failed:
+            return None
+        if _firebase_init_attempted:
+            # Wait a bit and check again if another thread is initializing
+            time.sleep(0.1)
+            if firebase_admin._apps:
+                return firebase_admin.get_app()
+            if _firebase_init_failed:
+                return None
+
     service_account_info = _load_service_account_info()
+    cred = None
+
     if not service_account_info and settings.firebase_service_account_key_path:
         try:
             cred = credentials.Certificate(settings.firebase_service_account_key_path)
@@ -62,13 +116,46 @@ def get_firebase_app() -> Optional[firebase_admin.App]:
         )
         return None
 
+    if not cred:
+        return None
+
+    with _firebase_init_lock:
+        _firebase_init_attempted = True
+
     try:
         options = {}
         if settings.firebase_project_id:
             options["projectId"] = settings.firebase_project_id
-        return firebase_admin.initialize_app(cred, options)
+
+        # Use timeout wrapper to prevent hanging
+        app = _initialize_firebase_with_timeout(cred, options, timeout=10)
+        if app:
+            logger.info("Firebase Admin SDK initialized successfully")
+            return app
+        else:
+            with _firebase_init_lock:
+                _firebase_init_failed = True
+            return None
+
+    except (google_auth_exceptions.TransportError, google_auth_exceptions.RefreshError) as exc:
+        logger.error(
+            "Firebase authentication failed due to network error: %s. "
+            "Check network connectivity to oauth2.googleapis.com. "
+            "Firebase features will be unavailable.",
+            exc
+        )
+        with _firebase_init_lock:
+            _firebase_init_failed = True
+        return None
+    except firebase_exceptions.FirebaseError as exc:
+        logger.error("Firebase error during initialization: %s", exc)
+        with _firebase_init_lock:
+            _firebase_init_failed = True
+        return None
     except Exception as exc:  # noqa: BLE001
-        logger.error("Failed to initialise Firebase Admin SDK: %s", exc)
+        logger.error("Failed to initialise Firebase Admin SDK: %s", exc, exc_info=True)
+        with _firebase_init_lock:
+            _firebase_init_failed = True
         return None
 
 

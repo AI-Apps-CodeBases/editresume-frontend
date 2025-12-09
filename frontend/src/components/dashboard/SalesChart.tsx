@@ -45,7 +45,7 @@ export function SalesChart({ data, totalIncome = 0, incomeChange = 0 }: SalesCha
                 </select>
             </div>
 
-            <div className="h-[250px] w-full min-w-0">
+            <div className="h-[250px] w-full" style={{ width: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%" minHeight={250}>
                     <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <defs>

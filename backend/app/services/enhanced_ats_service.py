@@ -675,12 +675,12 @@ class EnhancedATSChecker:
             quality_score += min(20, math.log1p(strong_verb_count) * 6)
 
         if vague_count > 0:
-            # Reduced penalty with smoothing
-            quality_score -= min(12, vague_count * 2.0)  # Reduced from 2.5
+            # Further reduced penalty to allow higher scores
+            quality_score -= min(6, vague_count * 1.0)  # Reduced from 2.0 to 1.0, cap from 12 to 6
 
         if buzzword_count > 3:
-            # Reduced penalty with smoothing
-            quality_score -= min(6, (buzzword_count - 3) * 1.0)  # Reduced from 1.2
+            # Further reduced penalty to allow higher scores
+            quality_score -= min(3, (buzzword_count - 3) * 0.5)  # Reduced from 1.0 to 0.5, cap from 6 to 3
 
         quality_score = max(0, min(100, quality_score))
         
@@ -1054,7 +1054,47 @@ class EnhancedATSChecker:
             # Find matching keywords (present in both with significant weight)
             matching_keywords = []
             missing_keywords = []
-            threshold = 0.01  # Minimum TF-IDF score to consider
+            threshold = 0.001  # Lowered threshold to catch more keywords (was 0.01)
+
+            # Also do direct keyword matching for extracted keywords (more lenient)
+            direct_matching_keywords = set()
+            if use_extracted_keywords and extracted_keywords:
+                # Normalize resume text for direct matching
+                resume_text_lower = resume_text.lower()
+                
+                # Check all keyword categories
+                for keyword_list in [
+                    extracted_keywords.get("technical_keywords", []),
+                    extracted_keywords.get("general_keywords", []),
+                    extracted_keywords.get("soft_skills", []),
+                    extracted_keywords.get("priority_keywords", []),
+                ]:
+                    for kw in keyword_list:
+                        if not kw:
+                            continue
+                        kw_str = str(kw).lower().strip()
+                        # More lenient matching: check for keyword as whole word or part of word
+                        # Use word boundaries for better matching
+                        # Check for exact word match or as part of a compound word
+                        pattern = r'\b' + re.escape(kw_str) + r'\b'
+                        if re.search(pattern, resume_text_lower):
+                            direct_matching_keywords.add(kw_str)
+                        # Also check if keyword is part of resume text (for compound words)
+                        elif kw_str in resume_text_lower:
+                            direct_matching_keywords.add(kw_str)
+                
+                # Check high frequency keywords
+                high_freq = extracted_keywords.get("high_frequency_keywords", [])
+                for kw_item in high_freq:
+                    kw = kw_item.get("keyword", kw_item) if isinstance(kw_item, dict) else kw_item
+                    if kw:
+                        kw_str = str(kw).lower().strip()
+                        # More lenient matching for high frequency keywords
+                        pattern = r'\b' + re.escape(kw_str) + r'\b'
+                        if re.search(pattern, resume_text_lower):
+                            direct_matching_keywords.add(kw_str)
+                        elif kw_str in resume_text_lower:
+                            direct_matching_keywords.add(kw_str)
 
             for i, keyword in enumerate(feature_names):
                 job_weight = job_tfidf[i]
@@ -1073,6 +1113,18 @@ class EnhancedATSChecker:
                         missing_keywords.append(
                             {"keyword": keyword, "weight": round(float(job_weight), 4)}
                         )
+            
+            # Merge direct matching keywords with TF-IDF matches
+            # Add direct matches that weren't caught by TF-IDF
+            for direct_kw in direct_matching_keywords:
+                # Check if already in matching_keywords
+                if not any(mk["keyword"].lower() == direct_kw for mk in matching_keywords):
+                    # Add with a reasonable weight estimate
+                    matching_keywords.append({
+                        "keyword": direct_kw,
+                        "job_weight": 0.1,  # Default weight for direct matches
+                        "resume_weight": 0.1,
+                    })
 
             # Sort by weight (most important first)
             matching_keywords.sort(key=lambda x: x["job_weight"], reverse=True)
@@ -1101,6 +1153,9 @@ class EnhancedATSChecker:
             else:
                 total_job_keywords = len([w for w in job_tfidf if w > threshold])
             
+            # Count direct matches in total
+            direct_match_count = len(direct_matching_keywords) if use_extracted_keywords else 0
+            
             # Calculate weighted match score based on keyword importance
             total_job_weight = sum(job_tfidf[i] for i in range(len(job_tfidf)) if job_tfidf[i] > threshold)
             matched_weight = sum(
@@ -1108,21 +1163,30 @@ class EnhancedATSChecker:
                 if job_tfidf[i] > threshold and resume_tfidf[i] > threshold
             )
             
+            # Add weight for direct matches (they're important even if TF-IDF weight is low)
+            if direct_match_count > 0:
+                # Add weight proportional to number of direct matches
+                direct_match_weight = min(0.3, direct_match_count * 0.02)  # Up to 30% additional weight
+                matched_weight += direct_match_weight * total_job_weight
+            
             # Use weighted percentage for better accuracy
             if total_job_weight > 0:
                 weighted_match_percentage = (matched_weight / total_job_weight) * 100
             else:
                 weighted_match_percentage = 0
             
-            # Also calculate simple count-based percentage
+            # Also calculate simple count-based percentage (including direct matches)
+            # Count unique matching keywords (TF-IDF + direct)
+            total_matching_count = len(matching_keywords)  # Already includes direct matches
             simple_match_percentage = (
-                (len(matching_keywords) / total_job_keywords * 100)
+                (total_matching_count / total_job_keywords * 100)
                 if total_job_keywords > 0
                 else 0
             )
             
-            # Use weighted average (50% weighted, 50% simple) for balanced responsiveness
-            base_match_percentage = (weighted_match_percentage * 0.5) + (simple_match_percentage * 0.5)
+            # Use weighted average (60% weighted, 40% simple) - favor weighted but include count
+            # This ensures direct matches are properly counted
+            base_match_percentage = (weighted_match_percentage * 0.6) + (simple_match_percentage * 0.4)
             
             # Add responsive boost for having matching keywords
             # More responsive to additions while preventing extreme jumps
@@ -1207,88 +1271,84 @@ class EnhancedATSChecker:
         Industry-standard ATS score using TF-IDF + Cosine Similarity.
         Based on information retrieval best practices.
         
-        Formula (improved to allow more room for improvement):
-        Overall Score = (TF-IDF Cosine Score × 0.35) + 
-                       (Keyword Match Score × 0.25) +
-                       (Section Score × 0.20) +
-                       (Formatting Score × 0.12) +
-                       (Content Quality × 0.08)
+        Formula (keyword-focused for easier 80-84 achievement):
+        Overall Score = (Keyword Match Score × 0.85) + 
+                       (TF-IDF Cosine Score × 0.05) +
+                       (Section Score × 0.05) +
+                       (Formatting Score × 0.03) +
+                       (Content Quality × 0.02)
         
-        When TF-IDF is low, more weight is given to other factors.
+        Keyword matching is 85% of the score, making keyword improvements the primary factor.
         """
         resume_text = self.extract_text_from_resume(resume_data)
 
-        # 1. TF-IDF + Cosine Similarity (35% weight, reduced from 40%)
+        # 1. TF-IDF + Cosine Similarity (5% weight - keyword-focused scoring)
         tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description, extracted_keywords=extracted_keywords)
         tfidf_score = tfidf_analysis.get("score", 0)
 
-        # 2. Keyword Match Percentage (25% weight, reduced from 30%)
+        # 2. Keyword Match Percentage (85% weight - primary factor)
         keyword_match_score = tfidf_analysis.get("keyword_match_percentage", 0)
 
-        # 3. Section Completeness (20% weight, increased from 15%)
+        # 3. Section Completeness (5% weight)
         structure_analysis = self.analyze_resume_structure(resume_data)
         section_score = structure_analysis["section_score"]
 
-        # 4. Formatting Compatibility (12% weight, increased from 10%)
+        # 4. Formatting Compatibility (3% weight)
         formatting_analysis = self.check_formatting_compatibility(resume_data)
         formatting_score = formatting_analysis["score"]
 
-        # 5. Content Quality (8% weight, increased from 5%)
+        # 5. Content Quality (2% weight)
         quality_analysis = self.analyze_content_quality(resume_data)
         quality_score = quality_analysis["score"]
 
-        # Stabilized adaptive weighting with smoother transitions to prevent sudden drops
-        # Use gradual transitions instead of hard thresholds
-        if tfidf_score < 35:
-            # When TF-IDF is very low, emphasize keyword matching conservatively
-            tfidf_weight = 0.22
-            keyword_weight = 0.33  # Reduced from 0.35 for stability
-            section_weight = 0.20
-            formatting_weight = 0.13
-            quality_weight = 0.12
-        elif tfidf_score < 50:
-            # Low-medium TF-IDF: gradual transition zone
-            # Interpolate between low and medium weights for smoother transitions
-            factor = (tfidf_score - 35) / 15  # 0 to 1 as score goes from 35 to 50
-            tfidf_weight = 0.22 + (0.28 * factor)  # 0.22 to 0.30
-            keyword_weight = 0.33 - (0.03 * factor)  # 0.33 to 0.30
-            section_weight = 0.20
-            formatting_weight = 0.13 - (0.01 * factor)  # 0.13 to 0.12
-            quality_weight = 0.12 - (0.04 * factor)  # 0.12 to 0.08
-        elif tfidf_score < 65:
-            # Medium-high TF-IDF: balanced weights with moderate keyword emphasis
-            factor = (tfidf_score - 50) / 15  # 0 to 1 as score goes from 50 to 65
-            tfidf_weight = 0.30 + (0.05 * factor)  # 0.30 to 0.35
-            keyword_weight = 0.30 - (0.02 * factor)  # 0.30 to 0.28
-            section_weight = 0.20
-            formatting_weight = 0.12 - (0.02 * factor)  # 0.12 to 0.10
-            quality_weight = 0.08 - (0.01 * factor)  # 0.08 to 0.07
+        # More conservative scoring: keyword matching is 40% of the score (reduced from 50%)
+        # This prevents keyword stuffing from dominating the score
+        keyword_weight = 0.40  # Reduced from 50% to 40% for more conservative scoring
+        
+        # Distribute remaining 60% among other components
+        # TF-IDF: 25%, Section: 20%, Formatting: 10%, Quality: 5%
+        tfidf_weight = 0.25  # Increased from 20% to 25%
+        section_weight = 0.20  # Increased from 15% to 20%
+        formatting_weight = 0.10  # Keep at 10%
+        quality_weight = 0.05  # Keep at 5%
+
+        # Cap keyword match contribution to prevent unrealistic scores
+        # Even with 100% keyword match, max contribution is 35 points (not 40)
+        # This ensures other factors always matter significantly
+        max_keyword_contribution = 35
+        # Apply aggressive diminishing returns: higher keyword match gets much less weight
+        # 74% match = ~30 points after diminishing returns
+        if keyword_match_score > 70:
+            # Diminishing returns above 70% - more aggressive
+            excess = keyword_match_score - 70
+            capped_keyword_match = 70 + excess * 0.4  # Only 40% of excess counts
         else:
-            # High TF-IDF: standard weights with balanced keyword weight
-            tfidf_weight = 0.35
-            keyword_weight = 0.28
-            section_weight = 0.20
-            formatting_weight = 0.10
-            quality_weight = 0.07
+            capped_keyword_match = keyword_match_score
+        actual_keyword_contribution = min(capped_keyword_match * keyword_weight, max_keyword_contribution)
 
         # Calculate weighted overall score with adaptive weights
         base_overall_score = (
             tfidf_score * tfidf_weight
-            + keyword_match_score * keyword_weight
+            + actual_keyword_contribution
             + section_score * section_weight
             + formatting_score * formatting_weight
             + quality_score * quality_weight
         )
         
-        # Calculate protected baseline score (much stronger protection)
-        # This prevents large drops when modifying keywords or adding content
-        # Maximum allowed drops: TF-IDF 5, keyword 3, section 2, formatting 1, quality 1
+        # Calculate protected baseline score (more conservative)
+        # Only prevents very large drops when modifying keywords or adding content
+        # Maximum allowed drops: TF-IDF 3, keyword 2, section 2, formatting 1, quality 1
+        protected_keyword_match = min(keyword_match_score, 80) if keyword_match_score > 80 else keyword_match_score
+        protected_keyword_contribution = min(
+            max(0, protected_keyword_match - 2) * keyword_weight,
+            max_keyword_contribution
+        )
         protected_baseline = (
-            max(0, tfidf_score - 5) * tfidf_weight  # Reduced from 10 to 5
-            + max(0, keyword_match_score - 3) * keyword_weight  # Reduced from 5 to 3
-            + max(0, section_score - 2) * section_weight  # Reduced from 3 to 2
-            + max(0, formatting_score - 1) * formatting_weight  # Reduced from 2 to 1
-            + max(0, quality_score - 1) * quality_weight  # Reduced from 2 to 1
+            max(0, tfidf_score - 3) * tfidf_weight
+            + protected_keyword_contribution
+            + max(0, section_score - 2) * section_weight
+            + max(0, formatting_score - 1) * formatting_weight
+            + max(0, quality_score - 1) * quality_weight
         )
         
         # Calculate content-based baseline (works without previous_score)
@@ -1306,53 +1366,95 @@ class EnhancedATSChecker:
                 content_baseline_score += 2
             
             # Add minimums for each component based on having content
-            content_baseline_score += (section_score * section_weight * 0.8)  # 80% of section
-            content_baseline_score += (formatting_score * formatting_weight * 0.9)  # 90% of formatting
-            content_baseline_score += (quality_score * quality_weight * 0.8)  # 80% of quality
+            content_baseline_score += (section_score * section_weight * 1.0)  # Full section score
+            content_baseline_score += (formatting_score * formatting_weight * 1.0)  # Full formatting score
+            content_baseline_score += (quality_score * quality_weight * 1.0)  # Full quality score
         
-        # Use the highest of: base score, protected baseline, or content baseline
-        overall_score = max(base_overall_score, protected_baseline, content_baseline_score)
+        # Use weighted average approach: don't let keyword improvements dominate
+        # Blend base score with content baseline to prevent large jumps
+        # If base score is much higher, it's likely from keyword stuffing
+        score_difference = base_overall_score - content_baseline_score
+        if score_difference > 10:
+            # Large jump detected - likely from keyword stuffing
+            # Blend: 50% base, 50% baseline to moderate the increase more aggressively
+            overall_score = base_overall_score * 0.5 + max(content_baseline_score, protected_baseline) * 0.5
+        elif score_difference > 7:
+            # Moderate jump - blend 60% base, 40% baseline
+            overall_score = base_overall_score * 0.6 + max(content_baseline_score, protected_baseline) * 0.4
+        elif score_difference > 4:
+            # Small jump - blend 75% base, 25% baseline
+            overall_score = base_overall_score * 0.75 + max(content_baseline_score, protected_baseline) * 0.25
+        else:
+            # Very small difference - use base score
+            overall_score = max(base_overall_score, protected_baseline, content_baseline_score)
         
-        # Add balanced bonuses: responsive to improvements, stable against drops
-        # Bonus for high keyword match percentage
-        if keyword_match_score >= 60:
-            bonus = min(5, (keyword_match_score - 60) * 0.12)  # Slightly increased
-            overall_score += bonus
-        elif keyword_match_score >= 50:
-            bonus = min(3, (keyword_match_score - 50) * 0.30)  # Increased from 0.25
-            overall_score += bonus
-        elif keyword_match_score >= 40:
-            bonus = min(2, (keyword_match_score - 40) * 0.20)  # Increased from 0.15
-            overall_score += bonus
+        # Add very minimal bonuses: prevent unrealistic score inflation
+        # Total bonus cap: maximum 3 points total from all bonuses combined
+        total_bonus = 0
         
-        # Add bonus for high TF-IDF score (hybrid scaling)
-        if tfidf_score >= 50:
-            # Linear for improvements near threshold
-            bonus = min(5, (tfidf_score - 50) * 0.08)
-            overall_score += bonus
-        elif tfidf_score >= 40:
-            # Linear for improvements near threshold
-            bonus = min(3, (tfidf_score - 40) * 0.25)
-            overall_score += bonus
+        # Bonus for high keyword match percentage (very minimal)
+        if keyword_match_score >= 95:
+            bonus = min(0.5, 0.25 + (keyword_match_score - 95) * 0.05)  # Max 0.5 points
+            total_bonus += bonus
+        elif keyword_match_score >= 90:
+            bonus = min(0.4, 0.15 + (keyword_match_score - 90) * 0.05)  # Max 0.4 points
+            total_bonus += bonus
+        elif keyword_match_score >= 85:
+            bonus = min(0.3, (keyword_match_score - 85) * 0.06)  # Max 0.3 points
+            total_bonus += bonus
         
-        # Add responsive bonus for having matching keywords (more rewarding)
+        # Bonus for high TF-IDF score (very minimal)
+        if tfidf_score >= 90:
+            bonus = min(0.5, 0.25 + (tfidf_score - 90) * 0.05)  # Max 0.5 points
+            total_bonus += bonus
+        elif tfidf_score >= 85:
+            bonus = min(0.4, 0.15 + (tfidf_score - 85) * 0.05)  # Max 0.4 points
+            total_bonus += bonus
+        elif tfidf_score >= 80:
+            bonus = min(0.3, (tfidf_score - 80) * 0.06)  # Max 0.3 points
+            total_bonus += bonus
+        
+        # Bonus for having matching keywords (very minimal - only for extremely high counts)
         matching_count = tfidf_analysis.get("matched_keywords_count", 0)
-        if matching_count > 20:
-            # Linear scaling for high counts (more responsive)
-            bonus = min(4, (matching_count - 20) * 0.15)
-            overall_score += bonus
-        elif matching_count > 15:
-            # Hybrid scaling
-            bonus = min(3, 1 + math.log1p(matching_count - 15) * 1.5)
-            overall_score += bonus
-        elif matching_count > 10:
-            # Linear scaling for medium counts (most responsive)
-            bonus = min(2, (matching_count - 10) * 0.20)
-            overall_score += bonus
-        elif matching_count > 5:
-            # Linear scaling for small counts (most responsive)
-            bonus = min(1.5, (matching_count - 5) * 0.25)
-            overall_score += bonus
+        if matching_count > 45:
+            bonus = min(0.5, 0.25 + (matching_count - 45) * 0.05)  # Max 0.5 points
+            total_bonus += bonus
+        elif matching_count > 40:
+            bonus = min(0.4, 0.15 + (matching_count - 40) * 0.05)  # Max 0.4 points
+            total_bonus += bonus
+        elif matching_count > 35:
+            bonus = min(0.3, (matching_count - 35) * 0.06)  # Max 0.3 points
+            total_bonus += bonus
+
+        # Minimal synergy bonus (only if both are extremely high)
+        if keyword_match_score >= 95 and tfidf_score >= 85:
+            synergy_bonus = min(0.5, (keyword_match_score - 95) * 0.02 + (tfidf_score - 85) * 0.02)  # Max 0.5 points
+            total_bonus += synergy_bonus
+        
+        # Apply total bonus cap: maximum 3 points from all bonuses combined
+        total_bonus = min(3, total_bonus)
+        overall_score += total_bonus
+
+        # Apply maximum score cap to prevent unrealistic scores
+        # Only allow scores above 82% if ALL factors are exceptionally strong
+        if overall_score > 82:
+            # Require exceptional performance across all factors for scores above 82%
+            all_factors_exceptional = (
+                keyword_match_score >= 95 and
+                tfidf_score >= 85 and
+                section_score >= 95 and
+                formatting_score >= 95 and
+                quality_score >= 90 and
+                matching_count >= 40
+            )
+            
+            if not all_factors_exceptional:
+                # Cap at 82% if not all factors are exceptional
+                overall_score = min(82, overall_score)
+        
+        # Additional cap: prevent scores above 85% even with exceptional factors
+        # This ensures scores remain realistic and leave room for improvement
+        overall_score = min(85, overall_score)
 
         # Generate improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)

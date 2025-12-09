@@ -66,3 +66,4 @@
 - Use typed contracts (TypeScript types, Zod schemas)
 - Keep domain logic separate from UI concerns
 
+
