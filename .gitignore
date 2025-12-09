@@ -10,4 +10,3 @@ build/
 *.log
 .vercel
 *.tsbuildinfo
-extension/*

@@ -6,6 +6,11 @@ const DEFAULTS = {
 
 const TOKEN_TTL_MS = 45 * 60 * 1000 // 45 minutes
 
+// Guards to prevent multiple tab creation
+let tabCreationInProgress = false
+let processingTabs = new Set() // Track tabs being processed by handleExtensionAuthTab
+let tokenRefreshInProgress = false // Prevent multiple simultaneous token refresh calls
+
 const getApiBaseFromAppBase = (appBase) => {
   if (!appBase) return 'https://editresume-api-prod.onrender.com'
   if (appBase.includes('editresume.io') && !appBase.includes('staging')) {
@@ -142,18 +147,10 @@ const requestTokenViaApp = async (retries = 3) => {
   const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
   let resolvedAppBase = appBase || DEFAULTS.appBase
   
-  // Allow staging URLs - don't force migration
-  // if (resolvedAppBase.includes('staging.editresume.io') || resolvedAppBase.includes('localhost')) {
-  //   resolvedAppBase = DEFAULTS.appBase
-  //   await chrome.storage.sync.set({ 
-  //     appBase: DEFAULTS.appBase,
-  //     apiBase: getApiBaseFromAppBase(DEFAULTS.appBase)
-  //   })
-  // }
-  
   const normalizedBase = normalizeBaseUrl(resolvedAppBase)
   const urlPattern = `${normalizedBase}/*`
 
+  // Always check for existing tabs first, even on retries
   const existingTabs = await chrome.tabs.query({ url: urlPattern })
   let targetTab = existingTabs.find(tab => {
     try {
@@ -165,19 +162,51 @@ const requestTokenViaApp = async (retries = 3) => {
   }) || existingTabs[0]
   let createdTempTab = false
 
-  if (!targetTab) {
-    targetTab = await chrome.tabs.create({
-      url: `${normalizedBase}/?extensionAuth=1`,
-      active: false
-    })
-    createdTempTab = true
-  } else {
+  // Only create a new tab if:
+  // 1. No existing tab found
+  // 2. No tab creation is already in progress
+  if (!targetTab && !tabCreationInProgress) {
+    tabCreationInProgress = true
+    try {
+      targetTab = await chrome.tabs.create({
+        url: `${normalizedBase}/?extensionAuth=1`,
+        active: false
+      })
+      createdTempTab = true
+      console.log('Extension: Created auth tab', targetTab.id)
+    } finally {
+      tabCreationInProgress = false
+    }
+  } else if (!targetTab && tabCreationInProgress) {
+    // Wait for the in-progress tab creation to complete
+    console.log('Extension: Tab creation in progress, waiting...')
+    let waitAttempts = 0
+    while (tabCreationInProgress && waitAttempts < 10) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      const checkTabs = await chrome.tabs.query({ url: urlPattern })
+      targetTab = checkTabs.find(tab => {
+        try {
+          const url = new URL(tab.url)
+          return url.searchParams.get('extensionAuth') === '1'
+        } catch {
+          return false
+        }
+      })
+      if (targetTab) break
+      waitAttempts++
+    }
+    if (!targetTab) {
+      throw new Error('Tab creation timeout - another process may be creating a tab')
+    }
+  } else if (targetTab) {
+    // Reuse existing tab - update URL if needed
     const tabUrl = new URL(targetTab.url)
     if (tabUrl.searchParams.get('extensionAuth') !== '1') {
       await chrome.tabs.update(targetTab.id, {
         url: `${normalizedBase}/?extensionAuth=1`
       })
     }
+    console.log('Extension: Reusing existing auth tab', targetTab.id)
   }
 
   if (!targetTab?.id) {
@@ -259,7 +288,9 @@ const requestTokenViaApp = async (retries = 3) => {
       chrome.tabs.update(targetTab.id, { active: true })
     }
     if (retries > 0) {
+      // On retry, reuse the existing tab instead of creating a new one
       await new Promise(resolve => setTimeout(resolve, 2000))
+      // Pass the existing tab ID to avoid creating a new tab
       return requestTokenViaApp(retries - 1)
     }
   }
@@ -277,15 +308,40 @@ const ensureFreshToken = async (forceRefresh = false) => {
     return token
   }
 
-  const freshToken = await requestTokenViaApp()
-  // Preserve existing settings when updating token
-  const current = await chrome.storage.sync.get()
-  await chrome.storage.sync.set({ 
-    ...current,
-    token: freshToken, 
-    tokenFetchedAt: Date.now() 
-  })
-  return freshToken
+  // Prevent multiple simultaneous token refresh calls
+  if (tokenRefreshInProgress) {
+    console.log('Extension: Token refresh already in progress, waiting...')
+    // Wait for the in-progress refresh to complete
+    let waitAttempts = 0
+    while (tokenRefreshInProgress && waitAttempts < 20) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      const current = await chrome.storage.sync.get({ token: '', tokenFetchedAt: 0 })
+      // Check if token was refreshed by the other call
+      if (current.token && current.tokenFetchedAt > tokenFetchedAt) {
+        return current.token
+      }
+      waitAttempts++
+    }
+    // If still in progress after waiting, proceed anyway to avoid deadlock
+    if (tokenRefreshInProgress) {
+      console.warn('Extension: Token refresh timeout, proceeding anyway')
+    }
+  }
+
+  tokenRefreshInProgress = true
+  try {
+    const freshToken = await requestTokenViaApp()
+    // Preserve existing settings when updating token
+    const current = await chrome.storage.sync.get()
+    await chrome.storage.sync.set({ 
+      ...current,
+      token: freshToken, 
+      tokenFetchedAt: Date.now() 
+    })
+    return freshToken
+  } finally {
+    tokenRefreshInProgress = false
+  }
 }
 
 const clearStoredToken = async () => {
@@ -325,18 +381,29 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 })
 
 const handleExtensionAuthTab = async (tabId) => {
+  // Prevent multiple simultaneous processing of the same tab
+  if (processingTabs.has(tabId)) {
+    console.log('Extension: Tab', tabId, 'already being processed, skipping')
+    return false
+  }
+
+  processingTabs.add(tabId)
+  
   try {
     const tabStatus = await chrome.tabs.get(tabId).catch(() => null)
     if (!tabStatus || tabStatus.status !== 'complete' || !tabStatus.url) {
+      processingTabs.delete(tabId)
       return false
     }
 
     try {
       const url = new URL(tabStatus.url)
       if (url.protocol === 'chrome-error:' || url.protocol === 'chrome-extension-error:' || url.protocol === 'about:') {
+        processingTabs.delete(tabId)
         return false
       }
     } catch {
+      processingTabs.delete(tabId)
       return false
     }
 
@@ -345,7 +412,10 @@ const handleExtensionAuthTab = async (tabId) => {
       files: ['appBridge.js']
     }).catch(() => null)
     
-    if (!injected) return false
+    if (!injected) {
+      processingTabs.delete(tabId)
+      return false
+    }
     
     await new Promise(resolve => setTimeout(resolve, 2000))
     
@@ -368,32 +438,38 @@ const handleExtensionAuthTab = async (tabId) => {
         )
       })
 
-        if (response?.ok && response.token) {
-          // Preserve existing settings when updating token
-          const current = await chrome.storage.sync.get()
-          await chrome.storage.sync.set({ 
-            ...current,
-            token: response.token, 
-            tokenFetchedAt: Date.now() 
-          })
-          console.log('Extension: Token successfully obtained and stored')
-          return true
-        }
+      if (response?.ok && response.token) {
+        // Preserve existing settings when updating token
+        const current = await chrome.storage.sync.get()
+        await chrome.storage.sync.set({ 
+          ...current,
+          token: response.token, 
+          tokenFetchedAt: Date.now() 
+        })
+        console.log('Extension: Token successfully obtained and stored')
+        processingTabs.delete(tabId)
+        return true
+      }
       
       if (response?.error === 'not_authenticated' && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 1500))
         return tryGetToken()
       }
       
+      processingTabs.delete(tabId)
       return false
     }
     
     return await tryGetToken()
   } catch (err) {
     console.warn('Auto-retry token request failed:', err)
+    processingTabs.delete(tabId)
     return false
   }
 }
+
+// Debounce timer for tab updates
+const tabUpdateTimers = new Map()
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || !tab?.url) return
@@ -406,7 +482,21 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const normalizedBase = normalizeBaseUrl(appBase)
     if (!tab.url.startsWith(normalizedBase)) return
     
-    setTimeout(() => handleExtensionAuthTab(tabId), 2000)
+    // Clear existing timer for this tab if any
+    if (tabUpdateTimers.has(tabId)) {
+      clearTimeout(tabUpdateTimers.get(tabId))
+    }
+    
+    // Debounce: only process after 2 seconds of no updates
+    const timer = setTimeout(() => {
+      tabUpdateTimers.delete(tabId)
+      // Only process if tab is not already being processed
+      if (!processingTabs.has(tabId)) {
+        handleExtensionAuthTab(tabId)
+      }
+    }, 2000)
+    
+    tabUpdateTimers.set(tabId, timer)
   } catch (err) {
     // Ignore invalid URLs
   }

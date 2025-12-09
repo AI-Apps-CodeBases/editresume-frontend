@@ -82,26 +82,53 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       // Wait a bit and verify they were saved
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const saved = await chrome.storage.sync.get(['apiBase', 'appBase']);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Verify settings were actually persisted
+      const saved = await chrome.storage.sync.get(['apiBase', 'appBase', '_lastSaved']);
+      console.log('Options: Settings saved, verifying...', { 
+        saved: { apiBase: saved.apiBase, appBase: saved.appBase },
+        expected: { apiBase, appBase }
+      });
       
       if (saved.apiBase === apiBase && saved.appBase === appBase) {
         statusEl.textContent = 'Saved successfully!';
         statusEl.style.color = 'green';
         
-        // optional: ping backend
+        // Verify API is reachable
         try {
-          const res = await fetch(apiBase.replace(/\/$/, '') + '/health');
+          const healthUrl = apiBase.replace(/\/$/, '') + '/health';
+          console.log('Options: Testing API connection to:', healthUrl);
+          const res = await fetch(healthUrl, { method: 'GET', signal: AbortSignal.timeout(5000) });
           if (res.ok) {
-            statusEl.textContent = 'Saved (API OK)';
+            statusEl.textContent = 'Saved ✓ (API reachable)';
+            console.log('Options: API health check passed');
+          } else {
+            statusEl.textContent = 'Saved ✓ (API returned error)';
+            console.warn('Options: API health check failed with status:', res.status);
           }
-        } catch (_) {
-          statusEl.textContent = 'Saved (API unreachable)';
+        } catch (err) {
+          statusEl.textContent = 'Saved ✓ (API unreachable)';
+          console.warn('Options: API health check failed:', err.message);
         }
       } else {
         statusEl.textContent = 'Error: Settings not saved correctly';
         statusEl.style.color = 'red';
-        console.error('Settings mismatch:', { saved, expected: { apiBase, appBase } });
+        console.error('Options: Settings verification failed:', { 
+          saved: { apiBase: saved.apiBase, appBase: saved.appBase },
+          expected: { apiBase, appBase },
+          lastSaved: saved._lastSaved
+        });
+        
+        // Try to re-save
+        console.log('Options: Attempting to re-save settings...');
+        await chrome.storage.sync.set(updated);
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const retrySaved = await chrome.storage.sync.get(['apiBase', 'appBase']);
+        if (retrySaved.apiBase === apiBase && retrySaved.appBase === appBase) {
+          statusEl.textContent = 'Saved on retry ✓';
+          statusEl.style.color = 'green';
+        }
       }
       
       setTimeout(() => { 

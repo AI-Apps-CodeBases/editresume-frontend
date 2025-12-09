@@ -79,16 +79,67 @@ export default function JobsView({ onBack }: Props) {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
       }
-      const res = await fetch(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+      
+      const apiUrl = `${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Fetching job descriptions from:', apiUrl)
+        console.log('API Base URL:', config.apiBase)
+      }
+      
+      const res = await fetch(apiUrl, {
         headers
       })
-      if (res.ok) {
-        const data = await res.json()
-        const jds = Array.isArray(data) ? data : data.results || []
-        setSavedJDs(jds)
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { detail: errorText || `HTTP ${res.status}` }
+        }
+        
+        console.error('Failed to load job descriptions:', {
+          status: res.status,
+          statusText: res.statusText,
+          error: errorData,
+          url: apiUrl
+        })
+        
+        if (process.env.NODE_ENV === 'development') {
+          alert(`Failed to load job descriptions: ${errorData.detail || `HTTP ${res.status}`}`)
+        }
+        return
+      }
+      
+      const data = await res.json()
+      const jds = Array.isArray(data) ? data : data.results || []
+      setSavedJDs(jds)
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Successfully loaded job descriptions:', jds.length)
       }
     } catch (e) {
-      console.error('Failed to load job descriptions', e)
+      const error = e instanceof Error ? e : new Error(String(e))
+      console.error('Failed to load job descriptions', {
+        error: error.message,
+        stack: error.stack,
+        name: error.name,
+        apiBase: config.apiBase
+      })
+      
+      if (process.env.NODE_ENV === 'development') {
+        const isNetworkError = error.message.includes('Failed to fetch') || 
+                              error.message.includes('ERR_EMPTY_RESPONSE') ||
+                              error.message.includes('NetworkError')
+        
+        if (isNetworkError) {
+          alert(`Network error: Cannot connect to backend API at ${config.apiBase}. Please ensure the backend server is running on port 8000.`)
+        } else {
+          alert(`Error loading job descriptions: ${error.message}`)
+        }
+      }
     } finally {
       setLoading(false)
     }

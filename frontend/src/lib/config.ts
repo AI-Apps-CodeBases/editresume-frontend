@@ -2,7 +2,7 @@
 
 /**
  * Dynamically determines the API base URL based on the current window location
- * - localhost/127.0.0.1 → http://localhost:8000
+ * - localhost/127.0.0.1 → uses Next.js proxy (/api/proxy) to avoid CORS issues
  * - staging domains → https://editresume-staging.onrender.com
  * - production domains → production API URL (to be configured)
  * - Otherwise uses environment variable or default
@@ -10,6 +10,13 @@
 export function getApiBaseUrl(): string {
   // If environment variable is set, use it (highest priority)
   if (process.env.NEXT_PUBLIC_API_BASE) {
+    // In development on localhost, use proxy to avoid CORS
+    if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
+        return '/api/proxy';
+      }
+    }
     return process.env.NEXT_PUBLIC_API_BASE;
   }
 
@@ -18,9 +25,9 @@ export function getApiBaseUrl(): string {
     try {
       const hostname = window.location.hostname;
       
-      // Local development
+      // Local development - use Next.js proxy to avoid CORS issues
       if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
-        return 'http://localhost:8000';
+        return '/api/proxy';
       }
       
       // Staging environment
@@ -39,7 +46,10 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  // Default fallback
+  // Default fallback - use proxy in development, direct URL otherwise
+  if (process.env.NODE_ENV === 'development') {
+    return '/api/proxy';
+  }
   return 'http://localhost:8000';
 }
 

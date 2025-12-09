@@ -1007,26 +1007,30 @@
       };
       setStatus('Saving...');
       try {
-        const cfg = await chrome.storage.sync.get({ appBase: 'https://editresume.io', token: '' });
+        const cfg = await chrome.storage.sync.get({ appBase: 'https://editresume.io', apiBase: '', token: '' });
         
-        // Migration disabled - respect user's saved settings
-        // if (cfg.appBase && (cfg.appBase.includes('staging.editresume.io') || cfg.appBase.includes('localhost'))) {
-        //   cfg.appBase = 'https://editresume.io';
-        //   cfg.apiBase = 'https://editresume-api-prod.onrender.com';
-        //   await chrome.storage.sync.set({ 
-        //     appBase: cfg.appBase,
-        //     apiBase: cfg.apiBase
-        //   });
-        // }
+        // Resolve API base URL - respect saved apiBase if present
+        let resolvedApiBase;
+        if (cfg.apiBase && cfg.apiBase.trim()) {
+          resolvedApiBase = cfg.apiBase.trim().replace(/\/$/, '');
+        } else if (cfg.appBase && cfg.appBase.includes('localhost')) {
+          if (cfg.appBase.includes('localhost:3000')) {
+            resolvedApiBase = 'http://localhost:8000';
+          } else if (cfg.appBase.includes('localhost:8000')) {
+            resolvedApiBase = cfg.appBase.replace(/\/$/, '');
+          } else {
+            resolvedApiBase = 'http://localhost:8000';
+          }
+        } else if (cfg.appBase && cfg.appBase.includes('staging.editresume.io')) {
+          resolvedApiBase = 'https://editresume-staging.onrender.com';
+        } else if (cfg.appBase && cfg.appBase.includes('editresume.io') && !cfg.appBase.includes('staging')) {
+          resolvedApiBase = 'https://editresume-api-prod.onrender.com';
+        } else {
+          resolvedApiBase = 'https://editresume-api-prod.onrender.com';
+        }
         
-        const resolvedApiBase = cfg.apiBase || (cfg.appBase && cfg.appBase.includes('editresume.io') && !cfg.appBase.includes('staging') 
-          ? 'https://editresume-api-prod.onrender.com' 
-          : cfg.appBase && cfg.appBase.includes('staging.editresume.io')
-          ? 'https://editresume-staging.onrender.com'
-          : cfg.appBase && cfg.appBase.includes('localhost:3000')
-          ? 'http://localhost:8000'
-          : 'https://editresume-api-prod.onrender.com');
         cfg.apiBase = resolvedApiBase;
+        console.log('Content.js: Using API base:', resolvedApiBase);
         if (!cfg.token) { setStatus('Please sign in first.'); return; }
         const res = await fetch(`${cfg.apiBase}/api/job-descriptions`, {
           method: 'POST',
@@ -1075,5 +1079,117 @@
     }
     return false;
   });
+
+  // Detect job card clicks on LinkedIn listing pages
+  function isLinkedInJobsListingPage() {
+    try {
+      const url = window.location.href;
+      if (!url.includes('linkedin.com')) return false;
+      const pathname = window.location.pathname;
+      return (
+        pathname.includes('/jobs/search/') ||
+        pathname.includes('/jobs/collections/') ||
+        (pathname.startsWith('/jobs/') && !pathname.includes('/jobs/view/') && !pathname.includes('/jobs/apply/'))
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Monitor for job selection changes on listing pages
+  if (isLinkedInJobsListingPage()) {
+    let lastSelectedJobUrl = '';
+    let observer = null;
+
+    function checkForJobSelection() {
+      try {
+        // Check if there's a job detail panel visible (side panel on listing pages)
+        // Try multiple selectors for the job detail panel
+        const jobDetailPanel = document.querySelector(
+          '.jobs-search__job-details, ' +
+          '.jobs-details, ' +
+          '.jobs-search__job-details--container, ' +
+          '[data-job-id], ' +
+          '.jobs-details__main-content, ' +
+          '.scaffold-layout__detail'
+        );
+        
+        if (!jobDetailPanel) return;
+
+        // Try to get the current job URL from the detail panel
+        let currentJobUrl = '';
+        const jobLink = jobDetailPanel.querySelector('a[href*="/jobs/view/"]');
+        if (jobLink && jobLink.href) {
+          currentJobUrl = jobLink.href.split('?')[0];
+        } else {
+          // Fallback: check URL in browser
+          const urlMatch = window.location.href.match(/\/jobs\/view\/(\d+)/);
+          if (urlMatch) {
+            currentJobUrl = window.location.href.split('?')[0];
+          }
+        }
+
+        if (currentJobUrl && currentJobUrl !== lastSelectedJobUrl) {
+          lastSelectedJobUrl = currentJobUrl;
+          // Notify via storage (popup listens to storage changes)
+          chrome.storage.sync.set({ _jobSelected: Date.now(), _jobSelectedUrl: currentJobUrl }).catch(() => {});
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+
+    // Use MutationObserver to detect when job detail panel changes
+    function setupObserver() {
+      if (observer) observer.disconnect();
+      
+      observer = new MutationObserver(() => {
+        checkForJobSelection();
+      });
+
+      // Observe the main content area where job details appear
+      const targetNode = document.querySelector('.jobs-search-results, .scaffold-layout__list-container, .scaffold-layout__detail, body');
+      if (targetNode) {
+        observer.observe(targetNode, {
+          childList: true,
+          subtree: true,
+          attributes: false
+        });
+      }
+    }
+
+    // Also listen for clicks on job cards
+    document.addEventListener('click', (e) => {
+      const jobCard = e.target.closest('li[data-occludable-job-id], li.jobs-search-results__list-item, div[data-job-id], a[href*="/jobs/view/"]');
+      if (jobCard) {
+        // Wait a bit for LinkedIn to load the job details
+        setTimeout(() => {
+          checkForJobSelection();
+        }, 800);
+      }
+    }, true);
+
+    // Also check URL changes (LinkedIn might update URL when selecting a job)
+    let lastUrl = window.location.href;
+    setInterval(() => {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        setTimeout(() => {
+          checkForJobSelection();
+        }, 500);
+      }
+    }, 500);
+
+    // Initial setup
+    setupObserver();
+    checkForJobSelection();
+
+    // Re-setup observer if DOM changes significantly
+    setInterval(() => {
+      if (!observer || !document.querySelector('.jobs-search-results, .scaffold-layout__list-container')) {
+        setupObserver();
+      }
+    }, 2000);
+  }
 })();
 

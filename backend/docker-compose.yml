@@ -17,7 +17,6 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
     container_name: editresume_backend
     restart: unless-stopped
     volumes:

@@ -32,31 +32,50 @@ async function ensureAuthToken({ silent = false, forceRefresh = false } = {}) {
 }
 
 async function resolveApiBase() {
-  const { appBase, apiBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io', apiBase: '' });
+  const storage = await chrome.storage.sync.get({ appBase: 'https://editresume.io', apiBase: '' });
+  const { appBase, apiBase } = storage;
   
+  console.log('resolveApiBase: Raw storage values:', { appBase, apiBase, allStorage: storage });
+  
+  // If apiBase is explicitly set and not empty, use it
   if (apiBase && apiBase.trim()) {
-    return apiBase.trim().replace(/\/$/, '');
+    const resolved = apiBase.trim().replace(/\/$/, '');
+    console.log('resolveApiBase: Using saved apiBase:', resolved);
+    return resolved;
   }
   
+  // Derive from appBase if apiBase not set
   if (appBase && appBase.includes('localhost')) {
     if (appBase.includes('localhost:3000')) {
-      return 'http://localhost:8000';
+      const resolved = 'http://localhost:8000';
+      console.log('resolveApiBase: Derived from localhost:3000 ->', resolved);
+      return resolved;
     } else if (appBase.includes('localhost:8000')) {
-      return appBase.replace(/\/$/, '');
+      const resolved = appBase.replace(/\/$/, '');
+      console.log('resolveApiBase: Using appBase as apiBase:', resolved);
+      return resolved;
     } else {
-      return 'http://localhost:8000';
+      const resolved = 'http://localhost:8000';
+      console.log('resolveApiBase: Default localhost ->', resolved);
+      return resolved;
     }
   }
   
   if (appBase && appBase.includes('staging.editresume.io')) {
-    return 'https://editresume-staging.onrender.com';
+    const resolved = 'https://editresume-staging.onrender.com';
+    console.log('resolveApiBase: Derived from staging appBase ->', resolved);
+    return resolved;
   }
   
   if (appBase && appBase.includes('editresume.io') && !appBase.includes('staging')) {
-    return 'https://editresume-api-prod.onrender.com';
+    const resolved = 'https://editresume-api-prod.onrender.com';
+    console.log('resolveApiBase: Derived from production appBase ->', resolved);
+    return resolved;
   }
   
-  return 'https://editresume-api-prod.onrender.com';
+  const resolved = 'https://editresume-api-prod.onrender.com';
+  console.log('resolveApiBase: Using default production ->', resolved);
+  return resolved;
 }
 
 async function fetchWithRetry(url, options = {}, maxRetries = 3) {
@@ -120,6 +139,260 @@ function cleanCompanyName(value) {
 async function getActiveTabId() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   return tabs?.[0]?.id;
+}
+
+async function getActiveTab() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tabs?.[0];
+}
+
+function isLinkedInJobsListingPage(url) {
+  if (!url) return false;
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.hostname !== 'www.linkedin.com') return false;
+    
+    const pathname = urlObj.pathname;
+    // Check if it's a jobs listing page (not a single job view)
+    const isJobsListing = (
+      pathname.includes('/jobs/search/') ||
+      pathname.includes('/jobs/collections/') ||
+      (pathname.startsWith('/jobs/') && !pathname.includes('/jobs/view/') && !pathname.includes('/jobs/apply/'))
+    );
+    
+    return isJobsListing;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function refreshTabAndWait(tabId) {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    
+    const cleanup = () => {
+      chrome.tabs.onUpdated.removeListener(handleUpdated);
+      chrome.tabs.onRemoved.removeListener(handleRemoved);
+    };
+    
+    const handleUpdated = (updatedTabId, changeInfo) => {
+      if (updatedTabId !== tabId) return;
+      if (changeInfo.status === 'complete' && !resolved) {
+        resolved = true;
+        cleanup();
+        resolve();
+      }
+    };
+    
+    const handleRemoved = (removedTabId) => {
+      if (removedTabId !== tabId || resolved) return;
+      resolved = true;
+      cleanup();
+      reject(new Error('Tab was closed'));
+    };
+    
+    chrome.tabs.onUpdated.addListener(handleUpdated);
+    chrome.tabs.onRemoved.addListener(handleRemoved);
+    
+    // Reload the tab
+    chrome.tabs.reload(tabId, () => {
+      if (chrome.runtime.lastError) {
+        cleanup();
+        reject(new Error(chrome.runtime.lastError.message));
+      }
+    });
+    
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(new Error('Refresh timeout'));
+      }
+    }, 30000);
+  });
+}
+
+function showRefreshStatus(message) {
+  const refreshStatusEl = document.getElementById('refreshStatus');
+  if (refreshStatusEl) {
+    refreshStatusEl.textContent = message;
+    refreshStatusEl.classList.add('showing');
+  }
+  // Also show in saveStatus if available
+  const saveStatusEl = document.getElementById('saveStatus');
+  if (saveStatusEl) {
+    saveStatusEl.textContent = message;
+    saveStatusEl.className = 'save-status';
+    saveStatusEl.style.display = 'block';
+  }
+}
+
+function hideRefreshStatus() {
+  const refreshStatusEl = document.getElementById('refreshStatus');
+  if (refreshStatusEl) {
+    refreshStatusEl.classList.remove('showing');
+    refreshStatusEl.textContent = '';
+  }
+  const saveStatusEl = document.getElementById('saveStatus');
+  if (saveStatusEl) {
+    saveStatusEl.style.display = 'none';
+    saveStatusEl.textContent = '';
+  }
+}
+
+async function extractJobListingsFromPage(tabId) {
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const qs = (sel) => document.querySelector(sel);
+      const qsAll = (sel) => Array.from(document.querySelectorAll(sel));
+      const text = (el) => (el ? el.textContent.trim() : '');
+
+      const jobs = [];
+      
+      // Modern LinkedIn job card selectors (try multiple patterns)
+      const jobCardSelectors = [
+        'li.jobs-search-results__list-item',
+        'li[data-occludable-job-id]',
+        'div[data-job-id]',
+        'div.job-search-card',
+        'div[class*="job-card"]',
+        'div[class*="JobCard"]',
+        'div.scaffold-layout__list-item',
+        'li.scaffold-layout__list-item',
+        'div[class*="job-card-container"]',
+        'div[class*="jobs-search-results__list-item"]'
+      ];
+
+      let jobCards = [];
+      for (const selector of jobCardSelectors) {
+        const found = qsAll(selector);
+        if (found.length > 0) {
+          jobCards = found;
+          console.log('Found', found.length, 'job cards using selector:', selector);
+          break;
+        }
+      }
+      
+      // Fallback: try to find any elements with job links
+      if (jobCards.length === 0) {
+        const allJobLinks = qsAll('a[href*="/jobs/view/"]');
+        const uniqueCards = new Set();
+        allJobLinks.forEach(link => {
+          const card = link.closest('li, div[class*="card"], div[class*="item"]');
+          if (card) uniqueCards.add(card);
+        });
+        jobCards = Array.from(uniqueCards);
+        console.log('Fallback: Found', jobCards.length, 'job cards via links');
+      }
+
+      jobCards.forEach((card, index) => {
+        try {
+          // Extract job title
+          const titleSelectors = [
+            'a.job-card-list__title',
+            'a[data-control-name="job_card_title"]',
+            'h3.job-card-container__link',
+            'h3.job-card-container__link a',
+            'a[class*="job-title"]',
+            'a[href*="/jobs/view/"]',
+            'h3 a[href*="/jobs/view/"]',
+            'h4 a[href*="/jobs/view/"]',
+            'span[class*="job-title"] a',
+            'div[class*="job-title"] a'
+          ];
+          
+          let titleLink = null;
+          let title = '';
+          let jobUrl = '';
+          
+          for (const sel of titleSelectors) {
+            titleLink = card.querySelector(sel);
+            if (titleLink && titleLink.href && titleLink.href.includes('/jobs/view/')) {
+              title = text(titleLink);
+              jobUrl = titleLink.href || '';
+              if (title && jobUrl) break;
+            }
+          }
+          
+          // If no title found, try to get from any text in the card
+          if (!title) {
+            const cardText = text(card);
+            const titleMatch = cardText.match(/^([^\n•·]+)/);
+            if (titleMatch && titleMatch[1].length > 5 && titleMatch[1].length < 100) {
+              title = titleMatch[1].trim();
+            }
+          }
+
+          // Extract company name
+          const companySelectors = [
+            'a.job-card-container__company-name',
+            'a[data-control-name="job_card_company_link"]',
+            'h4.job-card-container__company-name',
+            'a[href*="/company/"]',
+            'span[class*="company-name"]'
+          ];
+          
+          let company = '';
+          for (const sel of companySelectors) {
+            const companyEl = card.querySelector(sel);
+            if (companyEl) {
+              company = text(companyEl);
+              break;
+            }
+          }
+
+          // Extract location
+          const locationSelectors = [
+            'span.job-card-container__metadata-item',
+            'li.job-card-container__metadata-item',
+            'span[class*="location"]',
+            'div[class*="location"]'
+          ];
+          
+          let location = '';
+          for (const sel of locationSelectors) {
+            const locationEl = card.querySelector(sel);
+            if (locationEl) {
+              const locText = text(locationEl);
+              if (locText && !locText.includes('·') && locText.length < 100) {
+                location = locText;
+                break;
+              }
+            }
+          }
+
+          // Extract job ID from URL or data attributes
+          let jobId = null;
+          if (jobUrl) {
+            const match = jobUrl.match(/\/jobs\/view\/(\d+)/);
+            if (match) jobId = match[1];
+          }
+          if (!jobId) {
+            jobId = card.getAttribute('data-job-id') || 
+                   card.getAttribute('data-occludable-job-id') ||
+                   card.closest('[data-job-id]')?.getAttribute('data-job-id');
+          }
+
+          if (title && jobUrl) {
+            jobs.push({
+              title: title.trim(),
+              company: company.trim(),
+              location: location.trim(),
+              url: jobUrl.split('?')[0],
+              jobId: jobId
+            });
+          }
+        } catch (e) {
+          console.warn('Error extracting job card:', e);
+        }
+      });
+
+      return jobs;
+    }
+  });
+  return result || [];
 }
 
 async function extractViaScript(tabId) {
@@ -1165,11 +1438,14 @@ async function loadSavedJDs() {
       return;
     }
     const base = await resolveApiBase();
-    const res = await fetchWithRetry(`${base}/api/job-descriptions`, {
+    const url = `${base}/api/job-descriptions`;
+    console.log('loadSavedJDs: Fetching from URL:', url);
+    const res = await fetchWithRetry(url, {
       headers: {
         Authorization: `Bearer ${token}`
       }
     });
+    console.log('loadSavedJDs: Response status:', res.status, 'URL:', res.url);
     if (res.ok) {
       const items = await res.json();
       const list = Array.isArray(items) ? items : [];
@@ -1200,6 +1476,56 @@ async function loadSavedJDs() {
       document.getElementById('savedList').innerHTML = '<div class="empty-state">Error loading jobs. Check connection.</div>';
     }
   }
+}
+
+function displayJobListings(jobs) {
+  const section = document.getElementById('jobListingsSection');
+  const container = document.getElementById('jobListings');
+  const countEl = document.getElementById('jobListingsCount');
+  
+  if (!section || !container) return;
+  
+  if (jobs.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  
+  section.style.display = 'block';
+  if (countEl) {
+    countEl.textContent = `${jobs.length} job${jobs.length !== 1 ? 's' : ''}`;
+  }
+  
+  container.innerHTML = jobs.slice(0, 20).map(job => {
+    const locationText = job.location ? ` • ${escapeHtml(job.location)}` : '';
+    return `
+      <div class="job-listing-item" data-url="${escapeHtml(job.url)}" data-job-id="${job.jobId || ''}">
+        <div class="job-listing-title">${escapeHtml(job.title || 'Untitled')}</div>
+        <div class="job-listing-company">${escapeHtml(job.company || 'Unknown Company')}</div>
+        ${locationText ? `<div class="job-listing-location">${locationText}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+  
+  // Add click handlers to navigate to job and save
+  container.querySelectorAll('.job-listing-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      const jobUrl = item.dataset.url;
+      const jobId = item.dataset.jobId;
+      
+      if (jobUrl) {
+        // Open the job in the current tab
+        const tabId = await getActiveTabId();
+        if (tabId) {
+          chrome.tabs.update(tabId, { url: jobUrl });
+          // Close popup after navigation
+          window.close();
+        } else {
+          // Fallback: open in new tab
+          chrome.tabs.create({ url: jobUrl });
+        }
+      }
+    });
+  });
 }
 
 function renderSavedList(list) {
@@ -1235,11 +1561,14 @@ function renderSavedList(list) {
             return;
           }
           const base = await resolveApiBase();
-          const res = await fetchWithRetry(`${base}/api/job-descriptions/${id}`, {
+          const jobUrl = `${base}/api/job-descriptions/${id}`;
+          console.log('renderSavedList: Loading job details from:', jobUrl);
+          const res = await fetchWithRetry(jobUrl, {
             headers: {
               Authorization: `Bearer ${token}`
             }
           });
+          console.log('renderSavedList: Job details response status:', res.status, 'URL:', res.url);
           if (res.ok) {
             const full = await res.json();
             const locationText = full.location || '';
@@ -1270,6 +1599,68 @@ function renderSavedList(list) {
   });
 }
 
+function decodeJWT(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    return decoded;
+  } catch (e) {
+    console.error('Failed to decode JWT:', e);
+    return null;
+  }
+}
+
+async function updateUserInfo() {
+  const userInfoSection = document.getElementById('userInfoSection');
+  const userEmailEl = document.getElementById('userEmail');
+  const userWarningEl = document.getElementById('userWarning');
+  
+  if (!userInfoSection || !userEmailEl) return;
+  
+  try {
+    const token = await ensureAuthToken({ silent: true });
+    if (!token) {
+      userInfoSection.style.display = 'none';
+      return;
+    }
+    
+    const decoded = decodeJWT(token);
+    if (decoded && decoded.email) {
+      userInfoSection.style.display = 'block';
+      userEmailEl.textContent = decoded.email;
+      userWarningEl.style.display = 'none';
+      console.log('User info: Email from token:', decoded.email);
+    } else {
+      // Try to get user info from API
+      const base = await resolveApiBase();
+      try {
+        const res = await fetch(`${base}/api/auth/session`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          const userData = await res.json();
+          if (userData.email) {
+            userInfoSection.style.display = 'block';
+            userEmailEl.textContent = userData.email;
+            userWarningEl.style.display = 'none';
+            console.log('User info: Email from API:', userData.email);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to get user info from API:', e);
+        userInfoSection.style.display = 'none';
+      }
+    }
+  } catch (e) {
+    console.error('Failed to update user info:', e);
+    userInfoSection.style.display = 'none';
+  }
+}
+
 function updateAuthStatus(hasToken) {
   const signInSection = document.getElementById('signInSection');
   const saveForm = document.getElementById('saveForm');
@@ -1279,6 +1670,7 @@ function updateAuthStatus(hasToken) {
   } else {
     if (signInSection) signInSection.style.display = 'none';
     if (saveForm) saveForm.style.display = 'flex';
+    updateUserInfo();
   }
 }
 
@@ -1515,7 +1907,8 @@ async function saveJobDescription() {
 
     const resolvedApiBase = await resolveApiBase();
     const apiUrl = resolvedApiBase + '/api/job-descriptions';
-    console.log('Saving job description to:', apiUrl);
+    console.log('saveJobDescription: Saving to URL:', apiUrl);
+    console.log('saveJobDescription: Resolved API base:', resolvedApiBase);
 
     // Extract Easy Apply URL if available
     let easyApplyUrl = '';
@@ -1619,6 +2012,9 @@ async function saveJobDescription() {
       body: JSON.stringify(payload)
     });
 
+    console.log('saveJobDescription: Response status:', resp.status, 'Response URL:', resp.url);
+    console.log('saveJobDescription: Response headers:', Object.fromEntries(resp.headers.entries()));
+
     if (!resp.ok) {
       let errorMessage = 'Failed to save';
       try {
@@ -1637,6 +2033,7 @@ async function saveJobDescription() {
     }
 
     const data = await resp.json();
+    console.log('saveJobDescription: Saved successfully, job ID:', data.id, 'Response data:', data);
 
     setSaveStatus(`Saved ✓ (ID: ${data.id})`, 'success');
     saveBtn.disabled = false;
@@ -1690,6 +2087,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const signInBtn = document.getElementById('signInBtn');
   const refreshBtn = document.getElementById('refreshSaved');
 
+  // Log current settings on popup load
+  const initialSettings = await chrome.storage.sync.get(['appBase', 'apiBase', '_lastSaved']);
+  console.log('Popup loaded - Current settings:', initialSettings);
+  const initialApiBase = await resolveApiBase();
+  console.log('Popup loaded - Resolved API base:', initialApiBase);
+
   // Migration disabled - respect user's saved settings
   // const current = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
   // 
@@ -1718,6 +2121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const hasToken = !!token;
       updateAuthStatus(hasToken);
       if (hasToken) {
+        updateUserInfo();
         loadSavedJDs();
       }
       return hasToken;
@@ -1753,12 +2157,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         normalizedBase = normalizedBase.replace(/^https?:\/\//, 'http://');
       }
       
-      chrome.tabs.create({ url: `${normalizedBase}/?extensionAuth=1` });
+      // Check if an auth tab already exists before creating a new one
+      const urlPattern = `${normalizedBase}/*`;
+      const existingTabs = await chrome.tabs.query({ url: urlPattern });
+      const existingAuthTab = existingTabs.find(tab => {
+        try {
+          const url = new URL(tab.url);
+          return url.searchParams.get('extensionAuth') === '1';
+        } catch {
+          return false;
+        }
+      });
+      
+      if (existingAuthTab) {
+        // Focus existing tab instead of creating a new one
+        chrome.tabs.update(existingAuthTab.id, { active: true });
+        chrome.windows.update(existingAuthTab.windowId, { focused: true });
+      } else {
+        chrome.tabs.create({ url: `${normalizedBase}/?extensionAuth=1` });
+      }
     });
   }
 
   if (refreshBtn) {
     refreshBtn.addEventListener('click', loadSavedJDs);
+  }
+
+  // Open web app link
+  const openWebAppLink = document.getElementById('openWebApp');
+  if (openWebAppLink) {
+    openWebAppLink.addEventListener('click', async () => {
+      const { appBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
+      let normalizedBase = appBase?.trim().replace(/\/+$/, '') || 'https://editresume.io';
+      
+      if (!normalizedBase.startsWith('http')) {
+        normalizedBase = 'https://editresume.io';
+      }
+      
+      if (normalizedBase.includes('localhost')) {
+        normalizedBase = normalizedBase.replace(/^https?:\/\//, 'http://');
+      }
+      
+      chrome.tabs.create({ url: normalizedBase });
+    });
   }
 
   // Save button handler
@@ -1767,10 +2208,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveBtn.addEventListener('click', saveJobDescription);
   }
 
-  // Check if we're on a LinkedIn page and auto-extract
-  try {
-    const tabId = await getActiveTabId();
-    if (tabId) {
+  // Function to extract and populate job data
+  async function extractAndPopulateJob() {
+    try {
+      const tabId = await getActiveTabId();
+      if (!tabId) return;
+
       let res;
       try {
         res = await chrome.tabs.sendMessage(tabId, { type: 'GET_JOB_DATA' });
@@ -1814,15 +2257,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         updateMetadata(metadata);
       }
+    } catch (error) {
+      console.error('Failed to extract job:', error);
     }
-  } catch (_) { }
+  }
+
+  // Extract job on popup open
+  await extractAndPopulateJob();
+
+  // Listen for job selection changes on LinkedIn listing pages
+  // This will be triggered when user clicks a different job card
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === 'JOB_SELECTED') {
+      extractAndPopulateJob();
+      sendResponse({ ok: true });
+      return true;
+    }
+    return false;
+  });
 
   // Listen for storage changes
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'sync' && changes.token) {
-      const nextToken = changes.token.newValue;
-      updateAuthStatus(!!nextToken);
-      loadSavedJDs();
+    if (areaName === 'sync') {
+      if (changes.token) {
+        const nextToken = changes.token.newValue;
+        updateAuthStatus(!!nextToken);
+        if (nextToken) {
+          updateUserInfo();
+        }
+        loadSavedJDs();
+      }
+      // Re-extract job when a new job is selected on listing page
+      if (changes._jobSelected) {
+        extractAndPopulateJob();
+      }
     }
   });
+
+  // Also poll for job selection changes (in case storage events don't fire)
+  let lastJobUrl = '';
+  setInterval(async () => {
+    try {
+      const tabId = await getActiveTabId();
+      if (!tabId) return;
+      const tab = await chrome.tabs.get(tabId);
+      if (tab && tab.url && tab.url.includes('linkedin.com/jobs')) {
+        const currentUrl = tab.url.split('?')[0];
+        if (currentUrl !== lastJobUrl && currentUrl.includes('/jobs/view/')) {
+          lastJobUrl = currentUrl;
+          extractAndPopulateJob();
+        }
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }, 1000);
 });

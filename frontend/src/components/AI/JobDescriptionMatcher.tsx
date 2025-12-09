@@ -3349,16 +3349,27 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               location: jd.location || undefined,
               easy_apply_url: jd.easy_apply_url || undefined,
             }));
+          } else if (res.status === 404) {
+            // Job not found - clear the stale ID
+            console.warn(`Job ${currentJobDescriptionId} not found (404), clearing reference`);
+            if (onSelectJobDescriptionId) {
+              onSelectJobDescriptionId(null);
+            }
+            setCurrentJDInfo(null);
+          } else {
+            console.error(`Failed to fetch JD info: HTTP ${res.status}`);
+            setCurrentJDInfo(null);
           }
         } catch (error) {
           console.error('Failed to fetch JD info:', error);
+          setCurrentJDInfo(null);
         }
       } else {
         setCurrentJDInfo(null);
       }
     };
     fetchJDInfo();
-  }, [currentJobDescriptionId]);
+  }, [currentJobDescriptionId, onSelectJobDescriptionId]);
 
   const analyzeMatch = async () => {
     if (!jobDescription.trim()) {
