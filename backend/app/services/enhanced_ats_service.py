@@ -325,7 +325,29 @@ class EnhancedATSChecker:
             for bullet in bullets:
                 bullet_text = get_value(bullet, "text")
                 if bullet_text:
-                    text_parts.append(bullet_text)
+                    # Extract company headers from work experience sections
+                    # Format: **Company / Role / Date** or **Company / Role / Date**
+                    if bullet_text.startswith("**") and bullet_text.endswith("**"):
+                        # Remove markdown formatting but keep the content
+                        clean_text = bullet_text.replace("**", "").strip()
+                        # Split by / to extract company, role, and date separately
+                        parts = [p.strip() for p in clean_text.split("/")]
+                        for part in parts:
+                            if part:
+                                text_parts.append(part)
+                        # Also add the full text for context
+                        text_parts.append(clean_text)
+                    else:
+                        # Regular bullet point
+                        text_parts.append(bullet_text)
+                
+                # Also check for any additional metadata in bullet params
+                bullet_params = get_value(bullet, "params", {})
+                if isinstance(bullet_params, dict):
+                    # Extract any text fields from params
+                    for key, value in bullet_params.items():
+                        if isinstance(value, str) and value.strip():
+                            text_parts.append(value)
 
         if separate_sections:
             return {
@@ -421,8 +443,30 @@ class EnhancedATSChecker:
         if not resume_text.strip():
             return {"score": 0, "suggestions": ["Add content to your resume"]}
 
-        words = resume_text.lower().split()
-        words = [word.strip('.,!?;:"()[]{}') for word in words if word.isalpha()]
+        # Improved word extraction that handles technical terms with numbers/special chars
+        # First, extract all words including those with numbers/special chars
+        # Use regex to find word-like tokens (alphanumeric + common tech chars)
+        word_pattern = r'\b[a-zA-Z0-9][a-zA-Z0-9+/#.-]*[a-zA-Z]|[a-zA-Z][a-zA-Z0-9+/#.-]*[a-zA-Z0-9]|[a-zA-Z]{2,}\b'
+        all_tokens = re.findall(word_pattern, resume_text.lower())
+        
+        # Filter tokens: keep meaningful words, filter out pure numbers
+        words = []
+        for token in all_tokens:
+            cleaned = token.strip('.,!?;:"()[]{}')
+            # Skip pure numbers (e.g., "2024", "5")
+            if re.match(r'^\d+$', cleaned):
+                continue
+            # Skip very short tokens (less than 2 chars) unless they're known tech terms
+            if len(cleaned) < 2:
+                continue
+            # Keep tokens that have at least one letter
+            if re.search(r'[a-zA-Z]', cleaned):
+                words.append(cleaned)
+        
+        # Also extract traditional alpha-only words for keyword matching
+        alpha_words = [word.strip('.,!?;:"()[]{}') for word in resume_text.lower().split() if word.strip('.,!?;:"()[]{}').isalpha()]
+        # Combine both lists, prioritizing technical terms
+        words = list(set(words + alpha_words))
 
         if not words:
             return {
@@ -430,13 +474,28 @@ class EnhancedATSChecker:
                 "suggestions": ["Add meaningful content to your resume"],
             }
 
-        # Count keyword occurrences
+        # Count keyword occurrences - check both exact matches and partial matches for technical terms
         action_verb_count = sum(
             1 for word in words if word in self.ats_keywords["action_verbs"]
         )
-        technical_count = sum(
-            1 for word in words if word in self.ats_keywords["technical_terms"]
-        )
+        
+        # For technical terms, also check if word contains or is contained in technical keywords
+        technical_count = 0
+        for word in words:
+            # Exact match
+            if word in self.ats_keywords["technical_terms"]:
+                technical_count += 1
+            else:
+                # Partial match for terms like "ci/cd", "node.js", etc.
+                for tech_term in self.ats_keywords["technical_terms"]:
+                    tech_lower = tech_term.lower()
+                    # Check if word contains tech term or vice versa (normalize separators)
+                    word_normalized = word.replace('/', '').replace('-', '').replace('.', '')
+                    tech_normalized = tech_lower.replace('/', '').replace('-', '').replace('.', '')
+                    if tech_normalized in word_normalized or word_normalized in tech_normalized:
+                        technical_count += 1
+                        break
+        
         metrics_count = sum(1 for word in words if word in self.ats_keywords["metrics"])
         leadership_count = sum(
             1 for word in words if word in self.ats_keywords["leadership"]
@@ -456,59 +515,80 @@ class EnhancedATSChecker:
             (leadership_count / total_words) * 100 if total_words > 0 else 0
         )
         
-        # Calculate protected densities to prevent drops when adding content
-        # Use a sliding window approach: protect against density drops when word count increases
-        # This prevents penalizing users for adding descriptive work experience
+        # Improved density calculation that rewards content additions
+        # Use actual density but with a floor based on absolute keyword counts
+        # This ensures adding keywords always improves the score
         if total_words < 150:
-            baseline_words = 150
-            normalized_action_density = (action_verb_count / baseline_words) * 100
-            normalized_technical_density = (technical_count / baseline_words) * 100
-            normalized_metrics_density = (metrics_count / baseline_words) * 100
-            normalized_leadership_density = (leadership_count / baseline_words) * 100
-            
-            action_density = normalized_action_density * 0.3 + actual_action_density * 0.7
-            technical_density = normalized_technical_density * 0.3 + actual_technical_density * 0.7
-            metrics_density = normalized_metrics_density * 0.3 + actual_metrics_density * 0.7
-            leadership_density = normalized_leadership_density * 0.3 + actual_leadership_density * 0.7
+            # For shorter resumes, use actual density (no penalty)
+            action_density = actual_action_density
+            technical_density = actual_technical_density
+            metrics_density = actual_metrics_density
+            leadership_density = actual_leadership_density
         else:
-            # For larger resumes: use protected density calculation
-            # Calculate density based on a "core" word count to prevent drops from new content
-            # Use 80% of total words as "core" to protect against density dilution
-            core_words = max(150, int(total_words * 0.8))
+            # For larger resumes: use actual density but ensure it doesn't drop below a minimum
+            # Minimum density is based on absolute keyword counts (rewards additions)
+            min_action_density = (action_verb_count / max(total_words, 200)) * 100
+            min_technical_density = (technical_count / max(total_words, 200)) * 100
+            min_metrics_density = (metrics_count / max(total_words, 200)) * 100
+            min_leadership_density = (leadership_count / max(total_words, 200)) * 100
             
-            core_action_density = (action_verb_count / core_words) * 100 if core_words > 0 else 0
-            core_technical_density = (technical_count / core_words) * 100 if core_words > 0 else 0
-            core_metrics_density = (metrics_count / core_words) * 100 if core_words > 0 else 0
-            core_leadership_density = (leadership_count / core_words) * 100 if core_words > 0 else 0
-            
-            # Use the higher of actual or core density (protects against drops)
-            # Blend 60% actual (responsive) + 40% core (protected)
-            action_density = max(actual_action_density * 0.6 + core_action_density * 0.4, actual_action_density * 0.8)
-            technical_density = max(actual_technical_density * 0.6 + core_technical_density * 0.4, actual_technical_density * 0.8)
-            metrics_density = max(actual_metrics_density * 0.6 + core_metrics_density * 0.4, actual_metrics_density * 0.8)
-            leadership_density = max(actual_leadership_density * 0.6 + core_leadership_density * 0.4, actual_leadership_density * 0.8)
+            # Use the higher of actual or minimum (ensures additions are rewarded)
+            action_density = max(actual_action_density, min_action_density * 0.9)
+            technical_density = max(actual_technical_density, min_technical_density * 0.9)
+            metrics_density = max(actual_metrics_density, min_metrics_density * 0.9)
+            leadership_density = max(actual_leadership_density, min_leadership_density * 0.9)
 
         # Job description matching - improved to be more sensitive to keyword additions
         job_match_score = 0
         job_suggestions = []
         matching_keywords = set()  # Initialize for use in bonus calculation
         if job_description:
-            job_words = job_description.lower().split()
-            job_keywords = [
-                word.strip('.,!?;:"()[]{}') for word in job_words if word.isalpha()
-            ]
-            matching_keywords = set(words) & set(job_keywords)
+            # Extract keywords from job description using same improved method
+            job_word_pattern = r'\b[a-zA-Z0-9][a-zA-Z0-9+/#.-]*[a-zA-Z]|[a-zA-Z][a-zA-Z0-9+/#.-]*[a-zA-Z0-9]|[a-zA-Z]{2,}\b'
+            job_all_tokens = re.findall(job_word_pattern, job_description.lower())
+            
+            # Filter job keywords same way as resume keywords
+            job_keywords = []
+            for token in job_all_tokens:
+                cleaned = token.strip('.,!?;:"()[]{}')
+                # Skip pure numbers
+                if re.match(r'^\d+$', cleaned):
+                    continue
+                # Skip very short tokens
+                if len(cleaned) < 2:
+                    continue
+                # Keep tokens that have at least one letter
+                if re.search(r'[a-zA-Z]', cleaned):
+                    job_keywords.append(cleaned)
+            
+            # Also extract alpha-only words
+            job_alpha_words = [word.strip('.,!?;:"()[]{}') for word in job_description.lower().split() if word.strip('.,!?;:"()[]{}').isalpha()]
+            job_keywords = list(set(job_keywords + job_alpha_words))
+            
+            # Find matching keywords (exact matches and partial matches for technical terms)
+            for resume_word in words:
+                for job_word in job_keywords:
+                    # Exact match
+                    if resume_word == job_word:
+                        matching_keywords.add(resume_word)
+                    else:
+                        # Partial match for technical terms (normalize separators)
+                        resume_normalized = resume_word.replace('/', '').replace('-', '').replace('.', '').replace('#', '')
+                        job_normalized = job_word.replace('/', '').replace('-', '').replace('.', '').replace('#', '')
+                        if resume_normalized == job_normalized or (len(resume_normalized) > 3 and resume_normalized in job_normalized) or (len(job_normalized) > 3 and job_normalized in resume_normalized):
+                            matching_keywords.add(resume_word)
+                            break
             
             # More sensitive calculation: consider both percentage and absolute count
             if job_keywords:
                 match_percentage = (len(matching_keywords) / len(set(job_keywords))) * 100
-                # Boost score based on number of matches (more matches = better)
-                match_count_boost = min(10, len(matching_keywords) * 0.5)
+                # Boost score based on number of matches (more matches = better, increased responsiveness)
+                match_count_boost = min(15, len(matching_keywords) * 0.7)  # Increased from 0.5 and cap from 10
                 job_match_score = min(100, match_percentage + match_count_boost)
             else:
                 job_match_score = 0
 
-            missing_job_keywords = set(job_keywords) - set(words)
+            missing_job_keywords = set(job_keywords) - matching_keywords
             if missing_job_keywords:
                 job_suggestions.append(
                     f"Add these job-relevant keywords: {', '.join(list(missing_job_keywords)[:5])}"
@@ -527,60 +607,60 @@ class EnhancedATSChecker:
         if leadership_density < 0.2:
             suggestions.append("Include leadership and team collaboration keywords")
 
-        # Balanced scoring: More responsive to improvements, stable against drops
+        # Balanced scoring: Highly responsive to improvements, rewards content additions
         base_score = 35
         
-        # Calculate bonuses: Reward absolute keyword counts AND density
-        # This ensures improvements are always rewarded
+        # Calculate bonuses: Prioritize absolute keyword counts (more responsive to additions)
         def improved_hybrid_bonus(count, density, density_multiplier, density_base, max_bonus, log_factor=1.2, linear_factor=0.5):
-            # Density contribution (rewards proper keyword usage)
-            density_part = density_base + (density_multiplier * min(density, 10))  # Cap density at 10% to prevent extremes
-            
-            # Absolute count contribution (rewards adding keywords, independent of word count)
-            if count <= 15:
+            # Absolute count contribution (primary factor - rewards adding keywords)
+            if count <= 20:
                 # Linear scaling for small-medium counts (highly responsive to additions)
                 count_part = count * linear_factor
             else:
                 # Logarithmic scaling for larger counts (prevents extreme values)
-                count_part = 7.5 + math.log1p(count - 15) * log_factor
+                count_part = 10 + math.log1p(count - 20) * log_factor
             
-            # Combine both: ensures both density and absolute count improvements are rewarded
-            total_bonus = density_part + min(max_bonus - density_base - 2, count_part)
+            # Density contribution (secondary factor - rewards proper keyword usage)
+            density_part = density_base + (density_multiplier * min(density, 10))  # Cap density at 10%
+            
+            # Combine: 70% count (responsive) + 30% density (quality)
+            total_bonus = (count_part * 0.7) + (density_part * 0.3)
             return min(max_bonus, total_bonus)
         
-        action_bonus = improved_hybrid_bonus(action_verb_count, action_density, 1.5, 8, 20, 2.0, 0.6)
-        technical_bonus = improved_hybrid_bonus(technical_count, technical_density, 2.5, 12, 20, 1.8, 0.5)
-        metrics_bonus = improved_hybrid_bonus(metrics_count, metrics_density, 3.0, 12, 20, 2.2, 0.6)
-        leadership_bonus = improved_hybrid_bonus(leadership_count, leadership_density, 4.0, 8, 15, 1.5, 0.5)
+        action_bonus = improved_hybrid_bonus(action_verb_count, action_density, 1.5, 8, 22, 2.0, 0.7)
+        technical_bonus = improved_hybrid_bonus(technical_count, technical_density, 2.5, 12, 25, 1.8, 0.6)
+        metrics_bonus = improved_hybrid_bonus(metrics_count, metrics_density, 3.0, 12, 22, 2.2, 0.7)
+        leadership_bonus = improved_hybrid_bonus(leadership_count, leadership_density, 4.0, 8, 18, 1.5, 0.6)
         
         # Additional bonus for absolute keyword increases (rewards improvements regardless of density)
+        # Increased bonuses to make score more responsive
         absolute_bonus = 0
         if action_verb_count >= 5:
-            absolute_bonus += min(2, (action_verb_count - 5) * 0.2)
+            absolute_bonus += min(3, (action_verb_count - 5) * 0.3)  # Increased from 0.2
         if technical_count >= 8:
-            absolute_bonus += min(3, (technical_count - 8) * 0.25)
+            absolute_bonus += min(4, (technical_count - 8) * 0.3)  # Increased from 0.25
         if metrics_count >= 3:
-            absolute_bonus += min(2, (metrics_count - 3) * 0.3)
+            absolute_bonus += min(3, (metrics_count - 3) * 0.4)  # Increased from 0.3
         if leadership_count >= 3:
-            absolute_bonus += min(1.5, (leadership_count - 3) * 0.25)
+            absolute_bonus += min(2, (leadership_count - 3) * 0.3)  # Increased from 0.25
         
         # Job match bonus - highly responsive to keyword additions
         if job_description:
             match_count = len(matching_keywords)
             # Reward both absolute match count and percentage match
             # Linear scaling for match count (most responsive to additions)
-            if match_count <= 20:
-                match_count_bonus = match_count * 0.6  # 0.6 points per match, highly responsive
+            if match_count <= 25:
+                match_count_bonus = match_count * 0.8  # Increased from 0.6, higher threshold
             else:
                 # Logarithmic for very high counts
-                match_count_bonus = 12 + math.log1p(match_count - 20) * 1.5
+                match_count_bonus = 20 + math.log1p(match_count - 25) * 1.8  # Increased base and factor
             
-            match_count_bonus = min(15, match_count_bonus)  # Cap at 15
+            match_count_bonus = min(20, match_count_bonus)  # Increased cap from 15 to 20
             
             # Percentage bonus (reward overall alignment)
-            percentage_bonus = (job_match_score * 0.20)  # Increased from 0.18
+            percentage_bonus = (job_match_score * 0.25)  # Increased from 0.20
             
-            job_bonus = min(25, percentage_bonus + match_count_bonus)
+            job_bonus = min(30, percentage_bonus + match_count_bonus)  # Increased cap from 25 to 30
         else:
             job_bonus = 0
 
