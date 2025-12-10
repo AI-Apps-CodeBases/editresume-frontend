@@ -25,7 +25,12 @@ def strip_bullet_markers(text: str) -> str:
     cleaned = text.replace('**', '')
     
     # Common bullet characters (including square ■ which might appear in text)
-    bullet_chars = ['•', '-', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽', '■']
+    # Expanded list to include more Unicode bullet variants
+    bullet_chars = [
+        '•', '◦', '‣', '⁃', '⁌', '⁍', '→', '·', '○', '●', 
+        '▪', '▫', '◾', '◽', '■', '□', '◼', '◻', '⬛', '⬜',
+        '-', '–', '—', '―'
+    ]
     
     # Remove all occurrences of each bullet character (not just first)
     for char in bullet_chars:
@@ -40,10 +45,10 @@ def strip_bullet_markers(text: str) -> str:
     cleaned = re.sub(r'\s+\*$', '', cleaned, flags=re.MULTILINE)
     
     # Remove bullet patterns at the start: "• ", "- ", etc.
-    cleaned = re.sub(r'^[\s•\-▪▫◦‣⁃→·○●◾◽]+\s*', '', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'^[\s•\-▪▫◦‣⁃→·○●◾◽◦‣⁃⁌⁍■□◼◻⬛⬜–—―]+\s*', '', cleaned, flags=re.MULTILINE)
     
     # Remove bullet patterns at the end
-    cleaned = re.sub(r'\s*[\s•\-▪▫◦‣⁃→·○●◾◽]+$', '', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'\s*[\s•\-▪▫◦‣⁃→·○●◾◽◦‣⁃⁌⁍■□◼◻⬛⬜–—―]+$', '', cleaned, flags=re.MULTILINE)
     
     # Remove any remaining leading/trailing whitespace
     cleaned = cleaned.strip()
@@ -84,6 +89,7 @@ def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dic
     """Format work experience bullets with proper company headers and tasks"""
     html_parts = []
     current_company = None
+    current_list_items = []
 
     for bullet in bullets:
         if not bullet.text.strip():
@@ -93,6 +99,17 @@ def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dic
 
         # Check if this is a company header (starts with **)
         if bullet_text.startswith("**") and "**" in bullet_text[2:]:
+            # If we have accumulated list items, wrap them in <ul> and add to html_parts
+            if current_list_items:
+                html_parts.append("<ul>")
+                html_parts.extend(current_list_items)
+                html_parts.append("</ul>")
+                current_list_items = []
+            
+            # Close previous job entry if needed
+            if current_company:
+                html_parts.append("</div>")
+            
             # Company header - new format: Company Name / Location / Title / Date Range
             header_text = bullet_text.replace("**", "").strip()
             parts = header_text.split(' / ')
@@ -137,8 +154,19 @@ def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dic
             task_text = re.sub(r'\*(?![*<>/])', '', task_text)  # Remove * not followed by *, <, >, or /
             task_text = task_text.replace('**', '')  # Remove any remaining **
             
+            # Additional pass to remove any bullet characters that might remain
+            bullet_chars = ['•', '▪', '▫', '◦', '‣', '⁃', '→', '·', '○', '●', '◾', '◽', '■']
+            for char in bullet_chars:
+                task_text = task_text.replace(char, '')
+            
             if task_text and task_text.strip():
-                html_parts.append(f"<li>{task_text}</li>")
+                current_list_items.append(f"<li>{task_text}</li>")
+
+    # If we have accumulated list items, wrap them in <ul> and add to html_parts
+    if current_list_items:
+        html_parts.append("<ul>")
+        html_parts.extend(current_list_items)
+        html_parts.append("</ul>")
 
     # Close the last job entry if needed
     if current_company:
@@ -196,6 +224,15 @@ def format_regular_bullets(bullets: List[BulletParam], replacements: Dict[str, s
             # Use regex to remove standalone * that aren't part of HTML tags
             clean_text = re.sub(r'\*(?![*<>/])', '', clean_text)  # Remove * not followed by *, <, >, or /
             clean_text = clean_text.replace('**', '')  # Remove any remaining **
+            
+            # Additional pass to remove any bullet characters that might remain
+            bullet_chars = [
+                '•', '◦', '‣', '⁃', '⁌', '⁍', '→', '·', '○', '●', 
+                '▪', '▫', '◾', '◽', '■', '□', '◼', '◻', '⬛', '⬜',
+                '-', '–', '—', '―'
+            ]
+            for char in bullet_chars:
+                clean_text = clean_text.replace(char, '')
             
             if clean_text and clean_text.strip():
                 html_parts.append(f"<li>{clean_text}</li>")

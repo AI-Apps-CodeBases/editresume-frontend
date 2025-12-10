@@ -498,7 +498,8 @@ async def export_pdf(
         # Build bullet CSS based on bullet style
         bullet_css = ""
         if bullet_style != 'none':
-            bullet_css = f'.section li::before {{ content: "{bullet_symbol}"; font-weight: bold; color: {primary_color}; position: absolute; left: 0; top: 0; }}'
+            bullet_css = f'''.section li::before {{ content: "{bullet_symbol}"; font-weight: bold; color: {primary_color}; position: absolute; left: 0; top: 0; }}
+        .job-entry li::before {{ content: "{bullet_symbol}"; font-weight: bold; color: {primary_color}; position: absolute; left: 0; top: 0; }}'''
         bullet_padding = "padding-left: 14px;" if bullet_style != 'none' else "padding-left: 0;"
         
         html_content = f"""<!DOCTYPE html>
@@ -518,6 +519,8 @@ async def export_pdf(
                        border-bottom: 1px solid {primary_color}; padding-bottom: 3px; margin-bottom: 8px; }}
         .section ul {{ margin: 0; padding-left: 0; list-style: none; }}
         .section li {{ margin-bottom: {item_gap}px; font-size: {body_size}px; color: {text_color}; position: relative; {bullet_padding} }}
+        .job-entry ul {{ margin: 0; padding-left: 0; list-style: none; }}
+        .job-entry li {{ margin-bottom: {item_gap}px; font-size: {body_size}px; color: {text_color}; position: relative; {bullet_padding} }}
         {bullet_css}
         .section li * {{ display: inline; }}
         .section li strong {{ font-weight: bold; }}
