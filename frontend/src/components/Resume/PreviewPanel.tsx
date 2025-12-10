@@ -76,10 +76,11 @@ export default function PreviewPanel({
         min-height: 11.69in;
         background: white;
         margin: 0 auto 20px auto;
-        padding: 0.3cm;
+        padding: 0.1cm;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         position: relative;
         page-break-after: always;
+        box-sizing: border-box;
       }
       
       .a4-page-view .preview-resume-container {
@@ -89,6 +90,8 @@ export default function PreviewPanel({
         max-width: 100%;
         overflow-wrap: break-word;
         word-wrap: break-word;
+        word-break: break-word;
+        box-sizing: border-box;
       }
       
       /* Ensure bullet points fit within page width */
@@ -929,8 +932,23 @@ export default function PreviewPanel({
 
 
         {isTwoColumn ? (
-          <div className="grid gap-8" style={{ gridTemplateColumns: `${columnWidth}% ${100 - columnWidth}%` }}>
-            <div className="space-y-6">
+          <div className="grid gap-4" style={{ 
+            gridTemplateColumns: `${columnWidth}% ${100 - columnWidth}%`,
+            overflowWrap: 'break-word',
+            wordWrap: 'break-word',
+            wordBreak: 'break-word',
+            boxSizing: 'border-box',
+            width: '100%',
+            maxWidth: '100%'
+          }}>
+            <div className="space-y-6" style={{
+              overflowWrap: 'break-word',
+              wordWrap: 'break-word',
+              wordBreak: 'break-word',
+              boxSizing: 'border-box',
+              width: '100%',
+              maxWidth: '100%'
+            }}>
               {/* Professional Summary - Show in left column if assigned */}
               {data.summary && (data as any).fieldsVisible?.summary !== false && leftSectionIds.includes(SUMMARY_ID) && (
                 <div style={{ marginBottom: `${sectionSpacing}px` }}>
@@ -980,7 +998,14 @@ export default function PreviewPanel({
               ))}
             </div>
             
-            <div className="space-y-6">
+            <div className="space-y-6" style={{
+              overflowWrap: 'break-word',
+              wordWrap: 'break-word',
+              wordBreak: 'break-word',
+              boxSizing: 'border-box',
+              width: '100%',
+              maxWidth: '100%'
+            }}>
               {/* Professional Summary - Show in right column if assigned */}
               {data.summary && (data as any).fieldsVisible?.summary !== false && rightSectionIds.includes(SUMMARY_ID) && (
                 <div style={{ marginBottom: `${sectionSpacing}px` }}>

@@ -150,9 +150,13 @@ export function BaseTemplate({ data, config, replacements, children }: BaseTempl
       style={{
         fontFamily: config.typography.fontFamily.body,
         color: config.design.colors.text,
-        padding: `${mergedSpacing.pageMargin}px`,
+        padding: `${Math.max(mergedSpacing.pageMargin * 0.5, 8)}px`,
         maxWidth: '8.5in',
         margin: '0 auto',
+        overflowWrap: 'break-word',
+        wordWrap: 'break-word',
+        wordBreak: 'break-word',
+        boxSizing: 'border-box',
       }}
     >
       {children}
