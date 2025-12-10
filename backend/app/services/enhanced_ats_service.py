@@ -1392,16 +1392,16 @@ class EnhancedATSChecker:
         formatting_weight = 0.10  # Keep at 10%
         quality_weight = 0.05  # Keep at 5%
 
-        # Cap keyword match contribution to prevent unrealistic scores
-        # Even with 100% keyword match, max contribution is 38 points (increased from 35)
-        # This ensures other factors always matter significantly
-        max_keyword_contribution = 38
-        # Apply less aggressive diminishing returns: higher keyword match gets less weight but still counts
-        # 85% match = ~36 points after diminishing returns (more responsive)
-        if keyword_match_score > 80:
-            # Diminishing returns above 80% - less aggressive (was 70%)
-            excess = keyword_match_score - 80
-            capped_keyword_match = 80 + excess * 0.6  # 60% of excess counts (was 40%)
+        # Increase keyword match contribution to reward improvements
+        # Even with 100% keyword match, max contribution is 50 points (increased from 38)
+        # This makes keyword matching the primary driver of score improvements
+        max_keyword_contribution = 50
+        # Apply minimal diminishing returns: higher keyword match counts almost fully
+        # 90% match = ~45 points after diminishing returns (highly responsive)
+        if keyword_match_score > 85:
+            # Minimal diminishing returns above 85% - very responsive
+            excess = keyword_match_score - 85
+            capped_keyword_match = 85 + excess * 0.85  # 85% of excess counts (was 60%)
         else:
             capped_keyword_match = keyword_match_score
         actual_keyword_contribution = min(capped_keyword_match * keyword_weight, max_keyword_contribution)
@@ -1415,56 +1415,54 @@ class EnhancedATSChecker:
             + quality_score * quality_weight
         )
         
-        # Calculate protected baseline score (less conservative to allow improvements)
-        # Only prevents very large drops when modifying keywords or adding content
-        # Maximum allowed drops: TF-IDF 2, keyword 1, section 1, formatting 1, quality 1 (reduced from previous)
-        protected_keyword_match = min(keyword_match_score, 90) if keyword_match_score > 90 else keyword_match_score
+        # Minimal protected baseline - only prevents catastrophic drops
+        # Allow improvements to show through by using minimal protection
+        # Maximum allowed drops: TF-IDF 1, keyword 0, section 0, formatting 0, quality 0
+        protected_keyword_match = keyword_match_score  # No protection - allow full improvements
         protected_keyword_contribution = min(
-            max(0, protected_keyword_match - 1) * keyword_weight,  # Reduced from -2 to -1
+            protected_keyword_match * keyword_weight,  # No reduction - use full score
             max_keyword_contribution
         )
         protected_baseline = (
-            max(0, tfidf_score - 2) * tfidf_weight  # Reduced from -3 to -2
+            max(0, tfidf_score - 1) * tfidf_weight  # Minimal protection
             + protected_keyword_contribution
-            + max(0, section_score - 1) * section_weight  # Reduced from -2 to -1
-            + max(0, formatting_score - 1) * formatting_weight
-            + max(0, quality_score - 1) * quality_weight
+            + section_score * section_weight  # No protection - use full score
+            + formatting_score * formatting_weight  # No protection
+            + quality_score * quality_weight  # No protection
         )
         
         # Calculate content-based baseline (works without previous_score)
         # Based on resume having content, sections, and basic quality
+        # Reduced baseline to allow improvements to show through
         resume_text_check = self.extract_text_from_resume(resume_data)
         content_baseline_score = 0
         if resume_text_check.strip():
-            content_baseline_score = 30  # Base for having content
+            content_baseline_score = 25  # Reduced from 30 - lower baseline
             sections = resume_data.get("sections", [])
             if len(sections) > 0:
-                content_baseline_score += min(15, len(sections) * 2)  # Up to 15 for sections
+                content_baseline_score += min(10, len(sections) * 1.5)  # Reduced from 15
             if resume_data.get("summary"):
-                content_baseline_score += 3
+                content_baseline_score += 2  # Reduced from 3
             if resume_data.get("email") or resume_data.get("phone"):
-                content_baseline_score += 2
+                content_baseline_score += 1  # Reduced from 2
             
-            # Add minimums for each component based on having content
-            content_baseline_score += (section_score * section_weight * 1.0)  # Full section score
-            content_baseline_score += (formatting_score * formatting_weight * 1.0)  # Full formatting score
-            content_baseline_score += (quality_score * quality_weight * 1.0)  # Full quality score
+            # Add minimums for each component based on having content (reduced weights)
+            content_baseline_score += (section_score * section_weight * 0.8)  # Reduced from 1.0
+            content_baseline_score += (formatting_score * formatting_weight * 0.8)  # Reduced from 1.0
+            content_baseline_score += (quality_score * quality_weight * 0.8)  # Reduced from 1.0
         
-        # Use weighted average approach: allow keyword improvements to show through
-        # Blend base score with content baseline but be less aggressive
-        # If base score is much higher, it's likely from keyword improvements
+        # Use base score directly - allow keyword improvements to show through
+        # Only apply minimal blending for very unrealistic jumps (20+ points)
+        # This ensures improvements are rewarded, not penalized
         score_difference = base_overall_score - content_baseline_score
-        if score_difference > 15:
-            # Very large jump - blend: 70% base, 30% baseline (was 50/50)
-            overall_score = base_overall_score * 0.7 + max(content_baseline_score, protected_baseline) * 0.3
-        elif score_difference > 10:
-            # Large jump - blend 80% base, 20% baseline (was 60/40)
-            overall_score = base_overall_score * 0.8 + max(content_baseline_score, protected_baseline) * 0.2
-        elif score_difference > 5:
-            # Moderate jump - blend 90% base, 10% baseline (was 75/25)
+        if score_difference > 25:
+            # Extremely large jump (likely error) - blend: 90% base, 10% baseline
             overall_score = base_overall_score * 0.9 + max(content_baseline_score, protected_baseline) * 0.1
+        elif score_difference > 20:
+            # Very large jump - blend: 95% base, 5% baseline
+            overall_score = base_overall_score * 0.95 + max(content_baseline_score, protected_baseline) * 0.05
         else:
-            # Small difference - use base score (allow improvements)
+            # Normal improvements - use base score directly (reward improvements)
             overall_score = max(base_overall_score, protected_baseline, content_baseline_score)
         
         # Add bonuses to reward improvements: increased caps to allow score growth
@@ -1523,26 +1521,19 @@ class EnhancedATSChecker:
         total_bonus = min(5, total_bonus)
         overall_score += total_bonus
 
-        # Apply maximum score cap to prevent unrealistic scores
-        # Only allow scores above 85% if ALL factors are exceptionally strong
+        # Relaxed score cap - allow scores above 85% with strong keyword matching
+        # Only cap at 85% if keyword matching is very weak
         if overall_score > 85:
-            # Require exceptional performance across all factors for scores above 85%
-            all_factors_exceptional = (
-                keyword_match_score >= 90 and  # Lowered from 95
-                tfidf_score >= 80 and  # Lowered from 85
-                section_score >= 90 and  # Lowered from 95
-                formatting_score >= 90 and  # Lowered from 95
-                quality_score >= 85 and  # Lowered from 90
-                matching_count >= 30  # Lowered from 40
-            )
-            
-            if not all_factors_exceptional:
-                # Cap at 85% if not all factors are exceptional (increased from 82%)
+            # Allow scores above 85% if keyword matching is strong (primary factor)
+            # Don't require ALL factors to be exceptional - keyword matching is most important
+            if keyword_match_score < 70 or tfidf_score < 60:
+                # Only cap if keyword matching is very weak
                 overall_score = min(85, overall_score)
+            # Otherwise allow the score to go higher
         
-        # Additional cap: prevent scores above 92% even with exceptional factors
-        # This ensures scores remain realistic but allows for improvement (increased from 85%)
-        overall_score = min(92, overall_score)
+        # Increased maximum cap: allow scores up to 98% with strong performance
+        # This ensures scores remain realistic but allows for significant improvement
+        overall_score = min(98, overall_score)
 
         # Generate improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)
