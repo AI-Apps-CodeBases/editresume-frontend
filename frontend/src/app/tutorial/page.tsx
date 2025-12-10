@@ -33,7 +33,7 @@ export default function TutorialPage() {
               <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
               <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
                 <ReactPlayer
-                  url="https://www.youtube.com/watch?v=qcGBFI1PEHo"
+                  url="https://youtu.be/qcGBFI1PEHo"
                   controls
                   width="100%"
                   height="100%"
@@ -43,7 +43,7 @@ export default function TutorialPage() {
                       playerVars: {
                         modestbranding: 1,
                         rel: 0,
-                      },
+                      } as Record<string, unknown>,
                     },
                   }}
                 />
