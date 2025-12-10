@@ -1398,22 +1398,40 @@ class EnhancedATSChecker:
 
         # More conservative scoring: keyword matching is 40% of the score (reduced from 50%)
         # This prevents keyword stuffing from dominating the score
-        keyword_weight = 0.40  # Reduced from 50% to 40% for more conservative scoring
+        # However, for high keyword matches (90-95%), use higher weight to reach 85% overall score
+        if keyword_match_score >= 90:
+            keyword_weight = 0.50  # Increased weight for 90-95% keyword match to reach 85% overall score
+        else:
+            keyword_weight = 0.40  # Standard weight for lower matches
         
-        # Distribute remaining 60% among other components
-        # TF-IDF: 25%, Section: 20%, Formatting: 10%, Quality: 5%
-        tfidf_weight = 0.25  # Increased from 20% to 25%
-        section_weight = 0.20  # Increased from 15% to 20%
-        formatting_weight = 0.10  # Keep at 10%
-        quality_weight = 0.05  # Keep at 5%
+        # Distribute remaining weight among other components
+        # TF-IDF: 25%, Section: 20%, Formatting: 10%, Quality: 5% (when keyword_weight = 0.40)
+        # When keyword_weight = 0.50, adjust others proportionally
+        if keyword_match_score >= 90:
+            tfidf_weight = 0.20  # Reduced to accommodate higher keyword weight
+            section_weight = 0.15
+            formatting_weight = 0.10
+            quality_weight = 0.05
+        else:
+            tfidf_weight = 0.25  # Increased from 20% to 25%
+            section_weight = 0.20  # Increased from 15% to 20%
+            formatting_weight = 0.10  # Keep at 10%
+            quality_weight = 0.05  # Keep at 5%
 
         # Increase keyword match contribution to reward improvements
-        # Even with 100% keyword match, max contribution is 50 points (increased from 38)
-        # This makes keyword matching the primary driver of score improvements
-        max_keyword_contribution = 50
+        # For 90-95% keyword match, allow higher contribution to reach 85% overall score
+        if keyword_match_score >= 90:
+            max_keyword_contribution = 60  # Increased from 50 to allow reaching 85% overall score
+        else:
+            max_keyword_contribution = 50  # Standard max for lower matches
+        
         # Apply minimal diminishing returns: higher keyword match counts almost fully
-        # 90% match = ~45 points after diminishing returns (highly responsive)
-        if keyword_match_score > 85:
+        # For 90-95% range, be more generous to allow reaching 85% overall score
+        if keyword_match_score >= 90:
+            # Very minimal diminishing returns for 90-95% range - use 95% of excess
+            excess = keyword_match_score - 85
+            capped_keyword_match = 85 + excess * 0.95  # 95% of excess counts (was 0.85)
+        elif keyword_match_score > 85:
             # Minimal diminishing returns above 85% - very responsive
             excess = keyword_match_score - 85
             capped_keyword_match = 85 + excess * 0.85  # 85% of excess counts (was 60%)
@@ -1536,14 +1554,34 @@ class EnhancedATSChecker:
         total_bonus = min(5, total_bonus)
         overall_score += total_bonus
 
+        # Direct boost for 90-95% keyword match to ensure overall score reaches 85%
+        # This addresses the issue where 90-95% keyword match was only reaching 73-75% overall score
+        if 90 <= keyword_match_score <= 95:
+            # Calculate how much boost is needed to reach 85%
+            # If current score is below 85%, add boost to push it to 85%
+            if overall_score < 85:
+                # Add boost proportional to how close we are to 90% keyword match
+                # At 90% keyword match, add enough to reach ~85% overall
+                # At 95% keyword match, add more to ensure we reach 85%
+                boost_needed = 85 - overall_score
+                # Scale boost based on keyword match percentage (more boost for higher match)
+                keyword_boost_factor = (keyword_match_score - 90) / 5.0  # 0.0 at 90%, 1.0 at 95%
+                # Add boost: minimum 2 points, up to boost_needed, scaled by keyword match
+                direct_boost = min(boost_needed, 2.0 + keyword_boost_factor * 3.0)
+                overall_score += direct_boost
+
         # Relaxed score cap - allow scores up to 90% with strong keyword matching
-        # Only cap at 85% if keyword matching is very weak
+        # For 90-95% keyword match, ensure we can reach 85% overall score
         if overall_score > 85:
             # Allow scores above 85% if keyword matching is strong (primary factor)
             # Don't require ALL factors to be exceptional - keyword matching is most important
             if keyword_match_score < 70 or tfidf_score < 60:
                 # Only cap if keyword matching is very weak
                 overall_score = min(85, overall_score)
+            # For 90-95% keyword match, allow up to 90% overall score
+            elif keyword_match_score >= 90:
+                # Allow scores up to 90% when keyword match is 90-95%
+                overall_score = min(90, overall_score)
             # Otherwise allow the score to go higher
         
         # Increased maximum cap: allow scores up to 90% (increased from 98% to match user requirement)
