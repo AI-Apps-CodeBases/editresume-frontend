@@ -1309,10 +1309,28 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
   let technicalMissing: string[] = [];
   
   if (savedKeywords && resumeText) {
-    // Use saved keywords for display
+    // Always use saved keywords from extension for consistency
     const savedKeywordMatch = findMissingKeywordsFromSaved(savedKeywords, resumeText);
     matchingKeywords = savedKeywordMatch.matched;
-    missingKeywords = savedKeywordMatch.missing;
+    
+    // Filter missing keywords to only those with significant TF-IDF weight (will impact score)
+    // Get TF-IDF weights for missing keywords
+    const missingKeywordsWithWeights = savedKeywordMatch.missing
+      .map((kw: string) => {
+        // Find this keyword in TF-IDF analysis to get its weight
+        const tfidfKw = tfidfAnalysis.missing_keywords?.find((mk: any) => {
+          const mkStr = typeof mk === 'string' ? mk : mk.keyword;
+          return mkStr?.toLowerCase() === kw.toLowerCase();
+        });
+        const weight = typeof tfidfKw === 'object' && tfidfKw?.weight ? tfidfKw.weight : 0;
+        return { keyword: kw, weight };
+      })
+      .filter((kw: any) => kw.weight > 0.01) // Only keywords that will meaningfully impact score
+      .sort((a: any, b: any) => b.weight - a.weight) // Sort by weight (most impactful first)
+      .slice(0, 40) // Limit to top 40 most impactful
+      .map((kw: any) => kw.keyword);
+    
+    missingKeywords = missingKeywordsWithWeights;
     
     // Identify technical keywords from saved set
     const savedTechnicalKeywords = Array.isArray(savedKeywords.technical_keywords) 
@@ -1384,24 +1402,25 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
     ? (matchingKeywords.length + missingKeywords.length)
     : (tfidfAnalysis.total_job_keywords || (matchingKeywords.length + missingKeywords.length) || 0);
   
-  // Extract TF-IDF suggestions (keywords similar to job description but not in saved keywords)
+  // Don't show TF-IDF suggestions when using saved keywords from extension
+  // Only use extension keywords for consistency
   let tfidfSuggestions: string[] = [];
-  if (savedKeywords && tfidfAnalysis.missing_keywords) {
-    // Get all saved keywords as a set for comparison
-    const allSavedKeywords = new Set(extractAllSavedKeywords(savedKeywords).map(kw => kw.toLowerCase()));
-    
-    // Extract TF-IDF missing keywords that are NOT in saved keywords
+  // Only show TF-IDF suggestions if we don't have saved keywords (fallback mode)
+  if (!savedKeywords && tfidfAnalysis.missing_keywords) {
+    // Extract TF-IDF missing keywords with significant weight (will impact score)
     const tfidfMissingRaw = tfidfAnalysis.missing_keywords || [];
-    const tfidfMissing = tfidfMissingRaw.map((kw: any) => {
-      if (typeof kw === 'string') return kw.toLowerCase();
-      return (kw.keyword || String(kw)).toLowerCase();
-    }).filter((kw: string) => kw && kw.trim().length > 0);
+    const tfidfMissing = tfidfMissingRaw
+      .map((kw: any) => {
+        if (typeof kw === 'string') return { keyword: kw.toLowerCase(), weight: 0.01 };
+        return { keyword: (kw.keyword || String(kw)).toLowerCase(), weight: kw.weight || 0.01 };
+      })
+      .filter((kw: any) => kw.keyword && kw.keyword.trim().length > 0)
+      .filter((kw: any) => kw.weight > 0.01) // Only keywords that will impact score
+      .sort((a: any, b: any) => b.weight - a.weight) // Sort by weight
+      .slice(0, 15) // Limit to top 15
+      .map((kw: any) => kw.keyword);
     
-    // Filter out keywords that are already in saved keywords
-    tfidfSuggestions = tfidfMissing
-      .filter((kw: string) => !allSavedKeywords.has(kw.toLowerCase()))
-      .filter((kw: string) => !missingKeywords.some(savedKw => savedKw.toLowerCase() === kw.toLowerCase()))
-      .slice(0, 15); // Limit to top 15 TF-IDF suggestions
+    tfidfSuggestions = tfidfMissing;
   }
   
   // Build match_analysis object
@@ -3639,15 +3658,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
                   </button>
                 </Tooltip>
-                <Tooltip text="Refresh the ATS score to get the latest match analysis" color="gray" position="bottom">
-                <button
-                  onClick={handleManualATSRefresh}
-                  disabled={isManualATSRefreshing || !resumeData}
-                  className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap"
-                >
-                  {isManualATSRefreshing ? 'Refreshing...' : 'Refresh'}
-                </button>
-                </Tooltip>
                 {isAnalyzing && (
                   <span className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg font-medium">
                     Updating...
@@ -3817,8 +3827,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </div>
                 )}
 
-                {/* TF-IDF Boost Keywords */}
-                {matchResult.keyword_suggestions?.tfidf_suggestions && matchResult.keyword_suggestions.tfidf_suggestions.length > 0 && (
+                {/* TF-IDF Boost Keywords - Only show when NOT using extension keywords */}
+                {!extractedKeywords && matchResult.keyword_suggestions?.tfidf_suggestions && matchResult.keyword_suggestions.tfidf_suggestions.length > 0 && (
                   <div>
                     <div className="text-sm font-semibold text-purple-700 mb-2">
                       🔥 TF-IDF Boost Keywords ({matchResult.keyword_suggestions.tfidf_suggestions.length})

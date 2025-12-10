@@ -1536,7 +1536,7 @@ class EnhancedATSChecker:
         total_bonus = min(5, total_bonus)
         overall_score += total_bonus
 
-        # Relaxed score cap - allow scores above 85% with strong keyword matching
+        # Relaxed score cap - allow scores up to 90% with strong keyword matching
         # Only cap at 85% if keyword matching is very weak
         if overall_score > 85:
             # Allow scores above 85% if keyword matching is strong (primary factor)
@@ -1546,9 +1546,9 @@ class EnhancedATSChecker:
                 overall_score = min(85, overall_score)
             # Otherwise allow the score to go higher
         
-        # Increased maximum cap: allow scores up to 98% with strong performance
+        # Increased maximum cap: allow scores up to 90% (increased from 98% to match user requirement)
         # This ensures scores remain realistic but allows for significant improvement
-        overall_score = min(98, overall_score)
+        overall_score = min(90, overall_score)
 
         # Generate improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)
