@@ -2812,7 +2812,9 @@ export default function VisualResumeEditor({
                                                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button
                                                       onClick={() => {
-                                                        if (jdKeywords && jdKeywords.missing.length > 0) {
+                                                        // Always open modal if jdKeywords exists (allows selection from multiple keyword sources)
+                                                        // Only fallback to old improve function if jdKeywords is not available
+                                                        if (jdKeywords) {
                                                           const cleanedText = (companyBullet.text || '').replace(/^[-•*]+\s*/, '').trim()
                                                           setAiImproveContext({
                                                             sectionId: section.id,
@@ -3073,8 +3075,9 @@ export default function VisualResumeEditor({
                                         {/* AI Improve Button */}
                                         <button
                                           onClick={() => {
-                                            // Always use missing keywords modal when available
-                                            if (jdKeywords && jdKeywords.missing && jdKeywords.missing.length > 0) {
+                                            // Always open modal if jdKeywords exists (allows selection from multiple keyword sources)
+                                            // Only fallback to old improve function if jdKeywords is not available
+                                            if (jdKeywords) {
                                               const cleanedText = (bullet.text || '').replace(/^[-•*]+\s*/, '').trim()
                                               setAiImproveContext({
                                                 sectionId: section.id,
@@ -3084,7 +3087,7 @@ export default function VisualResumeEditor({
                                               })
                                               setShowAIImproveModal(true)
                                             } else if (onAIImprove) {
-                                              // Fallback to old improve function when no missing keywords
+                                              // Fallback to old improve function when no JD keywords available
                                               ; (async () => {
                                                 try {
                                                   setIsAILoading(true)
@@ -3100,8 +3103,8 @@ export default function VisualResumeEditor({
                                           }}
                                           disabled={isAILoading}
                                           className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
-                                          title={jdKeywords && jdKeywords.missing && jdKeywords.missing.length > 0 
-                                            ? "✨ AI Improve - Enhance with missing JD keywords from job description" 
+                                          title={jdKeywords 
+                                            ? "✨ AI Improve - Enhance with JD keywords from job description" 
                                             : "✨ AI Improve - Enhance bullet point"}
                                         >
                                           <span>{isAILoading ? '⏳' : '✨'}</span>
