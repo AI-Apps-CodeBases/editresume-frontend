@@ -1134,7 +1134,9 @@ class EnhancedATSChecker:
             # Find matching keywords (present in both with significant weight)
             matching_keywords = []
             missing_keywords = []
-            threshold = 0.001  # Lowered threshold to catch more keywords (was 0.01)
+            # Use higher threshold for missing keywords to only show impactful ones
+            threshold = 0.001  # For matching keywords - catch more
+            missing_keyword_threshold = 0.01  # For missing keywords - only show significant ones
 
             # Also do direct keyword matching for extracted keywords (more lenient)
             direct_matching_keywords = set()
@@ -1190,9 +1192,11 @@ class EnhancedATSChecker:
                             }
                         )
                     else:
-                        missing_keywords.append(
-                            {"keyword": keyword, "weight": round(float(job_weight), 4)}
-                        )
+                        # Only add missing keywords with significant weight that will impact score
+                        if job_weight > missing_keyword_threshold:
+                            missing_keywords.append(
+                                {"keyword": keyword, "weight": round(float(job_weight), 4)}
+                            )
             
             # Merge direct matching keywords with TF-IDF matches
             # Add direct matches that weren't caught by TF-IDF
@@ -1210,20 +1214,27 @@ class EnhancedATSChecker:
             matching_keywords.sort(key=lambda x: x["job_weight"], reverse=True)
             missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
             
+            # Limit missing keywords to top 40 most impactful (those that will meaningfully improve score)
+            missing_keywords = missing_keywords[:40]
+            
             # Add responsive boost based on number of matching keywords
-            # More responsive to additions while preventing extreme jumps
+            # Much more responsive to additions - each keyword adds 3-5 points
             matching_count = len(matching_keywords)
             if matching_count > 15:
-                # Linear scaling for high counts (more responsive)
-                boost = min(10, 4 + (matching_count - 15) * 0.3)
+                # Linear scaling for high counts - very responsive
+                boost = min(20, 6 + (matching_count - 15) * 0.8)  # Increased from 0.3 to 0.8
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 10:
-                # Hybrid: logarithmic for medium-high
-                boost = min(7, 2 + math.log1p(matching_count - 10) * 2.0)
+                # Linear scaling for medium-high counts - highly responsive
+                boost = min(12, 3 + (matching_count - 10) * 1.0)  # Changed from logarithmic to linear, increased factor
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 5:
-                # Linear scaling for small-medium counts (most responsive)
-                boost = min(4, (matching_count - 5) * 0.5)
+                # Linear scaling for small-medium counts - most responsive
+                boost = min(8, (matching_count - 5) * 1.2)  # Increased from 0.5 to 1.2
+                cosine_score = min(100, cosine_score + boost)
+            elif matching_count > 0:
+                # Even small counts get a boost - reward any matches
+                boost = min(3, matching_count * 0.6)  # New tier for 1-5 matches
                 cosine_score = min(100, cosine_score + boost)
 
             # Calculate keyword match percentage with improved algorithm
@@ -1269,23 +1280,27 @@ class EnhancedATSChecker:
             base_match_percentage = (weighted_match_percentage * 0.6) + (simple_match_percentage * 0.4)
             
             # Add responsive boost for having matching keywords
-            # More responsive to additions while preventing extreme jumps
+            # Much more responsive - each keyword adds significant boost to match percentage
             matching_count = len(matching_keywords)
             if matching_count > 20:
-                # Linear scaling for high counts
-                boost = min(4, (matching_count - 20) * 0.2)
+                # Linear scaling for high counts - very responsive
+                boost = min(15, (matching_count - 20) * 0.75)  # Increased from 0.2 to 0.75
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 15:
-                # Hybrid scaling
-                boost = min(3, 1 + math.log1p(matching_count - 15) * 1.2)
+                # Linear scaling for medium-high counts - highly responsive
+                boost = min(10, 2 + (matching_count - 15) * 1.0)  # Changed from logarithmic to linear, increased factor
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 10:
-                # Linear scaling for medium counts (more responsive)
-                boost = min(2, (matching_count - 10) * 0.25)
+                # Linear scaling for medium counts - very responsive
+                boost = min(8, (matching_count - 10) * 0.8)  # Increased from 0.25 to 0.8
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 5:
-                # Linear scaling for small counts (most responsive)
-                boost = min(1, (matching_count - 5) * 0.15)
+                # Linear scaling for small counts - most responsive
+                boost = min(5, (matching_count - 5) * 0.6)  # Increased from 0.15 to 0.6
+                match_percentage = min(100, base_match_percentage + boost)
+            elif matching_count > 0:
+                # Even small counts get a boost - reward any matches
+                boost = min(3, matching_count * 0.5)  # New tier for 1-5 matches
                 match_percentage = min(100, base_match_percentage + boost)
             else:
                 match_percentage = base_match_percentage
@@ -1297,7 +1312,7 @@ class EnhancedATSChecker:
                 "tfidf_score": round(cosine_score, 2),
                 "keyword_match_percentage": round(match_percentage, 2),
                 "matching_keywords": matching_keywords[:20],  # Top 20 matches
-                "missing_keywords": missing_keywords[:20],  # Top 20 missing
+                "missing_keywords": missing_keywords,  # Already filtered to top 40 most impactful
                 "total_job_keywords": total_job_keywords,
                 "matched_keywords_count": len(matching_keywords),
             }
