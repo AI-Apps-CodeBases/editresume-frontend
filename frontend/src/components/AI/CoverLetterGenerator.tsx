@@ -64,6 +64,7 @@ export default function CoverLetterGenerator({
   const [jdSentences, setJdSentences] = useState<string[]>([])
   const [selectedSentences, setSelectedSentences] = useState<Set<number>>(new Set())
   const [extractingSentences, setExtractingSentences] = useState(false)
+  const [showFullLetter, setShowFullLetter] = useState(true)
 
   const tones = [
     { value: 'professional', label: 'Professional', description: 'Formal, corporate language' },
@@ -298,8 +299,22 @@ export default function CoverLetterGenerator({
     const updatedCoverLetter = { ...coverLetter }
     updatedCoverLetter[editingParagraph as keyof CoverLetterData] = editedContent
     
-    // Rebuild full letter
-    updatedCoverLetter.full_letter = `${updatedCoverLetter.opening}\n\n${updatedCoverLetter.body}\n\n${updatedCoverLetter.closing}`
+    // Rebuild full letter with title
+    const title = `Cover Letter for ${companyName} for ${positionTitle}`
+    const letterContent = `${updatedCoverLetter.opening}\n\n${updatedCoverLetter.body}\n\n${updatedCoverLetter.closing}`
+    
+    // Check if full_letter already has the title, if not add it
+    if (!updatedCoverLetter.full_letter || !updatedCoverLetter.full_letter.startsWith(title)) {
+      updatedCoverLetter.full_letter = `${title}\n\n${letterContent}`
+    } else {
+      // Replace content after title
+      const titleIndex = updatedCoverLetter.full_letter.indexOf('\n\n')
+      if (titleIndex > 0) {
+        updatedCoverLetter.full_letter = `${updatedCoverLetter.full_letter.substring(0, titleIndex)}\n\n${letterContent}`
+      } else {
+        updatedCoverLetter.full_letter = `${title}\n\n${letterContent}`
+      }
+    }
     
     setCoverLetter(updatedCoverLetter)
     onCoverLetterChange?.(updatedCoverLetter.full_letter)
@@ -653,7 +668,33 @@ export default function CoverLetterGenerator({
 
           {/* Right Panel - Generated Cover Letter */}
           <div className="w-1/2 p-6 flex flex-col overflow-hidden">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex-shrink-0">Generated Cover Letter</h3>
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <h3 className="text-lg font-bold text-gray-900">Generated Cover Letter</h3>
+              {coverLetter && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowFullLetter(true)}
+                    className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${
+                      showFullLetter
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Full Letter
+                  </button>
+                  <button
+                    onClick={() => setShowFullLetter(false)}
+                    className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${
+                      !showFullLetter
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Sections
+                  </button>
+                </div>
+              )}
+            </div>
             
             {!coverLetter ? (
               <div className="text-center py-12">
@@ -663,49 +704,57 @@ export default function CoverLetterGenerator({
             ) : (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="flex-1 overflow-y-auto pr-2">
-                  <div className="space-y-4">
-                    {/* Opening Paragraph */}
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gray-700">Opening</h4>
-                        <button
-                          onClick={() => editParagraph('opening')}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          ✏️ Edit
-                        </button>
+                  {showFullLetter ? (
+                    <div className="border border-gray-200 rounded-lg p-6 bg-white">
+                      <div className="text-gray-800 leading-relaxed whitespace-pre-line font-sans">
+                        {coverLetter.full_letter || `${coverLetter.opening}\n\n${coverLetter.body}\n\n${coverLetter.closing}`}
                       </div>
-                      <p className="text-gray-800 leading-relaxed">{coverLetter.opening}</p>
                     </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Opening Paragraph */}
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-700">Opening</h4>
+                          <button
+                            onClick={() => editParagraph('opening')}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </div>
+                        <p className="text-gray-800 leading-relaxed">{coverLetter.opening}</p>
+                      </div>
 
-                    {/* Body Paragraphs */}
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gray-700">Body</h4>
-                        <button
-                          onClick={() => editParagraph('body')}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          ✏️ Edit
-                        </button>
+                      {/* Body Paragraphs */}
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-700">Body</h4>
+                          <button
+                            onClick={() => editParagraph('body')}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </div>
+                        <div className="text-gray-800 leading-relaxed whitespace-pre-line">{coverLetter.body}</div>
                       </div>
-                      <div className="text-gray-800 leading-relaxed whitespace-pre-line">{coverLetter.body}</div>
-                    </div>
 
-                    {/* Closing Paragraph */}
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gray-700">Closing</h4>
-                        <button
-                          onClick={() => editParagraph('closing')}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          ✏️ Edit
-                        </button>
+                      {/* Closing Paragraph */}
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-700">Closing</h4>
+                          <button
+                            onClick={() => editParagraph('closing')}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </div>
+                        <p className="text-gray-800 leading-relaxed">{coverLetter.closing}</p>
                       </div>
-                      <p className="text-gray-800 leading-relaxed">{coverLetter.closing}</p>
                     </div>
-                  </div>
+                  )}
                 </div>
                 
                 {/* Action Buttons - Always visible at bottom, fixed position */}

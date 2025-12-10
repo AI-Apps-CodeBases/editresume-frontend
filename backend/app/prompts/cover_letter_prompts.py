@@ -44,10 +44,12 @@ Candidate Information:
 {resume_text[:2000]}
 
 CRITICAL REQUIREMENTS:
+- DO NOT use ANY placeholders in brackets like [Company Address], [Hiring Manager], [Date], [Your Name], etc.
 - DO NOT use any variables, placeholders, or template syntax in the cover letter
 - Write the complete cover letter with actual text, not references to variables
 - DO NOT use phrases like "{{name}}", "{{company}}", "{{position}}" or any variable syntax
 - Write everything in plain, complete sentences with actual names and details
+- Use ONLY the actual company name "{company_name}" and position title "{position_title}" - no placeholders
 - Use {tone} tone: {tone_instruction}
 - Write a compelling cover letter that connects the candidate's experience to the job requirements
 - Include specific examples from the candidate's background that match job requirements
@@ -59,13 +61,14 @@ CRITICAL REQUIREMENTS:
 - Use action verbs and quantifiable achievements where possible
 - End with a clear call to action
 - Avoid generic phrases - be specific to this role and company
+- Format paragraphs with double line breaks (\\n\\n) between paragraphs for proper spacing
 {custom_context}
 
 Structure the response as JSON with these fields:
 - opening: Opening paragraph (1-2 sentences) - mention the specific position "{position_title}" at "{company_name}" (use actual names, not variables)
-- body: Main body paragraphs (2-3 paragraphs) - highlight relevant experience and achievements, reference specific job requirements
+- body: Main body paragraphs (2-3 paragraphs) - highlight relevant experience and achievements, reference specific job requirements. Format with double line breaks between paragraphs.
 - closing: Closing paragraph (1-2 sentences) - express enthusiasm and next steps
-- full_letter: Complete formatted letter with proper spacing, NO VARIABLES, use actual company name "{company_name}" and position "{position_title}"
+- full_letter: MUST start with the title "Cover Letter for {company_name} for {position_title}" followed by a blank line (\\n\\n), then the complete formatted letter with proper paragraph spacing (double line breaks between paragraphs). NO VARIABLES, NO PLACEHOLDERS - use actual company name "{company_name}" and position "{position_title}"
 
 Return ONLY valid JSON, no markdown formatting."""
 
