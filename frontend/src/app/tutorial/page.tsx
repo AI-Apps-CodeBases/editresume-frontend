@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 
-const ReactPlayer = dynamic(() => import('react-player'), { ssr: false })
+const ReactPlayer = dynamic(() => import('react-player'), { 
+  ssr: false,
+}) as any
 
 export default function TutorialPage() {
   return (
@@ -38,14 +40,6 @@ export default function TutorialPage() {
                   width="100%"
                   height="100%"
                   className="absolute inset-0"
-                  config={{
-                    youtube: {
-                      playerVars: {
-                        modestbranding: 1,
-                        rel: 0,
-                      } as Record<string, unknown>,
-                    },
-                  }}
                 />
               </div>
             </div>
