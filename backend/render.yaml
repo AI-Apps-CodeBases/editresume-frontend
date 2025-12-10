@@ -17,6 +17,4 @@ services:
         value: "false"
       - key: ENVIRONMENT
         value: "staging"
-      - key: PYTHONPATH
-        value: "/opt/render/project/src"
 

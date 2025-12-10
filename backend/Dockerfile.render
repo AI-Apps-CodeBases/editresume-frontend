@@ -30,7 +30,6 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Start command
-# Render provides $PORT; use it if present, default to 8000 locally
-ENV PORT=8000
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+# Start command - use shell form to properly expand PORT variable
+# Render provides $PORT dynamically; default to 8000 if not set
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
