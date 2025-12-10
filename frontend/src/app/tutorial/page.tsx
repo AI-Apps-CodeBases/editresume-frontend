@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
-
-const ReactPlayer = dynamic(() => import('react-player'), { 
-  ssr: false,
-}) as any
+import { useState, useEffect } from 'react'
 
 export default function TutorialPage() {
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/40">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -33,14 +35,24 @@ export default function TutorialPage() {
 
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-              <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
-                <ReactPlayer
-                  url="https://youtu.be/qcGBFI1PEHo"
-                  controls
-                  width="100%"
-                  height="100%"
-                  className="absolute inset-0"
-                />
+              <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video w-full">
+                {isMounted ? (
+                  <iframe
+                    className="w-full h-full"
+                    src="https://www.youtube.com/embed/qcGBFI1PEHo?rel=0&modestbranding=1"
+                    title="EditResume Tutorial"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full bg-slate-900 text-white">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                      <p>Loading video player...</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
