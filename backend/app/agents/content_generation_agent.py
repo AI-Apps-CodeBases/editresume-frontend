@@ -208,6 +208,7 @@ class ContentGenerationAgent:
         jd_excerpt: str | None = None,
         resume_excerpt: str | None = None,
         count: int = 3,
+        missing_keywords: list[str] | None = None,
     ) -> dict:
         """Generate bullet points from keywords."""
         if not self.openai_client:
@@ -223,6 +224,7 @@ class ContentGenerationAgent:
                 keywords_str=keywords_str,
                 resume_excerpt=resume_excerpt,
                 count=count,
+                missing_keywords=missing_keywords,
             )
 
             headers = {
@@ -331,6 +333,7 @@ class ContentGenerationAgent:
         company_title: str | None = None,
         job_title: str | None = None,
         jd_excerpt: str | None = None,
+        missing_keywords: list[str] | None = None,
     ) -> dict:
         """Improve bullet point with keywords."""
         if not self.openai_client:
@@ -345,6 +348,7 @@ class ContentGenerationAgent:
                 company_title=company_title,
                 job_title=job_title,
                 jd_excerpt=jd_excerpt,
+                missing_keywords=missing_keywords,
             )
 
             headers = {
@@ -436,6 +440,7 @@ class ContentGenerationAgent:
         keyword_guidance: str,
         job_description_excerpt: str | None = None,
         existing_summary: str | None = None,
+        missing_keywords: list[str] | None = None,
     ) -> dict:
         """Generate professional summary from work experience."""
         if not self.openai_client:
@@ -451,6 +456,7 @@ class ContentGenerationAgent:
                 keyword_guidance=keyword_guidance,
                 job_description_excerpt=job_description_excerpt,
                 existing_summary=existing_summary,
+                missing_keywords=missing_keywords,
             )
 
             headers = {
@@ -640,6 +646,7 @@ class ContentGenerationAgent:
         skills: str | None = None,
         projects: str | None = None,
         job_description: str | None = None,
+        missing_keywords: list[str] | None = None,
     ) -> dict:
         """Generate work experience entry."""
         if not self.openai_client:
@@ -657,6 +664,7 @@ class ContentGenerationAgent:
                 skills=skills,
                 projects=projects,
                 job_description=job_description,
+                missing_keywords=missing_keywords,
             )
 
             headers = {

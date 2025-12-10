@@ -981,6 +981,8 @@ async def generate_work_experience(payload: WorkExperienceRequest):
                 ],
             }
 
+        missing_keywords = getattr(payload, 'missing_keywords', None) or []
+        
         # Use content generation agent
         result = await content_generation_agent.generate_work_experience(
             role=payload.currentJobTitle or payload.role or "Software Engineer",
@@ -991,6 +993,7 @@ async def generate_work_experience(payload: WorkExperienceRequest):
             skills=payload.experienceDescription or payload.achievements,
             projects=payload.projects,
             job_description=payload.jobDescription,
+            missing_keywords=missing_keywords if isinstance(missing_keywords, list) else [],
         )
 
         # Parse bullets and return in expected format
@@ -1152,6 +1155,7 @@ async def generate_bullets_from_keywords(payload: dict):
             raise HTTPException(status_code=400, detail="Keywords list is required")
 
         keywords_str = ", ".join(keywords_list)
+        missing_keywords = payload.get("missing_keywords", [])
 
         # Use content generation agent
         result = await content_generation_agent.generate_bullet_from_keywords(
@@ -1161,6 +1165,7 @@ async def generate_bullets_from_keywords(payload: dict):
             jd_excerpt=job_description[:500] if job_description else None,
             resume_excerpt=None,
             count=max(3, min(len(keywords_list), 5)),
+            missing_keywords=missing_keywords,
         )
 
         bullets = result.get("bullets", [])
@@ -1465,6 +1470,17 @@ async def generate_summary_from_experience(payload: dict):
                 + " ".join(summary_parts)
             )
 
+        missing_kw_section = ""
+        if missing_keywords and len(missing_keywords) > 0:
+            missing_kw_section = f"""
+CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
+{', '.join(missing_keywords[:15])}
+
+These keywords are currently MISSING from your resume and MUST be incorporated 
+into the summary to improve ATS score. Use them naturally in context - they are 
+the highest priority for inclusion.
+"""
+        
         context = f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
 
 Professional Title: {title if title else 'Not specified'}
@@ -1477,7 +1493,7 @@ Skills:
 
  Target Job Description Keywords (blend these naturally into the narrative):
 {keyword_guidance}
-
+{missing_kw_section}
  Job Description Snapshot (for context):
 {job_description_excerpt if job_description_excerpt else 'Not provided'}
 
@@ -1499,7 +1515,8 @@ Requirements for the Professional Summary:
 8. Focus on impact and results
 9. Include industry-specific keywords for ATS systems
 10. Prioritize incorporating the provided priority and missing JD keywords verbatim when it fits naturally
-11. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
+11. CRITICAL: The missing keywords listed above are HIGH PRIORITY - ensure they appear naturally in the summary
+12. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
 
 Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""
 

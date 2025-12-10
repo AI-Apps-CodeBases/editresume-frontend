@@ -65,8 +65,19 @@ def get_bullet_from_keywords_prompt(
     keywords_str: str,
     resume_excerpt: str | None,
     count: int,
+    missing_keywords: list[str] | None = None,
 ) -> str:
     """Generate bullet points from keywords prompt."""
+    missing_kw_note = ""
+    if missing_keywords and len(missing_keywords) > 0:
+        missing_kw_note = f"""
+CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
+{', '.join(missing_keywords[:8])}
+
+These keywords are currently MISSING from the resume and are HIGH PRIORITY for ATS score improvement.
+Ensure these missing keywords appear naturally in at least {count // 2} of the generated bullets.
+"""
+    
     return f"""You are crafting high-impact resume bullet points.
 
 Company: {company_title or 'Not specified'}
@@ -75,13 +86,14 @@ Job Description Context:
 {jd_excerpt if jd_excerpt else 'Not provided'}
 
 Keywords to integrate naturally: {keywords_str}
-
+{missing_kw_note}
 Resume context (useful achievements or tools):
 {resume_excerpt if resume_excerpt else 'Limited additional context provided'}
 
 Requirements:
 - Generate {count} distinct professional resume bullet points
 - Weave the provided keywords naturally across the bullets (avoid keyword stuffing)
+- PRIORITY: Ensure missing keywords listed above are included in at least {count // 2} bullets
 - Include metrics or quantified outcomes when possible
 - Use strong action verbs, professional tone, and ATS-friendly formatting
 - Each bullet: 1-2 lines (max 35 words)
@@ -96,13 +108,28 @@ def get_bullets_from_keywords_prompt(
     company_title: str | None,
     job_title: str | None,
     jd_excerpt: str | None,
+    missing_keywords: list[str] | None = None,
 ) -> str:
     """Improve bullet point with keywords prompt."""
+    missing_kw_note = ""
+    if missing_keywords and len(missing_keywords) > 0:
+        # Check which missing keywords are in the provided keywords_str
+        missing_in_provided = [kw for kw in missing_keywords if kw.lower() in keywords_str.lower()]
+        if missing_in_provided:
+            missing_kw_note = f"""
+HIGH PRIORITY - Missing Keywords (MUST include these naturally):
+{', '.join(missing_in_provided[:5])}
+
+These keywords are currently MISSING from your resume and are HIGH PRIORITY for ATS score improvement.
+Ensure the improved bullet includes these missing keywords naturally.
+"""
+    
     return f"""Improve this resume bullet to maximize impact and include the specified keywords naturally.
 
 Current bullet: "{current_bullet}"
 
 Keywords to integrate: {keywords_str}
+{missing_kw_note}
 Company: {company_title or 'Not specified'}
 Role: {job_title or 'Not specified'}
 Job Description Context:
@@ -110,6 +137,7 @@ Job Description Context:
 
 Requirements:
 - Enhance the bullet with the keywords naturally woven in
+- PRIORITY: If any missing keywords are provided above, they MUST appear in the improved bullet
 - Add quantifiable metrics or outcomes if possible
 - Maintain professional tone and ATS-friendly format
 - Keep it concise (1-2 lines, max 35 words)
@@ -125,8 +153,20 @@ def get_summary_from_experience_prompt(
     keyword_guidance: str,
     job_description_excerpt: str | None,
     existing_summary: str | None,
+    missing_keywords: list[str] | None = None,
 ) -> str:
     """Generate professional summary from work experience prompt."""
+    missing_kw_section = ""
+    if missing_keywords and len(missing_keywords) > 0:
+        missing_kw_section = f"""
+CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
+{', '.join(missing_keywords[:15])}
+
+These keywords are currently MISSING from your resume and MUST be incorporated 
+into the summary to improve ATS score. Use them naturally in context - they are 
+the highest priority for inclusion.
+"""
+    
     return f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
 
 Professional Title: {title if title else 'Not specified'}
@@ -139,7 +179,7 @@ Skills:
 
  Target Job Description Keywords (blend these naturally into the narrative):
 {keyword_guidance}
-
+{missing_kw_section}
  Job Description Snapshot (for context):
 {job_description_excerpt if job_description_excerpt else 'Not provided'}
 
@@ -161,7 +201,8 @@ Requirements for the Professional Summary:
 8. Focus on impact and results
 9. Include industry-specific keywords for ATS systems
 10. Prioritize incorporating the provided priority and missing JD keywords verbatim when it fits naturally
-11. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
+11. CRITICAL: The missing keywords listed above are HIGH PRIORITY - ensure they appear naturally in the summary
+12. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
 
 Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""
 
@@ -293,6 +334,7 @@ def get_work_experience_prompt(
     skills: str | None = None,
     projects: str | None = None,
     job_description: str | None = None,
+    missing_keywords: list[str] | None = None,
 ) -> str:
     """Generate work experience entry prompt."""
     tone_instructions = {
@@ -320,6 +362,16 @@ IMPORTANT: Your generated bullet points MUST:
 - Use terminology that aligns with the job description
 - Highlight experiences that directly relate to what the job is looking for
 """
+    
+    missing_kw_section = ""
+    if missing_keywords and len(missing_keywords) > 0:
+        missing_kw_section = f"""
+MISSING KEYWORDS FROM JOB DESCRIPTION (HIGH PRIORITY - include these naturally):
+{', '.join(missing_keywords[:10])}
+
+These keywords are missing from your resume. Prioritize naturally incorporating 
+them into the bullet points to maximize ATS score. Include them in at least 2-3 bullets.
+"""
 
     return f"""Generate professional resume bullet points for this work experience entry:
 
@@ -328,7 +380,7 @@ Company: {company}
 Date Range: {date_range}
 Current Bullets:
 {bullets_text}
-{skills_text}{projects_text}{jd_section}
+{skills_text}{projects_text}{jd_section}{missing_kw_section}
 
 Requirements:
 - Generate 4-6 professional bullet points
@@ -340,6 +392,7 @@ Requirements:
 - Each bullet should be 1-2 lines
 - Make them diverse and cover different aspects of the role
 - Prioritize matching keywords and requirements from the job description
+- CRITICAL: Include the missing keywords listed above naturally in at least 2-3 bullet points
 
 Return ONLY a JSON array of bullet point strings, e.g. ["Bullet 1", "Bullet 2"]."""
 
