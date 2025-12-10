@@ -1,7 +1,10 @@
 import re
 import math
+import logging
 from typing import Dict, List, Tuple, Optional
 from collections import Counter
+
+logger = logging.getLogger(__name__)
 
 # Try to import optional dependencies with fallbacks
 try:
@@ -9,16 +12,19 @@ try:
     from nltk.corpus import stopwords
     from nltk.tokenize import word_tokenize
 
-    # Download required NLTK data
+    # NLTK data should be pre-downloaded in Dockerfile for faster deployment
+    # Only download if not found (shouldn't happen in production)
     try:
         nltk.data.find("tokenizers/punkt")
     except LookupError:
-        nltk.download("punkt")
+        logger.warning("NLTK punkt not found, downloading... (should be pre-downloaded in Dockerfile)")
+        nltk.download("punkt", quiet=True)
 
     try:
         nltk.data.find("corpora/stopwords")
     except LookupError:
-        nltk.download("stopwords")
+        logger.warning("NLTK stopwords not found, downloading... (should be pre-downloaded in Dockerfile)")
+        nltk.download("stopwords", quiet=True)
 
     NLTK_AVAILABLE = True
 except ImportError:
