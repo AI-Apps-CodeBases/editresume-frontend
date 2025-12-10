@@ -21,7 +21,6 @@ scikit-learn==1.3.2
 # spacy==3.6.1  # Optional: Advanced NLP features (has fallback if not installed)
 nltk==3.8.1
 # Optional dependencies with fallback support
-language-tool-python==2.7.1
 firebase-admin==6.5.0
 stripe==10.12.0
 

@@ -5,14 +5,6 @@ from dataclasses import dataclass
 
 # Optional imports with fallbacks
 try:
-    from language_tool_python import LanguageTool
-
-    LANGUAGETOOL_AVAILABLE = True
-except ImportError:
-    LANGUAGETOOL_AVAILABLE = False
-    LanguageTool = None
-
-try:
     import textstat
 
     TEXTSTAT_AVAILABLE = True
@@ -63,46 +55,8 @@ class StyleScore:
 
 class GrammarStyleChecker:
     def __init__(self):
-        # Initialize LanguageTool if available
-        if LANGUAGETOOL_AVAILABLE:
-            try:
-                # Check if Java is available before initializing LanguageTool
-                import subprocess
-                import shutil
-                import os
-                java_path = shutil.which("java")
-                if not java_path:
-                    logger.debug("Java not found, LanguageTool will not be available. Using fallback grammar checking.")
-                    self.language_tool = None
-                else:
-                    # Try to verify Java works (suppress stderr to avoid noisy output)
-                    try:
-                        # Suppress stderr to avoid "Command returned non-zero exit status" messages
-                        with open(os.devnull, 'w') as devnull:
-                            result = subprocess.run(
-                                ["java", "-version"],
-                                stdout=devnull,
-                                stderr=devnull,
-                                timeout=2
-                            )
-                        if result.returncode != 0:
-                            logger.debug("Java check failed, LanguageTool will not be available. Using fallback grammar checking.")
-                            self.language_tool = None
-                        else:
-                            # Java is available, try to initialize LanguageTool
-                            self.language_tool = LanguageTool("en-US")
-                            logger.info("LanguageTool initialized successfully")
-                    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-                        # Java check failed or Java not working properly
-                        logger.debug("Java verification failed, LanguageTool will not be available. Using fallback grammar checking.")
-                        self.language_tool = None
-            except Exception as e:
-                # Suppress noisy error messages - LanguageTool requires Java which may not be installed
-                logger.debug(f"LanguageTool initialization failed (Java may not be installed): {type(e).__name__}")
-                self.language_tool = None
-        else:
-            logger.debug("LanguageTool package not available, using fallback grammar checking")
-            self.language_tool = None
+        # LanguageTool removed - using fallback grammar checking only
+        self.language_tool = None
 
         # Initialize spaCy if available
         if SPACY_AVAILABLE:
@@ -149,7 +103,7 @@ class GrammarStyleChecker:
         ]
 
     def check_grammar(self, text: str) -> List[GrammarIssue]:
-        """Check text for grammar issues using LanguageTool or fallback"""
+        """Check text for grammar issues using fallback rules"""
         if self.language_tool:
             try:
                 matches = self.language_tool.check(text)
