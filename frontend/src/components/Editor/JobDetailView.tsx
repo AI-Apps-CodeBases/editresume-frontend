@@ -119,26 +119,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }, [jobId, isAuthenticated, user?.email])
 
-  // Refresh job details when window regains focus (user returns from editor)
-  useEffect(() => {
-    const handleFocus = () => {
-      if (jobId && isAuthenticated && user?.email && document.visibilityState === 'visible') {
-        // Small delay to ensure any saves have completed
-        setTimeout(() => {
-          fetchJobDetails()
-        }, 500)
-      }
-    }
-    
-    window.addEventListener('focus', handleFocus)
-    document.addEventListener('visibilitychange', handleFocus)
-    
-    return () => {
-      window.removeEventListener('focus', handleFocus)
-      document.removeEventListener('visibilitychange', handleFocus)
-    }
-  }, [jobId, isAuthenticated, user?.email])
-
   useEffect(() => {
     if (isAuthenticated && user?.email) {
       fetchResumes()
@@ -1352,19 +1332,18 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                                 }}
                                 className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
                               >
-                                Open in Editor
+                                Improve in Editor
                               </button>
                             )}
-                            {match.resume_version_id && (
+                            {match.resume_id && (
                               <button
                                 onClick={() => {
-                                  // Open editor with export view
                                   const versionQuery = match.resume_version_id ? `&resumeVersionId=${match.resume_version_id}` : ''
-                                  window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}&view=export`
+                                  window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}`
                                 }}
-                                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"
+                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
                               >
-                                Export as PDF
+                                Improve in Editor
                               </button>
                             )}
                             {match.resume_version_id && (
