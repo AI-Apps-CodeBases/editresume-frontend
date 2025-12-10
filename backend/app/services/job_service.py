@@ -795,6 +795,45 @@ def get_job_description_detail(
     except Exception as e:
         logger.warning(f"Failed to load cover letters for job {jd_id}: {e}")
 
+    # Load resume versions (saved matches) for this job
+    resume_versions_payload: List[Dict[str, Any]] = []
+    best_link_payload: Optional[Dict[str, Any]] = None
+    try:
+        resume_links = (
+            db.query(JobResumeVersion)
+            .filter(JobResumeVersion.job_description_id == jd_id)
+            .order_by(
+                JobResumeVersion.updated_at.desc().nullslast(),
+                JobResumeVersion.ats_score.desc().nullslast(),
+            )
+            .all()
+        )
+        for link in resume_links:
+            link_payload = {
+                "id": link.id,
+                "score": link.ats_score or 0,
+                "resume_id": link.resume_id,
+                "resume_name": link.resume_name,
+                "resume_version_id": link.resume_version_id,
+                "resume_version_label": link.resume_version_label,
+                "keyword_coverage": link.keyword_coverage,
+                "matched_keywords": link.matched_keywords or [],
+                "missing_keywords": link.missing_keywords or [],
+                "created_at": (
+                    link.created_at.isoformat() if link.created_at else None
+                ),
+                "updated_at": (
+                    link.updated_at.isoformat() if link.updated_at else None
+                ),
+            }
+            resume_versions_payload.append(link_payload)
+            if not best_link_payload or (link_payload["score"] or 0) > (
+                best_link_payload["score"] or 0
+            ):
+                best_link_payload = link_payload
+    except Exception as e:
+        logger.warning(f"Failed to load resume versions for job {jd_id}: {e}", exc_info=True)
+
     return {
         "id": jd.id,
         "title": jd.title or "",
@@ -818,5 +857,7 @@ def get_job_description_detail(
         "important_emoji": getattr(jd, "important_emoji", None),
         "notes": getattr(jd, "notes", None),
         "cover_letters": cover_letters,
+        "resume_versions": resume_versions_payload,
+        "best_resume_version": best_link_payload,
     }
 
