@@ -3474,7 +3474,25 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
 
       const enhancedATSResult = await response.json();
-      const rawResult = transformEnhancedATSResponse(enhancedATSResult, jobDescription);
+      
+      // Extract resume text for keyword matching (same pattern as recalculateATSScore)
+      const resumeTextFragments: string[] = [];
+      const appendText = (value?: string) => {
+        const normalized = normalizeTextForATS(value);
+        if (normalized) {
+          resumeTextFragments.push(normalized.toLowerCase());
+        }
+      };
+      appendText(cleanedResumeData.title);
+      appendText(cleanedResumeData.summary);
+      cleanedResumeData.sections.forEach((section: any) => {
+        appendText(section.title);
+        section.bullets.forEach((bullet: any) => appendText(bullet?.text));
+      });
+      const resumeText = resumeTextFragments.join(' ').replace(/\s+/g, ' ').trim();
+      
+      // Pass saved keywords and resume text to transformation (ensures consistent use of extension keywords)
+      const rawResult = transformEnhancedATSResponse(enhancedATSResult, jobDescription, extractedKeywords, resumeText);
       const normalizedResult = normalizeMatchResult(rawResult);
       setMatchResult(normalizedResult);
       setCurrentATSScore(normalizedResult?.match_analysis?.similarity_score ?? null);
