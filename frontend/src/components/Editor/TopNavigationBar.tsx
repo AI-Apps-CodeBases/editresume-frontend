@@ -43,7 +43,7 @@ export default function TopNavigationBar({
   
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    <div className="fixed top-0 left-0 right-0 z-[100] bg-white border-b border-gray-200 shadow-sm">
       <div className="flex items-center justify-between h-14">
         {/* Left: Logo + Mobile Menu */}
         <div className="flex items-center gap-2 sm:gap-3">
@@ -86,7 +86,7 @@ export default function TopNavigationBar({
               </button>
             </Tooltip>
             {showActionsMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[100]">
                 {/* New Resume */}
                 {onNewResume && (
                   <Tooltip text="Create a new resume from scratch" color="gray" position="right">

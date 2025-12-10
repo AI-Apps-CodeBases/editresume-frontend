@@ -166,7 +166,7 @@ export default function ModernLeftSidebar({
                 </div>
               )}
             </div>
-            <div className="border-t border-gray-200 p-3">
+            <div className="border-t border-gray-200 p-3 space-y-2">
               <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
                   {(userName || user?.name)?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
@@ -180,6 +180,17 @@ export default function ModernLeftSidebar({
                   </div>
                 </div>
               </Link>
+              {isAuthenticated && onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-target"
+                  title="Logout"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -296,7 +307,7 @@ export default function ModernLeftSidebar({
       </div>
 
       {/* Profile Section */}
-      <div className="border-t border-gray-200 p-3 bg-gray-50">
+      <div className="border-t border-gray-200 p-3 bg-gray-50 space-y-2">
         <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
             {(userName || user?.name)?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
@@ -310,6 +321,17 @@ export default function ModernLeftSidebar({
             </div>
           </div>
         </Link>
+        {isAuthenticated && onLogout && (
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-target"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span className="font-medium">Logout</span>
+          </button>
+        )}
       </div>
     </div>
   )

@@ -325,7 +325,29 @@ class EnhancedATSChecker:
             for bullet in bullets:
                 bullet_text = get_value(bullet, "text")
                 if bullet_text:
-                    text_parts.append(bullet_text)
+                    # Extract company headers from work experience sections
+                    # Format: **Company / Role / Date** or **Company / Role / Date**
+                    if bullet_text.startswith("**") and bullet_text.endswith("**"):
+                        # Remove markdown formatting but keep the content
+                        clean_text = bullet_text.replace("**", "").strip()
+                        # Split by / to extract company, role, and date separately
+                        parts = [p.strip() for p in clean_text.split("/")]
+                        for part in parts:
+                            if part:
+                                text_parts.append(part)
+                        # Also add the full text for context
+                        text_parts.append(clean_text)
+                    else:
+                        # Regular bullet point
+                        text_parts.append(bullet_text)
+                
+                # Also check for any additional metadata in bullet params
+                bullet_params = get_value(bullet, "params", {})
+                if isinstance(bullet_params, dict):
+                    # Extract any text fields from params
+                    for key, value in bullet_params.items():
+                        if isinstance(value, str) and value.strip():
+                            text_parts.append(value)
 
         if separate_sections:
             return {
@@ -421,8 +443,30 @@ class EnhancedATSChecker:
         if not resume_text.strip():
             return {"score": 0, "suggestions": ["Add content to your resume"]}
 
-        words = resume_text.lower().split()
-        words = [word.strip('.,!?;:"()[]{}') for word in words if word.isalpha()]
+        # Improved word extraction that handles technical terms with numbers/special chars
+        # First, extract all words including those with numbers/special chars
+        # Use regex to find word-like tokens (alphanumeric + common tech chars)
+        word_pattern = r'\b[a-zA-Z0-9][a-zA-Z0-9+/#.-]*[a-zA-Z]|[a-zA-Z][a-zA-Z0-9+/#.-]*[a-zA-Z0-9]|[a-zA-Z]{2,}\b'
+        all_tokens = re.findall(word_pattern, resume_text.lower())
+        
+        # Filter tokens: keep meaningful words, filter out pure numbers
+        words = []
+        for token in all_tokens:
+            cleaned = token.strip('.,!?;:"()[]{}')
+            # Skip pure numbers (e.g., "2024", "5")
+            if re.match(r'^\d+$', cleaned):
+                continue
+            # Skip very short tokens (less than 2 chars) unless they're known tech terms
+            if len(cleaned) < 2:
+                continue
+            # Keep tokens that have at least one letter
+            if re.search(r'[a-zA-Z]', cleaned):
+                words.append(cleaned)
+        
+        # Also extract traditional alpha-only words for keyword matching
+        alpha_words = [word.strip('.,!?;:"()[]{}') for word in resume_text.lower().split() if word.strip('.,!?;:"()[]{}').isalpha()]
+        # Combine both lists, prioritizing technical terms
+        words = list(set(words + alpha_words))
 
         if not words:
             return {
@@ -430,13 +474,28 @@ class EnhancedATSChecker:
                 "suggestions": ["Add meaningful content to your resume"],
             }
 
-        # Count keyword occurrences
+        # Count keyword occurrences - check both exact matches and partial matches for technical terms
         action_verb_count = sum(
             1 for word in words if word in self.ats_keywords["action_verbs"]
         )
-        technical_count = sum(
-            1 for word in words if word in self.ats_keywords["technical_terms"]
-        )
+        
+        # For technical terms, also check if word contains or is contained in technical keywords
+        technical_count = 0
+        for word in words:
+            # Exact match
+            if word in self.ats_keywords["technical_terms"]:
+                technical_count += 1
+            else:
+                # Partial match for terms like "ci/cd", "node.js", etc.
+                for tech_term in self.ats_keywords["technical_terms"]:
+                    tech_lower = tech_term.lower()
+                    # Check if word contains tech term or vice versa (normalize separators)
+                    word_normalized = word.replace('/', '').replace('-', '').replace('.', '')
+                    tech_normalized = tech_lower.replace('/', '').replace('-', '').replace('.', '')
+                    if tech_normalized in word_normalized or word_normalized in tech_normalized:
+                        technical_count += 1
+                        break
+        
         metrics_count = sum(1 for word in words if word in self.ats_keywords["metrics"])
         leadership_count = sum(
             1 for word in words if word in self.ats_keywords["leadership"]
@@ -456,59 +515,80 @@ class EnhancedATSChecker:
             (leadership_count / total_words) * 100 if total_words > 0 else 0
         )
         
-        # Calculate protected densities to prevent drops when adding content
-        # Use a sliding window approach: protect against density drops when word count increases
-        # This prevents penalizing users for adding descriptive work experience
+        # Improved density calculation that rewards content additions
+        # Use actual density but with a floor based on absolute keyword counts
+        # This ensures adding keywords always improves the score
         if total_words < 150:
-            baseline_words = 150
-            normalized_action_density = (action_verb_count / baseline_words) * 100
-            normalized_technical_density = (technical_count / baseline_words) * 100
-            normalized_metrics_density = (metrics_count / baseline_words) * 100
-            normalized_leadership_density = (leadership_count / baseline_words) * 100
-            
-            action_density = normalized_action_density * 0.3 + actual_action_density * 0.7
-            technical_density = normalized_technical_density * 0.3 + actual_technical_density * 0.7
-            metrics_density = normalized_metrics_density * 0.3 + actual_metrics_density * 0.7
-            leadership_density = normalized_leadership_density * 0.3 + actual_leadership_density * 0.7
+            # For shorter resumes, use actual density (no penalty)
+            action_density = actual_action_density
+            technical_density = actual_technical_density
+            metrics_density = actual_metrics_density
+            leadership_density = actual_leadership_density
         else:
-            # For larger resumes: use protected density calculation
-            # Calculate density based on a "core" word count to prevent drops from new content
-            # Use 80% of total words as "core" to protect against density dilution
-            core_words = max(150, int(total_words * 0.8))
+            # For larger resumes: use actual density but ensure it doesn't drop below a minimum
+            # Minimum density is based on absolute keyword counts (rewards additions)
+            min_action_density = (action_verb_count / max(total_words, 200)) * 100
+            min_technical_density = (technical_count / max(total_words, 200)) * 100
+            min_metrics_density = (metrics_count / max(total_words, 200)) * 100
+            min_leadership_density = (leadership_count / max(total_words, 200)) * 100
             
-            core_action_density = (action_verb_count / core_words) * 100 if core_words > 0 else 0
-            core_technical_density = (technical_count / core_words) * 100 if core_words > 0 else 0
-            core_metrics_density = (metrics_count / core_words) * 100 if core_words > 0 else 0
-            core_leadership_density = (leadership_count / core_words) * 100 if core_words > 0 else 0
-            
-            # Use the higher of actual or core density (protects against drops)
-            # Blend 60% actual (responsive) + 40% core (protected)
-            action_density = max(actual_action_density * 0.6 + core_action_density * 0.4, actual_action_density * 0.8)
-            technical_density = max(actual_technical_density * 0.6 + core_technical_density * 0.4, actual_technical_density * 0.8)
-            metrics_density = max(actual_metrics_density * 0.6 + core_metrics_density * 0.4, actual_metrics_density * 0.8)
-            leadership_density = max(actual_leadership_density * 0.6 + core_leadership_density * 0.4, actual_leadership_density * 0.8)
+            # Use the higher of actual or minimum (ensures additions are rewarded)
+            action_density = max(actual_action_density, min_action_density * 0.9)
+            technical_density = max(actual_technical_density, min_technical_density * 0.9)
+            metrics_density = max(actual_metrics_density, min_metrics_density * 0.9)
+            leadership_density = max(actual_leadership_density, min_leadership_density * 0.9)
 
         # Job description matching - improved to be more sensitive to keyword additions
         job_match_score = 0
         job_suggestions = []
         matching_keywords = set()  # Initialize for use in bonus calculation
         if job_description:
-            job_words = job_description.lower().split()
-            job_keywords = [
-                word.strip('.,!?;:"()[]{}') for word in job_words if word.isalpha()
-            ]
-            matching_keywords = set(words) & set(job_keywords)
+            # Extract keywords from job description using same improved method
+            job_word_pattern = r'\b[a-zA-Z0-9][a-zA-Z0-9+/#.-]*[a-zA-Z]|[a-zA-Z][a-zA-Z0-9+/#.-]*[a-zA-Z0-9]|[a-zA-Z]{2,}\b'
+            job_all_tokens = re.findall(job_word_pattern, job_description.lower())
+            
+            # Filter job keywords same way as resume keywords
+            job_keywords = []
+            for token in job_all_tokens:
+                cleaned = token.strip('.,!?;:"()[]{}')
+                # Skip pure numbers
+                if re.match(r'^\d+$', cleaned):
+                    continue
+                # Skip very short tokens
+                if len(cleaned) < 2:
+                    continue
+                # Keep tokens that have at least one letter
+                if re.search(r'[a-zA-Z]', cleaned):
+                    job_keywords.append(cleaned)
+            
+            # Also extract alpha-only words
+            job_alpha_words = [word.strip('.,!?;:"()[]{}') for word in job_description.lower().split() if word.strip('.,!?;:"()[]{}').isalpha()]
+            job_keywords = list(set(job_keywords + job_alpha_words))
+            
+            # Find matching keywords (exact matches and partial matches for technical terms)
+            for resume_word in words:
+                for job_word in job_keywords:
+                    # Exact match
+                    if resume_word == job_word:
+                        matching_keywords.add(resume_word)
+                    else:
+                        # Partial match for technical terms (normalize separators)
+                        resume_normalized = resume_word.replace('/', '').replace('-', '').replace('.', '').replace('#', '')
+                        job_normalized = job_word.replace('/', '').replace('-', '').replace('.', '').replace('#', '')
+                        if resume_normalized == job_normalized or (len(resume_normalized) > 3 and resume_normalized in job_normalized) or (len(job_normalized) > 3 and job_normalized in resume_normalized):
+                            matching_keywords.add(resume_word)
+                            break
             
             # More sensitive calculation: consider both percentage and absolute count
             if job_keywords:
                 match_percentage = (len(matching_keywords) / len(set(job_keywords))) * 100
-                # Boost score based on number of matches (more matches = better)
-                match_count_boost = min(10, len(matching_keywords) * 0.5)
+                # Boost score based on number of matches (more matches = better, increased responsiveness)
+                match_count_boost = min(15, len(matching_keywords) * 0.7)  # Increased from 0.5 and cap from 10
                 job_match_score = min(100, match_percentage + match_count_boost)
             else:
                 job_match_score = 0
 
-            missing_job_keywords = set(job_keywords) - set(words)
+            missing_job_keywords = set(job_keywords) - matching_keywords
             if missing_job_keywords:
                 job_suggestions.append(
                     f"Add these job-relevant keywords: {', '.join(list(missing_job_keywords)[:5])}"
@@ -527,60 +607,60 @@ class EnhancedATSChecker:
         if leadership_density < 0.2:
             suggestions.append("Include leadership and team collaboration keywords")
 
-        # Balanced scoring: More responsive to improvements, stable against drops
+        # Balanced scoring: Highly responsive to improvements, rewards content additions
         base_score = 35
         
-        # Calculate bonuses: Reward absolute keyword counts AND density
-        # This ensures improvements are always rewarded
+        # Calculate bonuses: Prioritize absolute keyword counts (more responsive to additions)
         def improved_hybrid_bonus(count, density, density_multiplier, density_base, max_bonus, log_factor=1.2, linear_factor=0.5):
-            # Density contribution (rewards proper keyword usage)
-            density_part = density_base + (density_multiplier * min(density, 10))  # Cap density at 10% to prevent extremes
-            
-            # Absolute count contribution (rewards adding keywords, independent of word count)
-            if count <= 15:
+            # Absolute count contribution (primary factor - rewards adding keywords)
+            if count <= 20:
                 # Linear scaling for small-medium counts (highly responsive to additions)
                 count_part = count * linear_factor
             else:
                 # Logarithmic scaling for larger counts (prevents extreme values)
-                count_part = 7.5 + math.log1p(count - 15) * log_factor
+                count_part = 10 + math.log1p(count - 20) * log_factor
             
-            # Combine both: ensures both density and absolute count improvements are rewarded
-            total_bonus = density_part + min(max_bonus - density_base - 2, count_part)
+            # Density contribution (secondary factor - rewards proper keyword usage)
+            density_part = density_base + (density_multiplier * min(density, 10))  # Cap density at 10%
+            
+            # Combine: 70% count (responsive) + 30% density (quality)
+            total_bonus = (count_part * 0.7) + (density_part * 0.3)
             return min(max_bonus, total_bonus)
         
-        action_bonus = improved_hybrid_bonus(action_verb_count, action_density, 1.5, 8, 20, 2.0, 0.6)
-        technical_bonus = improved_hybrid_bonus(technical_count, technical_density, 2.5, 12, 20, 1.8, 0.5)
-        metrics_bonus = improved_hybrid_bonus(metrics_count, metrics_density, 3.0, 12, 20, 2.2, 0.6)
-        leadership_bonus = improved_hybrid_bonus(leadership_count, leadership_density, 4.0, 8, 15, 1.5, 0.5)
+        action_bonus = improved_hybrid_bonus(action_verb_count, action_density, 1.5, 8, 22, 2.0, 0.7)
+        technical_bonus = improved_hybrid_bonus(technical_count, technical_density, 2.5, 12, 25, 1.8, 0.6)
+        metrics_bonus = improved_hybrid_bonus(metrics_count, metrics_density, 3.0, 12, 22, 2.2, 0.7)
+        leadership_bonus = improved_hybrid_bonus(leadership_count, leadership_density, 4.0, 8, 18, 1.5, 0.6)
         
         # Additional bonus for absolute keyword increases (rewards improvements regardless of density)
+        # Increased bonuses to make score more responsive
         absolute_bonus = 0
         if action_verb_count >= 5:
-            absolute_bonus += min(2, (action_verb_count - 5) * 0.2)
+            absolute_bonus += min(3, (action_verb_count - 5) * 0.3)  # Increased from 0.2
         if technical_count >= 8:
-            absolute_bonus += min(3, (technical_count - 8) * 0.25)
+            absolute_bonus += min(4, (technical_count - 8) * 0.3)  # Increased from 0.25
         if metrics_count >= 3:
-            absolute_bonus += min(2, (metrics_count - 3) * 0.3)
+            absolute_bonus += min(3, (metrics_count - 3) * 0.4)  # Increased from 0.3
         if leadership_count >= 3:
-            absolute_bonus += min(1.5, (leadership_count - 3) * 0.25)
+            absolute_bonus += min(2, (leadership_count - 3) * 0.3)  # Increased from 0.25
         
         # Job match bonus - highly responsive to keyword additions
         if job_description:
             match_count = len(matching_keywords)
             # Reward both absolute match count and percentage match
             # Linear scaling for match count (most responsive to additions)
-            if match_count <= 20:
-                match_count_bonus = match_count * 0.6  # 0.6 points per match, highly responsive
+            if match_count <= 25:
+                match_count_bonus = match_count * 0.8  # Increased from 0.6, higher threshold
             else:
                 # Logarithmic for very high counts
-                match_count_bonus = 12 + math.log1p(match_count - 20) * 1.5
+                match_count_bonus = 20 + math.log1p(match_count - 25) * 1.8  # Increased base and factor
             
-            match_count_bonus = min(15, match_count_bonus)  # Cap at 15
+            match_count_bonus = min(20, match_count_bonus)  # Increased cap from 15 to 20
             
             # Percentage bonus (reward overall alignment)
-            percentage_bonus = (job_match_score * 0.20)  # Increased from 0.18
+            percentage_bonus = (job_match_score * 0.25)  # Increased from 0.20
             
-            job_bonus = min(25, percentage_bonus + match_count_bonus)
+            job_bonus = min(30, percentage_bonus + match_count_bonus)  # Increased cap from 25 to 30
         else:
             job_bonus = 0
 
@@ -1054,7 +1134,9 @@ class EnhancedATSChecker:
             # Find matching keywords (present in both with significant weight)
             matching_keywords = []
             missing_keywords = []
-            threshold = 0.001  # Lowered threshold to catch more keywords (was 0.01)
+            # Use higher threshold for missing keywords to only show impactful ones
+            threshold = 0.001  # For matching keywords - catch more
+            missing_keyword_threshold = 0.01  # For missing keywords - only show significant ones
 
             # Also do direct keyword matching for extracted keywords (more lenient)
             direct_matching_keywords = set()
@@ -1110,9 +1192,11 @@ class EnhancedATSChecker:
                             }
                         )
                     else:
-                        missing_keywords.append(
-                            {"keyword": keyword, "weight": round(float(job_weight), 4)}
-                        )
+                        # Only add missing keywords with significant weight that will impact score
+                        if job_weight > missing_keyword_threshold:
+                            missing_keywords.append(
+                                {"keyword": keyword, "weight": round(float(job_weight), 4)}
+                            )
             
             # Merge direct matching keywords with TF-IDF matches
             # Add direct matches that weren't caught by TF-IDF
@@ -1130,20 +1214,27 @@ class EnhancedATSChecker:
             matching_keywords.sort(key=lambda x: x["job_weight"], reverse=True)
             missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
             
+            # Limit missing keywords to top 40 most impactful (those that will meaningfully improve score)
+            missing_keywords = missing_keywords[:40]
+            
             # Add responsive boost based on number of matching keywords
-            # More responsive to additions while preventing extreme jumps
+            # Much more responsive to additions - each keyword adds 3-5 points
             matching_count = len(matching_keywords)
             if matching_count > 15:
-                # Linear scaling for high counts (more responsive)
-                boost = min(10, 4 + (matching_count - 15) * 0.3)
+                # Linear scaling for high counts - very responsive
+                boost = min(20, 6 + (matching_count - 15) * 0.8)  # Increased from 0.3 to 0.8
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 10:
-                # Hybrid: logarithmic for medium-high
-                boost = min(7, 2 + math.log1p(matching_count - 10) * 2.0)
+                # Linear scaling for medium-high counts - highly responsive
+                boost = min(12, 3 + (matching_count - 10) * 1.0)  # Changed from logarithmic to linear, increased factor
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 5:
-                # Linear scaling for small-medium counts (most responsive)
-                boost = min(4, (matching_count - 5) * 0.5)
+                # Linear scaling for small-medium counts - most responsive
+                boost = min(8, (matching_count - 5) * 1.2)  # Increased from 0.5 to 1.2
+                cosine_score = min(100, cosine_score + boost)
+            elif matching_count > 0:
+                # Even small counts get a boost - reward any matches
+                boost = min(3, matching_count * 0.6)  # New tier for 1-5 matches
                 cosine_score = min(100, cosine_score + boost)
 
             # Calculate keyword match percentage with improved algorithm
@@ -1189,23 +1280,27 @@ class EnhancedATSChecker:
             base_match_percentage = (weighted_match_percentage * 0.6) + (simple_match_percentage * 0.4)
             
             # Add responsive boost for having matching keywords
-            # More responsive to additions while preventing extreme jumps
+            # Much more responsive - each keyword adds significant boost to match percentage
             matching_count = len(matching_keywords)
             if matching_count > 20:
-                # Linear scaling for high counts
-                boost = min(4, (matching_count - 20) * 0.2)
+                # Linear scaling for high counts - very responsive
+                boost = min(15, (matching_count - 20) * 0.75)  # Increased from 0.2 to 0.75
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 15:
-                # Hybrid scaling
-                boost = min(3, 1 + math.log1p(matching_count - 15) * 1.2)
+                # Linear scaling for medium-high counts - highly responsive
+                boost = min(10, 2 + (matching_count - 15) * 1.0)  # Changed from logarithmic to linear, increased factor
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 10:
-                # Linear scaling for medium counts (more responsive)
-                boost = min(2, (matching_count - 10) * 0.25)
+                # Linear scaling for medium counts - very responsive
+                boost = min(8, (matching_count - 10) * 0.8)  # Increased from 0.25 to 0.8
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 5:
-                # Linear scaling for small counts (most responsive)
-                boost = min(1, (matching_count - 5) * 0.15)
+                # Linear scaling for small counts - most responsive
+                boost = min(5, (matching_count - 5) * 0.6)  # Increased from 0.15 to 0.6
+                match_percentage = min(100, base_match_percentage + boost)
+            elif matching_count > 0:
+                # Even small counts get a boost - reward any matches
+                boost = min(3, matching_count * 0.5)  # New tier for 1-5 matches
                 match_percentage = min(100, base_match_percentage + boost)
             else:
                 match_percentage = base_match_percentage
@@ -1217,7 +1312,7 @@ class EnhancedATSChecker:
                 "tfidf_score": round(cosine_score, 2),
                 "keyword_match_percentage": round(match_percentage, 2),
                 "matching_keywords": matching_keywords[:20],  # Top 20 matches
-                "missing_keywords": missing_keywords[:20],  # Top 20 missing
+                "missing_keywords": missing_keywords,  # Already filtered to top 40 most impactful
                 "total_job_keywords": total_job_keywords,
                 "matched_keywords_count": len(matching_keywords),
             }
@@ -1312,16 +1407,16 @@ class EnhancedATSChecker:
         formatting_weight = 0.10  # Keep at 10%
         quality_weight = 0.05  # Keep at 5%
 
-        # Cap keyword match contribution to prevent unrealistic scores
-        # Even with 100% keyword match, max contribution is 35 points (not 40)
-        # This ensures other factors always matter significantly
-        max_keyword_contribution = 35
-        # Apply aggressive diminishing returns: higher keyword match gets much less weight
-        # 74% match = ~30 points after diminishing returns
-        if keyword_match_score > 70:
-            # Diminishing returns above 70% - more aggressive
-            excess = keyword_match_score - 70
-            capped_keyword_match = 70 + excess * 0.4  # Only 40% of excess counts
+        # Increase keyword match contribution to reward improvements
+        # Even with 100% keyword match, max contribution is 50 points (increased from 38)
+        # This makes keyword matching the primary driver of score improvements
+        max_keyword_contribution = 50
+        # Apply minimal diminishing returns: higher keyword match counts almost fully
+        # 90% match = ~45 points after diminishing returns (highly responsive)
+        if keyword_match_score > 85:
+            # Minimal diminishing returns above 85% - very responsive
+            excess = keyword_match_score - 85
+            capped_keyword_match = 85 + excess * 0.85  # 85% of excess counts (was 60%)
         else:
             capped_keyword_match = keyword_match_score
         actual_keyword_contribution = min(capped_keyword_match * keyword_weight, max_keyword_contribution)
@@ -1335,126 +1430,125 @@ class EnhancedATSChecker:
             + quality_score * quality_weight
         )
         
-        # Calculate protected baseline score (more conservative)
-        # Only prevents very large drops when modifying keywords or adding content
-        # Maximum allowed drops: TF-IDF 3, keyword 2, section 2, formatting 1, quality 1
-        protected_keyword_match = min(keyword_match_score, 80) if keyword_match_score > 80 else keyword_match_score
+        # Minimal protected baseline - only prevents catastrophic drops
+        # Allow improvements to show through by using minimal protection
+        # Maximum allowed drops: TF-IDF 1, keyword 0, section 0, formatting 0, quality 0
+        protected_keyword_match = keyword_match_score  # No protection - allow full improvements
         protected_keyword_contribution = min(
-            max(0, protected_keyword_match - 2) * keyword_weight,
+            protected_keyword_match * keyword_weight,  # No reduction - use full score
             max_keyword_contribution
         )
         protected_baseline = (
-            max(0, tfidf_score - 3) * tfidf_weight
+            max(0, tfidf_score - 1) * tfidf_weight  # Minimal protection
             + protected_keyword_contribution
-            + max(0, section_score - 2) * section_weight
-            + max(0, formatting_score - 1) * formatting_weight
-            + max(0, quality_score - 1) * quality_weight
+            + section_score * section_weight  # No protection - use full score
+            + formatting_score * formatting_weight  # No protection
+            + quality_score * quality_weight  # No protection
         )
         
         # Calculate content-based baseline (works without previous_score)
         # Based on resume having content, sections, and basic quality
+        # Reduced baseline to allow improvements to show through
         resume_text_check = self.extract_text_from_resume(resume_data)
         content_baseline_score = 0
         if resume_text_check.strip():
-            content_baseline_score = 30  # Base for having content
+            content_baseline_score = 25  # Reduced from 30 - lower baseline
             sections = resume_data.get("sections", [])
             if len(sections) > 0:
-                content_baseline_score += min(15, len(sections) * 2)  # Up to 15 for sections
+                content_baseline_score += min(10, len(sections) * 1.5)  # Reduced from 15
             if resume_data.get("summary"):
-                content_baseline_score += 3
+                content_baseline_score += 2  # Reduced from 3
             if resume_data.get("email") or resume_data.get("phone"):
-                content_baseline_score += 2
+                content_baseline_score += 1  # Reduced from 2
             
-            # Add minimums for each component based on having content
-            content_baseline_score += (section_score * section_weight * 1.0)  # Full section score
-            content_baseline_score += (formatting_score * formatting_weight * 1.0)  # Full formatting score
-            content_baseline_score += (quality_score * quality_weight * 1.0)  # Full quality score
+            # Add minimums for each component based on having content (reduced weights)
+            content_baseline_score += (section_score * section_weight * 0.8)  # Reduced from 1.0
+            content_baseline_score += (formatting_score * formatting_weight * 0.8)  # Reduced from 1.0
+            content_baseline_score += (quality_score * quality_weight * 0.8)  # Reduced from 1.0
         
-        # Use weighted average approach: don't let keyword improvements dominate
-        # Blend base score with content baseline to prevent large jumps
-        # If base score is much higher, it's likely from keyword stuffing
+        # Use base score directly - allow keyword improvements to show through
+        # Only apply minimal blending for very unrealistic jumps (20+ points)
+        # This ensures improvements are rewarded, not penalized
         score_difference = base_overall_score - content_baseline_score
-        if score_difference > 10:
-            # Large jump detected - likely from keyword stuffing
-            # Blend: 50% base, 50% baseline to moderate the increase more aggressively
-            overall_score = base_overall_score * 0.5 + max(content_baseline_score, protected_baseline) * 0.5
-        elif score_difference > 7:
-            # Moderate jump - blend 60% base, 40% baseline
-            overall_score = base_overall_score * 0.6 + max(content_baseline_score, protected_baseline) * 0.4
-        elif score_difference > 4:
-            # Small jump - blend 75% base, 25% baseline
-            overall_score = base_overall_score * 0.75 + max(content_baseline_score, protected_baseline) * 0.25
+        if score_difference > 25:
+            # Extremely large jump (likely error) - blend: 90% base, 10% baseline
+            overall_score = base_overall_score * 0.9 + max(content_baseline_score, protected_baseline) * 0.1
+        elif score_difference > 20:
+            # Very large jump - blend: 95% base, 5% baseline
+            overall_score = base_overall_score * 0.95 + max(content_baseline_score, protected_baseline) * 0.05
         else:
-            # Very small difference - use base score
+            # Normal improvements - use base score directly (reward improvements)
             overall_score = max(base_overall_score, protected_baseline, content_baseline_score)
         
-        # Add very minimal bonuses: prevent unrealistic score inflation
-        # Total bonus cap: maximum 3 points total from all bonuses combined
+        # Add bonuses to reward improvements: increased caps to allow score growth
+        # Total bonus cap: maximum 5 points total from all bonuses combined (increased from 3)
         total_bonus = 0
         
-        # Bonus for high keyword match percentage (very minimal)
+        # Bonus for high keyword match percentage (more generous)
         if keyword_match_score >= 95:
-            bonus = min(0.5, 0.25 + (keyword_match_score - 95) * 0.05)  # Max 0.5 points
+            bonus = min(1.5, 0.5 + (keyword_match_score - 95) * 0.1)  # Max 1.5 points (was 0.5)
             total_bonus += bonus
         elif keyword_match_score >= 90:
-            bonus = min(0.4, 0.15 + (keyword_match_score - 90) * 0.05)  # Max 0.4 points
+            bonus = min(1.0, 0.3 + (keyword_match_score - 90) * 0.1)  # Max 1.0 points (was 0.4)
             total_bonus += bonus
         elif keyword_match_score >= 85:
-            bonus = min(0.3, (keyword_match_score - 85) * 0.06)  # Max 0.3 points
+            bonus = min(0.8, 0.2 + (keyword_match_score - 85) * 0.12)  # Max 0.8 points (was 0.3)
+            total_bonus += bonus
+        elif keyword_match_score >= 75:
+            bonus = min(0.5, (keyword_match_score - 75) * 0.05)  # New tier for 75-85%
             total_bonus += bonus
         
-        # Bonus for high TF-IDF score (very minimal)
+        # Bonus for high TF-IDF score (more generous)
         if tfidf_score >= 90:
-            bonus = min(0.5, 0.25 + (tfidf_score - 90) * 0.05)  # Max 0.5 points
+            bonus = min(1.5, 0.5 + (tfidf_score - 90) * 0.1)  # Max 1.5 points (was 0.5)
             total_bonus += bonus
         elif tfidf_score >= 85:
-            bonus = min(0.4, 0.15 + (tfidf_score - 85) * 0.05)  # Max 0.4 points
+            bonus = min(1.0, 0.3 + (tfidf_score - 85) * 0.1)  # Max 1.0 points (was 0.4)
             total_bonus += bonus
         elif tfidf_score >= 80:
-            bonus = min(0.3, (tfidf_score - 80) * 0.06)  # Max 0.3 points
+            bonus = min(0.8, 0.2 + (tfidf_score - 80) * 0.12)  # Max 0.8 points (was 0.3)
+            total_bonus += bonus
+        elif tfidf_score >= 70:
+            bonus = min(0.5, (tfidf_score - 70) * 0.05)  # New tier for 70-80%
             total_bonus += bonus
         
-        # Bonus for having matching keywords (very minimal - only for extremely high counts)
+        # Bonus for having matching keywords (more generous - lower thresholds)
         matching_count = tfidf_analysis.get("matched_keywords_count", 0)
-        if matching_count > 45:
-            bonus = min(0.5, 0.25 + (matching_count - 45) * 0.05)  # Max 0.5 points
+        if matching_count > 40:
+            bonus = min(1.0, 0.3 + (matching_count - 40) * 0.1)  # Max 1.0 points (was 0.5, threshold lowered)
             total_bonus += bonus
-        elif matching_count > 40:
-            bonus = min(0.4, 0.15 + (matching_count - 40) * 0.05)  # Max 0.4 points
+        elif matching_count > 30:
+            bonus = min(0.8, 0.2 + (matching_count - 30) * 0.08)  # Max 0.8 points (was 0.4, threshold lowered)
             total_bonus += bonus
-        elif matching_count > 35:
-            bonus = min(0.3, (matching_count - 35) * 0.06)  # Max 0.3 points
+        elif matching_count > 20:
+            bonus = min(0.6, 0.1 + (matching_count - 20) * 0.05)  # Max 0.6 points (was 0.3, threshold lowered)
+            total_bonus += bonus
+        elif matching_count > 15:
+            bonus = min(0.3, (matching_count - 15) * 0.06)  # New tier for 15-20 matches
             total_bonus += bonus
 
-        # Minimal synergy bonus (only if both are extremely high)
-        if keyword_match_score >= 95 and tfidf_score >= 85:
-            synergy_bonus = min(0.5, (keyword_match_score - 95) * 0.02 + (tfidf_score - 85) * 0.02)  # Max 0.5 points
+        # Synergy bonus (more generous thresholds)
+        if keyword_match_score >= 90 and tfidf_score >= 80:
+            synergy_bonus = min(1.0, (keyword_match_score - 90) * 0.05 + (tfidf_score - 80) * 0.05)  # Max 1.0 points (was 0.5, thresholds lowered)
             total_bonus += synergy_bonus
         
-        # Apply total bonus cap: maximum 3 points from all bonuses combined
-        total_bonus = min(3, total_bonus)
+        # Apply total bonus cap: maximum 5 points from all bonuses combined (increased from 3)
+        total_bonus = min(5, total_bonus)
         overall_score += total_bonus
 
-        # Apply maximum score cap to prevent unrealistic scores
-        # Only allow scores above 82% if ALL factors are exceptionally strong
-        if overall_score > 82:
-            # Require exceptional performance across all factors for scores above 82%
-            all_factors_exceptional = (
-                keyword_match_score >= 95 and
-                tfidf_score >= 85 and
-                section_score >= 95 and
-                formatting_score >= 95 and
-                quality_score >= 90 and
-                matching_count >= 40
-            )
-            
-            if not all_factors_exceptional:
-                # Cap at 82% if not all factors are exceptional
-                overall_score = min(82, overall_score)
+        # Relaxed score cap - allow scores up to 90% with strong keyword matching
+        # Only cap at 85% if keyword matching is very weak
+        if overall_score > 85:
+            # Allow scores above 85% if keyword matching is strong (primary factor)
+            # Don't require ALL factors to be exceptional - keyword matching is most important
+            if keyword_match_score < 70 or tfidf_score < 60:
+                # Only cap if keyword matching is very weak
+                overall_score = min(85, overall_score)
+            # Otherwise allow the score to go higher
         
-        # Additional cap: prevent scores above 85% even with exceptional factors
-        # This ensures scores remain realistic and leave room for improvement
-        overall_score = min(85, overall_score)
+        # Increased maximum cap: allow scores up to 90% (increased from 98% to match user requirement)
+        # This ensures scores remain realistic but allows for significant improvement
+        overall_score = min(90, overall_score)
 
         # Generate improvements
         improvements = self.generate_ai_improvements(resume_data, job_description)

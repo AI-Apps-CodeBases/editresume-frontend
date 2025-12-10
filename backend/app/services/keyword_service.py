@@ -563,16 +563,41 @@ class KeywordExtractor:
     def _extract_general_keywords(self, text: str) -> List[str]:
         """Extract general keywords using simple frequency analysis"""
         try:
+            # Extract tokens but filter out pure numbers and numeric strings
             tokens = re.findall(r"\b[a-zA-Z0-9][a-zA-Z0-9+/.-]{1,}\b", text.lower())
 
             filtered_words = []
             for token in tokens:
-                if (
-                    token not in self.stop_words
-                    and token not in self.all_technical_keywords
-                    and len(token) >= 2
-                ):
-                    filtered_words.append(token)
+                # Filter out pure numbers (e.g., "5", "2024", "10")
+                if re.match(r'^\d+$', token):
+                    continue
+                
+                # Filter out numeric strings with suffixes (e.g., "5+", "10+", "2024-2025")
+                if re.match(r'^\d+[+\-%]?$', token) or re.match(r'^\d+-\d+$', token):
+                    continue
+                
+                # Filter out tokens that are mostly numbers (e.g., "5years", "10+")
+                if re.search(r'^\d+', token) and len(re.sub(r'\d', '', token)) < 2:
+                    continue
+                
+                # Must have at least 3 characters for non-technical terms (increased from 2)
+                if len(token) < 3:
+                    continue
+                
+                # Filter out common non-technical job posting words
+                if token in self.stop_words:
+                    continue
+                
+                # Filter out technical keywords (they're handled separately)
+                if token in self.all_technical_keywords:
+                    continue
+                
+                # Additional filtering: skip if token is just a number with a word (e.g., "5years" -> skip)
+                # But allow technical terms like "c++", "c#", etc.
+                if re.match(r'^\d+[a-z]+$', token) and len(token) < 6:
+                    continue
+                
+                filtered_words.append(token)
 
             word_counts = Counter(filtered_words)
 

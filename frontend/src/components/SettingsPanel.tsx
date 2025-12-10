@@ -25,9 +25,10 @@ interface Props {
     isPremium: boolean
   }
   onDeleteAccount?: () => void
+  onLogout?: () => void
 }
 
-export default function SettingsPanel({ user, onDeleteAccount }: Props) {
+export default function SettingsPanel({ user, onDeleteAccount, onLogout }: Props) {
   const { settings, updateSetting, resetSettings, exportSettings } = useSettings()
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -291,6 +292,24 @@ export default function SettingsPanel({ user, onDeleteAccount }: Props) {
           >
             🔄 Reset to Defaults
           </button>
+        </div>
+      </div>
+
+      {/* Account Actions */}
+      <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">🔐 Account Actions</h3>
+        <div className="space-y-3">
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="w-full px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-semibold flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Logout
+            </button>
+          )}
         </div>
       </div>
 
