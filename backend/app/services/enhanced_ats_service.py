@@ -1142,41 +1142,6 @@ class EnhancedATSChecker:
                 # Normalize resume text for direct matching
                 resume_text_lower = resume_text.lower()
                 
-                def normalize_keyword(kw_str):
-                    """Normalize keyword for matching (handle special chars)"""
-                    # Normalize separators and case
-                    normalized = kw_str.lower().strip()
-                    # Replace common separators with regex-friendly versions
-                    normalized = normalized.replace('/', r'[/\s]').replace('-', r'[-\s]').replace('.', r'[.\s]')
-                    return normalized
-                
-                def check_keyword_match(kw_str, resume_text_lower):
-                    """Check if keyword matches in resume text with multiple strategies"""
-                    kw_lower = kw_str.lower().strip()
-                    
-                    # Strategy 1: Exact word boundary match
-                    pattern = r'\b' + re.escape(kw_lower) + r'\b'
-                    if re.search(pattern, resume_text_lower):
-                        return True
-                    
-                    # Strategy 2: Normalized match (handle separators)
-                    kw_normalized = re.sub(r'[/\-.\s]+', r'[/\-.\s]*', re.escape(kw_lower))
-                    pattern_normalized = r'\b' + kw_normalized + r'\b'
-                    if re.search(pattern_normalized, resume_text_lower):
-                        return True
-                    
-                    # Strategy 3: Substring match (for compound words)
-                    if kw_lower in resume_text_lower:
-                        return True
-                    
-                    # Strategy 4: Remove separators and match
-                    kw_no_sep = re.sub(r'[/\-.\s]+', '', kw_lower)
-                    resume_no_sep = re.sub(r'[/\-.\s]+', '', resume_text_lower)
-                    if kw_no_sep in resume_no_sep and len(kw_no_sep) >= 3:
-                        return True
-                    
-                    return False
-                
                 # Check all keyword categories
                 for keyword_list in [
                     extracted_keywords.get("technical_keywords", []),
@@ -1187,18 +1152,29 @@ class EnhancedATSChecker:
                     for kw in keyword_list:
                         if not kw:
                             continue
-                        kw_str = str(kw).strip()
-                        if check_keyword_match(kw_str, resume_text_lower):
-                            direct_matching_keywords.add(kw_str.lower())
+                        kw_str = str(kw).lower().strip()
+                        # More lenient matching: check for keyword as whole word or part of word
+                        # Use word boundaries for better matching
+                        # Check for exact word match or as part of a compound word
+                        pattern = r'\b' + re.escape(kw_str) + r'\b'
+                        if re.search(pattern, resume_text_lower):
+                            direct_matching_keywords.add(kw_str)
+                        # Also check if keyword is part of resume text (for compound words)
+                        elif kw_str in resume_text_lower:
+                            direct_matching_keywords.add(kw_str)
                 
                 # Check high frequency keywords
                 high_freq = extracted_keywords.get("high_frequency_keywords", [])
                 for kw_item in high_freq:
                     kw = kw_item.get("keyword", kw_item) if isinstance(kw_item, dict) else kw_item
                     if kw:
-                        kw_str = str(kw).strip()
-                        if check_keyword_match(kw_str, resume_text_lower):
-                            direct_matching_keywords.add(kw_str.lower())
+                        kw_str = str(kw).lower().strip()
+                        # More lenient matching for high frequency keywords
+                        pattern = r'\b' + re.escape(kw_str) + r'\b'
+                        if re.search(pattern, resume_text_lower):
+                            direct_matching_keywords.add(kw_str)
+                        elif kw_str in resume_text_lower:
+                            direct_matching_keywords.add(kw_str)
 
             for i, keyword in enumerate(feature_names):
                 job_weight = job_tfidf[i]
@@ -1235,23 +1211,19 @@ class EnhancedATSChecker:
             missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
             
             # Add responsive boost based on number of matching keywords
-            # More responsive to additions - increased boosts
+            # More responsive to additions while preventing extreme jumps
             matching_count = len(matching_keywords)
             if matching_count > 15:
                 # Linear scaling for high counts (more responsive)
-                boost = min(15, 6 + (matching_count - 15) * 0.5)  # Increased from 0.3, base from 4
+                boost = min(10, 4 + (matching_count - 15) * 0.3)
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 10:
                 # Hybrid: logarithmic for medium-high
-                boost = min(10, 3 + math.log1p(matching_count - 10) * 2.5)  # Increased from 2.0, base from 2
+                boost = min(7, 2 + math.log1p(matching_count - 10) * 2.0)
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 5:
                 # Linear scaling for small-medium counts (most responsive)
-                boost = min(6, (matching_count - 5) * 0.8)  # Increased from 0.5, cap from 4
-                cosine_score = min(100, cosine_score + boost)
-            elif matching_count > 0:
-                # New tier: reward even small matches
-                boost = min(2, matching_count * 0.3)
+                boost = min(4, (matching_count - 5) * 0.5)
                 cosine_score = min(100, cosine_score + boost)
 
             # Calculate keyword match percentage with improved algorithm
@@ -1273,8 +1245,8 @@ class EnhancedATSChecker:
             
             # Add weight for direct matches (they're important even if TF-IDF weight is low)
             if direct_match_count > 0:
-                # Add weight proportional to number of direct matches (increased responsiveness)
-                direct_match_weight = min(0.5, direct_match_count * 0.03)  # Increased from 0.3/0.02 to 0.5/0.03
+                # Add weight proportional to number of direct matches
+                direct_match_weight = min(0.3, direct_match_count * 0.02)  # Up to 30% additional weight
                 matched_weight += direct_match_weight * total_job_weight
             
             # Use weighted percentage for better accuracy
@@ -1292,32 +1264,28 @@ class EnhancedATSChecker:
                 else 0
             )
             
-            # Use weighted average (50% weighted, 50% simple) - more balanced to reward count
-            # This ensures direct matches are properly counted and rewarded
-            base_match_percentage = (weighted_match_percentage * 0.5) + (simple_match_percentage * 0.5)
+            # Use weighted average (60% weighted, 40% simple) - favor weighted but include count
+            # This ensures direct matches are properly counted
+            base_match_percentage = (weighted_match_percentage * 0.6) + (simple_match_percentage * 0.4)
             
             # Add responsive boost for having matching keywords
-            # More responsive to additions - increased boosts
+            # More responsive to additions while preventing extreme jumps
             matching_count = len(matching_keywords)
             if matching_count > 20:
                 # Linear scaling for high counts
-                boost = min(8, (matching_count - 20) * 0.4)  # Increased from 0.2, cap from 4
+                boost = min(4, (matching_count - 20) * 0.2)
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 15:
                 # Hybrid scaling
-                boost = min(6, 2 + math.log1p(matching_count - 15) * 1.5)  # Increased from 1.2, base from 1
+                boost = min(3, 1 + math.log1p(matching_count - 15) * 1.2)
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 10:
                 # Linear scaling for medium counts (more responsive)
-                boost = min(4, (matching_count - 10) * 0.4)  # Increased from 0.25, cap from 2
+                boost = min(2, (matching_count - 10) * 0.25)
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 5:
                 # Linear scaling for small counts (most responsive)
-                boost = min(2, (matching_count - 5) * 0.3)  # Increased from 0.15, cap from 1
-                match_percentage = min(100, base_match_percentage + boost)
-            elif matching_count > 0:
-                # New tier: reward even small matches
-                boost = min(1, matching_count * 0.2)
+                boost = min(1, (matching_count - 5) * 0.15)
                 match_percentage = min(100, base_match_percentage + boost)
             else:
                 match_percentage = base_match_percentage
@@ -1398,17 +1366,8 @@ class EnhancedATSChecker:
         tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description, extracted_keywords=extracted_keywords)
         tfidf_score = tfidf_analysis.get("score", 0)
 
-        # 2. Keyword Match Percentage (primary factor for ATS score)
-        # Use keyword_match_percentage from TF-IDF analysis
+        # 2. Keyword Match Percentage (85% weight - primary factor)
         keyword_match_score = tfidf_analysis.get("keyword_match_percentage", 0)
-        
-        # Ensure keyword_match_score is properly calculated and responsive
-        # If it's 0 but we have matching keywords, recalculate
-        if keyword_match_score == 0 and tfidf_analysis.get("matched_keywords_count", 0) > 0:
-            # Fallback calculation if percentage wasn't calculated
-            total_job_kw = tfidf_analysis.get("total_job_keywords", 1)
-            matched_kw = tfidf_analysis.get("matched_keywords_count", 0)
-            keyword_match_score = (matched_kw / total_job_kw * 100) if total_job_kw > 0 else 0
 
         # 3. Section Completeness (5% weight)
         structure_analysis = self.analyze_resume_structure(resume_data)
@@ -1422,27 +1381,27 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         quality_score = quality_analysis["score"]
 
-        # Keyword matching is primary factor: 50% of the score (increased from 40%)
-        # This ensures keyword improvements directly improve the score
-        keyword_weight = 0.50  # Increased from 40% to 50% to make it more responsive
+        # More conservative scoring: keyword matching is 40% of the score (reduced from 50%)
+        # This prevents keyword stuffing from dominating the score
+        keyword_weight = 0.40  # Reduced from 50% to 40% for more conservative scoring
         
-        # Distribute remaining 50% among other components
-        # TF-IDF: 20%, Section: 15%, Formatting: 10%, Quality: 5%
-        tfidf_weight = 0.20  # Reduced from 25% to 20% (keyword is now 50%)
-        section_weight = 0.15  # Reduced from 20% to 15%
+        # Distribute remaining 60% among other components
+        # TF-IDF: 25%, Section: 20%, Formatting: 10%, Quality: 5%
+        tfidf_weight = 0.25  # Increased from 20% to 25%
+        section_weight = 0.20  # Increased from 15% to 20%
         formatting_weight = 0.10  # Keep at 10%
         quality_weight = 0.05  # Keep at 5%
 
-        # Cap keyword match contribution - but make it more generous
-        # Even with 100% keyword match, max contribution is 48 points (increased from 38)
-        # This ensures keyword improvements are properly rewarded
-        max_keyword_contribution = 48
-        # Apply minimal diminishing returns: higher keyword match gets full weight
-        # 90% match = 45 points (highly responsive)
-        if keyword_match_score > 90:
-            # Minimal diminishing returns above 90% - very responsive
-            excess = keyword_match_score - 90
-            capped_keyword_match = 90 + excess * 0.8  # 80% of excess counts (was 60%)
+        # Cap keyword match contribution to prevent unrealistic scores
+        # Even with 100% keyword match, max contribution is 38 points (increased from 35)
+        # This ensures other factors always matter significantly
+        max_keyword_contribution = 38
+        # Apply less aggressive diminishing returns: higher keyword match gets less weight but still counts
+        # 85% match = ~36 points after diminishing returns (more responsive)
+        if keyword_match_score > 80:
+            # Diminishing returns above 80% - less aggressive (was 70%)
+            excess = keyword_match_score - 80
+            capped_keyword_match = 80 + excess * 0.6  # 60% of excess counts (was 40%)
         else:
             capped_keyword_match = keyword_match_score
         actual_keyword_contribution = min(capped_keyword_match * keyword_weight, max_keyword_contribution)
