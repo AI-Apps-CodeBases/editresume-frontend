@@ -1,9 +1,12 @@
 import re
 import math
 import json
+import logging
 from typing import Dict, List, Tuple, Optional, Any
 from collections import Counter
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 # Try to import optional dependencies with fallbacks
 try:
@@ -11,16 +14,19 @@ try:
     from nltk.corpus import stopwords
     from nltk.tokenize import word_tokenize
 
-    # Download required NLTK data
+    # NLTK data should be pre-downloaded in Dockerfile for faster deployment
+    # Only download if not found (shouldn't happen in production)
     try:
         nltk.data.find("tokenizers/punkt")
     except LookupError:
-        nltk.download("punkt")
+        logger.warning("NLTK punkt not found, downloading... (should be pre-downloaded in Dockerfile)")
+        nltk.download("punkt", quiet=True)
 
     try:
         nltk.data.find("corpora/stopwords")
     except LookupError:
-        nltk.download("stopwords")
+        logger.warning("NLTK stopwords not found, downloading... (should be pre-downloaded in Dockerfile)")
+        nltk.download("stopwords", quiet=True)
 
     NLTK_AVAILABLE = True
 except ImportError:
@@ -515,28 +521,29 @@ class EnhancedATSChecker:
             (leadership_count / total_words) * 100 if total_words > 0 else 0
         )
         
-        # Improved density calculation that rewards content additions
-        # Use actual density but with a floor based on absolute keyword counts
-        # This ensures adding keywords always improves the score
-        if total_words < 150:
-            # For shorter resumes, use actual density (no penalty)
-            action_density = actual_action_density
-            technical_density = actual_technical_density
-            metrics_density = actual_metrics_density
-            leadership_density = actual_leadership_density
-        else:
-            # For larger resumes: use actual density but ensure it doesn't drop below a minimum
-            # Minimum density is based on absolute keyword counts (rewards additions)
-            min_action_density = (action_verb_count / max(total_words, 200)) * 100
-            min_technical_density = (technical_count / max(total_words, 200)) * 100
-            min_metrics_density = (metrics_count / max(total_words, 200)) * 100
-            min_leadership_density = (leadership_count / max(total_words, 200)) * 100
-            
-            # Use the higher of actual or minimum (ensures additions are rewarded)
-            action_density = max(actual_action_density, min_action_density * 0.9)
-            technical_density = max(actual_technical_density, min_technical_density * 0.9)
-            metrics_density = max(actual_metrics_density, min_metrics_density * 0.9)
-            leadership_density = max(actual_leadership_density, min_leadership_density * 0.9)
+        # Protected density calculation that prevents dilution when adding content
+        # Uses a baseline approach: density can't drop below a threshold based on keyword counts
+        # This ensures adding matching keywords always improves or maintains the score
+        
+        # Calculate baseline densities using a reference word count (prevents dilution)
+        # Reference is the higher of: actual word count or a minimum threshold
+        # This creates a "protected density floor" that rewards keyword additions
+        reference_word_count = max(total_words, 100)  # Minimum 100 words for baseline
+        
+        # Calculate baseline densities (what density would be with reference count)
+        baseline_action_density = (action_verb_count / reference_word_count) * 100
+        baseline_technical_density = (technical_count / reference_word_count) * 100
+        baseline_metrics_density = (metrics_count / reference_word_count) * 100
+        baseline_leadership_density = (leadership_count / reference_word_count) * 100
+        
+        # Use protected density: take the higher of actual or baseline
+        # This means: if you add keywords, density can only stay same or improve
+        # If you add non-keyword content, density can drop but not below baseline
+        # The 0.85 multiplier provides a buffer to prevent small density drops from penalizing
+        action_density = max(actual_action_density, baseline_action_density * 0.85)
+        technical_density = max(actual_technical_density, baseline_technical_density * 0.85)
+        metrics_density = max(actual_metrics_density, baseline_metrics_density * 0.85)
+        leadership_density = max(actual_leadership_density, baseline_leadership_density * 0.85)
 
         # Job description matching - improved to be more sensitive to keyword additions
         job_match_score = 0
@@ -611,6 +618,7 @@ class EnhancedATSChecker:
         base_score = 35
         
         # Calculate bonuses: Prioritize absolute keyword counts (more responsive to additions)
+        # Updated to prevent density dilution from penalizing score when adding content
         def improved_hybrid_bonus(count, density, density_multiplier, density_base, max_bonus, log_factor=1.2, linear_factor=0.5):
             # Absolute count contribution (primary factor - rewards adding keywords)
             if count <= 20:
@@ -621,10 +629,12 @@ class EnhancedATSChecker:
                 count_part = 10 + math.log1p(count - 20) * log_factor
             
             # Density contribution (secondary factor - rewards proper keyword usage)
+            # Use protected density with floor to prevent penalties from content additions
             density_part = density_base + (density_multiplier * min(density, 10))  # Cap density at 10%
             
-            # Combine: 70% count (responsive) + 30% density (quality)
-            total_bonus = (count_part * 0.7) + (density_part * 0.3)
+            # Increased weight on count (80%) vs density (20%) to prevent dilution penalties
+            # This ensures adding keywords always improves score, even if density slightly drops
+            total_bonus = (count_part * 0.80) + (density_part * 0.20)
             return min(max_bonus, total_bonus)
         
         action_bonus = improved_hybrid_bonus(action_verb_count, action_density, 1.5, 8, 22, 2.0, 0.7)
@@ -633,16 +643,23 @@ class EnhancedATSChecker:
         leadership_bonus = improved_hybrid_bonus(leadership_count, leadership_density, 4.0, 8, 18, 1.5, 0.6)
         
         # Additional bonus for absolute keyword increases (rewards improvements regardless of density)
-        # Increased bonuses to make score more responsive
+        # Increased bonuses to make score more responsive and prevent dilution penalties
         absolute_bonus = 0
         if action_verb_count >= 5:
-            absolute_bonus += min(3, (action_verb_count - 5) * 0.3)  # Increased from 0.2
+            absolute_bonus += min(4, (action_verb_count - 5) * 0.4)  # Increased from 0.3 to 0.4, cap from 3 to 4
         if technical_count >= 8:
-            absolute_bonus += min(4, (technical_count - 8) * 0.3)  # Increased from 0.25
+            absolute_bonus += min(5, (technical_count - 8) * 0.4)  # Increased from 0.3 to 0.4, cap from 4 to 5
         if metrics_count >= 3:
-            absolute_bonus += min(3, (metrics_count - 3) * 0.4)  # Increased from 0.3
+            absolute_bonus += min(4, (metrics_count - 3) * 0.5)  # Increased from 0.4 to 0.5, cap from 3 to 4
         if leadership_count >= 3:
-            absolute_bonus += min(2, (leadership_count - 3) * 0.3)  # Increased from 0.25
+            absolute_bonus += min(3, (leadership_count - 3) * 0.4)  # Increased from 0.3 to 0.4, cap from 2 to 3
+        
+        # Additional protection: bonus for matching keywords when job description is provided
+        # This ensures adding matching keywords from JD always improves score
+        if job_description and len(matching_keywords) > 0:
+            # Reward matching keyword additions (prevents score drop when adding JD keywords)
+            matching_bonus = min(5, len(matching_keywords) * 0.15)  # Up to 5 points for matching keywords
+            absolute_bonus += matching_bonus
         
         # Job match bonus - highly responsive to keyword additions
         if job_description:
@@ -676,9 +693,18 @@ class EnhancedATSChecker:
         )
         
         # Stabilized minimum score with gradual transition
+        # Enhanced to prevent score drops when adding matching keywords
         if action_verb_count > 0 or technical_count > 0:
             # Gradual minimum: higher base if more keywords present
-            min_base = 25 + min(5, (action_verb_count + technical_count) * 0.1)
+            # Increased base and multiplier to better protect against dilution
+            min_base = 28 + min(7, (action_verb_count + technical_count) * 0.12)  # Increased from 25+5*0.1
+            
+            # Additional protection: if job description provided and matching keywords exist,
+            # ensure minimum accounts for matching keyword value
+            if job_description and len(matching_keywords) > 0:
+                matching_min_boost = min(3, len(matching_keywords) * 0.1)  # Up to 3 points for matching keywords
+                min_base += matching_min_boost
+            
             keyword_score = max(min_base, keyword_score)
 
         return {

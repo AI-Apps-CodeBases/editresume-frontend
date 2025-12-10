@@ -2131,17 +2131,17 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     contentQualityScore = Math.min(100, contentQualityScore);
 
     // Apply weighted scoring similar to backend
-    // Keyword match: 75% (reduced from 100% to prevent unrealistic scores)
+    // Keyword match: 80% (primary factor for ATS score)
     // Section completeness: 15%
-    // Content quality: 10%
-    const keywordWeight = 0.75;
+    // Content quality: 5%
+    const keywordWeight = 0.80;
     const sectionWeight = 0.15;
-    const qualityWeight = 0.10;
+    const qualityWeight = 0.05;
 
     // Apply cap to keyword-only contributions to prevent 100% from keyword stuffing
-    // Even with 100% keyword match, max contribution is 75 points
+    // Even with 100% keyword match, max contribution is 80 points
     // This ensures other factors (sections, quality) are always considered
-    const maxKeywordContribution = 75;
+    const maxKeywordContribution = 80;
     const actualKeywordContribution = Math.min(
       keywordMatchPercentage * keywordWeight,
       maxKeywordContribution
