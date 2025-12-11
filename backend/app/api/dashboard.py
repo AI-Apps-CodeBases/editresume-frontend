@@ -673,6 +673,34 @@ async def get_content_generation_data(
 
 
 
+@router.get("/feedback")
+async def get_feedback(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+):
+    """Get all feedbacks for dashboard"""
+    try:
+        from app.models.feedback import Feedback
+        
+        feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
+        
+        return [
+            {
+                "id": feedback.id,
+                "user_email": feedback.user_email,
+                "rating": feedback.rating,
+                "feedback": feedback.feedback,
+                "category": feedback.category,
+                "page_url": feedback.page_url,
+                "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+            }
+            for feedback in feedbacks
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching feedback: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch feedback")
+
+
 @router.delete("/feedback/{feedback_id}")
 async def delete_feedback(
     feedback_id: int,
