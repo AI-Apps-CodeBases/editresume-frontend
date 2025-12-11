@@ -202,9 +202,9 @@ export default function VisualResumeEditor({
     }
   }, [data.sections]);
 
-  // Load match result when AI Improve modal opens for existing bullets
+  // Load match result when AI Improve modal opens (for both new and existing bullets)
   useEffect(() => {
-    if (showAIImproveModal && aiImproveContext?.mode !== 'new' && !matchResult && typeof window !== 'undefined') {
+    if (showAIImproveModal && !matchResult && typeof window !== 'undefined') {
       const stored = localStorage.getItem('currentMatchResult');
       if (stored) {
         try {
@@ -215,7 +215,7 @@ export default function VisualResumeEditor({
         }
       }
     }
-  }, [showAIImproveModal, aiImproveContext?.mode, matchResult]);
+  }, [showAIImproveModal, matchResult]);
 
   // Deduplicate sections by title (case-insensitive) - keep first occurrence
   const lastSectionsRef = useRef<string>('')
@@ -3233,7 +3233,12 @@ export default function VisualResumeEditor({
                             const combined = [...new Set([...jdMissing, ...matchMissing])];
                             keywordsToShow = combined.slice(0, 50);
                           } else if (keywordSourceType === 'matching') {
-                            keywordsToShow = matchResult?.match_analysis?.matching_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
+                            // Combine jdKeywords matching and matchResult matching keywords
+                            const jdMatching = jdKeywords?.matching?.filter((kw: string) => kw && kw.length > 1) || [];
+                            const matchMatching = matchResult?.match_analysis?.matching_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
+                            // Combine and deduplicate
+                            const combined = [...new Set([...jdMatching, ...matchMatching])];
+                            keywordsToShow = combined.slice(0, 50);
                           } else if (keywordSourceType === 'tfidf') {
                             keywordsToShow = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && kw.length > 1) || [];
                           }
