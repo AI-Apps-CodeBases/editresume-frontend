@@ -85,6 +85,12 @@ export function useTailorAutomationState({ openSignal, router }: UseTailorAutoma
   }, [openSignal, openJobModal])
 
   useEffect(() => {
+    if (jobModalOpen) {
+      void refreshJobs()
+    }
+  }, [jobModalOpen, refreshJobs])
+
+  useEffect(() => {
     return () => {
       timersRef.current.forEach((timer) => clearTimeout(timer))
     }
