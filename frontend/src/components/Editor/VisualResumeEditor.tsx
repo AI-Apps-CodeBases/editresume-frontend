@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import config from '@/lib/config';
+import { getAuthHeaders } from '@/lib/auth'
 import InlineGrammarChecker from '@/components/AI/InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
 import AIWorkExperience from '@/components/AI/AIWorkExperience'
@@ -1736,9 +1737,11 @@ export default function VisualResumeEditor({
           }))
       }))
 
+      const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() }
+      
       const response = await fetch(`${config.apiBase}/api/ai/generate_summary_from_experience`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name: data.name,
           title: data.title,
