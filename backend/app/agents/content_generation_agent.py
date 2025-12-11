@@ -728,23 +728,61 @@ class ContentGenerationAgent:
                     if line.strip() and not line.strip().startswith(("#", "-"))
                 ]
 
-            # Clean bullets: remove quotes, special characters, and extra whitespace
+            # Clean bullets: remove quotes, JSON artifacts, special characters, and extra whitespace
             def clean_bullet(bullet: str) -> str:
                 if not bullet:
                     return ""
+                bullet = str(bullet).strip()
+                
+                # Remove JSON code block markers
+                bullet = bullet.replace("```json", "").replace("```", "").strip()
+                
+                # Remove JSON array brackets and structure
+                bullet = bullet.lstrip("[").rstrip("]").strip()
+                bullet = bullet.lstrip("...").rstrip("...").strip()
+                
                 # Remove surrounding quotes (both single and double)
-                bullet = bullet.strip()
                 if (bullet.startswith('"') and bullet.endswith('"')) or (bullet.startswith("'") and bullet.endswith("'")):
                     bullet = bullet[1:-1]
+                
                 # Remove any remaining quotes at start/end
                 bullet = bullet.strip('"').strip("'")
+                
+                # Remove trailing commas and JSON artifacts
+                bullet = bullet.rstrip(",").lstrip(",").strip()
+                bullet = bullet.replace('","', '').replace("','", '')
+                
                 # Remove bullet markers if present
                 bullet = bullet.lstrip("•").lstrip("-").lstrip("*").strip()
+                
                 # Remove any JSON escape characters
                 bullet = bullet.replace('\\"', '"').replace("\\'", "'")
+                
                 return bullet.strip()
+            
+            # Filter out invalid bullets (too short, only special chars, JSON structure elements)
+            def is_valid_bullet(bullet: str) -> bool:
+                if not bullet or len(bullet) < 10:
+                    return False
+                trimmed = bullet.strip()
+                # Filter out JSON structure elements
+                if trimmed in ["```json", "```", "[", "]", "...", ",", '"', "'"]:
+                    return False
+                if trimmed.startswith(("```", "[", "]", "...", ",")):
+                    return False
+                # Filter out bullets that are only special characters
+                if not any(c.isalnum() for c in trimmed):
+                    return False
+                # Must contain at least one letter
+                if not any(c.isalpha() for c in trimmed):
+                    return False
+                return True
 
-            cleaned_bullets = [clean_bullet(str(bullet)) for bullet in bullets if clean_bullet(str(bullet))]
+            cleaned_bullets = [
+                clean_bullet(str(bullet)) 
+                for bullet in bullets 
+                if is_valid_bullet(clean_bullet(str(bullet)))
+            ]
 
             return {
                 "success": True,

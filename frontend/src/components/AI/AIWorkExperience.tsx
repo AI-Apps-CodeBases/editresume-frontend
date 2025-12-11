@@ -83,24 +83,56 @@ export default function AIWorkExperience({ companyName, jobTitle, dateRange, sec
 
       const result = await response.json()
       
-      // Clean bullets: remove quotes and special characters
+      // Clean bullets: remove quotes, JSON artifacts, and special characters
       const cleanBullet = (text: string): string => {
         if (!text) return ""
         let cleaned = text.trim()
-        // Remove surrounding quotes
+        
+        // Remove JSON code block markers
+        cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/g, '').replace(/\s*```$/g, '')
+        
+        // Remove JSON array brackets and structure
+        cleaned = cleaned.replace(/^\[/, '').replace(/\]$/, '').replace(/^\.\.\./, '').replace(/\.\.\.$/, '')
+        
+        // Remove surrounding quotes (both single and double)
         if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
           cleaned = cleaned.slice(1, -1)
         }
-        // Remove any remaining quotes
+        
+        // Remove any remaining quotes at start/end
         cleaned = cleaned.trim().replace(/^["']+|["']+$/g, '')
+        
+        // Remove trailing commas and JSON artifacts
+        cleaned = cleaned.replace(/,\s*$/, '').replace(/^,\s*/, '').replace(/","/g, '').replace(/','/g, '')
+        
         // Remove bullet markers if present
         cleaned = cleaned.replace(/^[•\-\*]\s*/, '').trim()
+        
         // Remove JSON escape characters
         cleaned = cleaned.replace(/\\"/g, '"').replace(/\\'/g, "'")
+        
+        // Remove any remaining JSON structure elements
+        cleaned = cleaned.replace(/^```/, '').replace(/```$/, '').trim()
+        
         return cleaned
       }
 
-      const cleanedBullets = (result.bullets || []).map(cleanBullet).filter((text: string) => text.length > 0)
+      // Filter out invalid bullets (too short, only special chars, JSON structure elements)
+      const isValidBullet = (text: string): boolean => {
+        if (!text || text.length < 10) return false // Minimum meaningful length
+        const trimmed = text.trim()
+        // Filter out JSON structure elements
+        if (/^```|^\[|^\]|^\.\.\.|^,|^"$|^'$/.test(trimmed)) return false
+        // Filter out bullets that are only special characters
+        if (/^[^\w\s]+$/.test(trimmed)) return false
+        // Must contain at least one letter
+        if (!/[a-zA-Z]/.test(trimmed)) return false
+        return true
+      }
+
+      const cleanedBullets = (result.bullets || [])
+        .map(cleanBullet)
+        .filter(isValidBullet)
       
       setGeneratedData({
         companyName: (result.companyName || formData.companyName || '').trim(),
