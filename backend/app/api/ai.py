@@ -1278,9 +1278,8 @@ async def generate_bullets_from_keywords(payload: dict):
             raise HTTPException(status_code=400, detail="Keywords list is required")
 
         keywords_str = ", ".join(keywords_list)
-        missing_keywords = payload.get("missing_keywords", [])
 
-        # Use content generation agent
+        # Use content generation agent - only use selected keywords, not missing keywords
         result = await content_generation_agent.generate_bullet_from_keywords(
             keywords_str=keywords_str,
             company_title=company_title,
@@ -1288,10 +1287,28 @@ async def generate_bullets_from_keywords(payload: dict):
             jd_excerpt=job_description[:500] if job_description else None,
             resume_excerpt=None,
             count=max(3, min(len(keywords_list), 5)),
-            missing_keywords=missing_keywords,
+            missing_keywords=None,  # Don't use missing keywords - only use selected keywords
         )
 
         bullets = result.get("bullets", [])
+
+        # Validate that all keywords are used in the generated bullets
+        keywords_lower = [kw.lower().strip() for kw in keywords_list if kw.strip()]
+        used_keywords = set()
+        
+        for bullet in bullets:
+            bullet_lower = bullet.lower()
+            for keyword in keywords_lower:
+                # Check if keyword appears in bullet (whole word match)
+                keyword_normalized = keyword.replace('/', '').replace('-', '').replace('.', '').replace('#', '')
+                bullet_normalized = bullet_lower.replace('/', '').replace('-', '').replace('.', '').replace('#', '')
+                if keyword_normalized in bullet_normalized or keyword in bullet_lower:
+                    used_keywords.add(keyword)
+        
+        # If not all keywords are used, log a warning (prompt should handle this, but double-check)
+        missing_keywords = set(keywords_lower) - used_keywords
+        if missing_keywords:
+            logger.warning(f"Some selected keywords were not used in generated bullets: {missing_keywords}")
 
         # Clean up bullets
         cleaned_bullets = []

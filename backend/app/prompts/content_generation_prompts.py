@@ -68,15 +68,11 @@ def get_bullet_from_keywords_prompt(
     missing_keywords: list[str] | None = None,
 ) -> str:
     """Generate bullet points from keywords prompt."""
-    missing_kw_note = ""
-    if missing_keywords and len(missing_keywords) > 0:
-        missing_kw_note = f"""
-CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
-{', '.join(missing_keywords[:8])}
-
-These keywords are currently MISSING from the resume and are HIGH PRIORITY for ATS score improvement.
-Ensure these missing keywords appear naturally in at least {count // 2} of the generated bullets.
-"""
+    # Only use the selected keywords - do not add missing keywords
+    # The keywords_str parameter contains the user-selected keywords that should be used
+    
+    # Count keywords for distribution guidance
+    keyword_count = len([kw.strip() for kw in keywords_str.split(',') if kw.strip()])
     
     return f"""You are crafting high-impact resume bullet points.
 
@@ -85,19 +81,26 @@ Role: {job_title or 'Not specified'}
 Job Description Context:
 {jd_excerpt if jd_excerpt else 'Not provided'}
 
-Keywords to integrate naturally: {keywords_str}
-{missing_kw_note}
+SELECTED KEYWORDS (MUST use these - user selected these specific keywords):
+{keywords_str}
+
 Resume context (useful achievements or tools):
 {resume_excerpt if resume_excerpt else 'Limited additional context provided'}
 
-Requirements:
+CRITICAL REQUIREMENTS:
 - Generate {count} distinct professional resume bullet points
-- Weave the provided keywords naturally across the bullets (avoid keyword stuffing)
-- PRIORITY: Ensure missing keywords listed above are included in at least {count // 2} bullets
+- MUST use ONLY the selected keywords listed above - do not add keywords that were not selected by the user
+- ALL selected keywords MUST be used across the bullets - ensure every selected keyword appears in at least one bullet
+- Distribute keywords evenly: you have {count} bullets and {keyword_count} keywords - distribute them so all {keyword_count} keywords are used
+- Each bullet must incorporate at least one of the selected keywords naturally
+- If you have more keywords than bullets, some bullets will need to contain multiple keywords naturally
+- Do NOT add any keywords that are not in the selected keywords list above
 - Include metrics or quantified outcomes when possible
 - Use strong action verbs, professional tone, and ATS-friendly formatting
 - Each bullet: 1-2 lines (max 35 words)
 - Make bullets cover different achievements or angles
+
+IMPORTANT: Before returning, verify that ALL {keyword_count} selected keywords have been used in at least one bullet. If any keyword is missing, regenerate bullets to include it.
 
 Return ONLY a valid JSON array of plain strings, e.g. ["Bullet 1", "Bullet 2"]."""
 

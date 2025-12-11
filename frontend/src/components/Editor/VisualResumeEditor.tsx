@@ -3171,46 +3171,44 @@ export default function VisualResumeEditor({
                       </div>
                     </div>
 
-                    {/* Keyword Source Selection - Only show for existing bullets (improve mode) */}
-                    {aiImproveContext.mode !== 'new' && (
-                      <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <label className="block text-sm font-medium text-gray-700 mb-3">
-                          Select Keyword Source to Boost ATS Score
-                        </label>
-                        <div className="grid grid-cols-3 gap-2">
-                          <button
-                            onClick={() => setKeywordSourceType('missing')}
-                            className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-                              keywordSourceType === 'missing'
-                                ? 'bg-red-100 text-red-800 border-2 border-red-400'
-                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            Missing Keywords
-                          </button>
-                          <button
-                            onClick={() => setKeywordSourceType('matching')}
-                            className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-                              keywordSourceType === 'matching'
-                                ? 'bg-green-100 text-green-800 border-2 border-green-400'
-                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            Matching Keywords
-                          </button>
-                          <button
-                            onClick={() => setKeywordSourceType('tfidf')}
-                            className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-                              keywordSourceType === 'tfidf'
-                                ? 'bg-purple-100 text-purple-800 border-2 border-purple-400'
-                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            TF-IDF Boost
-                          </button>
-                        </div>
+                    {/* Keyword Source Selection - Show for both new and existing bullets */}
+                    <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Select Keyword Source to Boost ATS Score
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          onClick={() => setKeywordSourceType('missing')}
+                          className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                            keywordSourceType === 'missing'
+                              ? 'bg-red-100 text-red-800 border-2 border-red-400'
+                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          Missing Keywords
+                        </button>
+                        <button
+                          onClick={() => setKeywordSourceType('matching')}
+                          className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                            keywordSourceType === 'matching'
+                              ? 'bg-green-100 text-green-800 border-2 border-green-400'
+                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          Matching Keywords
+                        </button>
+                        <button
+                          onClick={() => setKeywordSourceType('tfidf')}
+                          className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                            keywordSourceType === 'tfidf'
+                              ? 'bg-purple-100 text-purple-800 border-2 border-purple-400'
+                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          TF-IDF Boost
+                        </button>
                       </div>
-                    )}
+                    </div>
 
                     <div className="mb-4">
                       <p className="text-sm font-semibold text-gray-900 mb-3">
@@ -3225,20 +3223,19 @@ export default function VisualResumeEditor({
                       </p>
                       <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
                         {(() => {
-                          // Determine which keywords to show
+                          // Determine which keywords to show based on source type (same for new and existing)
                           let keywordsToShow: string[] = [];
-                          if (aiImproveContext.mode === 'new') {
-                            // For new bullets, use jdKeywords missing
-                            keywordsToShow = jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30) || [];
-                          } else {
-                            // For existing bullets, use match result based on source type
-                            if (keywordSourceType === 'missing') {
-                              keywordsToShow = matchResult?.match_analysis?.missing_keywords || jdKeywords?.missing.filter(kw => kw.length > 1).slice(0, 30) || [];
-                            } else if (keywordSourceType === 'matching') {
-                              keywordsToShow = matchResult?.match_analysis?.matching_keywords || [];
-                            } else if (keywordSourceType === 'tfidf') {
-                              keywordsToShow = matchResult?.keyword_suggestions?.tfidf_suggestions || [];
-                            }
+                          if (keywordSourceType === 'missing') {
+                            // Combine jdKeywords missing and matchResult missing keywords
+                            const jdMissing = jdKeywords?.missing?.filter((kw: string) => kw && kw.length > 1) || [];
+                            const matchMissing = matchResult?.match_analysis?.missing_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
+                            // Combine and deduplicate
+                            const combined = [...new Set([...jdMissing, ...matchMissing])];
+                            keywordsToShow = combined.slice(0, 50);
+                          } else if (keywordSourceType === 'matching') {
+                            keywordsToShow = matchResult?.match_analysis?.matching_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
+                          } else if (keywordSourceType === 'tfidf') {
+                            keywordsToShow = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && kw.length > 1) || [];
                           }
 
                           return keywordsToShow.length > 0 ? (
