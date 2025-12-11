@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.agents.content_generation_agent import ContentGenerationAgent
 from app.domain.resume_matcher.models import ATSScore, ResumeJobMatch
 from app.domain.resume_matcher.repositories import ResumeMatchRepository
 from app.domain.resume_matcher.services import (
@@ -16,6 +17,7 @@ from app.domain.resume_matcher.services import (
 )
 from app.models.job import Job
 from app.models.resume import Resume, ResumeVersion
+from app.services.keyword_distributor import distribute_keywords_to_sections
 
 
 class ResumeAutomationService:
@@ -29,6 +31,7 @@ class ResumeAutomationService:
             repository=self._repository,
         )
         self._optimization_service = ATSOptimizationService()
+        self._content_agent = ContentGenerationAgent()
 
     async def generate_resume_from_job(
         self,
@@ -60,23 +63,57 @@ class ResumeAutomationService:
         match_summaries.sort(key=lambda item: item[0].score, reverse=True)
         best_match, best_score, best_resume_data = match_summaries[0]
 
-        aggregated_sections = self._collect_sections(match_summaries)
-        job_requirements = self._derive_job_requirements(job)
+        # Get missing keywords from match
+        missing_keywords = best_match.missing_skills or []
+        matched_keywords = best_match.matched_skills or []
 
-        optimised_content = self._optimization_service.generate_optimized_content(
-            aggregated_sections,
-            job_requirements,
+        # Preserve ALL sections from best resume
+        original_sections = best_resume_data.get("sections", []) or []
+        tailored_sections = []
+
+        # Distribute keywords across sections
+        keyword_distribution = distribute_keywords_to_sections(
+            missing_keywords, best_resume_data, job.description or ""
         )
 
-        summary_text = self._compose_summary(job, best_match, best_resume_data)
-        skills_section = self._compose_skills(job, match_summaries, best_resume_data)
-        experience_section = self._compose_experience_section(optimised_content)
+        # Process each section, preserving structure
+        for section in original_sections:
+            if not isinstance(section, dict):
+                tailored_sections.append(section)
+                continue
+
+            section_title = (section.get("title") or "").lower()
+            section_bullets = section.get("bullets", []) or []
+
+            # Handle work experience sections - enhance with keywords
+            if any(
+                term in section_title
+                for term in ["experience", "work", "employment", "professional"]
+            ):
+                enhanced_section = self._enhance_experience_section(
+                    section, keyword_distribution, job, matched_keywords
+                )
+                tailored_sections.append(enhanced_section)
+            # Handle skills section - add missing technical keywords
+            elif "skill" in section_title:
+                enhanced_skills = self._enhance_skills_section(
+                    section, keyword_distribution, job, match_summaries, best_resume_data
+                )
+                tailored_sections.append(enhanced_skills)
+            # Preserve all other sections (education, certifications, etc.)
+            else:
+                tailored_sections.append(section)
+
+        # Generate AI-powered summary with JD keywords
+        summary_text = await self._generate_tailored_summary(
+            job, best_match, best_resume_data, missing_keywords, matched_keywords
+        )
 
         generated_resume_payload = self._build_resume_payload(
             job=job,
             base_resume=best_resume_data,
             summary_text=summary_text,
-            sections=[experience_section, skills_section],
+            sections=tailored_sections,
         )
 
         created_resume = self._persist_generated_resume(
@@ -189,58 +226,169 @@ class ResumeAutomationService:
         requirements.extend(common_keywords)
         return requirements
 
-    @staticmethod
-    def _compose_summary(
-        job: Job, match: ResumeJobMatch, resume_data: Dict[str, Any]
-    ) -> str:
-        name = resume_data.get("name") or "Experienced professional"
-        role = job.title or resume_data.get("title") or "target role"
-        company = job.company or "the organisation"
-        highlight_skills = ", ".join(match.matched_skills[:3]) if match.matched_skills else ""
-        highlight_clause = (
-            f" with strengths in {highlight_skills}" if highlight_skills else ""
-        )
-        return (
-            f"{name} targeting the {role} role at {company}{highlight_clause}. "
-            "Focused on delivering measurable impact through tailored solutions."
-        )
-
-    @staticmethod
-    def _compose_skills(
+    async def _generate_tailored_summary(
+        self,
         job: Job,
-        matches: Sequence[Tuple[ResumeJobMatch, ATSScore, Dict[str, Any]]],
-        best_resume: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        aggregated_skills = set(job.skills or [])
-        for _, _, resume_data in matches:
+        match: ResumeJobMatch,
+        resume_data: Dict[str, Any],
+        missing_keywords: List[str],
+        matched_keywords: List[str],
+    ) -> str:
+        """Generate AI-powered summary with JD keywords integrated."""
+        try:
+            # Extract work experience text
+            work_experience_parts = []
             for section in resume_data.get("sections", []) or []:
-                title = (section.get("title") or "").lower()
-                if "skill" in title:
-                    for bullet in section.get("bullets", []) or []:
+                if not isinstance(section, dict):
+                    continue
+                title_lower = (section.get("title") or "").lower()
+                if any(
+                    term in title_lower
+                    for term in ["experience", "work", "employment", "professional"]
+                ):
+                    bullets = section.get("bullets", []) or []
+                    for bullet in bullets:
                         if isinstance(bullet, dict):
                             text = bullet.get("text", "")
                         else:
                             text = str(bullet)
-                        for skill in text.split(","):
-                            if skill.strip():
-                                aggregated_skills.add(skill.strip())
+                        if text.strip():
+                            work_experience_parts.append(text.strip())
 
-        if not aggregated_skills:
-            aggregated_skills = set(best_resume.get("skills", []) or [])
+            work_experience_text = "\n".join(work_experience_parts[:20])
 
-        skill_bullets = [{"text": skill} for skill in sorted(aggregated_skills)]
-        return {"title": "Skills", "bullets": skill_bullets}
+            # Extract skills text
+            skills_parts = []
+            for section in resume_data.get("sections", []) or []:
+                if not isinstance(section, dict):
+                    continue
+                title_lower = (section.get("title") or "").lower()
+                if "skill" in title_lower:
+                    bullets = section.get("bullets", []) or []
+                    for bullet in bullets:
+                        if isinstance(bullet, dict):
+                            text = bullet.get("text", "")
+                        else:
+                            text = str(bullet)
+                        if text.strip():
+                            skills_parts.append(text.strip())
+
+            skills_text = ", ".join(skills_parts[:15])
+
+            # Create keyword guidance
+            keyword_guidance = f"Matched keywords: {', '.join(matched_keywords[:10])}"
+            if missing_keywords:
+                keyword_guidance += f". Missing high-priority keywords to integrate: {', '.join(missing_keywords[:15])}"
+
+            # Generate summary using AI
+            result = await self._content_agent.generate_summary_from_experience(
+                title=resume_data.get("title") or job.title,
+                work_experience_text=work_experience_text or None,
+                skills_text=skills_text or None,
+                keyword_guidance=keyword_guidance,
+                job_description_excerpt=job.description[:500] if job.description else None,
+                existing_summary=resume_data.get("summary"),
+                missing_keywords=missing_keywords[:20] if missing_keywords else None,
+            )
+
+            if result.get("success") and result.get("summary"):
+                return result["summary"].strip()
+        except Exception as e:
+            # Fallback to basic summary if AI generation fails
+            pass
+
+        # Fallback summary
+        name = resume_data.get("name") or "Experienced professional"
+        role = job.title or resume_data.get("title") or "target role"
+        highlight_skills = ", ".join(matched_keywords[:3]) if matched_keywords else ""
+        highlight_clause = (
+            f" with expertise in {highlight_skills}" if highlight_skills else ""
+        )
+        return (
+            f"{name} is a {role} professional{highlight_clause}. "
+            "Demonstrated track record of delivering measurable results through strategic execution and technical excellence."
+        )
 
     @staticmethod
-    def _compose_experience_section(optimised_content: str) -> Dict[str, Any]:
-        bullets = [
-            {"text": line.replace("•", "").strip()}
-            for line in optimised_content.splitlines()
-            if line.strip()
-        ]
+    def _enhance_skills_section(
+        section: Dict[str, Any],
+        keyword_distribution: Dict[str, Any],
+        job: Job,
+        matches: Sequence[Tuple[ResumeJobMatch, ATSScore, Dict[str, Any]]],
+        best_resume: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Enhance skills section with missing technical keywords only."""
+        existing_skills = set()
+        for bullet in section.get("bullets", []) or []:
+            if isinstance(bullet, dict):
+                text = bullet.get("text", "")
+            else:
+                text = str(bullet)
+            for skill in text.split(","):
+                if skill.strip():
+                    existing_skills.add(skill.strip())
+
+        # Add only technical keywords from missing keywords
+        skill_keywords = keyword_distribution.get("skill_keywords", [])
+        for skill_kw in skill_keywords[:10]:
+            existing_skills.add(skill_kw)
+
+        # Add matched skills from job
+        for job_skill in job.skills or []:
+            if job_skill.strip():
+                existing_skills.add(job_skill.strip())
+
+        skill_bullets = [{"text": skill} for skill in sorted(existing_skills)]
         return {
-            "title": "Experience Highlights",
-            "bullets": bullets,
+            "title": section.get("title", "Skills"),
+            "bullets": skill_bullets,
+        }
+
+    @staticmethod
+    def _enhance_experience_section(
+        section: Dict[str, Any],
+        keyword_distribution: Dict[str, Any],
+        job: Job,
+        matched_keywords: List[str],
+    ) -> Dict[str, Any]:
+        """Enhance experience section by preserving all bullets and adding relevant keywords naturally."""
+        original_bullets = section.get("bullets", []) or []
+        enhanced_bullets = []
+
+        # Preserve all original bullets
+        for bullet in original_bullets:
+            if isinstance(bullet, dict):
+                enhanced_bullets.append(bullet)
+            else:
+                enhanced_bullets.append({"text": str(bullet)})
+
+        # Get experience-related keywords for this section
+        section_mapping = keyword_distribution.get("section_mapping", {})
+        section_idx = len([s for s in enhanced_bullets if isinstance(s, dict)]) % len(
+            section_mapping
+        ) if section_mapping else 0
+
+        experience_keywords = section_mapping.get(section_idx, [])
+
+        # Add a few enhanced bullets with keywords if we have relevant ones
+        if experience_keywords and len(enhanced_bullets) < 15:
+            for kw in experience_keywords[:3]:
+                # Only add if keyword isn't already in existing bullets
+                kw_lower = kw.lower()
+                already_present = any(
+                    kw_lower in (b.get("text", "") if isinstance(b, dict) else str(b)).lower()
+                    for b in enhanced_bullets
+                )
+                if not already_present and len(enhanced_bullets) < 15:
+                    enhanced_bullets.append(
+                        {
+                            "text": f"Applied {kw} to deliver measurable business outcomes"
+                        }
+                    )
+
+        return {
+            "title": section.get("title", "Experience"),
+            "bullets": enhanced_bullets,
         }
 
     @staticmethod
