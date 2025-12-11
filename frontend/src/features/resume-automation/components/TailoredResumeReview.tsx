@@ -194,18 +194,21 @@ export function TailoredResumeReview({
           >
             Cancel
           </button>
-          <DevelopmentTooltip message="This feature is currently under development. The editor integration is being enhanced to support full tailored resume editing. Coming soon!">
-            <button
-              type="button"
-              onClick={onOpenEditor}
-              className="relative rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
-            >
-              Edit in Builder
-              <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" title="Under Development">
-                ⚠
-              </span>
-            </button>
-          </DevelopmentTooltip>
+          <div className="flex flex-col items-end gap-1">
+            <DevelopmentTooltip message="This feature is currently under development. The editor integration is being enhanced to support full tailored resume editing. Coming soon!">
+              <button
+                type="button"
+                onClick={onOpenEditor}
+                className="relative rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+              >
+                Edit in Builder
+                <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg border-2 border-white" title="Under Development - Hover for details">
+                  ⚠
+                </span>
+              </button>
+            </DevelopmentTooltip>
+            <span className="text-[10px] text-amber-600 font-medium">Under Development</span>
+          </div>
         </div>
       </div>
     </div>

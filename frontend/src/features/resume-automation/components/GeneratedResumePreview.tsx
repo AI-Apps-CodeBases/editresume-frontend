@@ -108,30 +108,33 @@ export function GeneratedResumePreview({
             : 'just now'}
         </div>
         <div className="flex items-center gap-3">
-          <DevelopmentTooltip message="This feature is currently under development. You can preview the tailored resume structure, but full editing capabilities are coming soon.">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                if (onOpenEditor && typeof onOpenEditor === 'function') {
-                  try {
-                    onOpenEditor()
-                  } catch (error) {
-                    console.error('Error calling onOpenEditor:', error)
-                    alert(`Failed to open review: ${error instanceof Error ? error.message : 'Unknown error'}`)
+          <div className="flex flex-col items-end gap-1">
+            <DevelopmentTooltip message="This feature is currently under development. You can preview the tailored resume structure, but full editing capabilities are coming soon.">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (onOpenEditor && typeof onOpenEditor === 'function') {
+                    try {
+                      onOpenEditor()
+                    } catch (error) {
+                      console.error('Error calling onOpenEditor:', error)
+                      alert(`Failed to open review: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                    }
                   }
-                }
-              }}
-              disabled={!onOpenEditor}
-              className="relative rounded-full border border-indigo-200 bg-white px-5 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              View Full Resume
-              <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" title="Under Development">
-                ⚠
-              </span>
-            </button>
-          </DevelopmentTooltip>
+                }}
+                disabled={!onOpenEditor}
+                className="relative rounded-full border border-indigo-200 bg-white px-5 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                View Full Resume
+                <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg border-2 border-white" title="Under Development - Hover for details">
+                  ⚠
+                </span>
+              </button>
+            </DevelopmentTooltip>
+            <span className="text-[10px] text-amber-600 font-medium">Under Development</span>
+          </div>
         </div>
       </footer>
     </div>

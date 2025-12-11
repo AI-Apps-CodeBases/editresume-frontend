@@ -67,19 +67,19 @@ export function DevelopmentTooltip({ message, children }: DevelopmentTooltipProp
       {isVisible && (
         <div
           ref={tooltipRef}
-          className="fixed z-[99999] w-72 pointer-events-none"
+          className="fixed z-[99999] w-72 pointer-events-none opacity-100"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
           }}
         >
-          <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-2xl">
-            <div className="flex items-start gap-2">
-              <span className="text-amber-600 text-lg flex-shrink-0">⚠️</span>
-              <p className="text-xs text-amber-900 leading-relaxed font-medium">{message}</p>
+          <div className="bg-amber-100 border-2 border-amber-400 rounded-xl p-4 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="text-amber-700 text-xl flex-shrink-0 font-bold">⚠️</span>
+              <p className="text-sm text-amber-900 leading-relaxed font-semibold">{message}</p>
             </div>
             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2">
-              <div className="border-4 border-transparent border-t-amber-300"></div>
+              <div className="border-4 border-transparent border-t-amber-400"></div>
             </div>
           </div>
         </div>
