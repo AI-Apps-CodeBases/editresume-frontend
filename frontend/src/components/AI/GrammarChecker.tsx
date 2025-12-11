@@ -1,6 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
-
+import { useUsageTracking } from '@/hooks/useUsageTracking'
+import { useAuth } from '@/contexts/AuthContext'
+import { getOrCreateGuestSessionId } from '@/lib/guestAuth'
+import UpgradePrompt from '@/components/Shared/UpgradePrompt'
 import config from '@/lib/config';
 interface GrammarIssue {
   message: string
@@ -47,10 +50,18 @@ interface Props {
 }
 
 export default function GrammarChecker({ text, onApplySuggestion, className = '', enabled = true }: Props) {
+  const { isAuthenticated } = useAuth()
+  const { checkFeatureAvailability, refreshUsage } = useUsageTracking()
   const [result, setResult] = useState<GrammarCheckResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<GrammarIssue | StyleIssue | null>(null)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
+  const [upgradePromptData, setUpgradePromptData] = useState<{
+    currentUsage: number
+    limit: number | null
+    period: string
+  } | null>(null)
 
   const checkGrammar = async (textToCheck: string) => {
     if (!textToCheck.trim() || !enabled) {
@@ -58,20 +69,54 @@ export default function GrammarChecker({ text, onApplySuggestion, className = ''
       return
     }
 
+    // Check usage limit first
+    const availability = checkFeatureAvailability('grammar')
+    if (!availability.allowed) {
+      setUpgradePromptData({
+        currentUsage: availability.currentUsage,
+        limit: availability.limit,
+        period: availability.period,
+      })
+      setShowUpgradePrompt(true)
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
     try {
-      const response = await fetch(`${config.apiBase}/api/ai/grammar_check`, {
+      const sessionId = !isAuthenticated ? getOrCreateGuestSessionId() : undefined
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (isAuthenticated) {
+        const { auth } = await import('@/lib/firebaseClient')
+        const token = await auth.currentUser?.getIdToken()
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+      }
+
+      const response = await fetch(`${config.apiBase}/api/ai/grammar_check${sessionId ? `?session_id=${sessionId}` : ''}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           text: textToCheck,
           check_type: 'all'
         }),
       })
+
+      if (response.status === 429) {
+        const errorData = await response.json()
+        setUpgradePromptData({
+          currentUsage: errorData.detail?.usage_info?.current_usage || 0,
+          limit: errorData.detail?.usage_info?.limit || null,
+          period: errorData.detail?.usage_info?.period || 'daily',
+        })
+        setShowUpgradePrompt(true)
+        return
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -79,6 +124,7 @@ export default function GrammarChecker({ text, onApplySuggestion, className = ''
 
       const data = await response.json()
       setResult(data)
+      await refreshUsage()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred')
       console.error('Grammar check failed:', err)
@@ -151,9 +197,25 @@ export default function GrammarChecker({ text, onApplySuggestion, className = ''
   const hasIssues = result.grammar_issues.length > 0 || result.style_issues.length > 0
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Style Score Summary */}
-      {result.style_score && (
+    <>
+      {/* Upgrade Prompt */}
+      {showUpgradePrompt && upgradePromptData && (
+        <UpgradePrompt
+          isOpen={showUpgradePrompt}
+          onClose={() => {
+            setShowUpgradePrompt(false)
+            setUpgradePromptData(null)
+          }}
+          featureType="grammar"
+          currentUsage={upgradePromptData.currentUsage}
+          limit={upgradePromptData.limit}
+          period={upgradePromptData.period}
+        />
+      )}
+
+      <div className={`space-y-4 ${className}`}>
+        {/* Style Score Summary */}
+        {result.style_score && (
         <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold text-gray-800">Writing Style Score</h3>
@@ -292,5 +354,6 @@ export default function GrammarChecker({ text, onApplySuggestion, className = ''
         </div>
       )}
     </div>
+    </>
   )
 }

@@ -25,6 +25,7 @@ from app.api import (
     linkedin,
     resume,
     stripe,
+    usage,
     user,
 )
 from app.api.job import create_match, get_match
@@ -115,6 +116,7 @@ app.include_router(analytics.router)
 app.include_router(dashboard.router)
 app.include_router(linkedin.router)
 app.include_router(feedback.router)
+app.include_router(usage.router)
 
 # Additional routes that need different prefixes
 # These are registered here because they don't fit the standard router prefix pattern

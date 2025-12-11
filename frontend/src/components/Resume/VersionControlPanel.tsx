@@ -242,8 +242,8 @@ export default function VersionControlPanel({
                       onClick={async () => {
                         try {
                           const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
-                          const requireAuth = shouldPromptAuthentication('exportResume', isAuthenticated)
-                          if (requireAuth || !user?.email) {
+                          // Always require authentication for exports (for marketing/email collection)
+                          if (!isAuthenticated || !user?.email) {
                             alert('Please sign in to export resumes')
                             return
                           }

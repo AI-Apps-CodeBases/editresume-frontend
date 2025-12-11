@@ -77,6 +77,7 @@ def replace_cover_letter_placeholders(content: str, payload: ExportPayload) -> s
 async def export_pdf(
     payload: ExportPayload,
     user_email: Optional[str] = None,
+    session_id: Optional[str] = None,
     db: Optional[Session] = None,
 ) -> Response:
     """Export resume as PDF"""
@@ -683,8 +684,9 @@ async def export_pdf(
 
                     # Create export analytics record
                     export_analytics = ExportAnalytics(
-                        user_id=user.id,
-                        resume_id=resume.id,
+                        user_id=user.id if user else None,
+                        session_id=session_id if not user else None,
+                        resume_id=resume.id if resume else None,
                         export_format="pdf",
                         template_used=template_id,
                         file_size=len(pdf_bytes),
@@ -733,6 +735,7 @@ async def export_pdf(
 async def export_docx(
     payload: ExportPayload,
     user_email: Optional[str] = None,
+    session_id: Optional[str] = None,
     db: Optional[Session] = None,
 ) -> Response:
     """Export resume as DOCX"""
@@ -1390,8 +1393,9 @@ async def export_docx(
 
                     # Create export analytics record
                     export_analytics = ExportAnalytics(
-                        user_id=user.id,
-                        resume_id=resume.id,
+                        user_id=user.id if user else None,
+                        session_id=session_id if not user else None,
+                        resume_id=resume.id if resume else None,
                         export_format="docx",
                         template_used=template_id,
                         file_size=len(docx_bytes),
