@@ -367,19 +367,29 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
       <div>
         <label className="text-xs text-gray-600 mb-2 block">Spacing Preset</label>
         <div className="grid grid-cols-3 gap-2">
-          {(['compact', 'balanced', 'spacious'] as const).map((spacing) => (
-            <button
-              key={spacing}
-              onClick={() => onUpdate({ layout: { ...config.layout, spacing } })}
-              className={`px-3 py-2 text-xs rounded border capitalize ${
-                config.layout.spacing === spacing
-                  ? 'border-purple-600 bg-purple-50'
-                  : 'border-gray-200'
-              }`}
-            >
-              {spacing}
-            </button>
-          ))}
+          {(['compact', 'balanced', 'spacious'] as const).map((spacing) => {
+            const presetValues = {
+              compact: { sectionGap: 12, itemGap: 4, pageMargin: 16 },
+              balanced: { sectionGap: 20, itemGap: 8, pageMargin: 24 },
+              spacious: { sectionGap: 32, itemGap: 12, pageMargin: 32 },
+            }
+            return (
+              <button
+                key={spacing}
+                onClick={() => onUpdate({ 
+                  layout: { ...config.layout, spacing },
+                  spacing: presetValues[spacing]
+                })}
+                className={`px-3 py-2 text-xs rounded border capitalize ${
+                  config.layout.spacing === spacing
+                    ? 'border-purple-600 bg-purple-50'
+                    : 'border-gray-200'
+                }`}
+              >
+                {spacing}
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>
