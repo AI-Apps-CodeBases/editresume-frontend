@@ -35,14 +35,22 @@ export async function fetchSavedJobs(): Promise<Job[]> {
   }
   Object.assign(headers, getAuthHeaders())
 
-  const response = await fetch(`${baseUrl}/api/jobs`, {
-    headers,
-    credentials: 'include',
-  })
-  if (response.status === 404) {
-    return []
+  try {
+    const response = await fetch(`${baseUrl}/api/jobs`, {
+      headers,
+      credentials: 'include',
+    })
+    if (response.status === 404) {
+      return []
+    }
+    return handleResponse<Job[]>(response)
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error(`Cannot connect to API server at ${baseUrl}. Please ensure the backend is running.`)
+      throw new Error(`Cannot connect to API server. Please ensure the backend is running at ${baseUrl}`)
+    }
+    throw error
   }
-  return handleResponse<Job[]>(response)
 }
 
 export async function createJob(payload: CreateJobPayload): Promise<Job> {

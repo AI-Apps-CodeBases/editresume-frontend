@@ -1736,7 +1736,10 @@ export default function VisualResumeEditor({
           }))
       }))
 
-      const response = await fetch(`${config.apiBase}/api/ai/generate_summary_from_experience`, {
+      const apiUrl = `${config.apiBase}/api/ai/generate_summary_from_experience`
+      console.log('Calling AI summary endpoint:', apiUrl)
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1754,7 +1757,15 @@ export default function VisualResumeEditor({
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text().catch(() => 'Unknown error')
+        let errorMessage = `HTTP error! status: ${response.status}`
+        try {
+          const errorJson = JSON.parse(errorText)
+          errorMessage = errorJson.detail || errorJson.message || errorMessage
+        } catch {
+          if (errorText) errorMessage = errorText
+        }
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
@@ -1771,9 +1782,17 @@ export default function VisualResumeEditor({
       }
     } catch (error) {
       console.error('Summary generation failed:', error)
+      let errorMessage = 'Failed to generate summary'
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMessage = `Cannot connect to API server at ${config.apiBase}. Please ensure the backend is running.`
+      } else if (error instanceof Error) {
+        errorMessage = `Failed to generate summary: ${error.message}`
+      }
+      
       await showAlert({
         type: 'error',
-        message: 'Failed to generate summary: ' + (error as Error).message,
+        message: errorMessage,
         title: 'Error'
       })
     } finally {
