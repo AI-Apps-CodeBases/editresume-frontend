@@ -172,14 +172,9 @@ export default function UploadPage() {
                       automationSignalRef.current += 1
                       setAutomationOpenSignal(automationSignalRef.current)
                     }}
-                    className="group relative overflow-visible rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 text-left w-full"
+                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 text-left w-full"
                   >
-                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                      <div className="bg-slate-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg whitespace-nowrap">
-                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
-                        Tailor your resume to match any job description with AI-powered keyword optimization
-                      </div>
-                    </div>
+
                     <div className="relative flex items-start gap-4">
                       <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300">
                         ✨
@@ -193,53 +188,6 @@ export default function UploadPage() {
                       </div>
                     </div>
                   </button>
-                  
-                  {/* Collaboration Buttons */}
-                  <div className="grid gap-4 grid-cols-2">
-                    <button
-                      disabled
-                      className="group relative overflow-visible rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm opacity-60 cursor-not-allowed text-left w-full"
-                    >
-                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                        <div className="bg-slate-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg whitespace-nowrap flex items-center gap-2">
-                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
-                          <span>🚧</span>
-                          <span>Under Development</span>
-                        </div>
-                      </div>
-                      <div className="relative flex items-start gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center text-2xl">
-                          👥
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-1">Share & Collaborate</div>
-                          <p className="text-sm text-slate-500 leading-relaxed">Coming soon</p>
-                        </div>
-                      </div>
-                    </button>
-                    
-                    <button
-                      disabled
-                      className="group relative overflow-visible rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm opacity-60 cursor-not-allowed text-left w-full"
-                    >
-                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                        <div className="bg-slate-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg whitespace-nowrap flex items-center gap-2">
-                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
-                          <span>🚧</span>
-                          <span>Under Development</span>
-                        </div>
-                      </div>
-                      <div className="relative flex items-start gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-2xl">
-                          💬
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-1">Get Feedback</div>
-                          <p className="text-sm text-slate-500 leading-relaxed">Coming soon</p>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
