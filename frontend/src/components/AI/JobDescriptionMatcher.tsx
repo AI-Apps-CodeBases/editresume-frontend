@@ -2128,11 +2128,76 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     if (!result) return null;
 
     if (USE_ENHANCED_ATS_SCORING && 'breakdown' in result) {
-    return {
+      // Calculate matched/missing keywords from extension data for display
+      const allKeywords: string[] = [];
+      const matchedKeywords: string[] = [];
+      const missingKeywords: string[] = [];
+      
+      // Extract all keywords from extension data
+      if (extensionDataForScoring) {
+        const extractKeywords = (arr?: Array<{ keyword: string } | string>) => {
+          if (!Array.isArray(arr)) return [];
+          return arr.map(kw => typeof kw === 'string' ? kw : kw.keyword);
+        };
+        
+        const technical = extractKeywords(extensionDataForScoring.technicalKeywords);
+        const matching = extractKeywords(extensionDataForScoring.matchingKeywords);
+        const missing = extractKeywords(extensionDataForScoring.missingKeywords);
+        
+        allKeywords.push(...technical, ...matching, ...missing);
+        
+        // Build resume text for matching
+        const resumeFragments: string[] = [];
+        const appendText = (value?: string) => {
+          const normalized = normalizeTextForATS(value);
+          if (normalized) {
+            resumeFragments.push(normalized.toLowerCase());
+          }
+        };
+        
+        appendText(resumeData.title);
+        appendText(resumeData.summary);
+        if (resumeData.sections && Array.isArray(resumeData.sections)) {
+          resumeData.sections.forEach((section: any) => {
+            appendText(section.title);
+            if (section.bullets && Array.isArray(section.bullets)) {
+              section.bullets
+                .filter((bullet: any) => bullet?.params?.visible !== false)
+                .forEach((bullet: any) => appendText(bullet?.text));
+            }
+          });
+        }
+        
+        const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+        
+        // Check which keywords are in resume
+        allKeywords.forEach((keyword) => {
+          const hasSpecialChars = /[\/\-_]/g.test(keyword);
+          const escaped = escapeRegExp(keyword);
+          const pattern = hasSpecialChars
+            ? new RegExp(escaped, 'i')
+            : new RegExp(`\\b${escaped}\\b`, 'i');
+          
+          if (pattern.test(resumeText)) {
+            matchedKeywords.push(keyword);
+          } else {
+            missingKeywords.push(keyword);
+          }
+        });
+      }
+      
+      // Fallback to matchResult if extension data is empty
+      if (allKeywords.length === 0 && matchResult?.match_analysis) {
+        const matchAnalysis = matchResult.match_analysis;
+        matchedKeywords.push(...(matchAnalysis.matching_keywords || []));
+        missingKeywords.push(...(matchAnalysis.missing_keywords || []));
+      }
+      
+      return {
         score: result.score,
-        matchedKeywords: result.matchedKeywords,
-        missingKeywords: result.missingKeywords,
-        totalKeywords: result.totalKeywords,
+        matchedKeywords: matchedKeywords,
+        missingKeywords: missingKeywords,
+        totalKeywords: matchedKeywords.length + missingKeywords.length,
         breakdown: result.breakdown,
         recommendations: result.recommendations,
         matchLevel: result.matchLevel,
