@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel
@@ -43,7 +43,7 @@ def get_user_from_request(
 class UsageLimitsResponse(BaseModel):
     plan_tier: str
     is_premium_mode: bool
-    limits: Dict[str, any]
+    limits: Dict[str, Any]
     trial_eligible: bool = False
     trial_active: bool = False
 
@@ -51,13 +51,13 @@ class UsageLimitsResponse(BaseModel):
 class UsageStatsResponse(BaseModel):
     plan_tier: str
     is_premium_mode: bool
-    features: Dict[str, any]
+    features: Dict[str, Any]
     trial_active: bool = False
 
 
 class TrialStartResponse(BaseModel):
     success: bool
-    trial: Optional[Dict[str, any]] = None
+    trial: Optional[Dict[str, Any]] = None
     message: str
 
 
