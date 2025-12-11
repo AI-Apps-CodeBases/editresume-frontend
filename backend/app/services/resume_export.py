@@ -77,6 +77,7 @@ def replace_cover_letter_placeholders(content: str, payload: ExportPayload) -> s
 async def export_pdf(
     payload: ExportPayload,
     user_email: Optional[str] = None,
+    session_id: Optional[str] = None,
     db: Optional[Session] = None,
 ) -> Response:
     """Export resume as PDF"""
@@ -419,17 +420,17 @@ async def export_pdf(
                 left_width_percent = payload.two_column_left_width or 50
                 logger.info(f"No templateConfig, using payload value: {left_width_percent}%")
             
-            gap_percent = 2
+            gap_percent = 1.5
             # Adjust right width to account for gap
             right_width_percent = 100 - left_width_percent - gap_percent
             logger.info(f"Final column widths: left={left_width_percent}%, right={right_width_percent}% (gap={gap_percent}%)")
 
             content_html = f"""
             {cover_letter_html}
-            <table class="two-column" style="width: 100%; border-collapse: collapse;">
+            <table class="two-column" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
                 <tr>
-                    <td class="column" style="width: {left_width_percent}%; padding-right: 1%; vertical-align: top;">{left_sections_html}</td>
-                    <td class="column" style="width: {right_width_percent}%; vertical-align: top;">{right_sections_html}</td>
+                    <td class="column" style="width: {left_width_percent}%; padding-right: {gap_percent}%; vertical-align: top; overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; box-sizing: border-box;">{left_sections_html}</td>
+                    <td class="column" style="width: {right_width_percent}%; vertical-align: top; overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; box-sizing: border-box;">{right_sections_html}</td>
                 </tr>
             </table>"""
         else:
@@ -508,7 +509,7 @@ async def export_pdf(
     <meta charset="utf-8">
     <style>
         @page {{ size: A4; margin: {page_margin_cm}; }}
-        body {{ margin: 0; padding: 0 0 0 0.3cm; width: 100%; font-family: {font_family}; font-size: {body_size}px; line-height: {line_height}; color: {text_color}; {'text-align: justify;' if is_cover_letter_only else ''} }}
+        body {{ margin: 0; padding: 0 0.1cm 0 0.1cm; width: 100%; font-family: {font_family}; font-size: {body_size}px; line-height: {line_height}; color: {text_color}; {'text-align: justify;' if is_cover_letter_only else ''} box-sizing: border-box; overflow-wrap: break-word; word-wrap: break-word; }}
         .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: {section_gap}px; }}
         .header h1 {{ margin: 0; font-size: {h1_size}px; font-weight: bold; color: {primary_color}; }}
         .header .title {{ font-size: {h2_size + 2}px; margin: 5px 0; color: {text_color}; }}
@@ -542,10 +543,17 @@ async def export_pdf(
         .two-column td.column {{
             vertical-align: top;
             padding: 0;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+            box-sizing: border-box;
         }}
         .two-column td.column:first-child {{
             padding-right: 1%;
         }}
+        .section {{ overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; }}
+        .summary {{ overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; }}
+        .job-entry {{ overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; }}
         .clearfix {{ clear: both; }}
         .cover-letter-section {{ margin-bottom: 20px; {'page-break-after: always;' if not is_cover_letter_only else ''} }}
         .cover-letter-section h2 {{ 
@@ -676,8 +684,9 @@ async def export_pdf(
 
                     # Create export analytics record
                     export_analytics = ExportAnalytics(
-                        user_id=user.id,
-                        resume_id=resume.id,
+                        user_id=user.id if user else None,
+                        session_id=session_id if not user else None,
+                        resume_id=resume.id if resume else None,
                         export_format="pdf",
                         template_used=template_id,
                         file_size=len(pdf_bytes),
@@ -726,6 +735,7 @@ async def export_pdf(
 async def export_docx(
     payload: ExportPayload,
     user_email: Optional[str] = None,
+    session_id: Optional[str] = None,
     db: Optional[Session] = None,
 ) -> Response:
     """Export resume as DOCX"""
@@ -1383,8 +1393,9 @@ async def export_docx(
 
                     # Create export analytics record
                     export_analytics = ExportAnalytics(
-                        user_id=user.id,
-                        resume_id=resume.id,
+                        user_id=user.id if user else None,
+                        session_id=session_id if not user else None,
+                        resume_id=resume.id if resume else None,
                         export_format="docx",
                         template_used=template_id,
                         file_size=len(docx_bytes),

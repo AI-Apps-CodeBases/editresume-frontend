@@ -19,6 +19,7 @@ class User(Base):
     password = Column(String, nullable=False)
     is_premium = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    trial_started_at = Column(DateTime, nullable=True, index=True)
     linkedin_token = Column(Text, nullable=True)
     linkedin_profile_url = Column(String, nullable=True)
     linkedin_id = Column(String, nullable=True)
@@ -32,6 +33,8 @@ class User(Base):
     resume_generations = relationship(
         "ResumeGeneration", back_populates="user", cascade="all, delete-orphan"
     )
+    ai_usage = relationship("AIUsage", back_populates="user")
+    trial_period = relationship("TrialPeriod", back_populates="user", uselist=False)
 
 
 __all__ = ["User"]

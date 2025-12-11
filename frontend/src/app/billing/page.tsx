@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
+import { useUsageTracking } from '@/hooks/useUsageTracking'
+import { useTrial } from '@/hooks/useTrial'
 import config from '@/lib/config'
 import { auth } from '@/lib/firebaseClient'
 
@@ -38,9 +40,11 @@ const plans: Plan[] = [
     headline: 'Great for getting started with structured resumes',
     features: [
       'Visual resume editor',
-      'Limited resume exports',
-      'Basic analytics dashboard',
-      'AI resume improvements (limited)'
+      '3 PDF/DOCX exports per month',
+      '5 AI improvements per session',
+      '10 grammar checks per day',
+      '1 ATS score per day',
+      '1 cover letter per month'
     ]
   },
   {
@@ -52,8 +56,13 @@ const plans: Plan[] = [
     features: [
       'Unlimited PDF/DOCX exports',
       'All premium templates',
-      'Job match analytics & ATS insights',
-      'Priority support and roadmap input'
+      'Unlimited AI improvements',
+      'Unlimited grammar checks',
+      'Unlimited ATS scoring',
+      'Unlimited cover letters',
+      'Job match analytics & insights',
+      'Version history & comparisons',
+      'Priority support'
     ],
     highlight: true
   }
@@ -61,10 +70,15 @@ const plans: Plan[] = [
 
 function BillingContent() {
   const { user, isAuthenticated } = useAuth()
+  const { usageStats, usageLimits, refreshUsage } = useUsageTracking()
+  const { trialStatus, startTrial, isTrialActive, daysRemaining, checkTrialEligibility } = useTrial()
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
+  const [trialEligible, setTrialEligible] = useState<boolean | null>(null)
+  const [startingTrial, setStartingTrial] = useState(false)
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
   const apiBase = config.apiBase
 
   const isPremium = subscription?.isPremium ?? false
@@ -117,7 +131,26 @@ function BillingContent() {
     fetchSubscription()
   }, [fetchSubscription])
 
-  const handleCheckout = async () => {
+  useEffect(() => {
+    if (isAuthenticated && !user?.isPremium && !isTrialActive) {
+      checkTrialEligibility().then(setTrialEligible)
+    }
+  }, [isAuthenticated, user?.isPremium, isTrialActive, checkTrialEligibility])
+
+  const handleStartTrial = async () => {
+    setStartingTrial(true)
+    const result = await startTrial()
+    if (result.success) {
+      await refreshUsage()
+      alert('Trial started! You now have 3 days of premium access.')
+      window.location.reload()
+    } else {
+      alert(result.message)
+    }
+    setStartingTrial(false)
+  }
+
+  const handleCheckout = async (period: 'monthly' | 'annual' = 'monthly') => {
     if (checkoutLoading) return
     const currentUser = auth.currentUser
     if (!currentUser) {
@@ -139,7 +172,8 @@ function BillingContent() {
         },
         body: JSON.stringify({
           successUrl: returnUrl,
-          cancelUrl: returnUrl
+          cancelUrl: returnUrl,
+          priceId: period === 'annual' ? 'price_annual' : undefined // You'll need to set up annual price in Stripe
         })
       })
 
@@ -161,6 +195,7 @@ function BillingContent() {
       setCheckoutLoading(false)
     }
   }
+
 
   const handleManageSubscription = async () => {
     if (portalLoading) return
@@ -227,6 +262,11 @@ function BillingContent() {
                 Renews on <span className="font-semibold text-text-primary">{nextBillingDate}</span>
               </span>
             )}
+            {isTrialActive && (
+              <span className="surface-pill bg-primary-50 text-primary-700">
+                Trial active — {daysRemaining} day{daysRemaining !== 1 ? 's' : ''} remaining
+              </span>
+            )}
           </div>
         </div>
         <div className="mt-8 flex flex-wrap gap-3 text-xs text-text-muted sm:text-sm">
@@ -248,9 +288,109 @@ function BillingContent() {
         </div>
       </div>
 
+      {trialEligible && !isPremium && !isTrialActive && (
+        <div className="mt-8 rounded-[28px] border-2 border-primary-200 bg-primary-50 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-primary-900">Start Your 3-Day Free Trial</h3>
+              <p className="mt-1 text-sm text-primary-700">
+                Get full premium access for 3 days. No credit card required.
+              </p>
+            </div>
+            <button
+              onClick={handleStartTrial}
+              disabled={startingTrial}
+              className="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {startingTrial ? 'Starting...' : 'Start Free Trial'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {usageStats && (
+        <div className="mt-8 rounded-[28px] border border-border-subtle bg-white p-8 shadow-[0_18px_32px_rgba(15,23,42,0.05)]">
+          <h3 className="text-lg font-semibold text-text-primary mb-4">Usage Statistics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {usageStats.exports && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Exports</span>
+                  <span className="text-sm text-gray-600">
+                    {usageStats.exports.current_usage} / {usageStats.exports.limit ?? '∞'}
+                  </span>
+                </div>
+                {usageStats.exports.limit && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-primary-600 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (usageStats.exports.current_usage / usageStats.exports.limit) * 100)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            {usageStats.features.improvement && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">AI Improvements</span>
+                  <span className="text-sm text-gray-600">
+                    {usageStats.features.improvement.current_usage} / {usageStats.features.improvement.limit ?? '∞'}
+                  </span>
+                </div>
+                {usageStats.features.improvement.limit && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-primary-600 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (usageStats.features.improvement.current_usage / usageStats.features.improvement.limit) * 100)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            {usageStats.features.grammar && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Grammar Checks</span>
+                  <span className="text-sm text-gray-600">
+                    {usageStats.features.grammar.current_usage} / {usageStats.features.grammar.limit ?? '∞'}
+                  </span>
+                </div>
+                {usageStats.features.grammar.limit && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-primary-600 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (usageStats.features.grammar.current_usage / usageStats.features.grammar.limit) * 100)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            {usageStats.features.ats && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">ATS Scores</span>
+                  <span className="text-sm text-gray-600">
+                    {usageStats.features.ats.current_usage} / {usageStats.features.ats.limit ?? '∞'}
+                  </span>
+                </div>
+                {usageStats.features.ats.limit && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-primary-600 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (usageStats.features.ats.current_usage / usageStats.features.ats.limit) * 100)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mt-12 grid gap-6 md:grid-cols-2">
         {plans.map((plan) => {
-          const isCurrent = (plan.id === 'premium' && isPremium) || (plan.id === 'free' && !isPremium)
+          const isCurrent = (plan.id === 'premium' && (isPremium || isTrialActive)) || (plan.id === 'free' && !isPremium && !isTrialActive)
           return (
             <div
               key={plan.id}
@@ -265,9 +405,40 @@ function BillingContent() {
               )}
               <h2 className="text-xl font-semibold text-text-primary">{plan.name}</h2>
               <p className="mt-2 text-sm text-text-muted">{plan.headline}</p>
+              {plan.id === 'premium' && (
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={() => setBillingPeriod('monthly')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      billingPeriod === 'monthly'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setBillingPeriod('annual')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      billingPeriod === 'annual'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Annual
+                  </button>
+                </div>
+              )}
               <div className="mt-6 flex items-baseline gap-2">
-                <span className="text-4xl font-semibold text-text-primary">{plan.price}</span>
-                <span className="text-sm text-text-muted">{plan.cadence}</span>
+                <span className="text-4xl font-semibold text-text-primary">
+                  {plan.id === 'premium' && billingPeriod === 'annual' ? '$79' : plan.price}
+                </span>
+                <span className="text-sm text-text-muted">
+                  {plan.id === 'premium' && billingPeriod === 'annual' ? 'per year' : plan.cadence}
+                </span>
+                {plan.id === 'premium' && billingPeriod === 'annual' && (
+                  <span className="text-xs text-green-600 font-medium">Save $40</span>
+                )}
               </div>
               <ul className="mt-6 space-y-3 text-sm text-text-muted">
                 {plan.features.map((feature) => (
@@ -279,21 +450,21 @@ function BillingContent() {
               </ul>
               <div className="mt-8 flex flex-col gap-3">
                 {plan.id === 'premium' ? (
-                  isPremium ? (
+                  isPremium || isTrialActive ? (
                     <button
                       onClick={handleManageSubscription}
-                      disabled={portalLoading}
+                      disabled={portalLoading || isTrialActive}
                       className="button-secondary justify-center disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {portalLoading ? 'Opening portal…' : 'Manage subscription'}
+                      {portalLoading ? 'Opening portal…' : isTrialActive ? 'Trial Active' : 'Manage subscription'}
                     </button>
                   ) : (
                     <button
-                      onClick={handleCheckout}
+                      onClick={() => handleCheckout(billingPeriod)}
                       disabled={checkoutLoading}
                       className="button-primary justify-center disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {checkoutLoading ? 'Starting checkout…' : 'Upgrade to Premium'}
+                      {checkoutLoading ? 'Starting checkout…' : `Upgrade to Premium (${billingPeriod === 'annual' ? '$79/year' : '$9.99/month'})`}
                     </button>
                   )
                 ) : (

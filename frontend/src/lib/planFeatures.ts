@@ -1,6 +1,6 @@
 'use client'
 
-export type PlanTier = 'free' | 'premium'
+export type PlanTier = 'guest' | 'free' | 'trial' | 'premium'
 
 export type FeatureFlag =
   | 'aiTools'
@@ -19,18 +19,46 @@ interface PlanDefinition {
 }
 
 export const planFeatures: Record<PlanTier, PlanDefinition> = {
-  free: {
-    label: 'Free',
-    description: 'Core resume builder essentials.',
+  guest: {
+    label: 'Guest',
+    description: 'Basic editor access without sign-up.',
     features: {
       aiTools: false,
       atsEnhancements: false,
       collaboration: false,
       jobAnalytics: false,
       versionHistory: false,
+      shareLinks: false,
+      multiResume: false,
+      priorityExport: false
+    }
+  },
+  free: {
+    label: 'Free',
+    description: 'Core resume builder with limited AI features.',
+    features: {
+      aiTools: true,  // Limited (5/session)
+      atsEnhancements: false,  // Basic only (1/day)
+      collaboration: false,
+      jobAnalytics: false,
+      versionHistory: false,  // Limited (1 resume)
       shareLinks: true,
       multiResume: false,
       priorityExport: false
+    }
+  },
+  trial: {
+    label: 'Trial',
+    description: '3-day free trial with full premium access.',
+    features: {
+      aiTools: true,
+      atsEnhancements: true,
+      collaboration: true,
+      jobAnalytics: true,
+      versionHistory: true,
+      shareLinks: true,
+      multiResume: true,
+      priorityExport: true
     }
   },
   premium: {
@@ -63,6 +91,14 @@ export const FEATURE_LABELS: Record<FeatureFlag, string> = {
 }
 
 export const isFeatureEnabledForPlan = (plan: PlanTier, feature: FeatureFlag): boolean => {
+  // Check if premium mode is enabled
+  const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
+  
+  // If premium mode is disabled, all features are enabled
+  if (!premiumMode) {
+    return true
+  }
+  
   return Boolean(planFeatures[plan]?.features?.[feature])
 }
 

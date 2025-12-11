@@ -1,6 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
-
+import { useUsageTracking } from '@/hooks/useUsageTracking'
+import { useAuth } from '@/contexts/AuthContext'
+import { getOrCreateGuestSessionId } from '@/lib/guestAuth'
+import UpgradePrompt from '@/components/Shared/UpgradePrompt'
 import config from '@/lib/config';
 interface ResumeData {
   name: string
@@ -58,20 +61,51 @@ export default function AIImprovementWidget({
   industry, 
   onClose 
 }: Props) {
+  const { user, isAuthenticated } = useAuth()
+  const { checkFeatureAvailability, refreshUsage } = useUsageTracking()
   const [isLoading, setIsLoading] = useState(false)
   const [improvementResult, setImprovementResult] = useState<ImprovementResult | null>(null)
   const [selectedPriority, setSelectedPriority] = useState<'all' | 'high' | 'medium' | 'low'>('all')
   const [selectedImprovement, setSelectedImprovement] = useState<ImprovementSuggestion | null>(null)
   const [isApplyingImprovement, setIsApplyingImprovement] = useState(false)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
+  const [upgradePromptData, setUpgradePromptData] = useState<{
+    currentUsage: number
+    limit: number | null
+    period: string
+  } | null>(null)
 
   const getImprovementSuggestions = async () => {
+    // Check usage limit first
+    const availability = checkFeatureAvailability('improvement')
+    if (!availability.allowed) {
+      setUpgradePromptData({
+        currentUsage: availability.currentUsage,
+        limit: availability.limit,
+        period: availability.period,
+      })
+      setShowUpgradePrompt(true)
+      return
+    }
+
     setIsLoading(true)
     try {
-      const response = await fetch(`${config.apiBase}/api/ai/improvement_suggestions`, {
+      const sessionId = !isAuthenticated ? getOrCreateGuestSessionId() : undefined
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (isAuthenticated) {
+        const { auth } = await import('@/lib/firebaseClient')
+        const token = await auth.currentUser?.getIdToken()
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+      }
+
+      const response = await fetch(`${config.apiBase}/api/ai/improvement_suggestions${sessionId ? `?session_id=${sessionId}` : ''}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           resume_data: {
             name: resumeData.name || '',
@@ -96,9 +130,25 @@ export default function AIImprovementWidget({
         }),
       })
 
+      if (response.status === 429) {
+        const errorData = await response.json()
+        setUpgradePromptData({
+          currentUsage: errorData.detail?.usage_info?.current_usage || 0,
+          limit: errorData.detail?.usage_info?.limit || null,
+          period: errorData.detail?.usage_info?.period || 'session',
+        })
+        setShowUpgradePrompt(true)
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to get improvement suggestions')
+      }
+
       const result = await response.json()
       console.log('AI Improvement Result:', result)
       setImprovementResult(result)
+      await refreshUsage()
     } catch (error) {
       console.error('AI improvement suggestions error:', error)
       setImprovementResult({
@@ -432,6 +482,21 @@ export default function AIImprovementWidget({
           )}
         </div>
       </div>
+
+      {/* Upgrade Prompt */}
+      {showUpgradePrompt && upgradePromptData && (
+        <UpgradePrompt
+          isOpen={showUpgradePrompt}
+          onClose={() => {
+            setShowUpgradePrompt(false)
+            setUpgradePromptData(null)
+          }}
+          featureType="improvement"
+          currentUsage={upgradePromptData.currentUsage}
+          limit={upgradePromptData.limit}
+          period={upgradePromptData.period}
+        />
+      )}
 
       {/* AI Prompt Modal */}
       {selectedImprovement && (
