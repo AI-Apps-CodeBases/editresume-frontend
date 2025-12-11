@@ -7,7 +7,7 @@ interface AutoGenerateButtonProps {
 
 export function AutoGenerateButton({
   onClick,
-  label = '🎯 Generate Resume from Job',
+  label = 'Tailor to JD',
 }: AutoGenerateButtonProps) {
   return (
     <button

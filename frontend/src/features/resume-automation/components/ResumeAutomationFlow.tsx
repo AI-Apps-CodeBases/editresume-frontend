@@ -1,30 +1,18 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { useSavedJobs } from '@/features/jobs/hooks/useSavedJobs'
 import { SavedJobsList } from '@/features/jobs/components/SavedJobsList'
 import { AutoGenerateButton } from './AutoGenerateButton'
 import { JobSelectionModal } from './JobSelectionModal'
 import { ResumeSelectionModal } from './ResumeSelectionModal'
 import { GenerationProgress } from './GenerationProgress'
 import { GeneratedResumePreview } from './GeneratedResumePreview'
+import { TailoredResumeReview } from './TailoredResumeReview'
 import { ATSScoreCard } from './ATSScoreCard'
 import { OptimizationSuggestions } from './OptimizationSuggestions'
-import { useResumeGeneration } from '../hooks/useResumeGeneration'
-import { fetchUserResumes } from '../api/resumeAutomation'
-import type { AutoGenerateResponse } from '../types'
-
-interface ResumeOption {
-  id: number
-  name: string
-  title?: string | null
-  summary?: string | null
-  updated_at?: string | null
-}
-
-type Stage = 'idle' | 'progress' | 'completed'
+import { useTailorAutomationState } from '../hooks/useTailorAutomationState'
 
 interface ResumeAutomationFlowProps {
   openSignal?: number
@@ -38,183 +26,64 @@ export function ResumeAutomationFlow({
   hideHeader = false,
 }: ResumeAutomationFlowProps) {
   const router = useRouter()
-  const [stage, setStage] = useState<Stage>('idle')
-  const [jobModalOpen, setJobModalOpen] = useState(false)
-  const [resumeModalOpen, setResumeModalOpen] = useState(false)
-  const [selectedJob, setSelectedJob] = useState<number | null>(null)
-  const [selectedJobTitle, setSelectedJobTitle] = useState<string>('')
-  const [selectedJobDescription, setSelectedJobDescription] = useState<string>('')
-  const [resumeOptions, setResumeOptions] = useState<ResumeOption[]>([])
-  const [resumeLoading, setResumeLoading] = useState(false)
-  const [resumeError, setResumeError] = useState<string | null>(null)
-  const [generationResult, setGenerationResult] = useState<AutoGenerateResponse | null>(null)
+  const {
+    stage,
+    jobModalOpen,
+    resumeModalOpen,
+    selectedJob,
+    selectedJobTitle,
+    selectedJobDescription,
+    resumeOptions,
+    resumeLoading,
+    resumeError,
+    generationResult,
+    jobs,
+    jobsLoading,
+    jobsError,
+    openJobModal,
+    setJobModalOpen,
+    setResumeModalOpen,
+    loadResumes,
+    refreshJobs,
+    handleCreateJob,
+    handleExtractKeywords,
+    handleJobSelected,
+    handleResumeConfirm,
+    handleOpenEditor,
+    handleParseResumeText,
+    handleParseResumeFile,
+    handleRequestResumeUpload,
+    handleRequestJobParse,
+    generation,
+  } = useTailorAutomationState({ openSignal, router })
 
-  const generation = useResumeGeneration()
-  const { jobs, loading: jobsLoading, error: jobsError, refresh: refreshJobs } = useSavedJobs()
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const [showReview, setShowReview] = useState(false)
 
-  const openJobModal = useCallback(() => {
-    setSelectedJob(null)
-    setSelectedJobTitle('')
-    setGenerationResult(null)
-    generation.reset()
-    setStage('idle')
-    setJobModalOpen(true)
-  }, [generation])
-
-  const previousSignalRef = useRef<number | undefined>(undefined)
-
+  // Reset review when new generation starts
   useEffect(() => {
-    if (typeof openSignal === 'number' && openSignal !== previousSignalRef.current) {
-      previousSignalRef.current = openSignal
-      openJobModal()
+    if (stage === 'progress' || stage === 'idle') {
+      setShowReview(false)
     }
-  }, [openSignal, openJobModal])
-
-  const cleanupTimers = () => {
-    timersRef.current.forEach((timer) => clearTimeout(timer))
-    timersRef.current = []
-  }
-
-  const loadResumes = useCallback(async () => {
-    setResumeLoading(true)
-    setResumeError(null)
-    try {
-      const list = await fetchUserResumes()
-      setResumeOptions(list)
-    } catch (error) {
-      setResumeError(error instanceof Error ? error.message : 'Failed to load resumes')
-    } finally {
-      setResumeLoading(false)
-    }
-  }, [])
-
-  useEffect(() => cleanupTimers, [])
-
-  const handleJobSelected = useCallback(
-    (job: { id: number; title: string; description?: string }) => {
-      setSelectedJob(job.id)
-      setSelectedJobTitle(job.title)
-      setSelectedJobDescription(job.description || '')
-      setJobModalOpen(false)
-      setResumeModalOpen(true)
-      void loadResumes()
-    },
-    [loadResumes]
-  )
-
-  const handleResumeConfirm = useCallback(
-    async (resumeIds: number[]) => {
-      if (!selectedJob) {
-        setGenerationResult(null)
-        setStage('idle')
-        return
-      }
-      const safeIds = resumeIds.map((id) => Number(id)).filter((id) => Number.isInteger(id))
-      if (safeIds.length === 0) {
-        setGenerationResult(null)
-        setStage('idle')
-        return
-      }
-      setResumeModalOpen(false)
-      setStage('progress')
-      generation.reset()
-
-      // Simulated step progression for UX feedback
-      cleanupTimers()
-      const scheduleStep = (stepId: string, delay: number) => {
-        const timer = setTimeout(() => {
-          generation.advanceStep(stepId)
-        }, delay)
-        timersRef.current.push(timer)
-      }
-      scheduleStep('evaluate-resumes', 600)
-      scheduleStep('optimize-content', 1400)
-      scheduleStep('calculate-score', 2200)
-
-      try {
-        const result = await generation.generate({
-          jobId: selectedJob,
-          sourceResumeIds: safeIds,
-        })
-        cleanupTimers()
-        setGenerationResult(result)
-        setStage('completed')
-        try {
-          localStorage.setItem(
-            'autoGeneratedATS',
-            JSON.stringify({
-              atsScore: result.ats_score,
-              insights: result.insights,
-              generatedAt: new Date().toISOString(),
-            })
-          )
-        } catch {
-          // ignore storage errors
-        }
-      } catch {
-        cleanupTimers()
-        setStage('idle')
-        setGenerationResult(null)
-      }
-    },
-    [generation, selectedJob]
-  )
-
-  const handleOpenEditor = useCallback(() => {
-    if (!generationResult) {
-      console.error('Cannot open editor: generationResult is null')
-      alert('Resume generation result is missing. Please try generating again.')
-      return
-    }
-
-    try {
-      const resumeId = generationResult.resume.id
-      const versionId = generationResult.version.id
-
-      if (!resumeId || !versionId) {
-        console.error('Missing resume ID or version ID', { resumeId, versionId })
-        alert('Missing resume information. Please try generating again.')
-        return
-      }
-
-      const params = new URLSearchParams({
-        resumeId: String(resumeId),
-        resumeVersionId: String(versionId),
-        autoGenerated: '1',
-      })
-
-      if (selectedJob) {
-        params.set('jdId', String(selectedJob))
-        if (selectedJobDescription && typeof window !== 'undefined') {
-          localStorage.setItem('deepLinkedJD', selectedJobDescription)
-          localStorage.setItem('activeJobDescriptionId', String(selectedJob))
-        }
-      }
-
-      const url = `/editor?${params.toString()}`
-
-      try {
-        router.push(url)
-      } catch (error) {
-        console.error('Router push failed, using window.location:', error)
-        window.location.href = url
-      }
-    } catch (error) {
-      console.error('Error opening editor:', error)
-      alert(`Failed to open editor: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }, [generationResult, router, selectedJob, selectedJobDescription])
+  }, [stage])
 
   const summaryCard = useMemo(() => {
     if (!generationResult) return null
+    if (showReview) {
+      return (
+        <TailoredResumeReview
+          result={generationResult}
+          onOpenEditor={handleOpenEditor}
+          onBack={() => setShowReview(false)}
+        />
+      )
+    }
     return (
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <GeneratedResumePreview
           resume={generationResult.resume}
           atsScore={generationResult.ats_score}
           insights={generationResult.insights}
-          onOpenEditor={handleOpenEditor}
+          onOpenEditor={() => setShowReview(true)}
         />
         <div className="space-y-6">
           <ATSScoreCard score={generationResult.ats_score} />
@@ -222,17 +91,7 @@ export function ResumeAutomationFlow({
         </div>
       </div>
     )
-  }, [generationResult, handleOpenEditor])
-
-  const handleRequestResumeUpload = useCallback(() => {
-    setResumeModalOpen(false)
-    router.push('/editor?upload=true&source=resume-automation')
-  }, [router])
-
-  const handleRequestJobParse = useCallback(() => {
-    setJobModalOpen(false)
-    router.push('/editor?view=jobs&source=resume-automation')
-  }, [router])
+  }, [generationResult, handleOpenEditor, showReview])
 
   return (
     <div className="space-y-8">
@@ -243,19 +102,17 @@ export function ResumeAutomationFlow({
               Automation
             </p>
             <h2 className="text-lg font-semibold text-slate-900">
-              Generate an optimized resume for a saved job
+              Tailor your resume to a JD
             </h2>
             <p className="text-sm text-slate-500">
-              We analyze your saved resumes, combine their strongest sections, and tune everything for ATS.
+              Compare JD keywords, patch gaps, and boost ATS before exporting or editing further.
             </p>
           </div>
           <AutoGenerateButton onClick={openJobModal} />
         </div>
       )}
 
-      {stage === 'progress' && (
-        <GenerationProgress steps={generation.steps} />
-      )}
+      {stage === 'progress' && <GenerationProgress steps={generation.steps} />}
 
       {stage === 'completed' && summaryCard}
 
@@ -297,6 +154,9 @@ export function ResumeAutomationFlow({
         onSelect={handleJobSelected}
         onRefresh={refreshJobs}
         onAddJob={handleRequestJobParse}
+        allowManualEntry
+        onCreateJob={handleCreateJob}
+        onExtractKeywords={handleExtractKeywords}
       />
 
       <ResumeSelectionModal
@@ -308,14 +168,17 @@ export function ResumeAutomationFlow({
         onConfirm={handleResumeConfirm}
         onRefresh={loadResumes}
         onUploadResume={handleRequestResumeUpload}
+        allowParsing
+        onParseResumeText={handleParseResumeText}
+        onParseResumeFile={handleParseResumeFile}
       />
 
       {selectedJob && stage !== 'completed' && (
         <div className="text-xs text-slate-400">
           Target job: {selectedJobTitle}
+          {selectedJobDescription ? ' — keywords loaded for tailoring' : ''}
         </div>
       )}
     </div>
   )
 }
-

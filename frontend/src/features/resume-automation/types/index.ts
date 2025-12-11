@@ -3,6 +3,29 @@ export interface AutoGenerateRequest {
   sourceResumeIds: number[]
 }
 
+export interface ParsedBullet {
+  id?: string
+  text: string
+  params?: Record<string, unknown>
+}
+
+export interface ParsedSection {
+  id?: string
+  title: string
+  bullets?: ParsedBullet[]
+}
+
+export interface ParsedResumeData {
+  name?: string | null
+  title?: string | null
+  email?: string | null
+  phone?: string | null
+  location?: string | null
+  summary?: string | null
+  template?: string | null
+  sections?: ParsedSection[]
+}
+
 export interface GeneratedResume {
   id: number
   name?: string | null
@@ -62,6 +85,15 @@ export interface GenerationStatusStep {
   label: string
   description: string
   state: 'pending' | 'active' | 'complete'
+}
+
+export interface ExtractedJobKeywords {
+  high_priority_keywords?: string[]
+  high_intensity_keywords?: string[]
+  high_frequency_keywords?: string[]
+  priority_keywords?: string[]
+  technical_keywords?: string[]
+  soft_skills?: string[]
 }
 
 

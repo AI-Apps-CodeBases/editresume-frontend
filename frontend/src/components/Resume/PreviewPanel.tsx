@@ -1,5 +1,7 @@
 'use client'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, Suspense } from 'react'
+import { templateRegistry } from '@/features/resume/templates'
+import type { TemplateConfig } from '@/features/resume/templates/types'
 
 interface ResumeData {
   name: string
@@ -394,13 +396,16 @@ export default function PreviewPanel({
                     fonts.body || 
                     (template === 'clean' || template === 'classic' ? 'serif' : 'sans-serif')
   const headingSize = templateConfig?.typography?.fontSize?.h1 || fonts.size?.heading || 18
+  const sectionTitleSize = templateConfig?.typography?.fontSize?.h2 || headingSize * 0.75
   const bodySize = templateConfig?.typography?.fontSize?.body || fonts.size?.body || 12
+  const lineHeight = templateConfig?.typography?.lineHeight || 1.5
   const primaryColor = templateConfig?.design?.colors?.primary || colors.primary || '#000000'
   const secondaryColor = templateConfig?.design?.colors?.secondary || colors.secondary || '#000000'
   const accentColor = templateConfig?.design?.colors?.accent || colors.accent || '#000000'
   const textColor = templateConfig?.design?.colors?.text || colors.text || '#000000'
   const sectionSpacing = templateConfig?.spacing?.sectionGap || spacing.section || 16
   const bulletSpacing = templateConfig?.spacing?.itemGap || spacing.bullet || 8
+  const pageMargin = templateConfig?.spacing?.pageMargin || 24
   
   // Get bullet style from templateConfig
   const bulletStyle = templateConfig?.design?.bulletStyle || 'circle'
@@ -411,6 +416,38 @@ export default function PreviewPanel({
     none: ''
   }
   const bulletSymbol = bulletSymbols[bulletStyle] || '•'
+
+  // Use new template components if templateConfig is provided and template is in registry
+  const templateEntry = templateConfig ? templateRegistry.find(t => t.id === template) : null
+  const shouldUseNewTemplate = templateEntry && templateConfig
+
+  // If using new template system, render with template component
+  if (shouldUseNewTemplate) {
+    const TemplateComponent = templateEntry.Component
+    const config = templateConfig as TemplateConfig
+    
+    return (
+      <div className={`a4-pages-container${constrained ? ' constrained' : ''}`}>
+        <div 
+          className="a4-page-view" 
+          style={{ 
+            position: 'relative', 
+            minHeight: 'auto',
+            padding: `${pageMargin * 0.5}px`
+          }}
+        >
+          <div className="page-number">Page 1</div>
+          <Suspense fallback={<div className="p-4 text-center text-gray-400">Loading template...</div>}>
+            <TemplateComponent
+              data={data}
+              config={config}
+              replacements={replacements}
+            />
+          </Suspense>
+        </div>
+      </div>
+    )
+  }
 
   const renderBullets = (bullets: any[], sectionTitle: string) => {
     // Safety check: ensure bullets is an array
@@ -591,6 +628,7 @@ export default function PreviewPanel({
               style={{ 
                 fontFamily: bodyFont,
                 fontSize: `${bodySize}px`,
+                lineHeight: lineHeight,
                 color: textColor,
                 marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`,
                 maxWidth: '100%',
@@ -843,6 +881,7 @@ export default function PreviewPanel({
       style={{
         fontFamily: bodyFont,
         color: textColor,
+        padding: `${pageMargin * 0.5}px`,
         '--primary-color': primaryColor,
         '--secondary-color': secondaryColor,
         '--accent-color': accentColor,
@@ -956,9 +995,9 @@ export default function PreviewPanel({
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
                     style={{ 
                       fontFamily: headingFont,
-                      fontSize: `${headingSize}px`,
+                      fontSize: `${sectionTitleSize}px`,
                       color: primaryColor,
-                      borderColor: primaryColor,
+                      borderColor: accentColor,
                       marginBottom: `${sectionSpacing}px`
                     }}
                   >
@@ -969,6 +1008,7 @@ export default function PreviewPanel({
                     style={{ 
                       fontFamily: bodyFont,
                       fontSize: `${bodySize}px`,
+                      lineHeight: lineHeight,
                       color: textColor
                     }}
                   >
@@ -985,9 +1025,9 @@ export default function PreviewPanel({
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
                     style={{ 
                       fontFamily: headingFont,
-                      fontSize: `${headingSize}px`,
+                      fontSize: `${sectionTitleSize}px`,
                       color: primaryColor,
-                      borderColor: primaryColor,
+                      borderColor: accentColor,
                       marginBottom: `${sectionSpacing}px`
                     }}
                   >
@@ -1013,9 +1053,9 @@ export default function PreviewPanel({
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
                     style={{ 
                       fontFamily: headingFont,
-                      fontSize: `${headingSize}px`,
+                      fontSize: `${sectionTitleSize}px`,
                       color: primaryColor,
-                      borderColor: primaryColor,
+                      borderColor: accentColor,
                       marginBottom: `${sectionSpacing}px`
                     }}
                   >
@@ -1026,6 +1066,7 @@ export default function PreviewPanel({
                     style={{ 
                       fontFamily: bodyFont,
                       fontSize: `${bodySize}px`,
+                      lineHeight: lineHeight,
                       color: textColor
                     }}
                   >
@@ -1042,9 +1083,9 @@ export default function PreviewPanel({
                     className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${getBorderClass()} pb-1 mb-3`}
                     style={{ 
                       fontFamily: headingFont,
-                      fontSize: `${headingSize}px`,
+                      fontSize: `${sectionTitleSize}px`,
                       color: primaryColor,
-                      borderColor: primaryColor,
+                      borderColor: accentColor,
                       marginBottom: `${sectionSpacing}px`
                     }}
                   >
@@ -1070,9 +1111,9 @@ export default function PreviewPanel({
                         className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
                         style={{ 
                           fontFamily: headingFont,
-                          fontSize: `${headingSize}px`,
+                          fontSize: `${sectionTitleSize}px`,
                           color: primaryColor,
-                          borderColor: primaryColor,
+                          borderColor: accentColor,
                           marginBottom: `${sectionSpacing}px`
                         }}
                       >
@@ -1083,6 +1124,7 @@ export default function PreviewPanel({
                         style={{ 
                           fontFamily: bodyFont,
                           fontSize: `${bodySize}px`,
+                          lineHeight: lineHeight,
                           color: textColor
                         }}
                       >
@@ -1097,9 +1139,9 @@ export default function PreviewPanel({
                         className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
                         style={{ 
                           fontFamily: headingFont,
-                          fontSize: `${headingSize}px`,
+                          fontSize: `${sectionTitleSize}px`,
                           color: primaryColor,
-                          borderColor: primaryColor,
+                          borderColor: accentColor,
                           marginBottom: `${sectionSpacing}px`
                         }}
                       >
@@ -1115,9 +1157,9 @@ export default function PreviewPanel({
                         className={`text-lg font-bold ${sectionUppercase ? 'uppercase' : ''} tracking-wide border-b ${template === 'clean' ? 'border-black' : 'border-gray-300'} pb-1 mb-3`}
                         style={{ 
                           fontFamily: headingFont,
-                          fontSize: `${headingSize}px`,
+                          fontSize: `${sectionTitleSize}px`,
                           color: primaryColor,
-                          borderColor: primaryColor,
+                          borderColor: accentColor,
                           marginBottom: `${sectionSpacing}px`
                         }}
                       >
@@ -1128,6 +1170,7 @@ export default function PreviewPanel({
                         style={{ 
                           fontFamily: bodyFont,
                           fontSize: `${bodySize}px`,
+                          lineHeight: lineHeight,
                           color: textColor
                         }}
                       >

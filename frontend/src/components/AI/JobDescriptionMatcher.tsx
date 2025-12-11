@@ -7,6 +7,7 @@ import { shouldPromptAuthentication } from '@/lib/guestAuth';
 import { useModal } from '@/contexts/ModalContext';
 import { getAuthHeaders } from '@/lib/auth';
 import Tooltip from '@/components/Shared/Tooltip';
+import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -1011,205 +1012,6 @@ const transformSavedKeywords = (savedKeywords: any) => {
   return transformed;
 };
 
-const deriveJobMetadataFromText = (text: string): JobMetadata | null => {
-  if (!text?.trim()) return null;
-  const normalized = text.replace(/\r\n?/g, '\n');
-  const lines = normalized.split('\n').map((line) => line.trim()).filter(Boolean);
-
-  const metadata: JobMetadata = {};
-  const assignTitleFromCandidate = (candidate?: string | null) => {
-    if (!candidate) return false;
-    const cleaned = extractJobTitleFromSentence(candidate);
-    if (cleaned) {
-      metadata.title = cleaned;
-      return true;
-    }
-    return false;
-  };
-
-  // Try to extract title from common patterns first
-  let titleFromLabel = extractLineValue([
-    /(?:position|job title|title|role)\s*[:\-]\s*([^\n]+)/i,
-    /(?:hiring|seeking|looking for)\s+(?:a|an)?\s*([A-Z][^\n]{3,80})/i,
-  ], normalized);
-
-  if (titleFromLabel && GENERIC_HEADINGS.has(titleFromLabel.toLowerCase())) {
-    titleFromLabel = null;
-  }
-
-  if (titleFromLabel) {
-    assignTitleFromCandidate(titleFromLabel);
-  }
-
-  const companyFromLabel = extractLineValue([
-    /(?:company|employer|organization)\s*[:\-]\s*([^\n]+)/i,
-    /(?:at|@)\s*([A-Z][\w\s&.,'-]{2,70})/i,
-  ], normalized);
-
-  // Look for title patterns in the first few lines
-  // Common pattern: "Senior Dev Ops Engineer" or "Senior DevOps Engineer" at start
-  if (!metadata.title && lines.length > 0) {
-    // Check first 10 lines for title-like patterns (in case there are logos/headers)
-    for (let i = 0; i < Math.min(10, lines.length); i++) {
-      const line = lines[i];
-      if (!line || line.length < 5) continue;
-      
-      // Skip generic headings and common non-title lines
-      const lineLower = line.toLowerCase();
-      if (GENERIC_HEADINGS.has(lineLower)) continue;
-      if (/^(logo|show more|apply|save|reposted|people|company|alumni)/i.test(line)) continue;
-      if (/^\$[\d,]+/i.test(line)) continue; // Skip salary lines
-      if (/^\d+\s*(days?|hours?|weeks?|months?)\s+ago/i.test(line)) continue; // Skip time stamps
-      
-      // Pattern 1: Senior/Lead/etc + Tech words (Dev Ops, DevOps, etc.) + Engineer/Developer/etc
-      // This catches "Senior Dev Ops Engineer", "Senior DevOps Engineer", etc.
-      const seniorTitlePattern = /^(Senior|Lead|Principal|Staff|Junior|Mid-level|Mid|Entry-level|Entry|Associate|Assistant)\s+([A-Z][A-Za-z\s/&-]{2,80}(?:Engineer|Developer|Architect|Manager|Analyst|Specialist|Consultant|Designer|Scientist|Administrator|Coordinator|Director|Executive|Officer|Representative|Technician|Technologist|Advisor|Strategist|Planner|Supervisor|Head|Chief|VP|Vice President|President|CEO|CTO|CFO|COO))(?:\s+at\s+[A-Z][^\n]*)?$/i;
-      const seniorMatch = line.match(seniorTitlePattern);
-      if (seniorMatch) {
-        const fullTitle = seniorMatch[0].replace(/\s+at\s+.*$/i, '').trim();
-        if (assignTitleFromCandidate(fullTitle)) {
-          break;
-        }
-      }
-      
-      // Pattern 2: Direct job title with Engineer/Developer/etc (without senior/lead prefix)
-      const directTitlePattern = /^([A-Z][A-Za-z\s/&-]{3,80}(?:Engineer|Developer|Architect|Manager|Analyst|Specialist|Consultant|Designer|Scientist|Administrator|Coordinator|Director|Executive|Officer|Representative|Associate|Assistant|Technician|Technologist|Advisor|Strategist|Planner|Coordinator|Supervisor|Lead|Head|Chief|VP|Vice President|President|CEO|CTO|CFO|COO))(?:\s+at\s+[A-Z][^\n]*)?$/i;
-      const directMatch = line.match(directTitlePattern);
-      if (directMatch) {
-        const fullTitle = directMatch[1].trim();
-        // Make sure it's not just a single word
-        if (fullTitle.split(/\s+/).length >= 2) {
-          if (assignTitleFromCandidate(fullTitle)) {
-            break;
-          }
-        }
-      }
-      
-      // Pattern 3: Look for lines that start with capital words and contain job-related terms
-      // This catches titles like "Dev Ops Engineer" even if not at the very start
-      if (/^[A-Z][a-z]+(\s+[A-Z][a-z]+)+\s+(Engineer|Developer|Architect|Manager|Analyst|Specialist|Consultant|Designer|Scientist|Administrator|Coordinator|Director|Executive|Officer|Representative|Associate|Assistant|Technician|Technologist|Advisor|Strategist|Planner|Coordinator|Supervisor|Lead|Head|Chief)/i.test(line)) {
-        const words = line.split(/\s+/);
-        // Find where the job type word starts (Engineer, Developer, etc.)
-        let jobTypeIndex = -1;
-        for (let j = 0; j < words.length; j++) {
-          if (/^(Engineer|Developer|Architect|Manager|Analyst|Specialist|Consultant|Designer|Scientist|Administrator|Coordinator|Director|Executive|Officer|Representative|Associate|Assistant|Technician|Technologist|Advisor|Strategist|Planner|Coordinator|Supervisor|Lead|Head|Chief)/i.test(words[j])) {
-            jobTypeIndex = j;
-            break;
-          }
-        }
-        if (jobTypeIndex > 0 && jobTypeIndex < words.length) {
-          const titleCandidate = words.slice(0, jobTypeIndex + 1).join(' ').replace(/\s+at\s+.*$/i, '').trim();
-          if (titleCandidate.length >= 5 && titleCandidate.length <= 80) {
-            if (assignTitleFromCandidate(titleCandidate)) {
-              break;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Fallback: try first line if no title found yet
-  if (!metadata.title && lines.length > 0) {
-    const firstLine = lines[0];
-    const titleCompanyMatch = firstLine.match(/^([^@\-•]{3,120}?)(?:\s+(?:at|@)\s+(.+))?$/i);
-    if (titleCompanyMatch) {
-      const [, possibleTitle, possibleCompany] = titleCompanyMatch;
-      if (possibleTitle?.trim()) {
-        const normalizedTitle = possibleTitle.trim();
-        if (!GENERIC_HEADINGS.has(normalizedTitle.toLowerCase())) {
-          assignTitleFromCandidate(normalizedTitle);
-        }
-      }
-      if (!metadata.company && !companyFromLabel && possibleCompany?.trim()) {
-        metadata.company = possibleCompany.trim();
-      }
-    } else {
-      if (!GENERIC_HEADINGS.has(firstLine.toLowerCase())) {
-        assignTitleFromCandidate(firstLine);
-      }
-    }
-  }
-
-  if (!metadata.title && titleFromLabel) {
-    const cleanedLabelTitle = extractJobTitleFromSentence(titleFromLabel) || titleFromLabel;
-    if (cleanedLabelTitle && !GENERIC_HEADINGS.has(cleanedLabelTitle.toLowerCase())) {
-      metadata.title = cleanedLabelTitle;
-    }
-  }
-  if (companyFromLabel) {
-    metadata.company = companyFromLabel;
-  }
-
-  const locationFromLabel = extractLineValue([
-    /(?:location|based in|located|city|office location)\s*[:\-]\s*([^\n]+)/i,
-    /(?:location)\s*\|\s*([^\n]+)/i,
-    // Pattern for "City, State" format (e.g., "Atlanta, GA")
-    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})\b/i,
-  ], normalized);
-  
-  // Check if the extracted location is actually a work type keyword
-  if (locationFromLabel) {
-    const locationLower = locationFromLabel.toLowerCase().trim();
-    const isWorkTypeKeyword = locationLower === 'remote' || 
-                              locationLower === 'remote work' ||
-                              locationLower === 'hybrid' || 
-                              locationLower === 'hybrid work' ||
-                              locationLower === 'onsite' || 
-                              locationLower === 'on-site' ||
-                              locationLower === 'on site';
-    
-    if (isWorkTypeKeyword) {
-      // Don't set as location, it will be handled as work type
-      metadata.location = '';
-    } else {
-      metadata.location = locationFromLabel;
-    }
-  }
-
-  // Extract work type first (it may use location info)
-  metadata.remoteStatus = extractWorkType(normalized, locationFromLabel ?? '');
-  
-  // If location was a work type keyword, try to find actual location elsewhere
-  if (!metadata.location || metadata.location.trim() === '') {
-    // Try to extract location from other patterns
-    const alternativeLocation = extractLineValue([
-      /(?:based in|located in|headquarters|office)\s*[:\-]\s*([^\n]+)/i,
-      /(?:city|state|country)\s*[:\-]\s*([^\n]+)/i,
-    ], normalized);
-    if (alternativeLocation && alternativeLocation.toLowerCase().trim() !== metadata.remoteStatus?.toLowerCase()) {
-      metadata.location = alternativeLocation;
-    }
-  }
-
-  metadata.jobType = extractJobType(normalized);
-  metadata.budget = extractBudget(normalized);
-  metadata.skills = extractSkills(normalized);
-  metadata.keywords = extractTopKeywords(normalized);
-  metadata.soft_skills = extractSoftSkillsFromText(normalized);
-  metadata.high_frequency_keywords = extractTopKeywords(normalized).map((keyword, idx) => ({
-    keyword,
-    frequency: idx < 5 ? 3 : idx < 10 ? 2 : 1,
-    importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low'
-  }));
-  metadata.ats_insights = extractAtsInsightsFromText(normalized);
-
-  if (!metadata.title) {
-    for (let i = 0; i < Math.min(lines.length, 12); i += 1) {
-      const candidate = lines[i];
-      if (!candidate) continue;
-      if (GENERIC_HEADINGS.has(candidate.toLowerCase())) continue;
-      if (candidate.startsWith('•') || candidate.startsWith('-')) continue;
-      if (candidate.length < 4) continue;
-      if (/^(responsibilities|requirements|qualifications|about|role|skills)\b/i.test(candidate.toLowerCase())) continue;
-      if (assignTitleFromCandidate(candidate)) {
-        break;
-      }
-    }
-  }
-
-  return metadata;
-};
 
 // Extract all keywords from saved extracted_keywords (from extension)
 const extractAllSavedKeywords = (savedKeywords: any): string[] => {
@@ -1741,10 +1543,34 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
   const technicalKeywordOptions = useMemo(() => {
     const options = new Map<string, TechnicalKeywordOption>();
-    const register = (value?: string | null, source: TechnicalKeywordOption['source'] = 'ats') => {
+    const jobDescriptionLower = jobDescription?.toLowerCase() || '';
+    
+    // Helper function to check if keyword exists in JD text
+    const keywordExistsInJD = (keyword: string): boolean => {
+      if (!jobDescriptionLower || !keyword) return false;
+      const keywordLower = keyword.toLowerCase();
+      // Handle special characters like "/" in "CI/CD"
+      const hasSpecialChars = /[\/\-_]/g.test(keyword);
+      if (hasSpecialChars) {
+        // For keywords with special chars, escape and match directly
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(escaped, 'i').test(jobDescriptionLower);
+      } else {
+        // For normal keywords, use word boundaries
+        return new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(jobDescriptionLower);
+      }
+    };
+    
+    const register = (value?: string | null, source: TechnicalKeywordOption['source'] = 'ats', validateInJD: boolean = false) => {
       if (!value || typeof value !== 'string') return;
       const trimmed = value.trim();
       if (!trimmed) return;
+      
+      // Validate that keyword exists in JD if validation is required
+      if (validateInJD && !keywordExistsInJD(trimmed)) {
+        return;
+      }
+      
       const key = trimmed.toLowerCase();
       const existing = options.get(key);
       if (existing) {
@@ -1756,20 +1582,24 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       options.set(key, { keyword: trimmed, source });
     };
 
+    // ATS missing keywords don't need validation - they come from analysis of current JD vs resume
     (matchResult?.match_analysis?.technical_missing || []).forEach((kw) => register(kw, 'ats'));
+    
+    // extractedKeywords should be validated against JD text to prevent cross-user contamination
     if (Array.isArray(extractedKeywords?.technical_keywords)) {
       extractedKeywords.technical_keywords.forEach((kw: any) => {
-        if (typeof kw === 'string') {
-          register(kw, 'jd');
-        } else if (kw && typeof kw.keyword === 'string') {
-          register(kw.keyword, 'jd');
+        const keyword = typeof kw === 'string' ? kw : kw?.keyword;
+        if (keyword && typeof keyword === 'string') {
+          register(keyword, 'jd', true); // Validate in JD
         }
       });
     }
+    
+    // selectedJobMetadata.skills should be validated - they might come from wrong user's JD
     if (Array.isArray(selectedJobMetadata?.skills)) {
       selectedJobMetadata.skills.forEach((kw: any) => {
         if (typeof kw === 'string') {
-          register(kw, 'extension');
+          register(kw, 'extension', true); // Validate in JD
         }
       });
     }
@@ -1780,7 +1610,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       if (priorityDelta !== 0) return priorityDelta;
       return a.keyword.localeCompare(b.keyword);
     });
-  }, [matchResult, extractedKeywords, selectedJobMetadata]);
+  }, [matchResult, extractedKeywords, selectedJobMetadata, jobDescription]);
 
   const [currentATSScore, setCurrentATSScore] = useState<number | null>(() => {
     // Restore ATS score from localStorage on mount
@@ -3933,33 +3763,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         </>
       )}
 
-      {/* Job Description Paste Area */}
-      <div className="p-3 sm:p-6">
-        <div className="mb-6 space-y-4">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            📋 Job Description
-          </label>
-          <textarea
-            value={jobDescription}
-            onChange={(e) => setJobDescription(e.target.value)}
-            onPaste={() => {
-              setTimeout(() => {
-                // Keywords will be extracted via useEffect
-              }, 100);
-            }}
-            placeholder="Paste the job description here... Keywords will be automatically extracted to help improve your ATS score."
-            rows={8}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm resize-y"
-          />
-          {isExtractingKeywords && (
-            <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-              <span className="animate-spin">⏳</span> Extracting high-intensity keywords...
-            </p>
-          )}
-        </div>
-        </div>
-      </div>
 
       {/* Easy Apply Button - Always visible when JD is loaded */}
       <div className="p-3 sm:p-6">
@@ -4784,17 +4587,18 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     if (generatedBulletsList.length > 0 || markedBullets.length > 0) {
                       setGeneratedBullets(generatedBulletsList);
 
-                      // Parse work experience and project entries from ALL sections
+                      // Parse work experience entries - ONLY from selected section
                       const entries: Array<{ sectionId: string, bulletId: string, companyName: string, jobTitle: string, dateRange: string, sectionTitle: string, sectionType: 'work' | 'project' }> = [];
 
-                      resumeData.sections
-                        .filter((s: any) => {
-                          const title = s.title.toLowerCase();
-                          return title.includes('experience') || title.includes('work') || title.includes('project');
-                        })
-                        .forEach((section: any) => {
-                          const sectionType = section.title.toLowerCase().includes('project') ? 'project' : 'work';
-                          section.bullets.forEach((bullet: any) => {
+                      // First, find the selected section
+                      const selectedSection = selectedWorkExpSection 
+                        ? resumeData.sections.find((s: any) => s.id === selectedWorkExpSection)
+                        : null;
+
+                      // If we have a selected section, parse only from that section
+                      if (selectedSection) {
+                        const sectionType = selectedSection.title.toLowerCase().includes('project') ? 'project' : 'work';
+                        selectedSection.bullets.forEach((bullet: any) => {
                             if (!bullet?.text) return;
                             const raw = bullet.text.trim();
                             if (!raw) return;
@@ -4874,17 +4678,117 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                               }
 
                               entries.push({
-                                sectionId: section.id,
+                                sectionId: selectedSection.id,
                                 bulletId: bullet.id,
                                 companyName,
                                 jobTitle,
                                 dateRange,
-                                sectionTitle: section.title,
+                                sectionTitle: selectedSection.title,
                                 sectionType
                               });
                             }
                           });
-                        });
+                      } else {
+                        // No selected section - parse from all work experience sections (fallback)
+                        resumeData.sections
+                          .filter((s: any) => {
+                            const title = s.title.toLowerCase();
+                            return title.includes('experience') || title.includes('work') || title.includes('project');
+                          })
+                          .forEach((section: any) => {
+                            const sectionType = section.title.toLowerCase().includes('project') ? 'project' : 'work';
+                            section.bullets.forEach((bullet: any) => {
+                              if (!bullet?.text) return;
+                              const raw = bullet.text.trim();
+                              if (!raw) return;
+                              
+                              // Use the same detection logic as VisualResumeEditor
+                              // Check if it starts with ** and contains ** again (company header format)
+                              let isItemHeader = raw.startsWith('**') && raw.includes('**', 2);
+                              
+                              // Also check alternative format without ** (for compatibility)
+                              if (!isItemHeader) {
+                                const normalized = raw.replace(/^•\s*/, '');
+                                const parts = normalized.split(' / ').map((part: string) => part.trim()).filter(Boolean);
+                                if (parts.length >= 2) {
+                                  const [companyPart, rolePart] = parts;
+                                  const hasCompanyText = companyPart && /[A-Za-z]/.test(companyPart);
+                                  const hasRoleText = rolePart && /[A-Za-z]/.test(rolePart);
+                                  if (hasCompanyText && hasRoleText) {
+                                    if (parts.length >= 3) {
+                                      const datePart = parts[parts.length - 1];
+                                      if (datePart && /(\d{4}|\b(?:present|current|past|ongoing)\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b)/i.test(datePart)) {
+                                        isItemHeader = true;
+                                      }
+                                    } else {
+                                      isItemHeader = true;
+                                    }
+                                  }
+                                }
+                              }
+                              
+                              if (isItemHeader) {
+                                console.log('Found company header:', raw);
+                                // Remove ** markers and bullet points
+                                const headerText = raw.replace(/\*\*/g, '').replace(/^•\s*/, '').trim();
+                                const parts = headerText.split(' / ').map((p: string) => p.trim()).filter((p: string) => p);
+                                
+                                // Support both old format (3 parts) and new format (4 parts)
+                                // Old: Company Name / Job Title / Date Range
+                                // New: Company Name / Location / Title / Date Range
+                                let companyName: string;
+                                let jobTitle: string;
+                                let dateRange: string;
+                                
+                                if (parts.length >= 4) {
+                                  // New format with location
+                                  companyName = parts[0] || 'Unknown Company';
+                                  jobTitle = parts[2] || 'Unknown Role';
+                                  dateRange = parts[3] || 'Unknown Date';
+                                } else if (parts.length >= 3) {
+                                  // Old format (3 parts) - check if second part looks like a date
+                                  const secondPart = parts[1] || '';
+                                  const thirdPart = parts[2] || '';
+                                  const isThirdPartDate = /(\d{4}|\b(?:present|current|past|ongoing)\b)/i.test(thirdPart);
+                                  if (isThirdPartDate) {
+                                    // Old format: Company / Job / Date
+                                    companyName = parts[0] || 'Unknown Company';
+                                    jobTitle = parts[1] || 'Unknown Role';
+                                    dateRange = parts[2] || 'Unknown Date';
+                                  } else {
+                                    // Might be new format without location: Company / Location / Job (Date missing)
+                                    companyName = parts[0] || 'Unknown Company';
+                                    jobTitle = parts[1] || 'Unknown Role';
+                                    dateRange = parts[2] || 'Unknown Date';
+                                  }
+                                } else if (parts.length >= 2) {
+                                  // Partial format (2 parts)
+                                  companyName = parts[0] || 'Unknown Company';
+                                  jobTitle = parts[1] || 'Unknown Role';
+                                  dateRange = 'Unknown Date';
+                                } else if (parts.length >= 1) {
+                                  // Only company name
+                                  companyName = parts[0] || 'Unknown Company';
+                                  jobTitle = 'Unknown Role';
+                                  dateRange = 'Unknown Date';
+                                } else {
+                                  // Skip invalid headers
+                                  return;
+                                }
+
+                                entries.push({
+                                  sectionId: section.id,
+                                  bulletId: bullet.id,
+                                  companyName,
+                                  jobTitle,
+                                  dateRange,
+                                  sectionTitle: section.title,
+                                  sectionType
+                                });
+                              }
+                            });
+                          });
+                      }
                       
                       console.log('Found work experience entries:', entries);
 

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import JobDetailView from './JobDetailView'
+import JobDescriptionParser from './JobDescriptionParser'
 import { BriefcaseIcon, FolderIcon, LockIcon, BookmarkIcon, CheckIcon, XIcon, CalendarIcon, HandshakeIcon, EditIcon } from '@/components/Icons'
 
 interface JobResumeSummary {
@@ -233,8 +234,11 @@ export default function JobsView({ onBack }: Props) {
       </div>
 
       <div className="flex-1 w-full px-6 py-8">
-        <div className="bg-white rounded-2xl shadow-lg p-8">
-          {savedJDs.length === 0 ? (
+        <div className="space-y-6">
+          <JobDescriptionParser onSaveSuccess={fetchData} />
+          
+          <div className="bg-white rounded-2xl shadow-lg p-8">
+            {savedJDs.length === 0 ? (
             <div className="text-center py-12">
               <div className="flex justify-center mb-4">
                 <FolderIcon size={64} color="#0f62fe" className="opacity-60" />
@@ -415,6 +419,7 @@ export default function JobsView({ onBack }: Props) {
               </table>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

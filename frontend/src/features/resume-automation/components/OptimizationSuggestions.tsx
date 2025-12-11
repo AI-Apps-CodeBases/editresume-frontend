@@ -81,6 +81,28 @@ export function OptimizationSuggestions({ result }: OptimizationSuggestionsProps
           </p>
         )}
       </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-800">
+          ATS-focused improvements
+        </h3>
+        {data.suggestions.length > 0 ? (
+          <ul className="mt-3 space-y-2 text-xs text-slate-700">
+            {data.suggestions.slice(0, 5).map((item) => (
+              <li
+                key={`suggestion-${item}`}
+                className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs text-slate-500">
+            Tailored content already incorporates the top JD keywords.
+          </p>
+        )}
+      </section>
     </div>
   )
 }
