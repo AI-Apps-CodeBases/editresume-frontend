@@ -5,6 +5,7 @@ import config from '@/lib/config'
 import JobDetailView from './JobDetailView'
 import JobDescriptionParser from './JobDescriptionParser'
 import { BriefcaseIcon, FolderIcon, LockIcon, BookmarkIcon, CheckIcon, XIcon, CalendarIcon, HandshakeIcon, EditIcon } from '@/components/Icons'
+import { StarRating } from '@/components/Shared/StarRating'
 
 interface JobResumeSummary {
   id: number
@@ -33,7 +34,7 @@ interface JobDescription {
   max_salary?: number
   status?: string
   follow_up_date?: string
-  important_emoji?: string
+  importance?: number // 0-5 stars
   created_at?: string
   extracted_keywords?: any
   priority_keywords?: any
@@ -251,7 +252,7 @@ export default function JobsView({ onBack }: Props) {
               <table className="w-full min-w-[1200px]">
                 <thead className="bg-gray-50 text-left text-sm text-gray-600 border-b border-gray-200">
                   <tr>
-                    <th className="p-4 font-semibold">Important</th>
+                    <th className="p-4 font-semibold">Importance</th>
                     <th className="p-4 font-semibold">Title</th>
                     <th className="p-4 font-semibold">Company</th>
                     <th className="p-4 font-semibold">Max Salary</th>
@@ -277,7 +278,40 @@ export default function JobsView({ onBack }: Props) {
                     return (
                       <tr key={jd.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="p-4">
-                          {jd.important_emoji && <span className="text-2xl">{jd.important_emoji}</span>}
+                          <StarRating
+                            rating={jd.importance || 0}
+                            onRatingChange={async (newRating) => {
+                              try {
+                                const { auth } = await import('@/lib/firebaseClient')
+                                const currentUser = auth.currentUser
+                                const token = currentUser ? await currentUser.getIdToken() : null
+                                const headers: HeadersInit = { 'Content-Type': 'application/json' }
+                                if (token) {
+                                  headers['Authorization'] = `Bearer ${token}`
+                                }
+                                
+                                const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`, {
+                                  method: 'PATCH',
+                                  headers,
+                                  body: JSON.stringify({ importance: newRating })
+                                })
+                                
+                                if (res.ok) {
+                                  setSavedJDs((prev) =>
+                                    prev.map((job) =>
+                                      job.id === jd.id ? { ...job, importance: newRating } : job
+                                    )
+                                  )
+                                } else {
+                                  console.error('Failed to update importance')
+                                }
+                              } catch (e) {
+                                console.error('Failed to update importance:', e)
+                              }
+                            }}
+                            interactive={true}
+                            size="sm"
+                          />
                         </td>
                         <td className="p-4">
                           <button

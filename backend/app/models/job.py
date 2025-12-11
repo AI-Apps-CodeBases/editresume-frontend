@@ -41,7 +41,7 @@ class JobDescription(Base):
     max_salary = Column(Integer)
     status = Column(String, default="bookmarked")
     follow_up_date = Column(DateTime)
-    important_emoji = Column(String)
+    importance = Column(Integer, default=0)  # 0-5 stars (0 = not set, 1-5 = star rating)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -163,7 +163,7 @@ def migrate_schema() -> None:
                 "max_salary": "INTEGER",
                 "status": "VARCHAR",
                 "follow_up_date": "TIMESTAMP",
-                "important_emoji": "VARCHAR",
+                "importance": "INTEGER",
                 "notes": "TEXT",
             },
             "users": {

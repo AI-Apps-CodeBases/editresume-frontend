@@ -6,6 +6,7 @@ import config from '@/lib/config'
 import UploadResume from './UploadResume'
 import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, StarIcon, FireIcon, DiamondIcon, RocketIcon, TargetIcon, SparklesIcon, TrophyIcon, MailIcon, DocumentIcon, ChartIcon, BrainIcon } from '@/components/Icons'
+import { StarRating } from '@/components/Shared/StarRating'
 
 interface JobResumeSummary {
   id: number
@@ -44,7 +45,7 @@ interface JobDescription {
   max_salary?: number
   status?: string
   follow_up_date?: string
-  important_emoji?: string
+  importance?: number // 0-5 stars
   created_at?: string
   extracted_keywords?: any
   priority_keywords?: any
@@ -82,16 +83,6 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected', icon: XIcon, color: 'bg-red-100 text-red-700' },
 ]
 
-const IMPORTANT_ICON_OPTIONS = [
-  { emoji: '⭐', icon: StarIcon },
-  { emoji: '🔥', icon: FireIcon },
-  { emoji: '💎', icon: DiamondIcon },
-  { emoji: '🚀', icon: RocketIcon },
-  { emoji: '💼', icon: BriefcaseIcon },
-  { emoji: '🎯', icon: TargetIcon },
-  { emoji: '✨', icon: SparklesIcon },
-  { emoji: '🏆', icon: TrophyIcon },
-]
 
 export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const { user, isAuthenticated } = useAuth()
@@ -826,11 +817,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  {job.important_emoji && (() => {
-                    const iconOption = IMPORTANT_ICON_OPTIONS.find(opt => opt.emoji === job.important_emoji)
-                    const IconComponent = iconOption?.icon || StarIcon
-                    return <IconComponent size={24} color="#0f62fe" className="inline-block" />
-                  })()}
+                  {job.importance && job.importance > 0 && (
+                    <StarRating rating={job.importance} size="sm" />
+                  )}
                   {job.title}
                 </h1>
                 <p className="text-gray-600 mt-1">
@@ -865,19 +854,13 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
             </select>
             
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Important:</span>
-              <div className="flex gap-1">
-                {IMPORTANT_ICON_OPTIONS.map(({ emoji, icon: IconComponent }) => (
-                  <button
-                    key={emoji}
-                    onClick={() => updateJobField('important_emoji', job.important_emoji === emoji ? null : emoji)}
-                    className={`p-2 rounded transition-colors ${job.important_emoji === emoji ? 'bg-primary-100 ring-2 ring-primary-400' : 'hover:bg-gray-100'}`}
-                    title={emoji}
-                  >
-                    <IconComponent size={20} color={job.important_emoji === emoji ? '#0f62fe' : '#6b7280'} />
-                  </button>
-                ))}
-              </div>
+              <span className="text-sm text-gray-600">Importance:</span>
+              <StarRating
+                rating={job.importance || 0}
+                onRatingChange={(rating) => updateJobField('importance', rating)}
+                interactive={true}
+                size="md"
+              />
             </div>
 
             <div className="flex items-center gap-2">
