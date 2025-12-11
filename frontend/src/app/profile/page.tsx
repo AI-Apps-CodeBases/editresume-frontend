@@ -105,6 +105,7 @@ function ProfilePageContent() {
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionStatus | null>(null)
   const [subscriptionLoading, setSubscriptionLoading] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
   const apiBase = config.apiBase
   const isPremiumMember = subscriptionInfo?.isPremium ?? user?.isPremium ?? false
   const subscriptionStatus = subscriptionInfo?.subscriptionStatus ?? (isPremiumMember ? 'active' : 'inactive')
@@ -352,7 +353,8 @@ function ProfilePageContent() {
         },
         body: JSON.stringify({
           successUrl,
-          cancelUrl
+          cancelUrl,
+          priceId: billingPeriod === 'annual' ? 'price_annual' : undefined
         })
       })
 
@@ -377,7 +379,7 @@ function ProfilePageContent() {
     } finally {
       setCheckoutLoading(false)
     }
-  }, [apiBase, checkoutLoading, isAuthenticated])
+  }, [apiBase, checkoutLoading, isAuthenticated, billingPeriod])
 
   if (loading) {
     return (
@@ -1220,7 +1222,11 @@ function ProfilePageContent() {
                         <div>
                           <h3 className="text-xl font-bold text-purple-900 mb-2">Premium Plan</h3>
                           <p className="text-purple-700">Unlimited exports and premium templates</p>
-                          <div className="mt-4 text-3xl font-bold text-purple-900">$9.99<span className="text-lg font-normal text-purple-700">/month</span></div>
+                          <div className="mt-4 flex items-baseline gap-2">
+                            <span className="text-3xl font-bold text-purple-900">$9.99</span>
+                            <span className="text-lg font-normal text-purple-700">/month</span>
+                            <span className="text-sm text-purple-600 ml-2">or $79/year</span>
+                          </div>
                           <div className="mt-3 text-sm text-purple-800">
                             Status: <span className="font-semibold capitalize">{subscriptionStatus || 'active'}</span>
                             {nextBillingDate && (
@@ -1282,21 +1288,76 @@ function ProfilePageContent() {
                       <DiamondIcon size={64} color="#0f62fe" />
                     </div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">Upgrade to Premium</h3>
-                    <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                      Get unlimited exports, premium templates, and priority support
+                    <p className="text-gray-600 mb-4 max-w-md mx-auto">
+                      Get unlimited access to all features and advanced tools
                     </p>
+                    
+                    {/* Billing Period Toggle */}
+                    <div className="flex justify-center gap-2 mb-6">
+                      <button
+                        onClick={() => setBillingPeriod('monthly')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          billingPeriod === 'monthly'
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Monthly
+                      </button>
+                      <button
+                        onClick={() => setBillingPeriod('annual')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          billingPeriod === 'annual'
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Annual
+                      </button>
+                    </div>
+
+                    <div className="mb-6 text-center">
+                      <div className="text-4xl font-bold text-gray-900">
+                        {billingPeriod === 'annual' ? '$79' : '$9.99'}
+                      </div>
+                      <div className="text-gray-600 mt-1">
+                        {billingPeriod === 'annual' ? 'per year' : 'per month'}
+                        {billingPeriod === 'annual' && (
+                          <span className="text-green-600 text-sm font-medium ml-2">Save $40</span>
+                        )}
+                      </div>
+                    </div>
+
                     <ul className="text-left max-w-md mx-auto mb-8 space-y-2">
                       <li className="flex items-center gap-2 text-gray-700">
                         <span className="text-green-500">✓</span> Unlimited PDF/DOCX exports
                       </li>
                       <li className="flex items-center gap-2 text-gray-700">
-                        <span className="text-green-500">✓</span> Access to all premium templates
+                        <span className="text-green-500">✓</span> All premium templates
                       </li>
                       <li className="flex items-center gap-2 text-gray-700">
-                        <span className="text-green-500">✓</span> Priority customer support
+                        <span className="text-green-500">✓</span> Unlimited AI improvements
                       </li>
                       <li className="flex items-center gap-2 text-gray-700">
-                        <span className="text-green-500">✓</span> No watermarks
+                        <span className="text-green-500">✓</span> Unlimited grammar checks
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Unlimited ATS scoring
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Unlimited cover letters
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Job match analytics & insights
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Version history & comparisons
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Collaboration & comments
+                      </li>
+                      <li className="flex items-center gap-2 text-gray-700">
+                        <span className="text-green-500">✓</span> Priority support
                       </li>
                     </ul>
                     <button
@@ -1304,7 +1365,7 @@ function ProfilePageContent() {
                       disabled={checkoutLoading || subscriptionLoading}
                       className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {checkoutLoading ? 'Redirecting…' : 'Upgrade for $9.99/month'}
+                      {checkoutLoading ? 'Redirecting…' : `Upgrade to Premium (${billingPeriod === 'annual' ? '$79/year' : '$9.99/month'})`}
                     </button>
                   </div>
                 )}
