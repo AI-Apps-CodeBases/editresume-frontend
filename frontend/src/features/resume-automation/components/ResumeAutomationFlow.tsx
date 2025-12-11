@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { SavedJobsList } from '@/features/jobs/components/SavedJobsList'
@@ -9,6 +9,7 @@ import { JobSelectionModal } from './JobSelectionModal'
 import { ResumeSelectionModal } from './ResumeSelectionModal'
 import { GenerationProgress } from './GenerationProgress'
 import { GeneratedResumePreview } from './GeneratedResumePreview'
+import { TailoredResumeReview } from './TailoredResumeReview'
 import { ATSScoreCard } from './ATSScoreCard'
 import { OptimizationSuggestions } from './OptimizationSuggestions'
 import { useTailorAutomationState } from '../hooks/useTailorAutomationState'
@@ -56,15 +57,33 @@ export function ResumeAutomationFlow({
     generation,
   } = useTailorAutomationState({ openSignal, router })
 
+  const [showReview, setShowReview] = useState(false)
+
+  // Reset review when new generation starts
+  useEffect(() => {
+    if (stage === 'progress' || stage === 'idle') {
+      setShowReview(false)
+    }
+  }, [stage])
+
   const summaryCard = useMemo(() => {
     if (!generationResult) return null
+    if (showReview) {
+      return (
+        <TailoredResumeReview
+          result={generationResult}
+          onOpenEditor={handleOpenEditor}
+          onBack={() => setShowReview(false)}
+        />
+      )
+    }
     return (
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <GeneratedResumePreview
           resume={generationResult.resume}
           atsScore={generationResult.ats_score}
           insights={generationResult.insights}
-          onOpenEditor={handleOpenEditor}
+          onOpenEditor={() => setShowReview(true)}
         />
         <div className="space-y-6">
           <ATSScoreCard score={generationResult.ats_score} />
@@ -72,7 +91,7 @@ export function ResumeAutomationFlow({
         </div>
       </div>
     )
-  }, [generationResult, handleOpenEditor])
+  }, [generationResult, handleOpenEditor, showReview])
 
   return (
     <div className="space-y-8">
