@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
@@ -211,7 +211,7 @@ def check_usage_limit(
     plan_tier: str,
     session_id: Optional[str] = None,
     db: Optional[Session] = None
-) -> Tuple[bool, Dict[str, any]]:
+) -> Tuple[bool, Dict[str, Any]]:
     """
     Check if user can use a feature based on their plan tier and current usage.
     
@@ -304,7 +304,7 @@ def check_export_limit(
     plan_tier: str,
     session_id: Optional[str] = None,
     db: Optional[Session] = None
-) -> Tuple[bool, Dict[str, any]]:
+) -> Tuple[bool, Dict[str, Any]]:
     """
     Check if user can export based on their plan tier and current usage.
     
@@ -341,7 +341,7 @@ def get_usage_stats(
     plan_tier: str,
     session_id: Optional[str] = None,
     db: Optional[Session] = None
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """Get comprehensive usage statistics for a user."""
     if not db:
         return {}
