@@ -43,7 +43,8 @@ export async function autoGenerateResume(
   }
   Object.assign(headers, getAuthHeaders())
 
-  const response = await fetch(`${baseUrl}/api/resumes/auto-generate`, {
+  const url = new URL('/api/resumes/auto-generate', baseUrl)
+  const response = await fetch(url.toString(), {
     method: 'POST',
     headers,
     credentials: 'include',
