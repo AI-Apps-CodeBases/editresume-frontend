@@ -10,6 +10,7 @@ import type {
 } from '../types'
 import { ATSScoreCard } from './ATSScoreCard'
 import { OptimizationSuggestions } from './OptimizationSuggestions'
+import { DevelopmentTooltip } from './DevelopmentTooltip'
 
 interface TailoredResumeReviewProps {
   result: AutoGenerateResponse
@@ -193,13 +194,15 @@ export function TailoredResumeReview({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={onOpenEditor}
-            className="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
-          >
-            Edit in Builder
-          </button>
+          <DevelopmentTooltip message="This feature is currently under development. The editor integration is being enhanced to support full tailored resume editing. Coming soon!">
+            <button
+              type="button"
+              onClick={onOpenEditor}
+              className="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+            >
+              Edit in Builder
+            </button>
+          </DevelopmentTooltip>
         </div>
       </div>
     </div>
