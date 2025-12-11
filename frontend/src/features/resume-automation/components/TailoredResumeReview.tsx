@@ -198,9 +198,12 @@ export function TailoredResumeReview({
             <button
               type="button"
               onClick={onOpenEditor}
-              className="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+              className="relative rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
             >
               Edit in Builder
+              <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" title="Under Development">
+                ⚠
+              </span>
             </button>
           </DevelopmentTooltip>
         </div>

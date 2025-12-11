@@ -124,9 +124,12 @@ export function GeneratedResumePreview({
                 }
               }}
               disabled={!onOpenEditor}
-              className="rounded-full border border-indigo-200 bg-white px-5 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="relative rounded-full border border-indigo-200 bg-white px-5 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               View Full Resume
+              <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" title="Under Development">
+                ⚠
+              </span>
             </button>
           </DevelopmentTooltip>
         </div>
