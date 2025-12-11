@@ -7,6 +7,8 @@ import type {
   GeneratedResume,
   GeneratedVersion,
   ATSScore,
+  ExtractedJobKeywords,
+  ParsedResumeData,
 } from '../types'
 
 const baseUrl = config.apiBase
@@ -57,6 +59,115 @@ export async function autoGenerateResume(
 }
 
 export type { AutoGenerateResponse, GeneratedResume, GeneratedVersion, ATSScore }
+
+export async function extractJobKeywords(
+  jobDescription: string
+): Promise<ExtractedJobKeywords> {
+  const response = await fetch(`${baseUrl}/api/ai/extract_job_keywords`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ job_description: jobDescription }),
+  })
+  return handleResponse<ExtractedJobKeywords>(response)
+}
+
+export interface ParseResumeResponse {
+  data: ParsedResumeData
+  success: boolean
+  error?: string
+}
+
+export async function parseResumeText(text: string): Promise<ParsedResumeData> {
+  const response = await fetch(`${baseUrl}/api/resume/parse-text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  const parsed = await handleResponse<ParseResumeResponse>(response)
+  if (!parsed.success) {
+    throw new Error(parsed.error || 'Failed to parse resume text')
+  }
+  return parsed.data
+}
+
+export async function parseResumeFile(file: File): Promise<ParsedResumeData> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(`${baseUrl}/api/resume/parse-file`, {
+    method: 'POST',
+    body: formData,
+  })
+  const parsed = await handleResponse<ParseResumeResponse>(response)
+  if (!parsed.success) {
+    throw new Error(parsed.error || 'Failed to parse resume file')
+  }
+  return parsed.data
+}
+
+export async function saveParsedResume(
+  data: ParsedResumeData,
+  userEmail: string
+): Promise<{ resume_id: number; version_id: number }> {
+  if (!userEmail) {
+    throw new Error('User email is required to save resumes')
+  }
+
+  const newId = () => {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID()
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  }
+
+  const sections = (data.sections || []).map((section) => ({
+    id: section.id ?? newId(),
+    title: section.title,
+    bullets: (section.bullets || []).map((bullet) => ({
+      id: bullet.id ?? newId(),
+      text: bullet.text,
+      params: bullet.params ?? {},
+    })),
+  }))
+
+  const payload = {
+    name: data.name || data.title || 'Tailored Resume',
+    title: data.title || data.name || 'Tailored Resume',
+    email: data.email ?? '',
+    phone: data.phone ?? '',
+    location: data.location ?? '',
+    summary: data.summary ?? '',
+    sections,
+    template: data.template ?? 'tech',
+  }
+
+  const response = await fetch(
+    `${baseUrl}/api/resume/save?user_email=${encodeURIComponent(userEmail)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  )
+
+  const result = await handleResponse<{
+    success: boolean
+    resume_id: number
+    version_id: number
+    message?: string
+  }>(response)
+
+  if (!result.success) {
+    throw new Error(result.message || 'Failed to save parsed resume')
+  }
+
+  return {
+    resume_id: result.resume_id,
+    version_id: result.version_id,
+  }
+}
 
 interface ResumeListItem {
   id: number
