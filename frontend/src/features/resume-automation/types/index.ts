@@ -90,6 +90,8 @@ export interface GenerationStatusStep {
 export interface ExtractedJobKeywords {
   high_priority_keywords?: string[]
   high_intensity_keywords?: string[]
+  high_frequency_keywords?: string[]
+  priority_keywords?: string[]
   technical_keywords?: string[]
   soft_skills?: string[]
 }

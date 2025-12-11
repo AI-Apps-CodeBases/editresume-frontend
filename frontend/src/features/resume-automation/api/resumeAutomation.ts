@@ -63,11 +63,14 @@ export type { AutoGenerateResponse, GeneratedResume, GeneratedVersion, ATSScore 
 export async function extractJobKeywords(
   jobDescription: string
 ): Promise<ExtractedJobKeywords> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  Object.assign(headers, getAuthHeaders())
+
   const response = await fetch(`${baseUrl}/api/ai/extract_job_keywords`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ job_description: jobDescription }),
   })
   return handleResponse<ExtractedJobKeywords>(response)

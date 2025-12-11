@@ -41,11 +41,11 @@ export function JobManualEntryPanel({
     try {
       const result = await onExtractKeywords(description)
       const mergedKeywords = [
-        ...(result.high_priority_keywords ?? []),
-        ...(result.high_intensity_keywords ?? []),
+        ...(result.high_priority_keywords ?? result.priority_keywords ?? []),
+        ...(result.high_intensity_keywords ?? result.high_frequency_keywords ?? []),
         ...(result.technical_keywords ?? []),
         ...(result.soft_skills ?? []),
-      ]
+      ].filter(Boolean)
       setKeywords(mergedKeywords)
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Failed to extract keywords')

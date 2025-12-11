@@ -14,33 +14,23 @@ export function useSavedJobs() {
     setLoading(true)
     setError(null)
     try {
-      const latest = await fetchSavedJobs()
-      if (latest.length > 0) {
-        setJobs(latest)
-        return
-      }
+      const primary = await fetchSavedJobs()
+      const legacy = await fetchLegacyJobDescriptions().catch(() => [])
 
-      const legacy = await fetchLegacyJobDescriptions()
-      setJobs(legacy)
-      if (legacy.length === 0) {
-        setError(null)
+      const mergedById = new Map<number, Job>()
+      primary.forEach((job) => mergedById.set(job.id, job))
+      legacy.forEach((job) => {
+        if (!mergedById.has(job.id)) mergedById.set(job.id, job)
+      })
+
+      const combined = Array.from(mergedById.values())
+      setJobs(combined)
+
+      if (combined.length === 0) {
+        setError('No saved jobs found')
       }
     } catch (err) {
-      try {
-        const legacy = await fetchLegacyJobDescriptions()
-        setJobs(legacy)
-        if (legacy.length === 0) {
-          setError(err instanceof Error ? err.message : 'No saved jobs found')
-        }
-      } catch (legacyError) {
-        setError(
-          legacyError instanceof Error
-            ? legacyError.message
-            : err instanceof Error
-            ? err.message
-            : 'Failed to load jobs'
-        )
-      }
+      setError(err instanceof Error ? err.message : 'Failed to load jobs')
     } finally {
       setLoading(false)
     }
