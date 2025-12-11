@@ -12,6 +12,7 @@ export interface User {
   isPremium: boolean
   createdAt?: string
   planTier: PlanTier
+  trialActive?: boolean
 }
 
 interface AuthContextType {
@@ -113,8 +114,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user) {
       resetGuestActionCounters()
+      
+      // Check trial status if premium mode is enabled
+      if (premiumMode && !user.isPremium) {
+        const checkTrialStatus = async () => {
+          try {
+            const token = await auth.currentUser?.getIdToken()
+            if (!token) return
+            
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/usage/trial/status`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            })
+            
+            if (response.ok) {
+              const data = await response.json()
+              if (data.is_active) {
+                setUser(prev => prev ? { ...prev, trialActive: true, planTier: 'trial' } : null)
+              }
+            }
+          } catch (error) {
+            console.error('Failed to check trial status:', error)
+          }
+        }
+        
+        checkTrialStatus()
+      }
     }
-  }, [user?.uid])
+  }, [user?.uid, premiumMode])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -210,14 +239,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkPremiumAccess = useCallback(() => {
     if (!premiumMode) return true
+    // Trial users have premium access
+    if (user?.trialActive) return true
     return user?.planTier === 'premium'
-  }, [user?.planTier, premiumMode])
+  }, [user?.planTier, user?.trialActive, premiumMode])
 
   const canUseFeature = useCallback((feature: FeatureFlag) => {
     if (!premiumMode) return true
+    // Check if user has active trial
+    if (user?.trialActive) {
+      return isFeatureEnabledForPlan('trial', feature)
+    }
     const tier = user?.planTier ?? 'free'
     return isFeatureEnabledForPlan(tier, feature)
-  }, [user?.planTier, premiumMode])
+  }, [user?.planTier, user?.trialActive, premiumMode])
 
   const value = useMemo<AuthContextType>(() => ({
     user,

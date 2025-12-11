@@ -5,6 +5,9 @@ import config from '@/lib/config'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/contexts/ModalContext'
+import { useUsageTracking } from '@/hooks/useUsageTracking'
+import { getOrCreateGuestSessionId } from '@/lib/guestAuth'
+import UpgradePrompt from '@/components/Shared/UpgradePrompt'
 import { deduplicateSections } from '@/utils/sectionDeduplication'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GlobalReplacements from '@/components/AI/GlobalReplacements'
@@ -82,9 +85,16 @@ const normalizeSectionsForState = (sections: any[]) => {
 const EditorPageContent = () => {
   const { user, isAuthenticated, logout, checkPremiumAccess } = useAuth()
   const { showAlert } = useModal()
+  const { checkFeatureAvailability, refreshUsage } = useUsageTracking()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showExportUpgradePrompt, setShowExportUpgradePrompt] = useState(false)
+  const [exportUpgradeData, setExportUpgradeData] = useState<{
+    currentUsage: number
+    limit: number | null
+    period: string
+  } | null>(null)
   const [mounted, setMounted] = useState(false)
   const [showWizard, setShowWizard] = useState(false) // Wizard removed - always show editor directly
   const [showAIWizard, setShowAIWizard] = useState(false)
@@ -1169,21 +1179,32 @@ const EditorPageContent = () => {
     
     const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
 
-    if (!premiumMode) {
-      const requireAuth = shouldPromptAuthentication('exportResume', isAuthenticated)
-      if (requireAuth) {
-        setShowAuthModal(true)
-        return
-      }
-    }
-    
-    if (premiumMode && !isAuthenticated) {
-      console.log('Premium mode - showing auth modal')
+    // Always require authentication for exports (for marketing/email collection)
+    // Even when premium mode is disabled, we want to collect emails on first export
+    if (!isAuthenticated) {
+      console.log('Export requires authentication - showing auth modal')
+      await showAlert({
+        type: 'info',
+        message: 'Please sign up or sign in to export your resume. This helps us provide better service and track usage.',
+        title: 'Sign Up Required'
+      })
       setShowAuthModal(true)
       return
     }
 
     if (premiumMode && !checkPremiumAccess()) {
+      // Check export usage limit
+      const availability = checkFeatureAvailability('exports')
+      if (!availability.allowed) {
+        setExportUpgradeData({
+          currentUsage: availability.currentUsage,
+          limit: availability.limit,
+          period: availability.period,
+        })
+        setShowExportUpgradePrompt(true)
+        return
+      }
+      
       console.log('Premium mode - access denied')
       await showAlert({
         type: 'info',
@@ -1243,10 +1264,14 @@ const EditorPageContent = () => {
       const exportUrl = `${config.apiBase}/api/resume/export/${exportFormat}`
       console.log('Export URL:', exportUrl)
       
-      // Add user email to URL for analytics tracking
+      // Add user email and session_id to URL for analytics tracking
       const url = new URL(exportUrl)
       if (user?.email) {
         url.searchParams.set('user_email', user.email)
+      }
+      if (!isAuthenticated) {
+        const sessionId = getOrCreateGuestSessionId()
+        url.searchParams.set('session_id', sessionId)
       }
       
       // Clean sections data - remove boolean visible flags from params for API compatibility
@@ -1332,14 +1357,35 @@ const EditorPageContent = () => {
         body: configToSend?.typography?.fontSize?.body
       })
       
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (isAuthenticated) {
+        const { auth } = await import('@/lib/firebaseClient')
+        const token = await auth.currentUser?.getIdToken()
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+      }
+
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(exportData)
       })
       
       console.log('Export response status:', response.status)
       console.log('Export response ok:', response.ok)
+
+      if (response.status === 429) {
+        const errorData = await response.json().catch(() => ({}))
+        setExportUpgradeData({
+          currentUsage: errorData.detail?.usage_info?.current_usage || 0,
+          limit: errorData.detail?.usage_info?.limit || null,
+          period: errorData.detail?.usage_info?.period || 'monthly',
+        })
+        setShowExportUpgradePrompt(true)
+        setIsExporting(false)
+        return
+      }
       // After successful export, save resume version and record match session if a JD is active
       if (!isCoverLetterExport && response.ok && activeJobDescriptionId && isAuthenticated && user?.email) {
         try {
@@ -1515,6 +1561,9 @@ const EditorPageContent = () => {
           window.URL.revokeObjectURL(url)
           document.body.removeChild(a)
         }
+        
+        // Refresh usage stats after successful export
+        await refreshUsage()
       } else {
         const errorText = await response.text()
         console.error('Export failed:', response.status, errorText)
@@ -2124,6 +2173,21 @@ const EditorPageContent = () => {
       <div className="editor-shell min-h-screen bg-body-gradient text-text-primary">
         {headerElement}
         <div className="fixed inset-0 overflow-hidden">
+      {/* Export Upgrade Prompt */}
+      {showExportUpgradePrompt && exportUpgradeData && (
+        <UpgradePrompt
+          isOpen={showExportUpgradePrompt}
+          onClose={() => {
+            setShowExportUpgradePrompt(false)
+            setExportUpgradeData(null)
+          }}
+          featureType="exports"
+          currentUsage={exportUpgradeData.currentUsage}
+          limit={exportUpgradeData.limit}
+          period={exportUpgradeData.period}
+        />
+      )}
+
       <ModernEditorLayout
         resumeData={resumeData}
         onResumeUpdate={handleResumeDataChange}

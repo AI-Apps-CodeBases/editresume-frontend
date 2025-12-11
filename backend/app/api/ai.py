@@ -42,10 +42,57 @@ from app.core.dependencies import (
 from app.core.db import get_db
 from app.models import JobMatch, Resume, User
 from app.services.ai_improvement_engine import ImprovementStrategy
+from app.services.usage_service import (
+    check_usage_limit,
+    get_plan_tier,
+    record_ai_usage,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+
+
+def get_user_from_request(request: Request, db: Session):
+    """Get user from Firebase auth or return None for guests."""
+    firebase_user = getattr(request.state, "firebase_user", None)
+    if not firebase_user:
+        return None
+    
+    email = firebase_user.get("email")
+    if not email:
+        return None
+    
+    user = db.query(User).filter(User.email == email).first()
+    return user
+
+
+async def check_and_record_ai_usage(
+    request: Request,
+    db: Session,
+    feature_type: str,
+    session_id: Optional[str] = None,
+) -> tuple[bool, dict]:
+    """
+    Check if user can use AI feature and record usage if allowed.
+    Returns (allowed, info_dict)
+    """
+    user = get_user_from_request(request, db)
+    user_id = user.id if user else None
+    
+    from app.services.usage_service import get_plan_tier
+    plan_tier = get_plan_tier(user, db)
+    
+    allowed, info = check_usage_limit(user_id, feature_type, plan_tier, session_id, db)
+    
+    if allowed:
+        # Record usage
+        try:
+            record_ai_usage(user_id, feature_type, session_id, db)
+        except Exception as e:
+            logger.warning(f"Failed to record AI usage: {e}")
+    
+    return allowed, info
 
 
 @router.get("/health")
@@ -151,10 +198,29 @@ async def options_enhanced_ats_score(request: Request):
 
 
 @router.post("/enhanced_ats_score")
-async def get_enhanced_ats_score(payload: EnhancedATSPayload):
+async def get_enhanced_ats_score(
+    payload: EnhancedATSPayload,
+    request: Request,
+    db: Session = Depends(get_db),
+    session_id: Optional[str] = None,
+):
     """Get enhanced ATS compatibility score with AI improvements using TF-IDF when job description provided"""
     try:
         logger.info("Processing enhanced ATS score request")
+
+        # Check usage limit
+        allowed, usage_info = await check_and_record_ai_usage(
+            request, db, "ats_enhanced", session_id
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Usage limit exceeded",
+                    "message": "You've reached your limit for enhanced ATS scoring. Upgrade to premium for unlimited access.",
+                    "usage_info": usage_info,
+                },
+            )
 
         # Check if enhanced ATS checker is available
         if not enhanced_ats_checker:
@@ -290,10 +356,29 @@ async def get_openai_status():
 
 
 @router.post("/improvement_suggestions")
-async def get_ai_improvement_suggestions(payload: AIImprovementPayload):
+async def get_ai_improvement_suggestions(
+    payload: AIImprovementPayload,
+    request: Request,
+    db: Session = Depends(get_db),
+    session_id: Optional[str] = None,
+):
     """Get AI-powered improvement suggestions based on 10 strategies"""
     try:
         logger.info("Processing AI improvement suggestions request")
+
+        # Check usage limit
+        allowed, usage_info = await check_and_record_ai_usage(
+            request, db, "improvement", session_id
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Usage limit exceeded",
+                    "message": "You've reached your limit for AI improvements. Upgrade to premium for unlimited access.",
+                    "usage_info": usage_info,
+                },
+            )
 
         # Check if AI improvement engine is available
         if not ai_improvement_engine:
@@ -433,9 +518,28 @@ Return ONLY a JSON array of numbers like [1, 3, 5, 7, ...], no other text."""
 
 
 @router.post("/cover_letter")
-async def generate_cover_letter(payload: CoverLetterPayload):
+async def generate_cover_letter(
+    payload: CoverLetterPayload,
+    request: Request,
+    db: Session = Depends(get_db),
+    session_id: Optional[str] = None,
+):
     """Generate a tailored cover letter using AI"""
     try:
+        # Check usage limit
+        allowed, usage_info = await check_and_record_ai_usage(
+            request, db, "cover_letter", session_id
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Usage limit exceeded",
+                    "message": "You've reached your limit for cover letter generation. Upgrade to premium for unlimited access.",
+                    "usage_info": usage_info,
+                },
+            )
+
         # Convert resume data to text for context
         resume_text = f"{payload.resume_data.name} — {payload.resume_data.title}\n\n"
         if payload.resume_data.summary:
@@ -475,12 +579,31 @@ async def generate_cover_letter(payload: CoverLetterPayload):
 
 # Grammar and Style Checking
 @router.post("/grammar_check")
-async def check_grammar_style(payload: GrammarCheckPayload):
+async def check_grammar_style(
+    payload: GrammarCheckPayload,
+    request: Request,
+    db: Session = Depends(get_db),
+    session_id: Optional[str] = None,
+):
     """Check grammar and style of text"""
     try:
         text = payload.text.strip()
         if not text:
             return {"success": False, "error": "No text provided for checking"}
+
+        # Check usage limit
+        allowed, usage_info = await check_and_record_ai_usage(
+            request, db, "grammar", session_id
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Usage limit exceeded",
+                    "message": "You've reached your limit for grammar checks. Upgrade to premium for unlimited access.",
+                    "usage_info": usage_info,
+                },
+            )
 
         logger.info(f"Grammar/style check requested for {len(text)} characters")
 

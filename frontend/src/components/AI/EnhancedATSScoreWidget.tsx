@@ -1,6 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
-
+import { useUsageTracking } from '@/hooks/useUsageTracking'
+import { useAuth } from '@/contexts/AuthContext'
+import { getOrCreateGuestSessionId } from '@/lib/guestAuth'
+import UpgradePrompt from '@/components/Shared/UpgradePrompt'
 import config from '@/lib/config';
 interface ResumeData {
   name: string
@@ -64,6 +67,8 @@ export default function EnhancedATSScoreWidget({
   onClose,
   inline = false
 }: Props) {
+  const { user, isAuthenticated } = useAuth()
+  const { checkFeatureAvailability, refreshUsage } = useUsageTracking()
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [atsResult, setAtsResult] = useState<EnhancedATSResult | null>(null)
   const [showDetails, setShowDetails] = useState(false)
@@ -71,8 +76,26 @@ export default function EnhancedATSScoreWidget({
   const [isApplyingImprovement, setIsApplyingImprovement] = useState(false)
   const [isImprovingATS, setIsImprovingATS] = useState(false)
   const [improvementResult, setImprovementResult] = useState<any>(null)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
+  const [upgradePromptData, setUpgradePromptData] = useState<{
+    currentUsage: number
+    limit: number | null
+    period: string
+  } | null>(null)
 
   const analyzeResume = async () => {
+    // Check usage limit first
+    const availability = checkFeatureAvailability('ats_enhanced')
+    if (!availability.allowed) {
+      setUpgradePromptData({
+        currentUsage: availability.currentUsage,
+        limit: availability.limit,
+        period: availability.period,
+      })
+      setShowUpgradePrompt(true)
+      return
+    }
+
     setIsAnalyzing(true)
     try {
       // Clean resume data - remove fieldsVisible and ensure params are compatible
@@ -94,11 +117,22 @@ export default function EnhancedATSScoreWidget({
         }))
       };
 
-      const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
+      const sessionId = !isAuthenticated ? getOrCreateGuestSessionId() : undefined
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (isAuthenticated) {
+        const { auth } = await import('@/lib/firebaseClient')
+        const token = await auth.currentUser?.getIdToken()
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+      }
+
+      const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score${sessionId ? `?session_id=${sessionId}` : ''}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           resume_data: cleanedResumeData,
           job_description: jobDescription,
@@ -107,8 +141,24 @@ export default function EnhancedATSScoreWidget({
         }),
       })
 
+      if (response.status === 429) {
+        const errorData = await response.json()
+        setUpgradePromptData({
+          currentUsage: errorData.detail?.usage_info?.current_usage || 0,
+          limit: errorData.detail?.usage_info?.limit || null,
+          period: errorData.detail?.usage_info?.period || 'daily',
+        })
+        setShowUpgradePrompt(true)
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze resume')
+      }
+
       const result = await response.json()
       setAtsResult(result)
+      await refreshUsage()
     } catch (error) {
       console.error('Enhanced ATS analysis error:', error)
       setAtsResult({
@@ -305,9 +355,25 @@ export default function EnhancedATSScoreWidget({
   }, [])
 
   return (
-    <div className={inline ? '' : 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'}>
-      <div className={inline ? 'bg-white rounded-lg shadow-sm border w-full' : 'bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto'}>
-        <div className="p-6">
+    <>
+      {/* Upgrade Prompt */}
+      {showUpgradePrompt && upgradePromptData && (
+        <UpgradePrompt
+          isOpen={showUpgradePrompt}
+          onClose={() => {
+            setShowUpgradePrompt(false)
+            setUpgradePromptData(null)
+          }}
+          featureType="ats_enhanced"
+          currentUsage={upgradePromptData.currentUsage}
+          limit={upgradePromptData.limit}
+          period={upgradePromptData.period}
+        />
+      )}
+
+      <div className={inline ? '' : 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'}>
+        <div className={inline ? 'bg-white rounded-lg shadow-sm border w-full' : 'bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto'}>
+          <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Enhanced ATS Analysis & AI Improvements</h2>
             {!inline && (
@@ -624,5 +690,6 @@ export default function EnhancedATSScoreWidget({
         </div>
       )}
     </div>
+    </>
   )
 }

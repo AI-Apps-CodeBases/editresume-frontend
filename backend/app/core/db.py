@@ -88,11 +88,14 @@ def migrate_schema() -> None:
 
     from app.models.job import JobCoverLetter, JobResumeVersion  # noqa: WPS433
     from app.models.analytics import VisitorAnalytics  # noqa: WPS433
+    from app.models.usage import AIUsage, TrialPeriod  # noqa: WPS433
 
     # Ensure auxiliary tables exist
     JobResumeVersion.__table__.create(bind=engine, checkfirst=True)
     JobCoverLetter.__table__.create(bind=engine, checkfirst=True)
     VisitorAnalytics.__table__.create(bind=engine, checkfirst=True)
+    AIUsage.__table__.create(bind=engine, checkfirst=True)
+    TrialPeriod.__table__.create(bind=engine, checkfirst=True)
 
     with engine.connect() as conn:
         # Check and fix job_descriptions.user_id nullability
@@ -259,6 +262,60 @@ def migrate_schema() -> None:
             conn.execute(
                 text(
                     "ALTER TABLE resume_versions ADD COLUMN tokens_used INTEGER DEFAULT 0"
+                )
+            )
+            conn.commit()
+
+        # Add trial_started_at to users table if it doesn't exist
+        result = conn.execute(
+            text(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='users' AND column_name='trial_started_at'
+                """
+            )
+        )
+        row = result.fetchone()
+        if not row:
+            conn.execute(
+                text(
+                    "ALTER TABLE users ADD COLUMN trial_started_at TIMESTAMP"
+                )
+            )
+            conn.commit()
+
+        # Add session_id to export_analytics if it doesn't exist
+        result = conn.execute(
+            text(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='export_analytics' AND column_name='session_id'
+                """
+            )
+        )
+        row = result.fetchone()
+        if not row:
+            conn.execute(
+                text(
+                    "ALTER TABLE export_analytics ADD COLUMN session_id VARCHAR(255)"
+                )
+            )
+            conn.commit()
+
+        # Make user_id nullable in export_analytics for guest users
+        result = conn.execute(
+            text(
+                """
+                SELECT is_nullable FROM information_schema.columns
+                WHERE table_name='export_analytics' AND column_name='user_id'
+                """
+            )
+        )
+        row = result.fetchone()
+        if row and row[0] == "NO":
+            conn.execute(
+                text(
+                    "ALTER TABLE export_analytics ALTER COLUMN user_id DROP NOT NULL"
                 )
             )
             conn.commit()
