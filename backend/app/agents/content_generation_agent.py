@@ -441,6 +441,7 @@ class ContentGenerationAgent:
         job_description_excerpt: str | None = None,
         existing_summary: str | None = None,
         missing_keywords: list[str] | None = None,
+        company_name: str | None = None,
     ) -> dict:
         """Generate professional summary from work experience."""
         if not self.openai_client:
@@ -457,6 +458,7 @@ class ContentGenerationAgent:
                 job_description_excerpt=job_description_excerpt,
                 existing_summary=existing_summary,
                 missing_keywords=missing_keywords,
+                company_name=company_name,
             )
 
             headers = {

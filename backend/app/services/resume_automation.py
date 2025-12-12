@@ -275,10 +275,42 @@ class ResumeAutomationService:
 
             skills_text = ", ".join(skills_parts[:15])
 
+            # Filter out company names from missing keywords
+            def filter_company_names(keywords: List[str], company: str | None) -> List[str]:
+                if not company or not keywords:
+                    return keywords
+                company_lower = company.lower().strip()
+                if not company_lower:
+                    return keywords
+                
+                company_words = company_lower.split()
+                filtered = []
+                for keyword in keywords:
+                    keyword_lower = keyword.lower().strip()
+                    # Check if keyword matches company name or contains company words
+                    is_company_name = False
+                    if keyword_lower == company_lower:
+                        is_company_name = True
+                    else:
+                        # Check if keyword contains significant company words (length > 2)
+                        for cw in company_words:
+                            if len(cw) > 2 and (cw in keyword_lower or keyword_lower in cw):
+                                is_company_name = True
+                                break
+                    
+                    if not is_company_name:
+                        filtered.append(keyword)
+                
+                return filtered
+            
+            # Filter company names and limit to 5-8 keywords
+            filtered_missing = filter_company_names(missing_keywords, job.company if hasattr(job, 'company') else None)
+            limited_missing = filtered_missing[:8] if filtered_missing else None
+
             # Create keyword guidance
             keyword_guidance = f"Matched keywords: {', '.join(matched_keywords[:10])}"
-            if missing_keywords:
-                keyword_guidance += f". Missing high-priority keywords to integrate: {', '.join(missing_keywords[:15])}"
+            if limited_missing:
+                keyword_guidance += f". Missing high-priority keywords to integrate: {', '.join(limited_missing)}"
 
             # Generate summary using AI
             result = await self._content_agent.generate_summary_from_experience(
@@ -288,7 +320,8 @@ class ResumeAutomationService:
                 keyword_guidance=keyword_guidance,
                 job_description_excerpt=job.description[:500] if job.description else None,
                 existing_summary=resume_data.get("summary"),
-                missing_keywords=missing_keywords[:20] if missing_keywords else None,
+                missing_keywords=limited_missing,
+                company_name=job.company if hasattr(job, 'company') else None,
             )
 
             if result.get("success") and result.get("summary"):

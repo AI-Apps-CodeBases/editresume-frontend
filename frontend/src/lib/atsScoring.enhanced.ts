@@ -470,15 +470,36 @@ function calculateKeywordCoverage(
   const sectionWeights: Record<string, number> = {
     skills: 1.0,
     experience: 0.9,
-    summary: 0.7,
+    summary: 0.6, // Balanced weight with 5-keyword cap to prevent excessive summary impact
     education: 0.4,
     projects: 0.4,
   };
 
+  // Cap summary keywords to prevent over-weighting from summary-only keyword additions
+  // Only first 5 unique keywords from summary will contribute to keyword coverage
+  const MAX_SUMMARY_KEYWORDS = 5;
+  const summaryKeywordMappings = keywordMappings.filter(m => m.section === 'summary');
+  const otherMappings = keywordMappings.filter(m => m.section !== 'summary');
+  
+  // Track unique keywords in summary and limit to first 5
+  const summaryKeywordsSeen = new Set<string>();
+  const cappedSummaryMappings: KeywordSectionMapping[] = [];
+  
+  for (const mapping of summaryKeywordMappings) {
+    const keywordLower = mapping.keyword.toLowerCase();
+    if (summaryKeywordsSeen.size < MAX_SUMMARY_KEYWORDS && !summaryKeywordsSeen.has(keywordLower)) {
+      summaryKeywordsSeen.add(keywordLower);
+      cappedSummaryMappings.push(mapping);
+    }
+  }
+  
+  // Combine capped summary mappings with other section mappings
+  const processedMappings = [...cappedSummaryMappings, ...otherMappings];
+
   let weightedScore = 0;
   let totalWeight = 0;
 
-  keywordMappings.forEach((mapping) => {
+  processedMappings.forEach((mapping) => {
     const sectionWeight = sectionWeights[mapping.section] || 0.5;
     const keywordWeight = matchingKeywords.find(kw => 
       kw.keyword.toLowerCase() === mapping.keyword.toLowerCase()
@@ -492,7 +513,7 @@ function calculateKeywordCoverage(
   });
 
   const keywordOccurrences = new Map<string, number>();
-  keywordMappings.forEach(mapping => {
+  processedMappings.forEach(mapping => {
     const current = keywordOccurrences.get(mapping.keyword) || 0;
     keywordOccurrences.set(mapping.keyword, current + mapping.occurrences);
   });
