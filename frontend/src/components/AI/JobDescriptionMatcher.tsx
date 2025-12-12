@@ -2359,8 +2359,64 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const highWeightMissingKeywords = useMemo(() => {
     if (!extractedKeywords) return [];
     
-    // Build set of all missing keywords (from estimatedATS and matchResult)
+    // Build resume text to check which keywords are actually missing
+    const resumeFragments: string[] = [];
+    const appendText = (value?: string) => {
+      const normalized = normalizeTextForATS(value);
+      if (normalized) {
+        resumeFragments.push(normalized.toLowerCase());
+      }
+    };
+    
+    appendText(resumeData?.title);
+    appendText(resumeData?.summary);
+    if (resumeData?.sections && Array.isArray(resumeData.sections)) {
+      resumeData.sections.forEach((section: any) => {
+        appendText(section?.title);
+        if (section?.bullets && Array.isArray(section.bullets)) {
+          section.bullets
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .forEach((bullet: any) => appendText(bullet?.text));
+        }
+      });
+    }
+    
+    const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+    
+    // Get all potential keywords from JD
+    const allPotentialKeywords = new Set<string>();
+    const technical = extractedKeywords.technical_keywords || [];
+    const highFreq = extractedKeywords.high_frequency_keywords || [];
+    const priority = extractedKeywords.priority_keywords || [];
+    
+    technical.forEach((kw: any) => {
+      const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
+      if (keyword) allPotentialKeywords.add(keyword.toLowerCase());
+    });
+    highFreq.forEach((item: any) => {
+      const keyword = typeof item === 'string' ? item : (item?.keyword || item);
+      if (keyword) allPotentialKeywords.add(keyword.toLowerCase());
+    });
+    priority.forEach((kw: any) => {
+      const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
+      if (keyword) allPotentialKeywords.add(keyword.toLowerCase());
+    });
+    
+    // Check which keywords are actually missing in the resume
     const missingKeywordsSet = new Set<string>();
+    allPotentialKeywords.forEach((keyword) => {
+      const hasSpecialChars = /[\/\-_]/g.test(keyword);
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = hasSpecialChars
+        ? new RegExp(escaped, 'i')
+        : new RegExp(`\\b${escaped}\\b`, 'i');
+      
+      if (!pattern.test(resumeText)) {
+        missingKeywordsSet.add(keyword);
+      }
+    });
+    
+    // Also add missing keywords from estimatedATS and matchResult for completeness
     if (estimatedATS && 'missingKeywords' in estimatedATS && estimatedATS.missingKeywords) {
       estimatedATS.missingKeywords.forEach((k: string) => {
         if (k) missingKeywordsSet.add(k.toLowerCase());
@@ -2377,7 +2433,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     const highWeightKeywords: Array<{ keyword: string; weight: number; isRequired: boolean }> = [];
     
     // Get technical keywords (weight 8)
-    const technical = extractedKeywords.technical_keywords || [];
     technical.forEach((kw: any) => {
       const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
       const keywordLower = keyword?.toLowerCase();
@@ -2391,7 +2446,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     });
     
     // Get high-frequency keywords with high importance (weight 8-10)
-    const highFreq = extractedKeywords.high_frequency_keywords || [];
     highFreq.forEach((item: any) => {
       const keyword = typeof item === 'string' ? item : (item?.keyword || item);
       const keywordLower = keyword?.toLowerCase();
@@ -2421,7 +2475,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     });
     
     // Also check priority keywords (typically high weight)
-    const priority = extractedKeywords.priority_keywords || [];
     priority.forEach((kw: any) => {
       const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
       const keywordLower = keyword?.toLowerCase();
@@ -2464,7 +2517,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       if (a.isRequired && !b.isRequired) return -1;
       return 0;
     });
-  }, [estimatedATS, extractedKeywords, matchResult]);
+  }, [estimatedATS, extractedKeywords, matchResult, resumeData, keywordUsageCounts]);
 
   // Find lowest scoring category
   const lowestCategory = useMemo(() => {
@@ -2482,7 +2535,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     return categories.reduce((lowest, current) => 
       current.percentage < lowest.percentage ? current : lowest
     );
-  }, [estimatedATS]);
+  }, [estimatedATS, resumeData]);
 
   // Detect keyword stuffing (keywords appearing >10 times)
   const keywordStuffingWarnings = useMemo(() => {
