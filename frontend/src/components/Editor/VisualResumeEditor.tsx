@@ -697,14 +697,14 @@ export default function VisualResumeEditor({
     const keywordsToCheck = new Set<string>();
 
     // Add JD matching keywords
-    jdKeywords.matching.forEach(kw => {
+    jdKeywords.matching?.forEach(kw => {
       if (kw && kw.length > 1 && kw.trim().length > 1) {
         keywordsToCheck.add(kw);
       }
     });
 
     // Add priority keywords
-    jdKeywords.priority.forEach(kw => {
+    jdKeywords.priority?.forEach(kw => {
       if (kw && kw.length > 1 && kw.trim().length > 1) {
         keywordsToCheck.add(kw);
       }
@@ -1204,7 +1204,7 @@ export default function VisualResumeEditor({
 
   // Check if text contains matching keywords
   const getTextMatches = (text: string): { matchedKeywords: string[], keywordCounts: Record<string, number> } => {
-    if (!jdKeywords?.matching?.length || !text) {
+    if (!jdKeywords || (jdKeywords.matching?.length ?? 0) === 0 || !text) {
       return { matchedKeywords: [], keywordCounts: {} };
     }
 
@@ -1212,7 +1212,7 @@ export default function VisualResumeEditor({
     const matchedKeywords: string[] = [];
     const keywordCounts: Record<string, number> = {};
 
-    jdKeywords.matching.forEach(keyword => {
+    jdKeywords.matching?.forEach(keyword => {
       const keywordLower = keyword.toLowerCase();
       // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
       const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
@@ -1301,7 +1301,7 @@ export default function VisualResumeEditor({
   useEffect(() => {
     if (!isHydrated) return;
     if (typeof window === 'undefined') return;
-    if (!jdKeywords?.matching?.length) return;
+    if ((jdKeywords?.matching?.length ?? 0) === 0) return;
 
     // Clear any pending highlighting
     if (highlightingTimeoutRef.current) {
@@ -1345,8 +1345,13 @@ export default function VisualResumeEditor({
       return;
     }
 
+    if (!jdKeywords) {
+      shouldRehighlightRef.current = false;
+      return;
+    }
+
     // Check if text actually changed
-    const keywordsHash = JSON.stringify(jdKeywords.matching);
+    const keywordsHash = JSON.stringify(jdKeywords.matching || []);
     const summaryChanged = plainText.trim() !== previousSummaryRef.current.trim();
     const keywordsChanged = keywordsHash !== previousKeywordsRef.current;
     
@@ -2450,7 +2455,7 @@ export default function VisualResumeEditor({
           </div>
 
           {/* Keyword Highlighting Info - Sticky at top - Always visible when scrolling */}
-          {jdKeywords && (jdKeywords.matching?.length > 0 || calculatedKeywordUsageCounts?.size > 0) && (
+          {jdKeywords && ((jdKeywords.matching?.length ?? 0) > 0 || calculatedKeywordUsageCounts?.size > 0) && (
             <div className="sticky z-50 bg-white border-b-2 border-blue-300 px-6 py-3 shadow-lg w-full" style={{ top: `${toolbarHeight}px` }}>
               <div className="max-w-4xl mx-auto">
                 <div className="flex items-center gap-2 text-xs text-gray-700">
@@ -2728,7 +2733,7 @@ export default function VisualResumeEditor({
                                   }, 300);
                                 }}
                                 className={`text-sm leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200 relative z-10 ${
-                                  (jdKeywords?.matching?.length > 0 || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim()
+                                  ((jdKeywords?.matching?.length ?? 0) > 0 || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim()
                                     ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700'
                                     : 'text-gray-700'
                                 }`}
@@ -2736,7 +2741,7 @@ export default function VisualResumeEditor({
                               >
                                 {data.summary || 'Write a compelling professional summary that highlights your key skills and experience...'}
                               </div>
-                              {((jdKeywords?.matching?.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim() && (() => {
+                              {((jdKeywords?.matching?.length ?? 0) > 0 || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim() && (() => {
                                 const summaryMatches = getTextMatches(data.summary);
                                 const hasMatch = summaryMatches.matchedKeywords.length > 0;
                                 return (
@@ -3175,8 +3180,8 @@ export default function VisualResumeEditor({
                                               const hasMatch = bulletMatch.matches
                                               const hasNoMatch = jdKeywords && !hasMatch && companyBullet.text.trim().length > 0
                                               const isDisabled = companyBullet.params?.visible === false
-                                              const disabledHasMissing = isDisabled && jdKeywords && jdKeywords.missing.length > 0 &&
-                                                jdKeywords.missing.some(kw => {
+                                              const disabledHasMissing = isDisabled && jdKeywords && (jdKeywords.missing?.length ?? 0) > 0 &&
+                                                jdKeywords.missing?.some(kw => {
                                                   const regex = new RegExp(`\\b${kw.toLowerCase().replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'i')
                                                   return regex.test(companyBullet.text.toLowerCase())
                                                 })
