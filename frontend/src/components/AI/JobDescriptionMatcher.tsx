@@ -830,6 +830,97 @@ const highlightMissingKeywords = (text: string, missingKeywords: string[]): Reac
   return parts.length > 0 ? <>{parts}</> : text;
 };
 
+// Highlight overused keywords (used more than threshold times) in resume text
+const highlightOverusedKeywords = (text: string, keywordUsageCounts: Map<string, number>, threshold: number = 6): React.ReactNode => {
+  if (!text || !keywordUsageCounts || keywordUsageCounts.size === 0) return text;
+
+  // Get keywords used more than threshold times
+  const overusedKeywords = Array.from(keywordUsageCounts.entries())
+    .filter(([_, count]) => count > threshold)
+    .map(([keyword, _]) => keyword);
+
+  if (overusedKeywords.length === 0) return text;
+
+  const parts: Array<React.ReactNode> = [];
+  let lastIndex = 0;
+
+  // Sort keywords by length (longest first) to avoid partial matches
+  const sortedKeywords = [...overusedKeywords].filter(kw => kw && kw.trim().length > 1).sort((a, b) => b.length - a.length);
+  const matches: Array<{ keyword: string, index: number, length: number, count: number }> = [];
+
+  sortedKeywords.forEach(keyword => {
+    const keywordLower = keyword.toLowerCase().trim();
+    const count = keywordUsageCounts.get(keyword) || 0;
+    try {
+      // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+      const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+      let regex: RegExp;
+      if (hasSpecialChars) {
+        // For keywords with special chars, escape and match directly (no word boundaries)
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(escaped, 'gi');
+      } else {
+        // For normal keywords, use word boundaries to avoid partial matches
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+      }
+      const textMatches = text.matchAll(regex);
+
+      for (const match of textMatches) {
+        if (match.index !== undefined && match[0]) {
+          matches.push({
+            keyword,
+            index: match.index,
+            length: match[0].length,
+            count
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error matching overused keyword:', keyword, e);
+    }
+  });
+
+  // Sort matches by index and remove overlaps
+  matches.sort((a, b) => a.index - b.index);
+  const nonOverlapping: typeof matches = [];
+  for (const match of matches) {
+    const overlaps = nonOverlapping.some(m =>
+      (match.index >= m.index && match.index < m.index + m.length) ||
+      (match.index + match.length > m.index && match.index + match.length <= m.index + m.length)
+    );
+    if (!overlaps) {
+      nonOverlapping.push(match);
+    }
+  }
+
+  // Build highlighted parts
+  nonOverlapping.forEach(match => {
+    // Add text before match
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    // Add highlighted match in RED
+    parts.push(
+      <mark
+        key={`overused-${match.keyword}-${match.index}`}
+        className="bg-red-300 text-red-900 font-semibold px-0.5 rounded border border-red-500"
+        title={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+      >
+        {text.substring(match.index, match.index + match.length)}
+      </mark>
+    );
+    lastIndex = match.index + match.length;
+  });
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? <>{parts}</> : text;
+};
+
 // Extract missing keywords found in a bullet
 const getMissingKeywordsInBullet = (bulletText: string, missingKeywords: string[]): string[] => {
   const found: string[] = [];

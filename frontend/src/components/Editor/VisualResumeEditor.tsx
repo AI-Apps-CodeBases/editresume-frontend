@@ -44,6 +44,7 @@ interface Props {
   activeUsers?: Array<{ user_id: string; name: string; joined_at: string }>
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
   hideSidebar?: boolean // Hide the built-in sidebar when used in ModernEditorLayout
+  keywordUsageCounts?: Map<string, number> // Keyword usage counts for highlighting overused keywords
 }
 
 const isCompanyHeaderBullet = (bullet: Bullet) => {
@@ -125,7 +126,8 @@ export default function VisualResumeEditor({
   isConnected = false,
   activeUsers = [],
   onViewChange,
-  hideSidebar = false
+  hideSidebar = false,
+  keywordUsageCounts
 }: Props) {
   const { showAlert, showConfirm } = useModal()
   const [jdKeywords, setJdKeywords] = useState<{
@@ -134,6 +136,75 @@ export default function VisualResumeEditor({
     high_frequency: Array<{ keyword: string, frequency: number, importance: string }>;
     priority: string[];
   } | null>(null);
+
+  // Calculate keyword usage counts in resume if not provided as prop
+  const calculatedKeywordUsageCounts = useMemo(() => {
+    if (keywordUsageCounts) return keywordUsageCounts;
+    
+    const counts = new Map<string, number>();
+    if (!data) return counts;
+
+    // Build resume text
+    const resumeFragments: string[] = [];
+    const appendText = (value?: string) => {
+      if (value) {
+        const normalized = value
+          .replace(/\r\n?/g, ' ')
+          .replace(/\*\*/g, '')
+          .replace(/^•\s*/gm, '')
+          .replace(/•/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (normalized) {
+          resumeFragments.push(normalized.toLowerCase());
+        }
+      }
+    };
+
+    appendText(data.title);
+    appendText(data.summary);
+    if (data.sections && Array.isArray(data.sections)) {
+      data.sections.forEach((section: any) => {
+        appendText(section.title);
+        if (section.bullets && Array.isArray(section.bullets)) {
+          section.bullets
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .forEach((bullet: any) => appendText(bullet?.text));
+        }
+      });
+    }
+
+    const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+
+    // Get all keywords to count
+    const allKeywords: string[] = [];
+    if (jdKeywords) {
+      allKeywords.push(...(jdKeywords.matching || []));
+      allKeywords.push(...(jdKeywords.missing || []));
+      allKeywords.push(...(jdKeywords.priority || []));
+      if (jdKeywords.high_frequency) {
+        allKeywords.push(...jdKeywords.high_frequency.map((item: any) => 
+          typeof item === 'string' ? item : item.keyword
+        ));
+      }
+    }
+
+    // Count occurrences for each keyword
+    allKeywords.forEach((keyword) => {
+      const keywordLower = keyword.toLowerCase();
+      const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+      const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = hasSpecialChars
+        ? new RegExp(escaped, 'gi')
+        : new RegExp(`\\b${escaped}\\b`, 'gi');
+      const matches = resumeText.match(pattern);
+      if (matches) {
+        counts.set(keyword, matches.length);
+      }
+    });
+
+    return counts;
+  }, [data, jdKeywords, keywordUsageCounts]);
   const [showAIImproveModal, setShowAIImproveModal] = useState(false);
   const [aiImproveContext, setAiImproveContext] = useState<{ sectionId: string, bulletId: string, currentText: string, mode?: 'existing' | 'new' } | null>(null);
   const [selectedMissingKeywords, setSelectedMissingKeywords] = useState<Set<string>>(new Set());
@@ -682,6 +753,100 @@ export default function VisualResumeEditor({
     if (lastIndex < text.length) {
       const remainingText = text.substring(lastIndex);
       if (remainingText) parts.push(remainingText);
+    }
+
+    if (parts.length === 0) return text;
+    if (parts.length === 1 && typeof parts[0] === 'string') return parts[0];
+    return <>{parts}</>;
+  };
+
+  // Highlight overused keywords (used more than threshold times) in resume text
+  const highlightOverusedKeywords = (text: string, threshold: number = 6): React.ReactNode => {
+    const countsToUse = calculatedKeywordUsageCounts;
+    if (!text || !countsToUse || countsToUse.size === 0) return text;
+
+    // Get keywords used more than threshold times
+    const overusedKeywords = Array.from(countsToUse.entries())
+      .filter(([_, count]) => count > threshold)
+      .map(([keyword, _]) => keyword);
+
+    if (overusedKeywords.length === 0) return text;
+
+    const parts: Array<React.ReactNode> = [];
+    let lastIndex = 0;
+
+    // Sort keywords by length (longest first) to avoid partial matches
+    const sortedKeywords = [...overusedKeywords].filter(kw => kw && kw.trim().length > 1).sort((a, b) => b.length - a.length);
+    const matches: Array<{ keyword: string, index: number, length: number, count: number }> = [];
+
+    sortedKeywords.forEach(keyword => {
+      const keywordLower = keyword.toLowerCase().trim();
+      const count = countsToUse.get(keyword) || 0;
+      try {
+        // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+        const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+        let regex: RegExp;
+        if (hasSpecialChars) {
+          // For keywords with special chars, escape and match directly (no word boundaries)
+          const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          regex = new RegExp(escaped, 'gi');
+        } else {
+          // For normal keywords, use word boundaries to avoid partial matches
+          const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+        }
+        const textMatches = text.matchAll(regex);
+
+        for (const match of textMatches) {
+          if (match.index !== undefined && match[0]) {
+            matches.push({
+              keyword,
+              index: match.index,
+              length: match[0].length,
+              count
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Error matching overused keyword:', keyword, e);
+      }
+    });
+
+    // Sort matches by index and remove overlaps
+    matches.sort((a, b) => a.index - b.index);
+    const nonOverlapping: typeof matches = [];
+    for (const match of matches) {
+      const overlaps = nonOverlapping.some(m =>
+        (match.index >= m.index && match.index < m.index + m.length) ||
+        (match.index + match.length > m.index && match.index + match.length <= m.index + m.length)
+      );
+      if (!overlaps) {
+        nonOverlapping.push(match);
+      }
+    }
+
+    // Build highlighted parts
+    nonOverlapping.forEach((match, idx) => {
+      // Add text before match
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      // Add highlighted match in RED
+      parts.push(
+        <mark
+          key={`overused-${match.keyword}-${match.index}-${idx}`}
+          className="bg-red-300 text-red-900 font-semibold px-0.5 rounded border border-red-500"
+          title={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+        >
+          {text.substring(match.index, match.index + match.length)}
+        </mark>
+      );
+      lastIndex = match.index + match.length;
+    });
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
     }
 
     if (parts.length === 0) return text;
@@ -2825,6 +2990,24 @@ export default function VisualResumeEditor({
                                                           {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                                         </div>
                                                       )}
+                                                      {calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0 && (
+                                                        <div
+                                                          className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-[1] group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                            }`}
+                                                          data-highlight-overlay-overused="true"
+                                                          style={{ 
+                                                            position: 'absolute',
+                                                            top: 0,
+                                                            left: 0,
+                                                            right: 0,
+                                                            bottom: 0,
+                                                            zIndex: 1,
+                                                            pointerEvents: 'none'
+                                                          }}
+                                                        >
+                                                          {highlightOverusedKeywords((companyBullet.text || '').replace(/^•\s*/, ''), 6)}
+                                                        </div>
+                                                      )}
                                                     </div>
                                                   </div>
 
@@ -3084,6 +3267,24 @@ export default function VisualResumeEditor({
                                               }}
                                             >
                                               {highlightKeywordsInText((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                            </div>
+                                          )}
+                                          {calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0 && (
+                                            <div
+                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-[1] group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                }`}
+                                              data-highlight-overlay-overused="true"
+                                              style={{ 
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                                zIndex: 1,
+                                                pointerEvents: 'none'
+                                              }}
+                                            >
+                                              {highlightOverusedKeywords((bullet.text || '').replace(/^•\s*/, ''), 6)}
                                             </div>
                                           )}
                                         </div>
