@@ -507,6 +507,8 @@ function calculateKeywordCoverage(
     
     // Her bölümde maksimum 3 geçiş sayılsın (aşırı çarpmayı önlemek için)
     const cappedOccurrences = Math.min(mapping.occurrences, 3);
+    
+    // Calculate base contribution
     const contribution = sectionWeight * keywordWeight * cappedOccurrences;
     weightedScore += contribution;
     totalWeight += keywordWeight;
@@ -527,8 +529,40 @@ function calculateKeywordCoverage(
     }
   });
 
+  // Calculate base score with improved keyword contribution
+  // Scale weightedScore to fit within 27 points max for keyword coverage
   const baseScore = totalWeight > 0 ? (weightedScore / totalWeight) * 27 : 0;
-  const finalScore = Math.max(0, Math.min(27, baseScore - stuffingPenalty));
+  
+  // Apply bonus for keyword occurrences (ensures 2-4 points per occurrence in total score)
+  // Calculate bonus based on total occurrences
+  const totalKeywordOccurrences = processedMappings.reduce((sum, m) => sum + Math.min(m.occurrences, 3), 0);
+  
+  // Each occurrence should contribute 2-4 points to total score
+  // Keyword coverage max is 27, so to get 2-4 points per occurrence:
+  // (bonus / 27) * 100 = 2-4 points → bonus = (2-4) * 27 / 100 = 0.54 - 1.08
+  const minBonusPerOccurrence = 0.54; // Minimum: ~2 points in total score
+  const maxBonusPerOccurrence = 1.08; // Maximum: ~4 points in total score
+  
+  // Calculate bonus: ensure at least 2 points per occurrence, but cap at 4 points
+  // Use a progressive bonus: start with minimum, but allow up to maximum based on keyword weight
+  const baseBonus = totalKeywordOccurrences * minBonusPerOccurrence;
+  const maxPossibleBonus = totalKeywordOccurrences * maxBonusPerOccurrence;
+  
+  // If base score is low, use minimum bonus. If base score is higher, allow more bonus
+  // This ensures each occurrence contributes meaningfully while preventing over-scoring
+  const bonusToAdd = Math.min(
+    maxPossibleBonus,
+    Math.max(baseBonus, baseScore * 0.15) // At least minimum bonus, or 15% of base score
+  );
+  
+  // Apply stuffing penalty first
+  let finalScore = Math.max(0, baseScore - stuffingPenalty);
+  
+  // Add bonus (ensures minimum 2 points per occurrence, max 4 points)
+  finalScore = finalScore + bonusToAdd;
+  
+  // Cap keyword coverage score at 27
+  finalScore = Math.min(27, finalScore);
 
   return {
     score: Math.round(finalScore * 100) / 100,
@@ -538,7 +572,8 @@ function calculateKeywordCoverage(
 
 function calculateEducationAndCertifications(
   resumeContent: ReturnType<typeof extractResumeContent>,
-  jobDescription: string
+  jobDescription: string,
+  resumeData?: any
 ): { score: number; details: string } {
   let educationScore = 0;
   let certScore = 0;
@@ -550,18 +585,86 @@ function calculateEducationAndCertifications(
     /\b(degree|diploma|certification)\b/gi,
   ];
 
+  // Patterns to detect schools/universities
+  const schoolPatterns = [
+    /\b(university|college|school|institute|academy)\b/gi,
+  ];
+
   const hasDegreeRequirement = degreePatterns.some(pattern => pattern.test(jdLower));
   
-  if (resumeContent.education) {
-    if (hasDegreeRequirement) {
-      const hasDegree = degreePatterns.some(pattern => pattern.test(resumeContent.education));
-      if (hasDegree) {
-        educationScore = 6;
-        details.push('Degree requirement met');
+  // Count number of education bullet points (school entries)
+  let schoolBulletCount = 0;
+  if (resumeData?.sections && Array.isArray(resumeData.sections)) {
+    resumeData.sections.forEach((section: any) => {
+      const sectionTitle = (section.title || '').toLowerCase();
+      if (sectionTitle.includes('education') || sectionTitle.includes('academic')) {
+        if (section.bullets && Array.isArray(section.bullets)) {
+          // Count visible bullets that contain school-related content
+          section.bullets
+            .filter((bullet: any) => bullet?.params?.visible !== false && bullet?.text)
+            .forEach((bullet: any) => {
+              const bulletText = normalizeTextForATS(bullet.text || '').toLowerCase();
+              // Check if bullet contains school/university keywords or is substantial content
+              const hasSchoolKeyword = schoolPatterns.some(pattern => pattern.test(bulletText));
+              const hasSubstantialContent = bulletText.trim().length > 5; // At least 5 chars
+              
+              if (hasSchoolKeyword || hasSubstantialContent) {
+                schoolBulletCount++;
+              }
+            });
+        }
       }
+    });
+  }
+  
+  if (resumeContent.education) {
+    const educationText = resumeContent.education.toLowerCase();
+    const hasDegree = degreePatterns.some(pattern => pattern.test(educationText));
+    const hasSchool = schoolPatterns.some(pattern => pattern.test(educationText));
+    const educationLength = educationText.trim().length;
+    
+    // Give 3 points per school bullet point (minimum)
+    if (schoolBulletCount > 0) {
+      const baseScore = schoolBulletCount * 3;
+      educationScore = baseScore;
+      details.push(`${schoolBulletCount} school entr${schoolBulletCount === 1 ? 'y' : 'ies'} found (${baseScore} points)`);
+      
+      // Add bonus for degree keywords
+      if (hasDegree) {
+        educationScore += 2;
+        details.push('Degree keywords detected (+2 bonus)');
+      }
+      
+      // Cap at 10 points max (education section max)
+      educationScore = Math.min(10, educationScore);
     } else {
-      educationScore = 3;
-      details.push('Education section present');
+      // Fallback to old logic if no bullets counted
+      if (hasDegreeRequirement) {
+        if (hasDegree) {
+          educationScore = 8;
+          details.push('Degree requirement met');
+        } else if (hasSchool && educationLength > 20) {
+          educationScore = 5;
+          details.push('Education content found (degree keywords not detected)');
+        } else if (educationLength > 10) {
+          educationScore = 2;
+          details.push('Limited education information');
+        }
+      } else {
+        if (hasDegree) {
+          educationScore = 6;
+          details.push('Degree information present');
+        } else if (hasSchool && educationLength > 20) {
+          educationScore = 5;
+          details.push('Education section with school information');
+        } else if (educationLength > 10) {
+          educationScore = 3;
+          details.push('Education section present');
+        } else if (educationLength > 0) {
+          educationScore = 1;
+          details.push('Minimal education information');
+        }
+      }
     }
   }
 
@@ -691,15 +794,24 @@ export function calculateEnhancedATSScore(
     normalizedData.missingKeywords,
     keywordMappings
   );
-  const education = calculateEducationAndCertifications(resumeContent, jobDescription);
+  const education = calculateEducationAndCertifications(resumeContent, jobDescription, resumeData);
   const atsCompatibility = calculateATSCompatibility(resumeContent);
 
-  const totalScore = Math.round(
+  // Calculate scores from other categories (non-keyword contributions)
+  const nonKeywordScore = Math.round(
     skillsMatch.score +
     experienceRelevance.score +
-    keywordCoverage.score +
     education.score +
     atsCompatibility.score
+  );
+
+  // Cap keyword coverage contribution so total score doesn't exceed 95
+  // Maximum allowed keyword contribution = 95 - nonKeywordScore
+  const maxAllowedKeywordScore = Math.max(0, 95 - nonKeywordScore);
+  const cappedKeywordScore = Math.min(keywordCoverage.score, maxAllowedKeywordScore);
+
+  const totalScore = Math.round(
+    nonKeywordScore + cappedKeywordScore
   );
 
   const recommendations = generateRecommendations(
@@ -708,6 +820,7 @@ export function calculateEnhancedATSScore(
     resumeContent
   );
 
+  // Total score can go up to 100, but keyword improvements are capped at 95
   return {
     totalScore: Math.min(100, Math.max(0, totalScore)),
     breakdown: {

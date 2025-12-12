@@ -2353,7 +2353,203 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     }
 
     return result;
-  }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult]);
+  }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult, keywordUsageCounts]);
+
+  // Extract high-weight missing keywords (8-10) for diagnostic panel
+  const highWeightMissingKeywords = useMemo(() => {
+    if (!extractedKeywords) return [];
+    
+    // Build resume text to check which keywords are actually missing
+    const resumeFragments: string[] = [];
+    const appendText = (value?: string) => {
+      const normalized = normalizeTextForATS(value);
+      if (normalized) {
+        resumeFragments.push(normalized.toLowerCase());
+      }
+    };
+    
+    appendText(resumeData?.title);
+    appendText(resumeData?.summary);
+    if (resumeData?.sections && Array.isArray(resumeData.sections)) {
+      resumeData.sections.forEach((section: any) => {
+        appendText(section?.title);
+        if (section?.bullets && Array.isArray(section.bullets)) {
+          section.bullets
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .forEach((bullet: any) => appendText(bullet?.text));
+        }
+      });
+    }
+    
+    const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+    
+    // Get all potential keywords from JD
+    const allPotentialKeywords = new Set<string>();
+    const technical = extractedKeywords.technical_keywords || [];
+    const highFreq = extractedKeywords.high_frequency_keywords || [];
+    const priority = extractedKeywords.priority_keywords || [];
+    
+    technical.forEach((kw: any) => {
+      const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
+      if (keyword) allPotentialKeywords.add(keyword.toLowerCase());
+    });
+    highFreq.forEach((item: any) => {
+      const keyword = typeof item === 'string' ? item : (item?.keyword || item);
+      if (keyword) allPotentialKeywords.add(keyword.toLowerCase());
+    });
+    priority.forEach((kw: any) => {
+      const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
+      if (keyword) allPotentialKeywords.add(keyword.toLowerCase());
+    });
+    
+    // Check which keywords are actually missing in the resume
+    const missingKeywordsSet = new Set<string>();
+    allPotentialKeywords.forEach((keyword) => {
+      const hasSpecialChars = /[\/\-_]/g.test(keyword);
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = hasSpecialChars
+        ? new RegExp(escaped, 'i')
+        : new RegExp(`\\b${escaped}\\b`, 'i');
+      
+      if (!pattern.test(resumeText)) {
+        missingKeywordsSet.add(keyword);
+      }
+    });
+    
+    // Also add missing keywords from estimatedATS and matchResult for completeness
+    if (estimatedATS && 'missingKeywords' in estimatedATS && estimatedATS.missingKeywords) {
+      estimatedATS.missingKeywords.forEach((k: string) => {
+        if (k) missingKeywordsSet.add(k.toLowerCase());
+      });
+    }
+    if (matchResult?.match_analysis?.missing_keywords) {
+      matchResult.match_analysis.missing_keywords.forEach((k: string) => {
+        if (k) missingKeywordsSet.add(k.toLowerCase());
+      });
+    }
+    
+    if (missingKeywordsSet.size === 0) return [];
+    
+    const highWeightKeywords: Array<{ keyword: string; weight: number; isRequired: boolean }> = [];
+    
+    // Get technical keywords (weight 8)
+    technical.forEach((kw: any) => {
+      const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
+      const keywordLower = keyword?.toLowerCase();
+      if (keyword && keywordLower && missingKeywordsSet.has(keywordLower)) {
+        highWeightKeywords.push({
+          keyword: typeof kw === 'string' ? kw : kw.keyword || kw,
+          weight: 8,
+          isRequired: typeof kw === 'object' ? (kw.isRequired || kw.importance === 'high') : false
+        });
+      }
+    });
+    
+    // Get high-frequency keywords with high importance (weight 8-10)
+    highFreq.forEach((item: any) => {
+      const keyword = typeof item === 'string' ? item : (item?.keyword || item);
+      const keywordLower = keyword?.toLowerCase();
+      const importance = typeof item === 'object' ? (item.importance || 'medium') : 'medium';
+      const weight = typeof item === 'object' ? (item.weight || 5) : 5;
+      const frequency = typeof item === 'object' ? (item.frequency || 1) : 1;
+      
+      if (keyword && keywordLower && missingKeywordsSet.has(keywordLower)) {
+        // Calculate weight: high importance = 8+, frequency-based = up to 10
+        let finalWeight = weight;
+        if (importance === 'high') {
+          finalWeight = Math.max(8, finalWeight);
+        }
+        if (frequency > 0) {
+          const freqWeight = Math.min(10, Math.max(1, Math.round(frequency / 10)));
+          finalWeight = Math.max(finalWeight, freqWeight);
+        }
+        
+        if (finalWeight >= 8) {
+          highWeightKeywords.push({
+            keyword: typeof item === 'string' ? item : item.keyword || item,
+            weight: finalWeight,
+            isRequired: importance === 'high' || finalWeight >= 8
+          });
+        }
+      }
+    });
+    
+    // Also check priority keywords (typically high weight)
+    priority.forEach((kw: any) => {
+      const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
+      const keywordLower = keyword?.toLowerCase();
+      if (keyword && keywordLower && missingKeywordsSet.has(keywordLower)) {
+        // Priority keywords are typically weight 8-10
+        highWeightKeywords.push({
+          keyword: typeof kw === 'string' ? kw : kw.keyword || kw,
+          weight: 8,
+          isRequired: false
+        });
+      }
+    });
+    
+    // Check technical_missing from matchResult (these are high-weight)
+    if (matchResult?.match_analysis?.technical_missing) {
+      matchResult.match_analysis.technical_missing.forEach((kw: string) => {
+        if (kw && missingKeywordsSet.has(kw.toLowerCase())) {
+          highWeightKeywords.push({
+            keyword: kw,
+            weight: 8,
+            isRequired: false
+          });
+        }
+      });
+    }
+    
+    // Remove duplicates (keep highest weight)
+    const unique = new Map<string, { keyword: string; weight: number; isRequired: boolean }>();
+    highWeightKeywords.forEach(kw => {
+      const key = kw.keyword.toLowerCase();
+      if (!unique.has(key) || unique.get(key)!.weight < kw.weight) {
+        unique.set(key, kw);
+      }
+    });
+    
+    return Array.from(unique.values()).sort((a, b) => {
+      // Sort by weight (desc), then by isRequired
+      if (b.weight !== a.weight) return b.weight - a.weight;
+      if (b.isRequired && !a.isRequired) return 1;
+      if (a.isRequired && !b.isRequired) return -1;
+      return 0;
+    });
+  }, [estimatedATS, extractedKeywords, matchResult, resumeData, keywordUsageCounts]);
+
+  // Find lowest scoring category
+  const lowestCategory = useMemo(() => {
+    if (!estimatedATS || !('breakdown' in estimatedATS) || !estimatedATS.breakdown) return null;
+    
+    const breakdown = estimatedATS.breakdown as any;
+    const categories = [
+      { name: 'Skills Match', score: breakdown?.skillsMatch?.score || 0, max: breakdown?.skillsMatch?.max || 35, percentage: ((breakdown?.skillsMatch?.score || 0) / (breakdown?.skillsMatch?.max || 35)) * 100 },
+      { name: 'Experience Relevance', score: breakdown?.experienceRelevance?.score || 0, max: breakdown?.experienceRelevance?.max || 30, percentage: ((breakdown?.experienceRelevance?.score || 0) / (breakdown?.experienceRelevance?.max || 30)) * 100 },
+      { name: 'Keyword Coverage', score: breakdown?.keywordCoverage?.score || 0, max: breakdown?.keywordCoverage?.max || 27, percentage: ((breakdown?.keywordCoverage?.score || 0) / (breakdown?.keywordCoverage?.max || 27)) * 100 },
+      { name: 'Education', score: breakdown?.education?.score || 0, max: breakdown?.education?.max || 10, percentage: ((breakdown?.education?.score || 0) / (breakdown?.education?.max || 10)) * 100 },
+      { name: 'ATS Compatibility', score: breakdown?.atsCompatibility?.score || 0, max: breakdown?.atsCompatibility?.max || 5, percentage: ((breakdown?.atsCompatibility?.score || 0) / (breakdown?.atsCompatibility?.max || 5)) * 100 },
+    ];
+    
+    return categories.reduce((lowest, current) => 
+      current.percentage < lowest.percentage ? current : lowest
+    );
+  }, [estimatedATS, resumeData]);
+
+  // Detect keyword stuffing (keywords appearing >10 times)
+  const keywordStuffingWarnings = useMemo(() => {
+    if (!keywordUsageCounts || keywordUsageCounts.size === 0) return [];
+    
+    const warnings: Array<{ keyword: string; count: number }> = [];
+    keywordUsageCounts.forEach((count, keyword) => {
+      if (count > 10) {
+        warnings.push({ keyword, count });
+      }
+    });
+    
+    return warnings.sort((a, b) => b.count - a.count);
+  }, [keywordUsageCounts]);
 
   const atsKeywordMetrics = useMemo(() => {
     if (!matchResult?.match_analysis) {
@@ -3820,6 +4016,20 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   <div className="mt-1 text-sm text-gray-600">
                     {matchTierLabel}
                   </div>
+                  {(currentJDInfo?.company || currentJDInfo?.title || selectedJobMetadata?.company || selectedJobMetadata?.title) && (
+                    <div className="mt-2 space-y-1">
+                      {currentJDInfo?.title || selectedJobMetadata?.title ? (
+                        <div className="text-xs font-medium text-gray-700">
+                          {currentJDInfo?.title || selectedJobMetadata?.title}
+                        </div>
+                      ) : null}
+                      {currentJDInfo?.company || selectedJobMetadata?.company ? (
+                        <div className="text-xs text-gray-500">
+                          {currentJDInfo?.company || selectedJobMetadata?.company}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
@@ -3876,11 +4086,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 Estimated Fit
               </div>
               <div className="text-2xl font-bold text-blue-700 mb-1">
-                {estimatedATS ? `${estimatedATS.score}%` : '—'}
+                {estimatedATS ? `${String(estimatedATS.score)}%` : '—'}
               </div>
               {estimatedATS && (
                 <div className="text-xs text-blue-600">
-                  {estimatedATS.matchedKeywords.length} of {estimatedATS.totalKeywords} terms
+                  {Array.isArray(estimatedATS.matchedKeywords) ? estimatedATS.matchedKeywords.length : 0} of {typeof estimatedATS.totalKeywords === 'number' ? estimatedATS.totalKeywords : 0} terms
                 </div>
               )}
             </div>
@@ -4123,6 +4333,91 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               </div>
             </div>
           )}
+
+          {/* ATS Score Diagnostic Panel - Compact */}
+          {estimatedATS && 'breakdown' in estimatedATS && estimatedATS.breakdown ? (
+            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <h3 className="text-sm font-semibold text-gray-900">📊 Score Breakdown</h3>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                {(() => {
+                  const breakdown = estimatedATS.breakdown as any;
+                  const categories = [
+                    { name: 'Skills', score: breakdown?.skillsMatch?.score || 0, max: breakdown?.skillsMatch?.max || 35, key: 'skillsMatch' },
+                    { name: 'Experience', score: breakdown?.experienceRelevance?.score || 0, max: breakdown?.experienceRelevance?.max || 30, key: 'experienceRelevance' },
+                    { name: 'Keywords', score: breakdown?.keywordCoverage?.score || 0, max: breakdown?.keywordCoverage?.max || 27, key: 'keywordCoverage' },
+                    { name: 'Education', score: breakdown?.education?.score || 0, max: breakdown?.education?.max || 10, key: 'education' },
+                    { name: 'ATS', score: breakdown?.atsCompatibility?.score || 0, max: breakdown?.atsCompatibility?.max || 5, key: 'atsCompatibility' },
+                  ];
+                  
+                  return categories.map((cat) => {
+                    const percentage = (cat.score / cat.max) * 100;
+                    const isLowest = lowestCategory && lowestCategory.name.includes(cat.name);
+                    
+                    return (
+                      <div key={cat.key} className={`rounded p-2 ${isLowest ? 'bg-red-50 border border-red-300' : 'bg-gray-50 border border-gray-200'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-gray-700">{cat.name}</span>
+                          <span className="text-xs font-bold text-gray-900">
+                            {Math.round(cat.score)}/{cat.max}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full ${
+                              percentage >= 80 ? 'bg-green-500' :
+                              percentage >= 60 ? 'bg-yellow-500' :
+                              percentage >= 40 ? 'bg-orange-500' :
+                              'bg-red-500'
+                            }`}
+                            style={{ width: `${Math.min(100, percentage)}%` }}
+                          />
+                        </div>
+                        {isLowest && (
+                          <span className="text-xs text-red-600 font-medium mt-0.5 block">Lowest</span>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* High-Weight Missing Keywords - Compact */}
+              {highWeightMissingKeywords.length > 0 && (
+                <div className="p-2 bg-orange-50 border border-orange-200 rounded text-xs mb-2">
+                  <span className="font-semibold text-orange-900">🔥 High-Impact: </span>
+                  <span className="text-orange-700">
+                    {highWeightMissingKeywords.slice(0, 5).map(kw => kw.keyword).join(', ')}
+                    {highWeightMissingKeywords.length > 5 && ` +${highWeightMissingKeywords.length - 5} more`}
+                  </span>
+                </div>
+              )}
+
+              {/* Keyword Stuffing Warnings - Compact */}
+              {keywordStuffingWarnings.length > 0 ? (
+                <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs mb-2">
+                  <span className="font-semibold text-yellow-900">⚠️ Overused: </span>
+                  <span className="text-yellow-700">
+                    {keywordStuffingWarnings.slice(0, 3).map(w => `"${w.keyword}" (${w.count}x)`).join(', ')}
+                    {keywordStuffingWarnings.length > 3 && ` +${keywordStuffingWarnings.length - 3} more`}
+                  </span>
+                </div>
+              ) : null}
+
+              {/* Recommendations - Compact */}
+              {'recommendations' in estimatedATS && estimatedATS.recommendations && Array.isArray(estimatedATS.recommendations) && estimatedATS.recommendations.length > 0 ? (
+                <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                  <span className="font-semibold text-blue-900">💡 Tips: </span>
+                  <span className="text-blue-700">
+                    {estimatedATS.recommendations.slice(0, 2).map((rec: any) => String(rec)).join(' • ')}
+                    {estimatedATS.recommendations.length > 2 && ` +${estimatedATS.recommendations.length - 2} more`}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           </div>
         </>
       )}

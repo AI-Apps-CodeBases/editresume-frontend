@@ -112,24 +112,24 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Job Description Analysis</h2>
-        <p className="text-sm text-gray-600 mt-1">Parse job descriptions and extract keywords</p>
+      <div className={`bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200 transition-all ${parsedMetadata ? 'px-6 py-4' : ''}`}>
+        <h2 className={`font-semibold text-gray-900 transition-all ${parsedMetadata ? 'text-lg' : 'text-base'}`}>Job Description Analysis</h2>
+        <p className={`text-gray-600 mt-1 transition-all ${parsedMetadata ? 'text-sm' : 'text-xs'}`}>Parse job descriptions and extract keywords</p>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[500px]">
+      <div className={`grid grid-cols-1 lg:grid-cols-2 transition-all ${parsedMetadata ? 'min-h-[500px]' : 'min-h-[200px]'}`}>
         {/* Left Panel - Parse Job Description */}
-        <div className="p-6 border-r border-gray-200">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-              <span className="text-blue-600 font-semibold text-sm">1</span>
+        <div className={`border-r border-gray-200 transition-all ${parsedMetadata ? 'p-6' : 'p-4'}`}>
+          <div className={`flex items-center gap-2 transition-all ${parsedMetadata ? 'mb-4' : 'mb-3'}`}>
+            <div className={`bg-blue-100 rounded-lg flex items-center justify-center transition-all ${parsedMetadata ? 'w-8 h-8' : 'w-6 h-6'}`}>
+              <span className={`text-blue-600 font-semibold transition-all ${parsedMetadata ? 'text-sm' : 'text-xs'}`}>1</span>
             </div>
-            <h3 className="text-base font-semibold text-gray-900">Parse Job Description</h3>
+            <h3 className={`font-semibold text-gray-900 transition-all ${parsedMetadata ? 'text-base' : 'text-sm'}`}>Parse Job Description</h3>
           </div>
           
-          <div className="space-y-4">
+          <div className={`space-y-4 transition-all ${parsedMetadata ? '' : 'space-y-3'}`}>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className={`block font-medium text-gray-700 mb-2 transition-all ${parsedMetadata ? 'text-sm' : 'text-xs'}`}>
                 📋 Job Description
               </label>
               <textarea
@@ -140,15 +140,15 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
                   setError(null)
                 }}
                 placeholder="Paste the job description here..."
-                rows={12}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm resize-none"
+                rows={parsedMetadata ? 12 : 6}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm resize-none"
               />
             </div>
 
             <button
               onClick={handleParse}
               disabled={!jobDescription.trim() || isParsing}
-              className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`w-full bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all ${parsedMetadata ? 'px-4 py-2.5' : 'px-3 py-2 text-sm'}`}
             >
               {isParsing ? 'Parsing...' : 'Parse Job Description'}
             </button>
@@ -162,16 +162,16 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
         </div>
 
         {/* Right Panel - Scraped Keywords */}
-        <div className="p-6 bg-gray-50">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-              <span className="text-green-600 font-semibold text-sm">2</span>
+        <div className={`bg-gray-50 transition-all ${parsedMetadata ? 'p-6' : 'p-4'}`}>
+          <div className={`flex items-center gap-2 transition-all ${parsedMetadata ? 'mb-4' : 'mb-3'}`}>
+            <div className={`bg-green-100 rounded-lg flex items-center justify-center transition-all ${parsedMetadata ? 'w-8 h-8' : 'w-6 h-6'}`}>
+              <span className={`text-green-600 font-semibold transition-all ${parsedMetadata ? 'text-sm' : 'text-xs'}`}>2</span>
             </div>
-            <h3 className="text-base font-semibold text-gray-900">Scraped Keywords</h3>
+            <h3 className={`font-semibold text-gray-900 transition-all ${parsedMetadata ? 'text-base' : 'text-sm'}`}>Scraped Keywords</h3>
           </div>
 
           {error && (
-            <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm mb-4">
+            <div className={`bg-red-100 border border-red-400 text-red-700 rounded-lg mb-4 transition-all ${parsedMetadata ? 'p-3 text-sm' : 'p-2 text-xs'}`}>
               {error}
             </div>
           )}
@@ -243,12 +243,12 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
+            <div className="flex items-center justify-center h-32 text-gray-500">
               <div className="text-center">
-                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <span className="text-2xl">🔍</span>
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <span className="text-lg">🔍</span>
                 </div>
-                <p className="text-sm">Parse a job description to see extracted keywords</p>
+                <p className="text-xs">Parse a job description to see extracted keywords</p>
               </div>
             </div>
           )}
