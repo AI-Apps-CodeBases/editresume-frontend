@@ -550,18 +550,53 @@ function calculateEducationAndCertifications(
     /\b(degree|diploma|certification)\b/gi,
   ];
 
+  // Patterns to detect schools/universities
+  const schoolPatterns = [
+    /\b(university|college|school|institute|academy)\b/gi,
+  ];
+
   const hasDegreeRequirement = degreePatterns.some(pattern => pattern.test(jdLower));
   
   if (resumeContent.education) {
+    const educationText = resumeContent.education.toLowerCase();
+    const hasDegree = degreePatterns.some(pattern => pattern.test(educationText));
+    const hasSchool = schoolPatterns.some(pattern => pattern.test(educationText));
+    const educationLength = educationText.trim().length;
+    
+    // Give points based on content quality and length
     if (hasDegreeRequirement) {
-      const hasDegree = degreePatterns.some(pattern => pattern.test(resumeContent.education));
       if (hasDegree) {
-        educationScore = 6;
+        // JD requires degree AND resume has degree keywords
+        educationScore = 8;
         details.push('Degree requirement met');
+      } else if (hasSchool && educationLength > 20) {
+        // JD requires degree, resume has school but no explicit degree keywords
+        // Still give points for having education content
+        educationScore = 5;
+        details.push('Education content found (degree keywords not detected)');
+      } else if (educationLength > 10) {
+        // JD requires degree, but resume has minimal education info
+        educationScore = 2;
+        details.push('Limited education information');
       }
     } else {
-      educationScore = 3;
-      details.push('Education section present');
+      // No degree requirement in JD
+      if (hasDegree) {
+        educationScore = 6;
+        details.push('Degree information present');
+      } else if (hasSchool && educationLength > 20) {
+        // School/university detected with substantial content
+        educationScore = 5;
+        details.push('Education section with school information');
+      } else if (educationLength > 10) {
+        // Any education content
+        educationScore = 3;
+        details.push('Education section present');
+      } else if (educationLength > 0) {
+        // Minimal content
+        educationScore = 1;
+        details.push('Minimal education information');
+      }
     }
   }
 
