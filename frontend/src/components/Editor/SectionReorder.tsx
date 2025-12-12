@@ -5,6 +5,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -56,7 +57,7 @@ function SortableItem({ section }: { section: Section }) {
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing flex-shrink-0 p-2 hover:bg-gray-100 rounded transition-colors"
+        className="cursor-grab active:cursor-grabbing flex-shrink-0 p-2 hover:bg-gray-100 rounded transition-colors drag-handle"
         title="Drag to reorder"
       >
         <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -74,6 +75,12 @@ export default function SectionReorder({ sections, onReorder }: Props) {
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {

@@ -67,7 +67,7 @@ export const SortableContactFieldItem = ({
       <div
         {...attributes}
         {...listeners}
-        className="cursor-move hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
+        className="cursor-move hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1 drag-handle"
         title="Drag to reorder"
       >
         <span className="text-gray-400">⠿</span>
