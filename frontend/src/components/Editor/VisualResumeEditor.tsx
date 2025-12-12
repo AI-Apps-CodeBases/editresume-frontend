@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import config from '@/lib/config';
 import InlineGrammarChecker from '@/components/AI/InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
@@ -136,6 +136,7 @@ export default function VisualResumeEditor({
     high_frequency: Array<{ keyword: string, frequency: number, importance: string }>;
     priority: string[];
   } | null>(null);
+  const [matchResult, setMatchResult] = useState<any>(null);
 
   // Load jdKeywords and matchResult from localStorage on mount
   useEffect(() => {
@@ -243,9 +244,15 @@ export default function VisualResumeEditor({
     });
 
     // Debug: log overused keywords
-    const overused = Array.from(counts.entries()).filter(([_, count]) => count > 6);
+    const overused = Array.from(counts.entries()).filter(([_, count]) => count > 10);
     if (overused.length > 0) {
-      console.log('🔴 Overused keywords found (>6 times):', overused.map(([kw, count]) => `${kw}: ${count}`));
+      console.log('🔴 Overused keywords found (>10 times):', overused.map(([kw, count]) => `${kw}: ${count}`));
+      console.log('🔴 All keyword counts:', Array.from(counts.entries()).map(([kw, count]) => `${kw}: ${count}`));
+    } else {
+      console.log('✅ No overused keywords found. Total keywords checked:', counts.size);
+      if (counts.size > 0) {
+        console.log('✅ All keyword counts:', Array.from(counts.entries()).map(([kw, count]) => `${kw}: ${count}`));
+      }
     }
 
     return counts;
@@ -257,7 +264,6 @@ export default function VisualResumeEditor({
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
   const [selectedBullets, setSelectedBullets] = useState<Set<number>>(new Set());
   const [keywordSourceType, setKeywordSourceType] = useState<'missing' | 'matching' | 'tfidf'>('missing');
-  const [matchResult, setMatchResult] = useState<any>(null);
   const hasCleanedDataRef = useRef(false); // Track if we've cleaned old HTML data
 
   // Collapsible sections state
@@ -641,6 +647,36 @@ export default function VisualResumeEditor({
     };
   }, []);
 
+  // Measure toolbar height for banner positioning
+  useEffect(() => {
+    const updateToolbarHeight = () => {
+      if (toolbarRef.current) {
+        const height = toolbarRef.current.offsetHeight;
+        setToolbarHeight(height);
+      }
+    };
+
+    // Initial measurement with a small delay to ensure DOM is ready
+    const timeoutId = setTimeout(updateToolbarHeight, 100);
+    
+    // Use ResizeObserver for more accurate measurements
+    let resizeObserver: ResizeObserver | null = null;
+    if (toolbarRef.current && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateToolbarHeight);
+      resizeObserver.observe(toolbarRef.current);
+    }
+    
+    window.addEventListener('resize', updateToolbarHeight);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateToolbarHeight);
+      if (resizeObserver && toolbarRef.current) {
+        resizeObserver.unobserve(toolbarRef.current);
+      }
+    };
+  }, []);
+
   // Check if bullet text contains JD matching keywords and count occurrences
   const checkBulletMatches = (bulletText: string, sectionTitle?: string, generatedKeywords?: string[]): { matches: boolean; matchedKeywords: string[], keywordCounts: Record<string, number> } => {
     if (!jdKeywords || !bulletText) return { matches: false, matchedKeywords: [], keywordCounts: {} };
@@ -805,17 +841,191 @@ export default function VisualResumeEditor({
     return <>{parts}</>;
   };
 
-  // Highlight overused keywords (used more than threshold times) in resume text
-  const highlightOverusedKeywords = (text: string, threshold: number = 6): React.ReactNode => {
+  // Combined highlighting function for both matching keywords (green) and overused keywords (red)
+  // Overused keywords take priority and are shown in red
+  const highlightKeywordsCombined = (
+    text: string,
+    matchedKeywords: string[],
+    keywordCounts: Record<string, number>,
+    threshold: number = 10
+  ): React.ReactNode => {
+    if (!text) return text;
+
     const countsToUse = calculatedKeywordUsageCounts;
-    if (!text || !countsToUse || countsToUse.size === 0) return text;
+    const overusedKeywords = countsToUse && countsToUse.size > 0
+      ? Array.from(countsToUse.entries())
+          .filter(([_, count]) => count > threshold)
+          .map(([keyword, _]) => keyword)
+      : [];
+
+    const hasMatches = matchedKeywords && matchedKeywords.length > 0;
+    const hasOverused = overusedKeywords.length > 0;
+
+    if (!hasMatches && !hasOverused) return text;
+
+    const parts: Array<React.ReactNode> = [];
+    let lastIndex = 0;
+
+    type Match = { keyword: string; index: number; length: number; count: number; isOverused: boolean };
+    const allMatches: Match[] = [];
+
+    // Collect matching keywords (green)
+    if (hasMatches) {
+      const sortedKeywords = [...matchedKeywords].sort((a, b) => b.length - a.length);
+      sortedKeywords.forEach(keyword => {
+        if (!keyword || typeof keyword !== 'string') return;
+        const keywordLower = keyword.toLowerCase().trim();
+        if (keywordLower.length <= 1) return;
+
+        try {
+          const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+          const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = hasSpecialChars
+            ? new RegExp(escaped, 'gi')
+            : new RegExp(`\\b${escaped}\\b`, 'gi');
+          const textMatches = text.matchAll(regex);
+
+          for (const match of textMatches) {
+            if (match.index !== undefined && match[0]) {
+              allMatches.push({
+                keyword,
+                index: match.index,
+                length: match[0].length,
+                count: keywordCounts[keyword] || 1,
+                isOverused: false
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('Error matching keyword:', keyword, e);
+        }
+      });
+    }
+
+    // Collect overused keywords (red) - these take priority
+    if (hasOverused) {
+      const sortedOverused = overusedKeywords.filter(kw => kw && kw.trim().length > 1).sort((a, b) => b.length - a.length);
+      sortedOverused.forEach(keyword => {
+        const keywordLower = keyword.toLowerCase().trim();
+        const count = countsToUse?.get(keyword) || 0;
+        try {
+          const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+          const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = hasSpecialChars
+            ? new RegExp(escaped, 'gi')
+            : new RegExp(`\\b${escaped}\\b`, 'gi');
+          const textMatches = text.matchAll(regex);
+
+          for (const match of textMatches) {
+            if (match.index !== undefined && match[0]) {
+              allMatches.push({
+                keyword,
+                index: match.index,
+                length: match[0].length,
+                count,
+                isOverused: true
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('Error matching overused keyword:', keyword, e);
+        }
+      });
+    }
+
+    // Sort by index, then by priority (overused first), then by length
+    allMatches.sort((a, b) => {
+      if (a.index !== b.index) return a.index - b.index;
+      // If same position, prioritize overused
+      if (a.isOverused !== b.isOverused) return a.isOverused ? -1 : 1;
+      return b.length - a.length; // Longer matches first
+    });
+
+    // Remove overlaps - overused keywords take priority
+    const nonOverlapping: Match[] = [];
+    for (const match of allMatches) {
+      const overlapIndex = nonOverlapping.findIndex(m =>
+        (match.index >= m.index && match.index < m.index + m.length) ||
+        (match.index + match.length > m.index && match.index + match.length <= m.index + m.length) ||
+        (m.index >= match.index && m.index < match.index + match.length) ||
+        (m.index + m.length > match.index && m.index + m.length <= match.index + match.length)
+      );
+      
+      if (overlapIndex === -1) {
+        // No overlap, add it
+        nonOverlapping.push(match);
+      } else {
+        // Overlap found - replace if new one is overused and old one isn't
+        const existing = nonOverlapping[overlapIndex];
+        if (match.isOverused && !existing.isOverused) {
+          nonOverlapping[overlapIndex] = match;
+        }
+        // Otherwise keep the existing match (it's either overused or was added first)
+      }
+    }
+    
+    // Re-sort after overlap resolution
+    nonOverlapping.sort((a, b) => a.index - b.index);
+
+    // Build result
+    nonOverlapping.forEach((match, idx) => {
+      if (match.index > lastIndex) {
+        const beforeText = text.substring(lastIndex, match.index);
+        if (beforeText) parts.push(beforeText);
+      }
+      const keywordText = text.substring(match.index, match.index + match.length);
+      if (keywordText) {
+        if (match.isOverused) {
+          parts.push(
+            <mark
+              key={`overused-${match.keyword}-${match.index}-${idx}`}
+              className="bg-red-300 text-red-900 font-semibold px-0.5 rounded border border-red-500"
+              title={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+            >
+              {keywordText}
+            </mark>
+          );
+        } else {
+          parts.push(
+            <span
+              key={`kw-${idx}-${match.index}`}
+              className="bg-green-200 text-green-900 underline font-semibold"
+              title={`${match.keyword} (${match.count}x)`}
+            >
+              {keywordText}
+              {match.count > 1 && <sup className="text-xs text-green-700 ml-0.5">{match.count}</sup>}
+            </span>
+          );
+        }
+      }
+      lastIndex = match.index + match.length;
+    });
+
+    if (lastIndex < text.length) {
+      const remainingText = text.substring(lastIndex);
+      if (remainingText) parts.push(remainingText);
+    }
+
+    if (parts.length === 0) return text;
+    if (parts.length === 1 && typeof parts[0] === 'string') return parts[0];
+    return <>{parts}</>;
+  };
+
+  // Highlight overused keywords (used more than threshold times) in resume text
+  const highlightOverusedKeywords = (text: string, threshold: number = 10): React.ReactNode => {
+    const countsToUse = calculatedKeywordUsageCounts;
+    if (!text || !countsToUse || countsToUse.size === 0) {
+      return text;
+    }
 
     // Get keywords used more than threshold times
     const overusedKeywords = Array.from(countsToUse.entries())
       .filter(([_, count]) => count > threshold)
       .map(([keyword, _]) => keyword);
 
-    if (overusedKeywords.length === 0) return text;
+    if (overusedKeywords.length === 0) {
+      return text;
+    }
 
     const parts: Array<React.ReactNode> = [];
     let lastIndex = 0;
@@ -1082,6 +1292,8 @@ export default function VisualResumeEditor({
   const previousSummaryRef = useRef<string>('');
   const previousKeywordsRef = useRef<string>('');
   const shouldRehighlightRef = useRef<boolean>(false);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const [toolbarHeight, setToolbarHeight] = useState(57);
   const highlightingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // DISABLED: Automatic highlighting - only highlight on explicit blur event to prevent loops
@@ -2215,7 +2427,7 @@ export default function VisualResumeEditor({
         {/* Resume Editor Canvas */}
         <div className="h-full overflow-y-auto bg-gray-50 custom-scrollbar">
           {/* Editor Toolbar */}
-          <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3">
+          <div ref={toolbarRef} className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3">
             <div className="flex items-center justify-between">
               {/* Breadcrumb */}
               <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -2236,6 +2448,28 @@ export default function VisualResumeEditor({
               </div>
             </div>
           </div>
+
+          {/* Keyword Highlighting Info - Sticky at top - Always visible when scrolling */}
+          {jdKeywords && (jdKeywords.matching?.length > 0 || calculatedKeywordUsageCounts?.size > 0) && (
+            <div className="sticky z-50 bg-white border-b-2 border-blue-300 px-6 py-3 shadow-lg w-full" style={{ top: `${toolbarHeight}px` }}>
+              <div className="max-w-4xl mx-auto">
+                <div className="flex items-center gap-2 text-xs text-gray-700">
+                  <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="font-medium text-gray-900">Keyword Highlighting:</span>
+                  <span className="inline-flex items-center gap-1 mr-3">
+                    <span className="w-3 h-3 rounded bg-green-400 inline-block"></span>
+                    <span>Green = JD keywords found</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-red-400 inline-block"></span>
+                    <span>Red = keywords used more than 10 times</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Resume Canvas */}
           <div className="max-w-4xl mx-auto py-6 px-4">
@@ -2465,64 +2699,69 @@ export default function VisualResumeEditor({
                           }}
                         >
                           <div className="prose max-w-none">
-                            <div
-                              ref={(el) => {
-                                if (el) summaryFieldRef.current = el;
-                              }}
-                              contentEditable
-                              suppressContentEditableWarning
-                              data-editable-type="field"
-                              data-field="summary"
-                              onFocus={(e) => {
-                                // Remove ALL highlighting when user starts editing
-                                const textContent = e.currentTarget.textContent || '';
-                                // Force plain text - strip all HTML
-                                e.currentTarget.textContent = textContent;
-                                shouldRehighlightRef.current = false;
-                                if (highlightingTimeoutRef.current) {
-                                  clearTimeout(highlightingTimeoutRef.current);
-                                  highlightingTimeoutRef.current = null;
-                                }
-                              }}
-                              onBlur={(e) => {
-                                const textContent = e.currentTarget.textContent || '';
-                                updateField('summary', textContent);
-                                
-                                // Clear any existing timeout
-                                if (highlightingTimeoutRef.current) {
-                                  clearTimeout(highlightingTimeoutRef.current);
-                                }
-                                
-                                // Trigger re-highlighting after a delay (ensures updateField completes)
-                                highlightingTimeoutRef.current = setTimeout(() => {
-                                  const summaryField = document.querySelector('[data-field="summary"]') as HTMLElement;
-                                  if (summaryField && !summaryField.matches(':focus') && jdKeywords?.matching?.length) {
-                                    shouldRehighlightRef.current = true;
-                                    summaryHighlightingRef.current = false;
-                                    previousSummaryRef.current = ''; // Force re-check
-                                    
-                                    // Get plain text and highlight
-                                    const plainText = summaryField.textContent || textContent || '';
-                                    if (plainText.trim()) {
-                                      const summaryMatches = getTextMatches(plainText);
-                                      if (summaryMatches.matchedKeywords.length > 0) {
-                                        try {
-                                          const highlighted = highlightKeywordsInHTML(plainText, summaryMatches.matchedKeywords);
-                                          if (highlighted && highlighted !== plainText && highlighted.includes('<mark')) {
-                                            summaryField.innerHTML = highlighted;
-                                          }
-                                        } catch (err) {
-                                          console.warn('Error highlighting on blur:', err);
-                                        }
-                                      }
-                                    }
-                                    shouldRehighlightRef.current = false;
+                            <div className="relative group">
+                              <div
+                                ref={(el) => {
+                                  if (el) summaryFieldRef.current = el;
+                                }}
+                                contentEditable
+                                suppressContentEditableWarning
+                                data-editable-type="field"
+                                data-field="summary"
+                                onFocus={(e) => {
+                                  const textContent = e.currentTarget.textContent || '';
+                                  e.currentTarget.textContent = textContent;
+                                  shouldRehighlightRef.current = false;
+                                  if (highlightingTimeoutRef.current) {
+                                    clearTimeout(highlightingTimeoutRef.current);
+                                    highlightingTimeoutRef.current = null;
                                   }
-                                }, 300);
-                              }}
-                              className="text-sm text-gray-700 leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200"
-                            >
-                              {data.summary || 'Write a compelling professional summary that highlights your key skills and experience...'}
+                                }}
+                                onBlur={(e) => {
+                                  const textContent = e.currentTarget.textContent || '';
+                                  updateField('summary', textContent);
+                                  if (highlightingTimeoutRef.current) {
+                                    clearTimeout(highlightingTimeoutRef.current);
+                                  }
+                                  highlightingTimeoutRef.current = setTimeout(() => {
+                                    shouldRehighlightRef.current = false;
+                                  }, 300);
+                                }}
+                                className={`text-sm leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200 relative z-10 ${
+                                  (jdKeywords?.matching?.length > 0 || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim()
+                                    ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700'
+                                    : 'text-gray-700'
+                                }`}
+                                style={{ position: 'relative', zIndex: 10 }}
+                              >
+                                {data.summary || 'Write a compelling professional summary that highlights your key skills and experience...'}
+                              </div>
+                              {((jdKeywords?.matching?.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim() && (() => {
+                                const summaryMatches = getTextMatches(data.summary);
+                                const hasMatch = summaryMatches.matchedKeywords.length > 0;
+                                return (
+                                  <div
+                                    className="text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity text-gray-800 px-3 py-2"
+                                    data-highlight-overlay="true"
+                                    style={{ 
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      zIndex: 0,
+                                      pointerEvents: 'none'
+                                    }}
+                                  >
+                                    {highlightKeywordsCombined(
+                                      data.summary,
+                                      hasMatch ? summaryMatches.matchedKeywords : [],
+                                      hasMatch ? summaryMatches.keywordCounts : {},
+                                      10
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                             <Tooltip text="AI will analyze your work experience and create an ATS-optimized summary" color="gray" position="top">
                               <button
@@ -3017,7 +3256,7 @@ export default function VisualResumeEditor({
                                                       >
                                                         {(companyBullet.text || '').replace(/^•\s*/, '')}
                                                       </div>
-                                                      {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
+                                                      {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                                                         <div
                                                           className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                             }`}
@@ -3032,35 +3271,14 @@ export default function VisualResumeEditor({
                                                             pointerEvents: 'none'
                                                           }}
                                                         >
-                                                          {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                                          {highlightKeywordsCombined(
+                                                            (companyBullet.text || '').replace(/^•\s*/, ''),
+                                                            hasMatch ? bulletMatch.matchedKeywords : [],
+                                                            hasMatch ? bulletMatch.keywordCounts : {},
+                                                            10
+                                                          )}
                                                         </div>
                                                       )}
-                                                      {calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0 && (() => {
-                                                        const bulletText = (companyBullet.text || '').replace(/^•\s*/, '');
-                                                        const overusedResult = highlightOverusedKeywords(bulletText, 6);
-                                                        // Only show overlay if there are actually overused keywords highlighted
-                                                        if (overusedResult !== bulletText) {
-                                                          return (
-                                                            <div
-                                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-[1] transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
-                                                                }`}
-                                                              data-highlight-overlay-overused="true"
-                                                              style={{ 
-                                                                position: 'absolute',
-                                                                top: 0,
-                                                                left: 0,
-                                                                right: 0,
-                                                                bottom: 0,
-                                                                zIndex: 1,
-                                                                pointerEvents: 'none'
-                                                              }}
-                                                            >
-                                                              {overusedResult}
-                                                            </div>
-                                                          );
-                                                        }
-                                                        return null;
-                                                      })()}
                                                     </div>
                                                   </div>
 
@@ -3162,7 +3380,7 @@ export default function VisualResumeEditor({
                                       return (
                                         <label
                                           key={bullet.id}
-                                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all ${bullet.params?.visible !== false
+                                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all relative group ${bullet.params?.visible !== false
                                             ? hasKeywordMatch
                                               ? 'bg-green-100 text-green-800 hover:bg-green-200 shadow-sm'
                                               : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
@@ -3201,25 +3419,53 @@ export default function VisualResumeEditor({
                                             className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
                                             onClick={(e) => e.stopPropagation()}
                                           />
-                                          <span
-                                            contentEditable
-                                            suppressContentEditableWarning
-                                            data-editable-type="bullet"
-                                            data-section-id={section.id}
-                                            data-bullet-id={bullet.id}
-                                            onBlur={(e) => {
-                                              const newText = e.currentTarget.textContent?.trim() || ''
-                                              if (newText) {
-                                                updateBullet(section.id, bullet.id, newText)
-                                              }
-                                            }}
-                                            className="outline-none cursor-text"
-                                            onClick={(e) => e.stopPropagation()}
-                                          >
-                                            {hasKeywordMatch ? highlightKeywordsInText(skillName, skillMatch.matchedKeywords, skillMatch.keywordCounts) : skillName}
+                                          <span className="relative inline-block">
+                                            <span
+                                              contentEditable
+                                              suppressContentEditableWarning
+                                              data-editable-type="bullet"
+                                              data-section-id={section.id}
+                                              data-bullet-id={bullet.id}
+                                              onBlur={(e) => {
+                                                const newText = e.currentTarget.textContent?.trim() || ''
+                                                if (newText) {
+                                                  updateBullet(section.id, bullet.id, newText)
+                                                }
+                                              }}
+                                              className={`outline-none cursor-text relative z-10 ${
+                                                (hasKeywordMatch || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && bullet.params?.visible !== false
+                                                  ? 'text-transparent group-focus-within:text-green-800 group-hover:text-green-800'
+                                                  : ''
+                                              }`}
+                                              style={{ position: 'relative', zIndex: 10 }}
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              {skillName}
+                                            </span>
+                                            {((hasKeywordMatch && skillMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && bullet.params?.visible !== false && (
+                                              <span
+                                                className="absolute inset-0 pointer-events-none z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity"
+                                                style={{ 
+                                                  position: 'absolute',
+                                                  top: 0,
+                                                  left: 0,
+                                                  right: 0,
+                                                  bottom: 0,
+                                                  zIndex: 0,
+                                                  pointerEvents: 'none'
+                                                }}
+                                              >
+                                                {highlightKeywordsCombined(
+                                                  skillName,
+                                                  hasKeywordMatch ? skillMatch.matchedKeywords : [],
+                                                  hasKeywordMatch ? skillMatch.keywordCounts : {},
+                                                  10
+                                                )}
+                                              </span>
+                                            )}
                                           </span>
                                           {hasKeywordMatch && (
-                                            <span className="ml-1 text-green-600 text-xs" title={`Matches JD keywords: ${skillMatch.matchedKeywords.join(', ')}`}>
+                                            <span className="ml-1 text-green-600 text-xs relative z-10" title={`Matches JD keywords: ${skillMatch.matchedKeywords.join(', ')}`}>
                                               ✓
                                             </span>
                                           )}
@@ -3228,7 +3474,7 @@ export default function VisualResumeEditor({
                                               e.stopPropagation()
                                               removeBullet(section.id, bullet.id)
                                             }}
-                                            className="ml-1 text-gray-400 hover:text-red-600 transition-colors"
+                                            className="ml-1 text-gray-400 hover:text-red-600 transition-colors relative z-10"
                                             title="Remove skill"
                                           >
                                             ×
@@ -3299,12 +3545,12 @@ export default function VisualResumeEditor({
                                               const text = e.currentTarget.textContent || '';
                                               updateBullet(section.id, bullet.id, text);
                                             }}
-                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700' : 'text-gray-700'}`}
+                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700' : 'text-gray-700'}`}
                                             style={{ position: 'relative', zIndex: 10 }}
                                           >
                                             {(bullet.text || '').replace(/^•\s*/, '')}
                                           </div>
-                                          {hasMatch && bulletMatch.matchedKeywords.length > 0 && (
+                                          {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                                             <div
                                               className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                 }`}
@@ -3319,35 +3565,14 @@ export default function VisualResumeEditor({
                                                 pointerEvents: 'none'
                                               }}
                                             >
-                                              {highlightKeywordsInText((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
+                                              {highlightKeywordsCombined(
+                                                (bullet.text || '').replace(/^•\s*/, ''),
+                                                hasMatch ? bulletMatch.matchedKeywords : [],
+                                                hasMatch ? bulletMatch.keywordCounts : {},
+                                                10
+                                              )}
                                             </div>
                                           )}
-                                          {calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0 && (() => {
-                                            const bulletText = (bullet.text || '').replace(/^•\s*/, '');
-                                            const overusedResult = highlightOverusedKeywords(bulletText, 6);
-                                            // Only show overlay if there are actually overused keywords highlighted
-                                            if (overusedResult !== bulletText) {
-                                              return (
-                                                <div
-                                                  className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-[1] transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
-                                                    }`}
-                                                  data-highlight-overlay-overused="true"
-                                                  style={{ 
-                                                    position: 'absolute',
-                                                    top: 0,
-                                                    left: 0,
-                                                    right: 0,
-                                                    bottom: 0,
-                                                    zIndex: 1,
-                                                    pointerEvents: 'none'
-                                                  }}
-                                                >
-                                                  {overusedResult}
-                                                </div>
-                                              );
-                                            }
-                                            return null;
-                                          })()}
                                         </div>
                                       </div>
 
@@ -3524,9 +3749,16 @@ export default function VisualResumeEditor({
                             keywordsToShow = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && kw.length > 1) || [];
                           }
 
-                          return keywordsToShow.length > 0 ? (
-                            keywordsToShow.map((keyword, idx) => {
+                          // Filter out keywords used more than 3 times
+                          const filteredKeywords = keywordsToShow.filter((keyword) => {
+                            const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
+                            return usageCount <= 3;
+                          });
+
+                          return filteredKeywords.length > 0 ? (
+                            filteredKeywords.map((keyword, idx) => {
                               const isSelected = selectedMissingKeywords.has(keyword);
+                              const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
                               const colorClass = keywordSourceType === 'missing'
                                 ? (isSelected ? 'bg-red-600 text-white border-2 border-red-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-red-400 hover:bg-red-50')
                                 : keywordSourceType === 'matching'
@@ -3553,13 +3785,15 @@ export default function VisualResumeEditor({
                                   }}
                                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${colorClass}`}
                                 >
-                                  {isSelected && '✓ '}{keyword}
+                                  {isSelected && '✓ '}{keyword}{usageCount > 0 ? ` (${usageCount})` : ''}
                                 </button>
                               );
                             })
                           ) : (
                             <p className="text-sm text-gray-500 text-center py-4">
-                              No {keywordSourceType === 'missing' ? 'missing' : keywordSourceType === 'matching' ? 'matching' : 'TF-IDF boost'} keywords available. Please match a job description first.
+                              {keywordsToShow.length > 0 
+                                ? 'All available keywords are already used more than 3 times. Consider removing some instances before adding more.'
+                                : `No ${keywordSourceType === 'missing' ? 'missing' : keywordSourceType === 'matching' ? 'matching' : 'TF-IDF boost'} keywords available. Please match a job description first.`}
                             </p>
                           );
                         })()}

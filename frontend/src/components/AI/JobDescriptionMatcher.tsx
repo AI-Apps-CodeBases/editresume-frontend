@@ -831,7 +831,7 @@ const highlightMissingKeywords = (text: string, missingKeywords: string[]): Reac
 };
 
 // Highlight overused keywords (used more than threshold times) in resume text
-const highlightOverusedKeywords = (text: string, keywordUsageCounts: Map<string, number>, threshold: number = 6): React.ReactNode => {
+const highlightOverusedKeywords = (text: string, keywordUsageCounts: Map<string, number>, threshold: number = 10): React.ReactNode => {
   if (!text || !keywordUsageCounts || keywordUsageCounts.size === 0) return text;
 
   // Get keywords used more than threshold times

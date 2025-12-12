@@ -63,7 +63,7 @@ export default function ModernTemplate({ data, config, replacements }: TemplateP
       </header>
 
       {data.summary && (
-        <section className="mb-8">
+        <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <div
             className="mb-4"
             style={{
@@ -88,7 +88,6 @@ export default function ModernTemplate({ data, config, replacements }: TemplateP
       {orderedSections.map((section) => (
         <section
           key={section.id}
-          className="mb-8"
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}
         >
           <h2
