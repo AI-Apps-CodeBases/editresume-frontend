@@ -3839,30 +3839,28 @@ export default function VisualResumeEditor({
                             // Combine and deduplicate
                             const combined = [...new Set([...jdMissing, ...matchMissing])];
                             
-                            // Get technical/priority keywords for filtering
-                            const technicalKeywords = matchResult?.match_analysis?.technical_keywords || 
-                                                      jdKeywords?.high_frequency?.map((hf: any) => hf.keyword).filter(Boolean) || [];
-                            const priorityKeywords = matchResult?.priority_keywords || 
-                                                    jdKeywords?.priority || [];
-                            const highFrequencyKeywords = matchResult?.match_analysis?.high_frequency_keywords ||
-                                                         jdKeywords?.high_frequency || [];
+                            // Get technical keywords - ONLY show technical keywords from the field
+                            const technicalKeywordsList = matchResult?.match_analysis?.technical_keywords || 
+                                                         matchResult?.match_analysis?.technical_missing || 
+                                                         [];
                             
-                            // Filter to show high-impact keywords, but also include more keywords if available
-                            const highImpact = filterHighImpactKeywords(
-                              combined, 
-                              technicalKeywords,
-                              priorityKeywords,
-                              highFrequencyKeywords
+                            // Filter to show ONLY technical keywords
+                            const technicalKeywordsSet = new Set(
+                              technicalKeywordsList.map((kw: string) => kw.toLowerCase())
                             );
                             
-                            // If we have high-impact keywords, use them, otherwise show all (up to 30)
-                            // This ensures missing keywords are always shown
-                            if (highImpact.length > 0) {
-                              keywordsToShow = highImpact.slice(0, 30);
-                            } else {
-                              // Fallback: show all missing keywords if filter removed everything
-                              keywordsToShow = combined.slice(0, 30);
-                            }
+                            // Only show keywords that are in the technical keywords list
+                            keywordsToShow = combined.filter((kw: string) => {
+                              const kwLower = kw.toLowerCase();
+                              return technicalKeywordsSet.has(kwLower) || 
+                                     technicalKeywordsList.some((tech: string) => 
+                                       kwLower.includes(tech.toLowerCase()) || 
+                                       tech.toLowerCase().includes(kwLower)
+                                     );
+                            });
+                            
+                            // Remove duplicates and limit
+                            keywordsToShow = [...new Set(keywordsToShow)].slice(0, 50);
                           } else if (keywordSourceType === 'matching') {
                             // Combine jdKeywords matching and matchResult matching keywords
                             const jdMatching = jdKeywords?.matching?.filter((kw: string) => kw && kw.length > 1) || [];
@@ -3870,54 +3868,16 @@ export default function VisualResumeEditor({
                             // Combine and deduplicate
                             const combined = [...new Set([...jdMatching, ...matchMatching])];
                             
-                            // For matching keywords, show all keywords (not just high-impact) but prioritize them
-                            // This allows users to see all matching keywords they can reinforce
-                            const technicalKeywords = matchResult?.match_analysis?.technical_keywords || 
-                                                      jdKeywords?.high_frequency?.map((hf: any) => hf.keyword).filter(Boolean) || [];
-                            const priorityKeywords = matchResult?.priority_keywords || jdKeywords?.priority || [];
-                            
-                            // Sort by priority but don't filter out - show all matching keywords
-                            const sorted = combined.sort((a, b) => {
-                              const aLower = a.toLowerCase();
-                              const bLower = b.toLowerCase();
-                              
-                              const aIsTech = technicalKeywords?.some((tech: string) => 
-                                aLower.includes(tech.toLowerCase()) || tech.toLowerCase().includes(aLower)
-                              );
-                              const bIsTech = technicalKeywords?.some((tech: string) => 
-                                bLower.includes(tech.toLowerCase()) || tech.toLowerCase().includes(bLower)
-                              );
-                              
-                              const aIsPriority = priorityKeywords?.some((p: string) => 
-                                aLower.includes(p.toLowerCase()) || p.toLowerCase().includes(aLower)
-                              );
-                              const bIsPriority = priorityKeywords?.some((p: string) => 
-                                bLower.includes(p.toLowerCase()) || p.toLowerCase().includes(bLower)
-                              );
-                              
-                              if (aIsTech && !bIsTech) return -1;
-                              if (!aIsTech && bIsTech) return 1;
-                              if (aIsPriority && !bIsPriority) return -1;
-                              if (!aIsPriority && bIsPriority) return 1;
-                              return 0;
-                            });
-                            
-                            // Show up to 30 matching keywords (more than missing since these are to reinforce)
-                            keywordsToShow = sorted.slice(0, 30);
+                            // Show all matching keywords (no filtering by technical only)
+                            keywordsToShow = combined.slice(0, 50);
                           } else if (keywordSourceType === 'tfidf') {
                             keywordsToShow = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && kw.length > 1) || [];
                           }
 
-                          // Filter keywords based on usage count
-                          // For matching keywords: show those used < 2 times (to reinforce)
-                          // For missing keywords: show those used <= 3 times
+                          // Filter out keywords used more than 3 times (less than 4 times = <= 3)
                           const filteredKeywords = keywordsToShow.filter((keyword) => {
                             const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
-                            if (keywordSourceType === 'matching') {
-                              return usageCount < 2; // Show matching keywords used less than 2 times
-                            } else {
-                              return usageCount <= 3; // Show missing/TF-IDF keywords used <= 3 times
-                            }
+                            return usageCount < 4; // Changed from <= 3 to < 4 for clarity
                           });
 
                           return filteredKeywords.length > 0 ? (

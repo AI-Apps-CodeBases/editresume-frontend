@@ -538,7 +538,8 @@ function calculateKeywordCoverage(
 
 function calculateEducationAndCertifications(
   resumeContent: ReturnType<typeof extractResumeContent>,
-  jobDescription: string
+  jobDescription: string,
+  resumeData?: any
 ): { score: number; details: string } {
   let educationScore = 0;
   let certScore = 0;
@@ -557,54 +558,78 @@ function calculateEducationAndCertifications(
 
   const hasDegreeRequirement = degreePatterns.some(pattern => pattern.test(jdLower));
   
+  // Count number of education bullet points (school entries)
+  let schoolBulletCount = 0;
+  if (resumeData?.sections && Array.isArray(resumeData.sections)) {
+    resumeData.sections.forEach((section: any) => {
+      const sectionTitle = (section.title || '').toLowerCase();
+      if (sectionTitle.includes('education') || sectionTitle.includes('academic')) {
+        if (section.bullets && Array.isArray(section.bullets)) {
+          // Count visible bullets that contain school-related content
+          section.bullets
+            .filter((bullet: any) => bullet?.params?.visible !== false && bullet?.text)
+            .forEach((bullet: any) => {
+              const bulletText = normalizeTextForATS(bullet.text || '').toLowerCase();
+              // Check if bullet contains school/university keywords or is substantial content
+              const hasSchoolKeyword = schoolPatterns.some(pattern => pattern.test(bulletText));
+              const hasSubstantialContent = bulletText.trim().length > 5; // At least 5 chars
+              
+              if (hasSchoolKeyword || hasSubstantialContent) {
+                schoolBulletCount++;
+              }
+            });
+        }
+      }
+    });
+  }
+  
   if (resumeContent.education) {
-    const educationText = resumeContent.education.toLowerCase().trim();
+    const educationText = resumeContent.education.toLowerCase();
     const hasDegree = degreePatterns.some(pattern => pattern.test(educationText));
     const hasSchool = schoolPatterns.some(pattern => pattern.test(educationText));
-    const educationLength = educationText.length;
+    const educationLength = educationText.trim().length;
     
-    // Count bullet points (lines or items) in education content
-    const bulletCount = (educationText.match(/\n|•|^[\s]*[-*]\s/gm) || []).length;
-    const hasMultipleItems = bulletCount > 0 || educationText.split(/\s+/).length > 5;
-    
-    // Give points based on content quality and length
-    // Lower thresholds to be more responsive to bullet points
-    if (hasDegreeRequirement) {
+    // Give 3 points per school bullet point (minimum)
+    if (schoolBulletCount > 0) {
+      const baseScore = schoolBulletCount * 3;
+      educationScore = baseScore;
+      details.push(`${schoolBulletCount} school entr${schoolBulletCount === 1 ? 'y' : 'ies'} found (${baseScore} points)`);
+      
+      // Add bonus for degree keywords
       if (hasDegree) {
-        // JD requires degree AND resume has degree keywords
-        educationScore = 8;
-        details.push('Degree requirement met');
-      } else if (hasSchool && (educationLength > 15 || hasMultipleItems)) {
-        // JD requires degree, resume has school but no explicit degree keywords
-        // Still give points for having education content (lowered threshold from 20 to 15)
-        educationScore = 5;
-        details.push('Education content found (degree keywords not detected)');
-      } else if (educationLength > 5 || hasMultipleItems) {
-        // JD requires degree, but resume has minimal education info (lowered threshold from 10 to 5)
-        educationScore = 2;
-        details.push('Limited education information');
-      } else if (educationLength > 0) {
-        // Any education content gets at least 1 point
-        educationScore = 1;
-        details.push('Education section present');
+        educationScore += 2;
+        details.push('Degree keywords detected (+2 bonus)');
       }
+      
+      // Cap at 10 points max (education section max)
+      educationScore = Math.min(10, educationScore);
     } else {
-      // No degree requirement in JD
-      if (hasDegree) {
-        educationScore = 6;
-        details.push('Degree information present');
-      } else if (hasSchool && (educationLength > 15 || hasMultipleItems)) {
-        // School/university detected with substantial content (lowered threshold from 20 to 15)
-        educationScore = 5;
-        details.push('Education section with school information');
-      } else if (educationLength > 5 || hasMultipleItems) {
-        // Any education content (lowered threshold from 10 to 5)
-        educationScore = 3;
-        details.push('Education section present');
-      } else if (educationLength > 0) {
-        // Minimal content
-        educationScore = 1;
-        details.push('Minimal education information');
+      // Fallback to old logic if no bullets counted
+      if (hasDegreeRequirement) {
+        if (hasDegree) {
+          educationScore = 8;
+          details.push('Degree requirement met');
+        } else if (hasSchool && educationLength > 20) {
+          educationScore = 5;
+          details.push('Education content found (degree keywords not detected)');
+        } else if (educationLength > 10) {
+          educationScore = 2;
+          details.push('Limited education information');
+        }
+      } else {
+        if (hasDegree) {
+          educationScore = 6;
+          details.push('Degree information present');
+        } else if (hasSchool && educationLength > 20) {
+          educationScore = 5;
+          details.push('Education section with school information');
+        } else if (educationLength > 10) {
+          educationScore = 3;
+          details.push('Education section present');
+        } else if (educationLength > 0) {
+          educationScore = 1;
+          details.push('Minimal education information');
+        }
       }
     }
   }
@@ -735,7 +760,7 @@ export function calculateEnhancedATSScore(
     normalizedData.missingKeywords,
     keywordMappings
   );
-  const education = calculateEducationAndCertifications(resumeContent, jobDescription);
+  const education = calculateEducationAndCertifications(resumeContent, jobDescription, resumeData);
   const atsCompatibility = calculateATSCompatibility(resumeContent);
 
   const totalScore = Math.round(
