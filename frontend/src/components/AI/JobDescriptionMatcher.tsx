@@ -1872,6 +1872,63 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     });
   }, [matchResult, extractedKeywords, selectedJobMetadata, jobDescription]);
 
+  // Calculate keyword usage counts in resume
+  const keywordUsageCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    
+    if (!resumeData) return counts;
+    
+    // Build resume text
+    const resumeFragments: string[] = [];
+    const appendText = (value?: string) => {
+      const normalized = normalizeTextForATS(value);
+      if (normalized) {
+        resumeFragments.push(normalized.toLowerCase());
+      }
+    };
+    
+    appendText(resumeData.title);
+    appendText(resumeData.summary);
+    if (resumeData.sections && Array.isArray(resumeData.sections)) {
+      resumeData.sections.forEach((section: any) => {
+        appendText(section.title);
+        if (section.bullets && Array.isArray(section.bullets)) {
+          section.bullets
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .forEach((bullet: any) => appendText(bullet?.text));
+        }
+      });
+    }
+    
+    const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+    
+    // Get all keywords to count
+    const allKeywords: string[] = [];
+    if (matchResult?.match_analysis) {
+      allKeywords.push(...(matchResult.match_analysis.matching_keywords || []));
+      allKeywords.push(...(matchResult.match_analysis.missing_keywords || []));
+    }
+    if (technicalKeywordOptions.length > 0) {
+      allKeywords.push(...technicalKeywordOptions.map((opt: TechnicalKeywordOption) => opt.keyword));
+    }
+    
+    // Count occurrences for each keyword
+    allKeywords.forEach((keyword) => {
+      const keywordLower = keyword.toLowerCase();
+      const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+      const escaped = escapeRegExp(keywordLower);
+      const pattern = hasSpecialChars
+        ? new RegExp(escaped, 'gi')
+        : new RegExp(`\\b${escaped}\\b`, 'gi');
+      
+      const matches = resumeText.match(pattern);
+      const count = matches ? matches.length : 0;
+      counts.set(keyword, count);
+    });
+    
+    return counts;
+  }, [resumeData, matchResult, technicalKeywordOptions]);
+
   const [currentATSScore, setCurrentATSScore] = useState<number | null>(() => {
     // Restore ATS score from localStorage on mount
     if (typeof window !== 'undefined') {
@@ -3800,31 +3857,34 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         Missing Keywords ({filteredMissingKeywords.length})
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {filteredMissingKeywords.map((keyword, index) => (
-                  <label
-                    key={`missing-${index}`}
-                          className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
-                      ? 'bg-red-100 text-red-800 border-red-400 font-medium'
-                            : 'bg-red-50 text-red-700 border-red-200 hover:border-red-300'
-                      }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedKeywords.has(keyword)}
-                      onChange={(e) => {
-                        const newSelected = new Set(selectedKeywords);
-                        if (e.target.checked) {
-                          newSelected.add(keyword);
-                        } else {
-                          newSelected.delete(keyword);
-                        }
-                        setSelectedKeywords(newSelected);
-                      }}
-                          className="w-3 h-3 text-red-600 rounded focus:ring-red-500"
-                    />
-                    <span>{keyword}</span>
-                  </label>
-                ))}
+                        {filteredMissingKeywords.map((keyword, index) => {
+                          const usageCount = keywordUsageCounts.get(keyword) || 0;
+                          return (
+                            <label
+                              key={`missing-${index}`}
+                              className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
+                                ? 'bg-red-100 text-red-800 border-red-400 font-medium'
+                                : 'bg-red-50 text-red-700 border-red-200 hover:border-red-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedKeywords.has(keyword)}
+                                onChange={(e) => {
+                                  const newSelected = new Set(selectedKeywords);
+                                  if (e.target.checked) {
+                                    newSelected.add(keyword);
+                                  } else {
+                                    newSelected.delete(keyword);
+                                  }
+                                  setSelectedKeywords(newSelected);
+                                }}
+                                className="w-3 h-3 text-red-600 rounded focus:ring-red-500"
+                              />
+                              <span>{keyword}{usageCount > 0 ? ` (${usageCount})` : ''}</span>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -3837,31 +3897,34 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       Matched Keywords - Reinforce ({matchResult.match_analysis.matching_keywords.length})
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {matchResult.match_analysis.matching_keywords.slice(0, 30).map((keyword, index) => (
-                    <label
-                          key={`matched-${index}`}
-                          className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
-                            ? 'bg-green-100 text-green-800 border-green-400 font-medium'
-                            : 'bg-green-50 text-green-700 border-green-200 hover:border-green-300'
+                      {matchResult.match_analysis.matching_keywords.slice(0, 30).map((keyword, index) => {
+                        const usageCount = keywordUsageCounts.get(keyword) || 0;
+                        return (
+                          <label
+                            key={`matched-${index}`}
+                            className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
+                              ? 'bg-green-100 text-green-800 border-green-400 font-medium'
+                              : 'bg-green-50 text-green-700 border-green-200 hover:border-green-300'
                             }`}
-                    >
-                      <input
-                        type="checkbox"
-                            checked={selectedKeywords.has(keyword)}
-                        onChange={(e) => {
-                          const newSelected = new Set(selectedKeywords);
-                          if (e.target.checked) {
-                            newSelected.add(keyword);
-                          } else {
-                            newSelected.delete(keyword);
-                          }
-                          setSelectedKeywords(newSelected);
-                        }}
-                            className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
-                      />
-                          <span>{keyword}</span>
-                    </label>
-                      ))}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedKeywords.has(keyword)}
+                              onChange={(e) => {
+                                const newSelected = new Set(selectedKeywords);
+                                if (e.target.checked) {
+                                  newSelected.add(keyword);
+                                } else {
+                                  newSelected.delete(keyword);
+                                }
+                                setSelectedKeywords(newSelected);
+                              }}
+                              className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
+                            />
+                            <span>{keyword}{usageCount > 0 ? ` (${usageCount})` : ''}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -3918,6 +3981,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     <div className="flex flex-wrap gap-1.5">
                       {technicalKeywordOptions.map(({ keyword, source }, index) => {
                         const isSelected = selectedKeywords.has(keyword);
+                        const usageCount = keywordUsageCounts.get(keyword) || 0;
                         const chipClass = isSelected
                           ? 'bg-indigo-100 text-indigo-800 border-indigo-400 font-medium'
                           : TECH_KEYWORD_CHIP_CLASS[source];
@@ -3940,7 +4004,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                               }}
                               className="w-3 h-3 text-indigo-600 rounded focus:ring-indigo-500"
                             />
-                            <span className="font-medium">{keyword}</span>
+                            <span className="font-medium">{keyword}{usageCount > 0 ? ` (${usageCount})` : ''}</span>
                           </label>
                         );
                       })}

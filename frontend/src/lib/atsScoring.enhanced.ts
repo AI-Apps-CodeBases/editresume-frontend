@@ -484,7 +484,9 @@ function calculateKeywordCoverage(
       kw.keyword.toLowerCase() === mapping.keyword.toLowerCase()
     )?.weight || 5;
     
-    const contribution = sectionWeight * keywordWeight * mapping.occurrences;
+    // Her bölümde maksimum 3 geçiş sayılsın (aşırı çarpmayı önlemek için)
+    const cappedOccurrences = Math.min(mapping.occurrences, 3);
+    const contribution = sectionWeight * keywordWeight * cappedOccurrences;
     weightedScore += contribution;
     totalWeight += keywordWeight;
   });
@@ -497,8 +499,10 @@ function calculateKeywordCoverage(
 
   let stuffingPenalty = 0;
   keywordOccurrences.forEach((count, keyword) => {
-    if (count > 5) {
-      stuffingPenalty += (count - 5) * 0.5;
+    // Daha esnek ceza: sadece 10'dan fazla geçerse ceza ver
+    // Ve daha küçük ceza çarpanı kullan
+    if (count > 10) {
+      stuffingPenalty += (count - 10) * 0.15; // 0.5'ten 0.15'e düşürüldü, eşik 5'ten 10'a çıkarıldı
     }
   });
 
