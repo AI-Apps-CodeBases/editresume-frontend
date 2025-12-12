@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import func, extract, case, cast, Integer, text
+from sqlalchemy import func, extract, case, Integer, text
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db

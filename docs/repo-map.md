@@ -1,6 +1,7 @@
 # Repository Map - editresume.io
 
 **Generated:** 2025-01-27  
+**Updated:** 2025-01-27  
 **Purpose:** Codebase structure analysis for cleanup and optimization
 
 ---
@@ -176,23 +177,32 @@ editresume-frontend/
 
 ### Frontend
 
-1. **`@/lib/config`** - Configuration (imported by 20+ files)
+1. **`@/lib/utils`** - Utility functions (imported by 50+ files)
+   - Used by: Components, pages, features
+   - Purpose: `cn()` function for className merging (clsx + tailwind-merge)
+   - **Most imported utility in codebase**
+
+2. **`@/lib/config`** - Configuration (imported by 20+ files)
    - Used by: API clients, services, components
    - Purpose: Centralized API base URL and configuration
 
-2. **`@/contexts/AuthContext`** - Authentication (imported by 15+ files)
+3. **`@/contexts/AuthContext`** - Authentication (imported by 15+ files)
    - Used by: Protected routes, components requiring auth
    - Purpose: User authentication state management
 
-3. **`@/components/Editor/ModernEditorLayout`** - Editor layout
-   - Used by: `editor/page.tsx`, `editor-v2/page.tsx`
+4. **`@/contexts/ModalContext`** - Modal management (imported by 10+ files)
+   - Used by: Components that need modal functionality
+   - Purpose: Global modal state management
+
+5. **`@/components/Editor/ModernEditorLayout`** - Editor layout
+   - Used by: `editor/page.tsx`
    - Purpose: Main editor UI container
 
-4. **`@/components/Resume/PreviewPanel`** - Resume preview
+6. **`@/components/Resume/PreviewPanel`** - Resume preview
    - Used by: Editor pages, components
    - Purpose: Live resume preview
 
-5. **`@/lib/services/versionControl`** - Version control
+7. **`@/lib/services/versionControl`** - Version control
    - Used by: Editor, version control components
    - Purpose: Resume version management
 
@@ -224,10 +234,13 @@ editresume-frontend/
 
 ### Frontend
 
-- **`src/lib/config.ts`** - Centralized configuration
-- **`src/lib/firebaseClient.ts`** - Firebase initialization
+- **`src/lib/utils.ts`** - **Most used utility** - `cn()` function for className merging
+- **`src/lib/config.ts`** - Centralized configuration (API URLs, environment detection)
+- **`src/lib/firebaseClient.ts`** - Firebase initialization and auth instance
+- **`src/lib/firestoreClient.ts`** - Firestore database client
 - **`src/lib/guestAuth.ts`** - Guest authentication helpers
-- **`src/lib/exportUtils.ts`** - Export utilities
+- **`src/lib/exportUtils.ts`** - Export utilities (PDF/DOCX)
+- **`src/lib/utils.ts`** - General utilities (most imported: `cn()`)
 - **`src/utils/sectionDeduplication.ts`** - Section deduplication logic
 
 ### Backend
@@ -303,6 +316,8 @@ editresume-frontend/
 - `src/app/editor-v2/page.tsx` - Simplified editor implementation
 
 **Backend:**
+- `app/models/feedback 2.py` - **DUPLICATE** - Identical to `app/models/feedback.py`, not imported in `__init__.py`
+- `backend/backend/` - **EMPTY DIRECTORY** - No files, likely leftover from refactoring
 - `backend/ats_checker.py` - Potential duplicate of `app/services/ats_service.py`
 - `backend/enhanced_ats_checker.py` - Potential duplicate of `app/services/enhanced_ats_service.py`
 - `backend/grammar_checker.py` - Potential duplicate of `app/services/grammar_service.py`
@@ -322,7 +337,19 @@ editresume-frontend/
 
 ### High Priority (Likely Safe to Remove/Archive)
 
-1. **`frontend/src/app/editor-v2/`** ⚠️
+1. **`app/models/feedback 2.py`** 🚨
+   - **Status:** Duplicate file, not imported
+   - **Evidence:** Identical content to `feedback.py`, not in `models/__init__.py`, 0 grep matches
+   - **Action:** Delete immediately (safe removal)
+   - **Risk:** None (confirmed unused)
+
+2. **`backend/backend/`** 🚨
+   - **Status:** Empty directory
+   - **Evidence:** Directory exists but contains no files
+   - **Action:** Remove empty directory
+   - **Risk:** None (empty)
+
+3. **`frontend/src/app/editor-v2/`** ⚠️
    - **Status:** No imports/references found
    - **Evidence:** `grep` search found 0 references to `editor-v2`
    - **Action:** Verify with `knip` and `ts-prune`, then archive or remove
@@ -348,42 +375,42 @@ editresume-frontend/
 
 ### Medium Priority (Needs Investigation)
 
-5. **`backend/ats_checker.py`** ⚠️
+4. **`backend/ats_checker.py`** ⚠️
    - **Status:** Potential duplicate
    - **Action:** Compare with `app/services/ats_service.py`, verify usage
    - **Risk:** Medium (may be used by external scripts)
 
-6. **`backend/enhanced_ats_checker.py`** ⚠️
+5. **`backend/enhanced_ats_checker.py`** ⚠️
    - **Status:** Potential duplicate
    - **Action:** Compare with `app/services/enhanced_ats_service.py`
    - **Risk:** Medium
 
-7. **`backend/grammar_checker.py`** ⚠️
+6. **`backend/grammar_checker.py`** ⚠️
    - **Status:** Potential duplicate
    - **Action:** Compare with `app/services/grammar_service.py`
    - **Risk:** Medium
 
-8. **`backend/keyword_extractor.py`** ⚠️
+7. **`backend/keyword_extractor.py`** ⚠️
    - **Status:** Potential duplicate
    - **Action:** Compare with `app/services/keyword_service.py`
    - **Risk:** Medium
 
-9. **`backend/version_control.py`** ⚠️
+8. **`backend/version_control.py`** ⚠️
    - **Status:** Unknown
    - **Action:** Check if used anywhere, compare with `app/services/version_control_service.py`
    - **Risk:** Low
 
 ### Low Priority (Keep for Now)
 
-10. **`backend/create_test_user.py`** 🧪
+9. **`backend/create_test_user.py`** 🧪
     - **Status:** Development script
     - **Action:** Keep in repo, document usage
 
-11. **`backend/test_backend_fixes.py`** 🧪
+10. **`backend/test_backend_fixes.py`** 🧪
     - **Status:** Test script
     - **Action:** Keep if needed for testing
 
-12. **Migration files** (`backend/migrate_*.sql`, `backend/run_*.py`)
+11. **Migration files** (`backend/migrate_*.sql`, `backend/run_*.py`)
     - **Status:** Historical migrations
     - **Action:** Keep for reference, consider archiving
 

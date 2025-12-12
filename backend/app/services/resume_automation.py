@@ -315,7 +315,7 @@ class ResumeAutomationService:
         keyword_distribution: Dict[str, Any],
         job: Job,
         matches: Sequence[Tuple[ResumeJobMatch, ATSScore, Dict[str, Any]]],
-        best_resume: Dict[str, Any],
+        _best_resume: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Enhance skills section with missing technical keywords only."""
         existing_skills = set()
