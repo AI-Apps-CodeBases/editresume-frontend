@@ -68,7 +68,21 @@ class VersionControlService {
         let errorMessage = `HTTP error! status: ${response.status}`;
         try {
           const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson.detail || errorJson.message || errorMessage;
+          // Handle different error formats
+          if (errorJson.detail) {
+            // FastAPI validation errors can be arrays or strings
+            if (Array.isArray(errorJson.detail)) {
+              errorMessage = errorJson.detail.map((err: any) => 
+                typeof err === 'string' ? err : (err?.msg || err?.loc?.join('.') || JSON.stringify(err))
+              ).join(', ')
+            } else {
+              errorMessage = errorJson.detail
+            }
+          } else if (errorJson.message) {
+            errorMessage = errorJson.message
+          } else if (errorJson.error) {
+            errorMessage = errorJson.error
+          }
         } catch {
           errorMessage = errorText || errorMessage;
         }
