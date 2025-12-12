@@ -184,7 +184,7 @@ class JobDescriptionUpdate(BaseModel):
     max_salary: Optional[int] = None
     status: Optional[str] = None
     follow_up_date: Optional[str] = None
-    important_emoji: Optional[str] = None
+    importance: Optional[int] = None  # 0-5 stars (0 = not set, 1-5 = star rating)
     notes: Optional[str] = None
 
 

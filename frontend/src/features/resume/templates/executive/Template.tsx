@@ -69,7 +69,7 @@ export default function ExecutiveTemplate({ data, config, replacements }: Templa
       </header>
 
       {data.summary && (
-        <section className="mb-10">
+        <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <div className="text-center mb-4">
             <div
               className="mx-auto mb-4"
@@ -98,7 +98,6 @@ export default function ExecutiveTemplate({ data, config, replacements }: Templa
       {orderedSections.map((section) => (
         <section
           key={section.id}
-          className="mb-8"
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}
         >
           <div className="flex items-center mb-4">

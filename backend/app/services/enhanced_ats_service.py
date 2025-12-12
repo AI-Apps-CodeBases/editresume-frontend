@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 try:
     import nltk
     from nltk.corpus import stopwords
-    from nltk.tokenize import word_tokenize
 
     # NLTK data should be pre-downloaded in Dockerfile for faster deployment
     # Only download if not found (shouldn't happen in production)

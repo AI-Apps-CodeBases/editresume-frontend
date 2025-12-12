@@ -58,14 +58,31 @@ export default function SharedResumePage() {
       const result = await sharedResumeService.getSharedResume(shareToken, providedPassword)
       setSharedInfo(result)
 
+      // Use the full resume_data from backend, ensuring all fields are included
+      // The backend returns resume_data which should contain the full resume structure
+      // We merge it with resume metadata to ensure all fields are available
       const formattedData = {
-        name: result.resume_data.personalInfo?.name || result.resume.name,
-        title: result.resume.title,
-        email: result.resume_data.personalInfo?.email || '',
-        phone: result.resume_data.personalInfo?.phone || '',
-        location: result.resume_data.personalInfo?.location || '',
+        // Personal info - use resume_data structure if available, fallback to resume model
+        name: result.resume_data.personalInfo?.name || result.resume_data.name || result.resume.name,
+        title: result.resume_data.personalInfo?.title || result.resume_data.title || result.resume.title,
+        email: result.resume_data.personalInfo?.email || result.resume_data.email || '',
+        phone: result.resume_data.personalInfo?.phone || result.resume_data.phone || '',
+        location: result.resume_data.personalInfo?.location || result.resume_data.location || '',
         summary: result.resume_data.summary || '',
         sections: result.resume_data.sections || [],
+        // Include design settings if available
+        design: result.resume_data.design || {},
+        // Include template config if available
+        template: result.resume_data.template || result.resume.template || 'tech',
+        templateConfig: result.resume_data.templateConfig || result.resume_data.template_config,
+        // Include fields visibility settings
+        fieldsVisible: result.resume_data.fieldsVisible || result.resume_data.fields_visible || {},
+        // Include all other fields from resume_data to ensure nothing is lost
+        ...Object.fromEntries(
+          Object.entries(result.resume_data).filter(([key]) => 
+            !['personalInfo', 'name', 'title', 'email', 'phone', 'location', 'summary', 'sections', 'design', 'template', 'templateConfig', 'template_config', 'fieldsVisible', 'fields_visible'].includes(key)
+          )
+        ),
       }
 
       setResumeData(formattedData)
@@ -153,11 +170,13 @@ export default function SharedResumePage() {
               <span className="text-xs uppercase tracking-[0.3em] text-text-muted">Read only</span>
             </div>
             <div className="px-6 py-6">
-              <div className="overflow-hidden rounded-2xl border border-border-subtle bg-black/10">
+              <div className="overflow-auto rounded-2xl border border-border-subtle bg-white p-4" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                 <PreviewPanel
                   data={resumeData}
-                  template={(sharedInfo.resume.template || 'tech') as 'tech' | 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern'}
+                  template={(resumeData.template || sharedInfo.resume.template || 'tech') as 'tech' | 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern'}
+                  templateConfig={resumeData.templateConfig}
                   replacements={{}}
+                  constrained={false}
                   key="shared-resume-preview"
                 />
               </div>

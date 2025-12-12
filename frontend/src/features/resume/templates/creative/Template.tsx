@@ -54,7 +54,7 @@ export default function CreativeTemplate({ data, config, replacements }: Templat
       </header>
 
       {data.summary && (
-        <section className="mb-8">
+        <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <div
             className="mb-4 p-4 rounded-lg"
             style={{
@@ -78,7 +78,6 @@ export default function CreativeTemplate({ data, config, replacements }: Templat
       {orderedSections.map((section) => (
         <section
           key={section.id}
-          className="mb-8"
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}
         >
           <h2

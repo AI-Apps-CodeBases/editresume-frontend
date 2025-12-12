@@ -43,7 +43,7 @@ export default function AtsFriendlyTemplate({ data, config, replacements }: Temp
       </header>
 
       {data.summary && (
-        <section className="mb-4">
+        <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <h2
             className="mb-2"
             style={{
@@ -70,7 +70,6 @@ export default function AtsFriendlyTemplate({ data, config, replacements }: Temp
       {orderedSections.map((section) => (
         <section
           key={section.id}
-          className="mb-4"
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}
         >
           <h2

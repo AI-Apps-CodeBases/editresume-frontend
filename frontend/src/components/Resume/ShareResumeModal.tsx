@@ -37,7 +37,28 @@ export default function ShareResumeModal({ isOpen, onClose, resumeId, resumeName
           actualResumeId = saveResult.resume_id
           console.log('Resume saved with ID:', actualResumeId)
         } catch (saveError: any) {
-          const saveErrorMessage = saveError?.message || saveError?.toString() || 'Unknown error'
+          // Properly extract error message from various error formats
+          let saveErrorMessage = 'Unknown error'
+          if (saveError?.message) {
+            saveErrorMessage = saveError.message
+          } else if (Array.isArray(saveError)) {
+            // Handle array of errors
+            saveErrorMessage = saveError.map((err: any) => 
+              typeof err === 'string' ? err : (err?.message || JSON.stringify(err))
+            ).join(', ')
+          } else if (typeof saveError === 'string') {
+            saveErrorMessage = saveError
+          } else if (saveError?.detail) {
+            saveErrorMessage = saveError.detail
+          } else if (saveError?.error) {
+            saveErrorMessage = saveError.error
+          } else {
+            try {
+              saveErrorMessage = JSON.stringify(saveError)
+            } catch {
+              saveErrorMessage = String(saveError)
+            }
+          }
           setError(`Failed to save resume: ${saveErrorMessage}. Please try saving the resume first using the Save button.`)
           return
         }

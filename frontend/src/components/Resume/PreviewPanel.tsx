@@ -311,6 +311,14 @@ export default function PreviewPanel({
     }
   }, [])
 
+  // All hooks must be at the top level - moved from below
+  const [leftSectionIds, setLeftSectionIds] = useState<string[]>([])
+  const [rightSectionIds, setRightSectionIds] = useState<string[]>([])
+  const [leftWidth, setLeftWidth] = useState(50)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [pageCount, setPageCount] = useState(1)
+  const SUMMARY_ID = '__summary__'
+
   // Live-only PreviewPanel; page-level controls handle mode
 
   // Helper function for border styling
@@ -339,6 +347,121 @@ export default function PreviewPanel({
                       template === 'two-column'
   
   const columnWidth = templateConfig?.layout?.columnWidth || layout.columnWidth || 50
+
+  // Update layout configuration when localStorage changes
+  useEffect(() => {
+    if (isTwoColumn && typeof window !== 'undefined') {
+      const updateLayout = () => {
+        const savedLeft = localStorage.getItem('twoColumnLeft')
+        const savedRight = localStorage.getItem('twoColumnRight')
+        const savedWidth = localStorage.getItem('twoColumnLeftWidth')
+        
+        let leftIds: string[] = savedLeft ? JSON.parse(savedLeft) : []
+        let rightIds: string[] = savedRight ? JSON.parse(savedRight) : []
+        
+        // If no configuration exists, use default distribution
+        if (leftIds.length === 0 && rightIds.length === 0) {
+          const allSections = (data.sections || [])
+            .filter(s => {
+              const excludedTitles = ['Contact Information', 'Contact', 'Title Section', 'Title']
+              return s.params?.visible !== false && !excludedTitles.includes(s.title)
+            })
+          
+          // Default distribution: Skills, Certificates, Education on left; everything else on right
+          const leftColumnKeywords = ['skill', 'certificate', 'certification', 'education', 'academic', 'qualification', 'award', 'honor']
+          
+          // Add summary to left by default if it exists
+          if (data.summary && !leftIds.includes(SUMMARY_ID) && !rightIds.includes(SUMMARY_ID)) {
+            leftIds.push(SUMMARY_ID)
+          }
+          
+          leftIds = [
+            ...leftIds.filter(id => id === SUMMARY_ID),
+            ...allSections
+              .filter(s => {
+                const titleLower = s.title.toLowerCase()
+                return leftColumnKeywords.some(keyword => titleLower.includes(keyword))
+              })
+              .map(s => s.id)
+          ]
+          
+          rightIds = allSections
+            .filter(s => {
+              const titleLower = s.title.toLowerCase()
+              return !leftColumnKeywords.some(keyword => titleLower.includes(keyword))
+            })
+            .map(s => s.id)
+          
+          // Save default distribution to localStorage so it persists
+          if (leftIds.length > 0 || rightIds.length > 0) {
+            localStorage.setItem('twoColumnLeft', JSON.stringify(leftIds))
+            localStorage.setItem('twoColumnRight', JSON.stringify(rightIds))
+          }
+        } else {
+          // Ensure summary is included if it exists and not already assigned
+          if (data.summary && !leftIds.includes(SUMMARY_ID) && !rightIds.includes(SUMMARY_ID)) {
+            leftIds.push(SUMMARY_ID)
+            localStorage.setItem('twoColumnLeft', JSON.stringify(leftIds))
+          }
+        }
+        
+        setLeftSectionIds(leftIds)
+        setRightSectionIds(rightIds)
+        // Use templateConfig columnWidth if available, otherwise localStorage, otherwise default
+        const finalWidth = templateConfig?.layout?.columnWidth || (savedWidth ? Number(savedWidth) : 50)
+        setLeftWidth(finalWidth)
+      }
+      
+      // Initial load
+      updateLayout()
+      
+      // Listen for storage changes (from other tabs/components)
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'twoColumnLeft' || e.key === 'twoColumnRight' || e.key === 'twoColumnLeftWidth') {
+          updateLayout()
+        }
+      }
+      
+      window.addEventListener('storage', handleStorageChange)
+      
+      // Poll for changes (since same-tab localStorage changes don't trigger storage events)
+      const interval = setInterval(updateLayout, 500)
+      
+      return () => {
+        window.removeEventListener('storage', handleStorageChange)
+        clearInterval(interval)
+      }
+    } else {
+      // Reset when not two-column
+      setLeftSectionIds([])
+      setRightSectionIds([])
+    }
+  }, [isTwoColumn, data.sections, template, templateConfig, data.summary, SUMMARY_ID])
+
+  // Calculate number of pages needed
+  useEffect(() => {
+    const calculatePages = () => {
+      if (contentRef.current) {
+        // Wait for content to render
+        setTimeout(() => {
+          if (contentRef.current) {
+            const contentHeight = contentRef.current.scrollHeight
+            // A4 page height: 11.69in = ~1123px (at 96 DPI, but we need to account for padding)
+            // With 0.3cm padding top and bottom, usable height is ~11.69in - 0.6cm = ~11.39in
+            const pageHeightIn = 11.39 // Usable height per page in inches
+            const pageHeightPx = pageHeightIn * 96 // Convert to pixels
+            const pages = Math.ceil(contentHeight / pageHeightPx)
+            setPageCount(Math.max(1, pages))
+          }
+        }, 100)
+      }
+    }
+    
+    calculatePages()
+    const timer = setInterval(calculatePages, 500)
+    
+    return () => clearInterval(timer)
+  }, [data, templateConfig])
   
   // Helper function to get ordered sections respecting sectionOrder from templateConfig
   const getOrderedSections = (sections: typeof data.sections, excludeTitles: string[] = []) => {
@@ -749,130 +872,6 @@ export default function PreviewPanel({
     )
   }
 
-  // State for two-column layout configuration
-  const [leftSectionIds, setLeftSectionIds] = useState<string[]>([])
-  const [rightSectionIds, setRightSectionIds] = useState<string[]>([])
-  const [leftWidth, setLeftWidth] = useState(50)
-  const SUMMARY_ID = '__summary__'
-
-  // Update layout configuration when localStorage changes
-  useEffect(() => {
-    if (isTwoColumn && typeof window !== 'undefined') {
-      const updateLayout = () => {
-        const savedLeft = localStorage.getItem('twoColumnLeft')
-        const savedRight = localStorage.getItem('twoColumnRight')
-        const savedWidth = localStorage.getItem('twoColumnLeftWidth')
-        
-        let leftIds: string[] = savedLeft ? JSON.parse(savedLeft) : []
-        let rightIds: string[] = savedRight ? JSON.parse(savedRight) : []
-        
-        // If no configuration exists, use default distribution
-        if (leftIds.length === 0 && rightIds.length === 0) {
-          const allSections = (data.sections || [])
-            .filter(s => {
-              const excludedTitles = ['Contact Information', 'Contact', 'Title Section', 'Title']
-              return s.params?.visible !== false && !excludedTitles.includes(s.title)
-            })
-          
-          // Default distribution: Skills, Certificates, Education on left; everything else on right
-          const leftColumnKeywords = ['skill', 'certificate', 'certification', 'education', 'academic', 'qualification', 'award', 'honor']
-          
-          // Add summary to left by default if it exists
-          if (data.summary && !leftIds.includes(SUMMARY_ID) && !rightIds.includes(SUMMARY_ID)) {
-            leftIds.push(SUMMARY_ID)
-          }
-          
-          leftIds = [
-            ...leftIds.filter(id => id === SUMMARY_ID),
-            ...allSections
-              .filter(s => {
-                const titleLower = s.title.toLowerCase()
-                return leftColumnKeywords.some(keyword => titleLower.includes(keyword))
-              })
-              .map(s => s.id)
-          ]
-          
-          rightIds = allSections
-            .filter(s => {
-              const titleLower = s.title.toLowerCase()
-              return !leftColumnKeywords.some(keyword => titleLower.includes(keyword))
-            })
-            .map(s => s.id)
-          
-          // Save default distribution to localStorage so it persists
-          if (leftIds.length > 0 || rightIds.length > 0) {
-            localStorage.setItem('twoColumnLeft', JSON.stringify(leftIds))
-            localStorage.setItem('twoColumnRight', JSON.stringify(rightIds))
-          }
-        } else {
-          // Ensure summary is included if it exists and not already assigned
-          if (data.summary && !leftIds.includes(SUMMARY_ID) && !rightIds.includes(SUMMARY_ID)) {
-            leftIds.push(SUMMARY_ID)
-            localStorage.setItem('twoColumnLeft', JSON.stringify(leftIds))
-          }
-        }
-        
-        setLeftSectionIds(leftIds)
-        setRightSectionIds(rightIds)
-        // Use templateConfig columnWidth if available, otherwise localStorage, otherwise default
-        const finalWidth = templateConfig?.layout?.columnWidth || (savedWidth ? Number(savedWidth) : 50)
-        setLeftWidth(finalWidth)
-      }
-      
-      // Initial load
-      updateLayout()
-      
-      // Listen for storage changes (from other tabs/components)
-      const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === 'twoColumnLeft' || e.key === 'twoColumnRight' || e.key === 'twoColumnLeftWidth') {
-          updateLayout()
-        }
-      }
-      
-      window.addEventListener('storage', handleStorageChange)
-      
-      // Poll for changes (since same-tab localStorage changes don't trigger storage events)
-      const interval = setInterval(updateLayout, 500)
-      
-      return () => {
-        window.removeEventListener('storage', handleStorageChange)
-        clearInterval(interval)
-      }
-    } else {
-      // Reset when not two-column
-      setLeftSectionIds([])
-      setRightSectionIds([])
-    }
-  }, [isTwoColumn, data.sections, template])
-
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [pageCount, setPageCount] = useState(1)
-  
-  // Calculate number of pages needed
-  useEffect(() => {
-    const calculatePages = () => {
-      if (contentRef.current) {
-        // Wait for content to render
-        setTimeout(() => {
-          if (contentRef.current) {
-            const contentHeight = contentRef.current.scrollHeight
-            // A4 page height: 11.69in = ~1123px (at 96 DPI, but we need to account for padding)
-            // With 0.3cm padding top and bottom, usable height is ~11.69in - 0.6cm = ~11.39in
-            const pageHeightIn = 11.39 // Usable height per page in inches
-            const pageHeightPx = pageHeightIn * 96 // Convert to pixels
-            const pages = Math.ceil(contentHeight / pageHeightPx)
-            setPageCount(Math.max(1, pages))
-          }
-        }, 100)
-      }
-    }
-    
-    calculatePages()
-    const timer = setInterval(calculatePages, 500)
-    
-    return () => clearInterval(timer)
-  }, [data, templateConfig, sectionSpacing, bulletSpacing])
-  
   // Render the actual content
   const renderContent = () => (
     <div 

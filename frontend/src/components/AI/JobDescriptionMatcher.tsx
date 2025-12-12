@@ -8,6 +8,266 @@ import { useModal } from '@/contexts/ModalContext';
 import { getAuthHeaders } from '@/lib/auth';
 import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
+import { calculateEnhancedATSScore } from '@/lib/atsScoring.enhanced';
+import type { ExtensionKeywordData, LegacyATSScoreResult } from '@/lib/atsScoring.types';
+
+const USE_ENHANCED_ATS_SCORING = true;
+
+function calculateLegacyATSScore(
+  resumeData: any,
+  jobDescription: string,
+  keywordBundle: any
+): LegacyATSScoreResult | null {
+  if (!resumeData || !keywordBundle) return null;
+
+  const keywordSet = new Set<string>();
+  const addKeyword = (value: string) => {
+    if (value && value.trim()) {
+      keywordSet.add(value.trim().toLowerCase());
+    }
+  };
+
+  keywordBundle.extractedKeywordsPayload.general_keywords.forEach(addKeyword);
+  keywordBundle.extractedKeywordsPayload.technical_keywords.forEach(addKeyword);
+  keywordBundle.highFrequencyKeywords.forEach((item: any) => addKeyword(item.keyword));
+  if (keywordBundle.atsInsights) {
+    keywordBundle.atsInsights.action_verbs?.forEach(addKeyword);
+    keywordBundle.atsInsights.metrics?.forEach(addKeyword);
+    keywordBundle.atsInsights.industry_terms?.forEach(addKeyword);
+  }
+
+  const totalKeywords = keywordSet.size;
+  if (totalKeywords === 0) {
+    return null;
+  }
+
+  const resumeFragments: string[] = [];
+  const appendText = (value?: string) => {
+    const normalized = normalizeTextForATS(value);
+    if (normalized) {
+      resumeFragments.push(normalized.toLowerCase());
+    }
+  };
+
+  appendText(resumeData.title);
+  appendText(resumeData.summary);
+  if (resumeData.sections && Array.isArray(resumeData.sections)) {
+    resumeData.sections.forEach((section: any) => {
+      appendText(section.title);
+      if (section.bullets && Array.isArray(section.bullets)) {
+        section.bullets
+          .filter((bullet: any) => bullet?.params?.visible !== false)
+          .forEach((bullet: any) => appendText(bullet?.text));
+      }
+    });
+  }
+
+  const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+  if (!resumeText) {
+    return null;
+  }
+
+  const matchedKeywords: string[] = [];
+  const missingKeywords: string[] = [];
+
+  keywordSet.forEach((keyword) => {
+    const hasSpecialChars = /[\/\-_]/g.test(keyword);
+    let pattern: RegExp;
+    if (hasSpecialChars) {
+      pattern = new RegExp(escapeRegExp(keyword), 'i');
+    } else {
+      pattern = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i');
+    }
+    if (pattern.test(resumeText)) {
+      matchedKeywords.push(keyword);
+    } else {
+      missingKeywords.push(keyword);
+    }
+  });
+
+  const keywordMatchPercentage = totalKeywords > 0 
+    ? (matchedKeywords.length / totalKeywords) * 100 
+    : 0;
+
+  let sectionScore = 0;
+  const sections = resumeData.sections || [];
+  const requiredSections = ['experience', 'work', 'education', 'skills'];
+  const sectionTitles = sections.map((s: any) => s.title?.toLowerCase() || '');
+  
+  let foundSections = 0;
+  requiredSections.forEach((reqSection) => {
+    if (sectionTitles.some((title: string) => title.includes(reqSection))) {
+      foundSections++;
+    }
+  });
+  
+  sectionScore = (foundSections / requiredSections.length) * 100;
+  
+  let sectionQualityScore = 0;
+  if (sections.length > 0) {
+    const sectionsWithContent = sections.filter((s: any) => {
+      const bullets = s.bullets || [];
+      const visibleBullets = bullets.filter((b: any) => b?.params?.visible !== false);
+      return visibleBullets.length > 0;
+    }).length;
+    sectionQualityScore = (sectionsWithContent / sections.length) * 100;
+  }
+  
+  const combinedSectionScore = (sectionScore + sectionQualityScore) / 2;
+
+  let contentQualityScore = 50;
+  
+  if (resumeData.summary && resumeData.summary.trim().length > 50) {
+    contentQualityScore += 10;
+  }
+  
+  if (resumeData.email || resumeData.phone) {
+    contentQualityScore += 5;
+  }
+  
+  if (resumeData.title && resumeData.title.trim().length > 0) {
+    contentQualityScore += 5;
+  }
+  
+  const totalContentLength = resumeText.length;
+  if (totalContentLength > 500) {
+    contentQualityScore += 10;
+  } else if (totalContentLength > 200) {
+    contentQualityScore += 5;
+  }
+  
+  contentQualityScore = Math.min(100, contentQualityScore);
+
+  const keywordWeight = 0.80;
+  const sectionWeight = 0.15;
+  const qualityWeight = 0.05;
+
+  const maxKeywordContribution = 80;
+  const actualKeywordContribution = Math.min(
+    keywordMatchPercentage * keywordWeight,
+    maxKeywordContribution
+  );
+  
+  let baseScore = 
+    actualKeywordContribution +
+    (combinedSectionScore * sectionWeight) +
+    (contentQualityScore * qualityWeight);
+
+  let finalScore = baseScore;
+  
+  if (finalScore > 90) {
+    const allFactorsStrong = 
+      keywordMatchPercentage >= 80 &&
+      combinedSectionScore >= 70 &&
+      contentQualityScore >= 70;
+    
+    if (!allFactorsStrong) {
+      finalScore = Math.min(90, finalScore);
+    }
+  }
+
+  if (resumeText.trim() && sections.length > 0) {
+    finalScore = Math.max(30, finalScore);
+  }
+
+  const score = Math.round(Math.min(100, Math.max(0, finalScore)));
+
+  return {
+    score,
+    matchedKeywords,
+    missingKeywords,
+    totalKeywords,
+  };
+}
+
+function convertExtensionDataToEnhancedFormat(extractedKeywords: any): ExtensionKeywordData | undefined {
+  if (!extractedKeywords) return undefined;
+
+  const convertArray = (arr: any[]): Array<{ keyword: string; weight: number; isRequired?: boolean }> => {
+    if (!Array.isArray(arr)) return [];
+    return arr.map((item: any) => {
+      if (typeof item === 'string') {
+        return { keyword: item, weight: 5 };
+      }
+      if (item.keyword) {
+        return {
+          keyword: item.keyword,
+          weight: item.weight || item.frequency || 5,
+          isRequired: item.isRequired || item.importance === 'high',
+        };
+      }
+      return { keyword: String(item), weight: 5 };
+    });
+  };
+
+  const technicalKeywords = convertArray(extractedKeywords.technical_keywords || []);
+  const matchingKeywords = convertArray(extractedKeywords.matching_keywords || []);
+  const missingKeywords = convertArray(extractedKeywords.missing_keywords || []);
+
+  const highFrequencyKeywords = Array.isArray(extractedKeywords.high_frequency_keywords)
+    ? extractedKeywords.high_frequency_keywords.map((item: any) => {
+        const keyword = typeof item === 'string' ? item : item.keyword;
+        const frequency = typeof item === 'object' ? (item.frequency || 1) : 1;
+        const importance = typeof item === 'object' ? (item.importance || 'medium') : 'medium';
+        let weight = typeof item === 'object' ? (item.weight || 5) : 5;
+        
+        if (frequency) {
+          weight = Math.min(10, Math.max(1, Math.round(frequency / 10)));
+        }
+        if (importance === 'high') {
+          weight = Math.max(weight, 8);
+        }
+        
+        return { keyword, frequency, importance, weight };
+      })
+    : [];
+
+  return {
+    technicalKeywords: technicalKeywords.length > 0 ? technicalKeywords : undefined,
+    matchingKeywords: matchingKeywords.length > 0 ? matchingKeywords : undefined,
+    missingKeywords: missingKeywords.length > 0 ? missingKeywords : undefined,
+    highFrequencyKeywords: highFrequencyKeywords.length > 0 ? highFrequencyKeywords : undefined,
+  };
+}
+
+type ATSScoreResult = LegacyATSScoreResult | (LegacyATSScoreResult & {
+  breakdown: any;
+  recommendations: string[];
+  matchLevel: string;
+});
+
+function calculateATSScore(
+  resumeData: any,
+  jobDescription: string,
+  keywordBundle: any,
+  extensionData?: ExtensionKeywordData
+): ATSScoreResult | null {
+  if (USE_ENHANCED_ATS_SCORING) {
+    const enhancedResult = calculateEnhancedATSScore(resumeData, jobDescription, extensionData);
+    
+    const legacyResult = calculateLegacyATSScore(resumeData, jobDescription, keywordBundle);
+    if (legacyResult) {
+      console.log('ATS Score Comparison:', {
+        legacy: legacyResult.score,
+        enhanced: enhancedResult.totalScore,
+        breakdown: enhancedResult.breakdown,
+        recommendations: enhancedResult.recommendations,
+      });
+    }
+    
+    return {
+      score: enhancedResult.totalScore,
+      matchedKeywords: [],
+      missingKeywords: [],
+      totalKeywords: 0,
+      breakdown: enhancedResult.breakdown,
+      recommendations: enhancedResult.recommendations,
+      matchLevel: enhancedResult.matchLevel,
+    };
+  } else {
+    return calculateLegacyATSScore(resumeData, jobDescription, keywordBundle);
+  }
+}
 
 interface MatchAnalysis {
   similarity_score: number;
@@ -555,6 +815,97 @@ const highlightMissingKeywords = (text: string, missingKeywords: string[]): Reac
         key={`${match.keyword}-${match.index}`}
         className="bg-yellow-300 font-semibold px-0.5 rounded"
         title={`Missing keyword: ${match.keyword}`}
+      >
+        {text.substring(match.index, match.index + match.length)}
+      </mark>
+    );
+    lastIndex = match.index + match.length;
+  });
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? <>{parts}</> : text;
+};
+
+// Highlight overused keywords (used more than threshold times) in resume text
+const highlightOverusedKeywords = (text: string, keywordUsageCounts: Map<string, number>, threshold: number = 10): React.ReactNode => {
+  if (!text || !keywordUsageCounts || keywordUsageCounts.size === 0) return text;
+
+  // Get keywords used more than threshold times
+  const overusedKeywords = Array.from(keywordUsageCounts.entries())
+    .filter(([_, count]) => count > threshold)
+    .map(([keyword, _]) => keyword);
+
+  if (overusedKeywords.length === 0) return text;
+
+  const parts: Array<React.ReactNode> = [];
+  let lastIndex = 0;
+
+  // Sort keywords by length (longest first) to avoid partial matches
+  const sortedKeywords = [...overusedKeywords].filter(kw => kw && kw.trim().length > 1).sort((a, b) => b.length - a.length);
+  const matches: Array<{ keyword: string, index: number, length: number, count: number }> = [];
+
+  sortedKeywords.forEach(keyword => {
+    const keywordLower = keyword.toLowerCase().trim();
+    const count = keywordUsageCounts.get(keyword) || 0;
+    try {
+      // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
+      const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+      let regex: RegExp;
+      if (hasSpecialChars) {
+        // For keywords with special chars, escape and match directly (no word boundaries)
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(escaped, 'gi');
+      } else {
+        // For normal keywords, use word boundaries to avoid partial matches
+        const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+      }
+      const textMatches = text.matchAll(regex);
+
+      for (const match of textMatches) {
+        if (match.index !== undefined && match[0]) {
+          matches.push({
+            keyword,
+            index: match.index,
+            length: match[0].length,
+            count
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error matching overused keyword:', keyword, e);
+    }
+  });
+
+  // Sort matches by index and remove overlaps
+  matches.sort((a, b) => a.index - b.index);
+  const nonOverlapping: typeof matches = [];
+  for (const match of matches) {
+    const overlaps = nonOverlapping.some(m =>
+      (match.index >= m.index && match.index < m.index + m.length) ||
+      (match.index + match.length > m.index && match.index + match.length <= m.index + m.length)
+    );
+    if (!overlaps) {
+      nonOverlapping.push(match);
+    }
+  }
+
+  // Build highlighted parts
+  nonOverlapping.forEach(match => {
+    // Add text before match
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    // Add highlighted match in RED
+    parts.push(
+      <mark
+        key={`overused-${match.keyword}-${match.index}`}
+        className="bg-red-300 text-red-900 font-semibold px-0.5 rounded border border-red-500"
+        title={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
       >
         {text.substring(match.index, match.index + match.length)}
       </mark>
@@ -1612,6 +1963,63 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     });
   }, [matchResult, extractedKeywords, selectedJobMetadata, jobDescription]);
 
+  // Calculate keyword usage counts in resume
+  const keywordUsageCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    
+    if (!resumeData) return counts;
+    
+    // Build resume text
+    const resumeFragments: string[] = [];
+    const appendText = (value?: string) => {
+      const normalized = normalizeTextForATS(value);
+      if (normalized) {
+        resumeFragments.push(normalized.toLowerCase());
+      }
+    };
+    
+    appendText(resumeData.title);
+    appendText(resumeData.summary);
+    if (resumeData.sections && Array.isArray(resumeData.sections)) {
+      resumeData.sections.forEach((section: any) => {
+        appendText(section.title);
+        if (section.bullets && Array.isArray(section.bullets)) {
+          section.bullets
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .forEach((bullet: any) => appendText(bullet?.text));
+        }
+      });
+    }
+    
+    const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+    
+    // Get all keywords to count
+    const allKeywords: string[] = [];
+    if (matchResult?.match_analysis) {
+      allKeywords.push(...(matchResult.match_analysis.matching_keywords || []));
+      allKeywords.push(...(matchResult.match_analysis.missing_keywords || []));
+    }
+    if (technicalKeywordOptions.length > 0) {
+      allKeywords.push(...technicalKeywordOptions.map((opt: TechnicalKeywordOption) => opt.keyword));
+    }
+    
+    // Count occurrences for each keyword
+    allKeywords.forEach((keyword) => {
+      const keywordLower = keyword.toLowerCase();
+      const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
+      const escaped = escapeRegExp(keywordLower);
+      const pattern = hasSpecialChars
+        ? new RegExp(escaped, 'gi')
+        : new RegExp(`\\b${escaped}\\b`, 'gi');
+      
+      const matches = resumeText.match(pattern);
+      const count = matches ? matches.length : 0;
+      counts.set(keyword, count);
+    });
+    
+    return counts;
+  }, [resumeData, matchResult, technicalKeywordOptions]);
+
   const [currentATSScore, setCurrentATSScore] = useState<number | null>(() => {
     // Restore ATS score from localStorage on mount
     if (typeof window !== 'undefined') {
@@ -1829,192 +2237,123 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     const keywordBundle = buildPrecomputedKeywordPayload();
     if (!keywordBundle) return null;
 
-    const keywordSet = new Set<string>();
-    const addKeyword = (value: string) => {
-      if (value && value.trim()) {
-        keywordSet.add(value.trim().toLowerCase());
+    let extensionDataForScoring = convertExtensionDataToEnhancedFormat(extractedKeywords || keywordBundle.extractedKeywordsPayload);
+    
+    if (matchResult?.match_analysis) {
+      const matchAnalysis = matchResult.match_analysis;
+      if (!extensionDataForScoring) {
+        extensionDataForScoring = {};
       }
-    };
-
-    keywordBundle.extractedKeywordsPayload.general_keywords.forEach(addKeyword);
-    keywordBundle.extractedKeywordsPayload.technical_keywords.forEach(addKeyword);
-    keywordBundle.highFrequencyKeywords.forEach((item) => addKeyword(item.keyword));
-    if (keywordBundle.atsInsights) {
-      keywordBundle.atsInsights.action_verbs?.forEach(addKeyword);
-      keywordBundle.atsInsights.metrics?.forEach(addKeyword);
-      keywordBundle.atsInsights.industry_terms?.forEach(addKeyword);
-    }
-
-    const totalKeywords = keywordSet.size;
-    if (totalKeywords === 0) {
-      return null;
-    }
-
-    const resumeFragments: string[] = [];
-    const appendText = (value?: string) => {
-      const normalized = normalizeTextForATS(value);
-      if (normalized) {
-        resumeFragments.push(normalized.toLowerCase());
-      }
-    };
-
-    appendText(resumeData.title);
-    appendText(resumeData.summary);
-    if (resumeData.sections && Array.isArray(resumeData.sections)) {
-      resumeData.sections.forEach((section: any) => {
-        appendText(section.title);
-        if (section.bullets && Array.isArray(section.bullets)) {
-          section.bullets
-            .filter((bullet: any) => bullet?.params?.visible !== false)
-            .forEach((bullet: any) => appendText(bullet?.text));
-        }
-      });
-    }
-
-    const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
-    if (!resumeText) {
-      return null;
-    }
-
-    const matchedKeywords: string[] = [];
-    const missingKeywords: string[] = [];
-
-    keywordSet.forEach((keyword) => {
-      // Handle special characters like "/" in "CI/CD" - don't use word boundaries for these
-      const hasSpecialChars = /[\/\-_]/g.test(keyword);
-      let pattern: RegExp;
-      if (hasSpecialChars) {
-        // For keywords with special chars, escape and match directly (no word boundaries)
-        pattern = new RegExp(escapeRegExp(keyword), 'i');
-      } else {
-        // For normal keywords, use word boundaries to avoid partial matches
-        pattern = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i');
-      }
-      if (pattern.test(resumeText)) {
-        matchedKeywords.push(keyword);
-      } else {
-        missingKeywords.push(keyword);
-      }
-    });
-
-    // Calculate keyword match percentage (primary factor, but capped)
-    const keywordMatchPercentage = totalKeywords > 0 
-      ? (matchedKeywords.length / totalKeywords) * 100 
-      : 0;
-
-    // Calculate section completeness score
-    let sectionScore = 0;
-    const sections = resumeData.sections || [];
-    const requiredSections = ['experience', 'work', 'education', 'skills'];
-    const sectionTitles = sections.map((s: any) => s.title?.toLowerCase() || '');
-    
-    let foundSections = 0;
-    requiredSections.forEach((reqSection) => {
-      if (sectionTitles.some((title: string) => title.includes(reqSection))) {
-        foundSections++;
-      }
-    });
-    
-    sectionScore = (foundSections / requiredSections.length) * 100;
-    
-    // Additional section quality: check if sections have content
-    let sectionQualityScore = 0;
-    if (sections.length > 0) {
-      const sectionsWithContent = sections.filter((s: any) => {
-        const bullets = s.bullets || [];
-        const visibleBullets = bullets.filter((b: any) => b?.params?.visible !== false);
-        return visibleBullets.length > 0;
-      }).length;
-      sectionQualityScore = (sectionsWithContent / sections.length) * 100;
-    }
-    
-    // Combined section score (average of completeness and quality)
-    const combinedSectionScore = (sectionScore + sectionQualityScore) / 2;
-
-    // Calculate content quality indicators
-    let contentQualityScore = 50; // Base score
-    
-    // Check for summary
-    if (resumeData.summary && resumeData.summary.trim().length > 50) {
-      contentQualityScore += 10;
-    }
-    
-    // Check for contact info
-    if (resumeData.email || resumeData.phone) {
-      contentQualityScore += 5;
-    }
-    
-    // Check for title
-    if (resumeData.title && resumeData.title.trim().length > 0) {
-      contentQualityScore += 5;
-    }
-    
-    // Check for sufficient content length
-    const totalContentLength = resumeText.length;
-    if (totalContentLength > 500) {
-      contentQualityScore += 10;
-    } else if (totalContentLength > 200) {
-      contentQualityScore += 5;
-    }
-    
-    // Cap content quality at 100
-    contentQualityScore = Math.min(100, contentQualityScore);
-
-    // Apply weighted scoring similar to backend
-    // Keyword match: 80% (primary factor for ATS score)
-    // Section completeness: 15%
-    // Content quality: 5%
-    const keywordWeight = 0.80;
-    const sectionWeight = 0.15;
-    const qualityWeight = 0.05;
-
-    // Apply cap to keyword-only contributions to prevent 100% from keyword stuffing
-    // Even with 100% keyword match, max contribution is 80 points
-    // This ensures other factors (sections, quality) are always considered
-    const maxKeywordContribution = 80;
-    const actualKeywordContribution = Math.min(
-      keywordMatchPercentage * keywordWeight,
-      maxKeywordContribution
-    );
-    
-    // Calculate base score with capped keyword contribution
-    const baseScore = 
-      actualKeywordContribution +
-      (combinedSectionScore * sectionWeight) +
-      (contentQualityScore * qualityWeight);
-
-    // Apply normalization: prevent scores above 90% unless all factors are strong
-    // This prevents unrealistic 100% scores from keyword matching alone
-    let finalScore = baseScore;
-    
-    if (finalScore > 90) {
-      // Require strong performance across all factors for scores above 90%
-      const allFactorsStrong = 
-        keywordMatchPercentage >= 80 &&
-        combinedSectionScore >= 70 &&
-        contentQualityScore >= 70;
       
-      if (!allFactorsStrong) {
-        // Cap at 90% if not all factors are strong
-        finalScore = Math.min(90, finalScore);
+      if (matchAnalysis.matching_keywords && matchAnalysis.matching_keywords.length > 0) {
+        extensionDataForScoring.matchingKeywords = matchAnalysis.matching_keywords.map((kw: string) => ({
+          keyword: kw,
+          weight: 5,
+        }));
+      }
+      
+      if (matchAnalysis.missing_keywords && matchAnalysis.missing_keywords.length > 0) {
+        extensionDataForScoring.missingKeywords = matchAnalysis.missing_keywords.map((kw: string) => ({
+          keyword: kw,
+          weight: 5,
+        }));
+      }
+      
+      if (matchAnalysis.technical_matches && matchAnalysis.technical_matches.length > 0) {
+        extensionDataForScoring.technicalKeywords = [
+          ...(extensionDataForScoring.technicalKeywords || []),
+          ...matchAnalysis.technical_matches.map((kw: string) => ({
+            keyword: kw,
+            weight: 8,
+            isRequired: false,
+          })),
+        ];
       }
     }
+    
+    const result = calculateATSScore(resumeData, jobDescription || '', keywordBundle, extensionDataForScoring);
 
-    // Ensure minimum score if resume has content
-    if (resumeText.trim() && sections.length > 0) {
-      finalScore = Math.max(30, finalScore);
+    if (!result) return null;
+
+    if (USE_ENHANCED_ATS_SCORING && 'breakdown' in result) {
+      // Calculate matched/missing keywords from extension data for display
+      const allKeywords: string[] = [];
+      const matchedKeywords: string[] = [];
+      const missingKeywords: string[] = [];
+      
+      // Extract all keywords from extension data
+      if (extensionDataForScoring) {
+        const extractKeywords = (arr?: Array<{ keyword: string } | string>) => {
+          if (!Array.isArray(arr)) return [];
+          return arr.map(kw => typeof kw === 'string' ? kw : kw.keyword);
+        };
+        
+        const technical = extractKeywords(extensionDataForScoring.technicalKeywords);
+        const matching = extractKeywords(extensionDataForScoring.matchingKeywords);
+        const missing = extractKeywords(extensionDataForScoring.missingKeywords);
+        
+        allKeywords.push(...technical, ...matching, ...missing);
+        
+        // Build resume text for matching
+        const resumeFragments: string[] = [];
+        const appendText = (value?: string) => {
+          const normalized = normalizeTextForATS(value);
+          if (normalized) {
+            resumeFragments.push(normalized.toLowerCase());
+          }
+        };
+        
+        appendText(resumeData.title);
+        appendText(resumeData.summary);
+        if (resumeData.sections && Array.isArray(resumeData.sections)) {
+          resumeData.sections.forEach((section: any) => {
+            appendText(section.title);
+            if (section.bullets && Array.isArray(section.bullets)) {
+              section.bullets
+                .filter((bullet: any) => bullet?.params?.visible !== false)
+                .forEach((bullet: any) => appendText(bullet?.text));
+            }
+          });
+        }
+        
+        const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+        
+        // Check which keywords are in resume
+        allKeywords.forEach((keyword) => {
+          const hasSpecialChars = /[\/\-_]/g.test(keyword);
+          const escaped = escapeRegExp(keyword);
+          const pattern = hasSpecialChars
+            ? new RegExp(escaped, 'i')
+            : new RegExp(`\\b${escaped}\\b`, 'i');
+          
+          if (pattern.test(resumeText)) {
+            matchedKeywords.push(keyword);
+          } else {
+            missingKeywords.push(keyword);
+          }
+        });
+      }
+      
+      // Fallback to matchResult if extension data is empty
+      if (allKeywords.length === 0 && matchResult?.match_analysis) {
+        const matchAnalysis = matchResult.match_analysis;
+        matchedKeywords.push(...(matchAnalysis.matching_keywords || []));
+        missingKeywords.push(...(matchAnalysis.missing_keywords || []));
+      }
+      
+      return {
+        score: result.score,
+        matchedKeywords: matchedKeywords,
+        missingKeywords: missingKeywords,
+        totalKeywords: matchedKeywords.length + missingKeywords.length,
+        breakdown: result.breakdown,
+        recommendations: result.recommendations,
+        matchLevel: result.matchLevel,
+      };
     }
 
-    // Round to nearest integer
-    const score = Math.round(Math.min(100, Math.max(0, finalScore)));
-
-    return {
-      score,
-      matchedKeywords,
-      missingKeywords,
-      totalKeywords,
-    };
-  }, [resumeData, buildPrecomputedKeywordPayload]);
+    return result;
+  }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult]);
 
   const atsKeywordMetrics = useMemo(() => {
     if (!matchResult?.match_analysis) {
@@ -3603,77 +3942,95 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 {(() => {
                   const companyName = currentJDInfo?.company || selectedJobMetadata?.company || null;
                   const filteredMissingKeywords = filterIrrelevantKeywords(matchResult.match_analysis.missing_keywords, companyName);
-                  return filteredMissingKeywords.length > 0 && (
+                  const visibleMissingKeywords = filteredMissingKeywords.filter((keyword) => {
+                    const usageCount = keywordUsageCounts.get(keyword) || 0;
+                    return usageCount <= 3;
+                  });
+                  return visibleMissingKeywords.length > 0 ? (
                     <div>
                       <div className="text-xs font-semibold text-red-700 mb-1.5">
-                        Missing Keywords ({filteredMissingKeywords.length})
+                        Missing Keywords ({visibleMissingKeywords.length})
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {filteredMissingKeywords.map((keyword, index) => (
-                  <label
-                    key={`missing-${index}`}
-                          className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
-                      ? 'bg-red-100 text-red-800 border-red-400 font-medium'
-                            : 'bg-red-50 text-red-700 border-red-200 hover:border-red-300'
-                      }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedKeywords.has(keyword)}
-                      onChange={(e) => {
-                        const newSelected = new Set(selectedKeywords);
-                        if (e.target.checked) {
-                          newSelected.add(keyword);
-                        } else {
-                          newSelected.delete(keyword);
-                        }
-                        setSelectedKeywords(newSelected);
-                      }}
-                          className="w-3 h-3 text-red-600 rounded focus:ring-red-500"
-                    />
-                    <span>{keyword}</span>
-                  </label>
-                ))}
+                        {visibleMissingKeywords.map((keyword, index) => {
+                            const usageCount = keywordUsageCounts.get(keyword) || 0;
+                            return (
+                              <label
+                                key={`missing-${index}`}
+                                className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
+                                  ? 'bg-red-100 text-red-800 border-red-400 font-medium'
+                                  : 'bg-red-50 text-red-700 border-red-200 hover:border-red-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedKeywords.has(keyword)}
+                                  onChange={(e) => {
+                                    const newSelected = new Set(selectedKeywords);
+                                    if (e.target.checked) {
+                                      newSelected.add(keyword);
+                                    } else {
+                                      newSelected.delete(keyword);
+                                    }
+                                    setSelectedKeywords(newSelected);
+                                  }}
+                                  className="w-3 h-3 text-red-600 rounded focus:ring-red-500"
+                                />
+                                <span>{keyword}{usageCount > 0 ? ` (${usageCount})` : ''}</span>
+                              </label>
+                            );
+                          })}
                       </div>
                     </div>
-                  );
+                  ) : null;
                 })()}
 
                 {/* Matching Keywords (Reinforce) */}
-                {matchResult.match_analysis.matching_keywords && matchResult.match_analysis.matching_keywords.length > 0 && (
-                  <div>
-                    <div className="text-xs font-semibold text-green-700 mb-1.5">
-                      Matched Keywords - Reinforce ({matchResult.match_analysis.matching_keywords.length})
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {matchResult.match_analysis.matching_keywords.slice(0, 30).map((keyword, index) => (
-                    <label
-                          key={`matched-${index}`}
-                          className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
-                            ? 'bg-green-100 text-green-800 border-green-400 font-medium'
-                            : 'bg-green-50 text-green-700 border-green-200 hover:border-green-300'
-                            }`}
-                    >
-                      <input
-                        type="checkbox"
-                            checked={selectedKeywords.has(keyword)}
-                        onChange={(e) => {
-                          const newSelected = new Set(selectedKeywords);
-                          if (e.target.checked) {
-                            newSelected.add(keyword);
-                          } else {
-                            newSelected.delete(keyword);
-                          }
-                          setSelectedKeywords(newSelected);
-                        }}
-                            className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
-                      />
-                          <span>{keyword}</span>
-                    </label>
-                      ))}
+                {(() => {
+                  const visibleMatchedKeywords = matchResult.match_analysis.matching_keywords
+                    .filter((keyword) => {
+                      const usageCount = keywordUsageCounts.get(keyword) || 0;
+                      return usageCount <= 3;
+                    })
+                    .slice(0, 30);
+                  return visibleMatchedKeywords.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold text-green-700 mb-1.5">
+                        Matched Keywords - Reinforce ({visibleMatchedKeywords.length})
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {visibleMatchedKeywords.map((keyword, index) => {
+                          const usageCount = keywordUsageCounts.get(keyword) || 0;
+                          return (
+                            <label
+                              key={`matched-${index}`}
+                              className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
+                                ? 'bg-green-100 text-green-800 border-green-400 font-medium'
+                                : 'bg-green-50 text-green-700 border-green-200 hover:border-green-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedKeywords.has(keyword)}
+                                onChange={(e) => {
+                                  const newSelected = new Set(selectedKeywords);
+                                  if (e.target.checked) {
+                                    newSelected.add(keyword);
+                                  } else {
+                                    newSelected.delete(keyword);
+                                  }
+                                  setSelectedKeywords(newSelected);
+                                }}
+                                className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
+                              />
+                              <span>{keyword}{usageCount > 0 ? ` (${usageCount})` : ''}</span>
+                            </label>
+                          );
+                        })}
                     </div>
                   </div>
-                )}
+                  ) : null;
+                })()}
 
                 {/* TF-IDF Boost Keywords - Only show when NOT using extension keywords */}
                 {!extractedKeywords && matchResult.keyword_suggestions?.tfidf_suggestions && matchResult.keyword_suggestions.tfidf_suggestions.length > 0 && (
@@ -3719,43 +4076,50 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 )}
 
                 {/* Technical Skills */}
-                {technicalKeywordOptions.length > 0 && (
-                  <div>
-                    <div className="text-xs font-semibold text-indigo-700 mb-1.5">
-                      Technical Skills ({technicalKeywordOptions.length})
-              </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {technicalKeywordOptions.map(({ keyword, source }, index) => {
-                        const isSelected = selectedKeywords.has(keyword);
-                        const chipClass = isSelected
-                          ? 'bg-indigo-100 text-indigo-800 border-indigo-400 font-medium'
-                          : TECH_KEYWORD_CHIP_CLASS[source];
-                        return (
-                          <label
-                            key={`tech-${keyword}-${source}-${index}`}
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs cursor-pointer border transition-all ${chipClass}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                const newSelected = new Set(selectedKeywords);
-                                if (e.target.checked) {
-                                  newSelected.add(keyword);
-                                } else {
-                                  newSelected.delete(keyword);
-                                }
-                                setSelectedKeywords(newSelected);
-                              }}
-                              className="w-3 h-3 text-indigo-600 rounded focus:ring-indigo-500"
-                            />
-                            <span className="font-medium">{keyword}</span>
-                          </label>
-                        );
-                      })}
+                {(() => {
+                  const visibleTechnicalKeywords = technicalKeywordOptions.filter(({ keyword }) => {
+                    const usageCount = keywordUsageCounts.get(keyword) || 0;
+                    return usageCount <= 3;
+                  });
+                  return visibleTechnicalKeywords.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold text-indigo-700 mb-1.5">
+                        Technical Skills ({visibleTechnicalKeywords.length})
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {visibleTechnicalKeywords.map(({ keyword, source }, index) => {
+                          const isSelected = selectedKeywords.has(keyword);
+                          const usageCount = keywordUsageCounts.get(keyword) || 0;
+                          const chipClass = isSelected
+                            ? 'bg-indigo-100 text-indigo-800 border-indigo-400 font-medium'
+                            : TECH_KEYWORD_CHIP_CLASS[source];
+                          return (
+                            <label
+                              key={`tech-${keyword}-${source}-${index}`}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs cursor-pointer border transition-all ${chipClass}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const newSelected = new Set(selectedKeywords);
+                                  if (e.target.checked) {
+                                    newSelected.add(keyword);
+                                  } else {
+                                    newSelected.delete(keyword);
+                                  }
+                                  setSelectedKeywords(newSelected);
+                                }}
+                                className="w-3 h-3 text-indigo-600 rounded focus:ring-indigo-500"
+                              />
+                              <span className="font-medium">{keyword}{usageCount > 0 ? ` (${usageCount})` : ''}</span>
+                            </label>
+                          );
+                        })}
                     </div>
                   </div>
-                )}
+                  ) : null;
+                })()}
               </div>
             </div>
           )}
@@ -4933,17 +5297,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         {currentATSScore}%
                       </div>
                     </div>
-                    {updatedATSScore !== null && updatedATSScore !== currentATSScore && (
-                      <div className="text-right">
-                        <div className="text-xs font-semibold text-gray-600 uppercase mb-1">Updated ATS Score</div>
-                        <div className={`text-3xl font-bold ${getScoreColor(updatedATSScore)}`}>
-                          {updatedATSScore}%
-                        </div>
-                        <div className={`text-sm font-semibold ${updatedATSScore > currentATSScore ? 'text-green-600' : 'text-red-600'}`}>
-                          {updatedATSScore > currentATSScore ? '↑' : '↓'} {Math.abs(updatedATSScore - currentATSScore)}%
-                        </div>
-                      </div>
-                    )}
                     {isCalculatingATS && (
                       <div className="text-right">
                         <div className="text-xs font-semibold text-gray-600 uppercase mb-1">Calculating...</div>

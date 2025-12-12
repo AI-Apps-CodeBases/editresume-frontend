@@ -185,8 +185,11 @@ async def update_job_description(
                     logger.warning(f"Failed to parse follow_up_date: {e}")
             else:
                 jd.follow_up_date = None
-        if payload.important_emoji is not None:
-            jd.important_emoji = payload.important_emoji
+        if payload.importance is not None:
+            # Validate importance is between 0 and 5
+            if payload.importance < 0 or payload.importance > 5:
+                raise HTTPException(status_code=400, detail="Importance must be between 0 and 5")
+            jd.importance = payload.importance
         if payload.notes is not None:
             jd.notes = payload.notes
 

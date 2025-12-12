@@ -13,7 +13,6 @@ except ImportError:
 
 try:
     import spacy
-    from spacy.matcher import Matcher
 
     SPACY_AVAILABLE = True
 except ImportError:

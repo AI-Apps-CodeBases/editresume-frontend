@@ -86,7 +86,7 @@ def create_or_update_job_description(
                 SELECT COUNT(*) 
                 FROM information_schema.columns 
                 WHERE table_name = 'job_descriptions' 
-                AND column_name IN ('max_salary', 'status', 'follow_up_date', 'important_emoji', 'notes')
+                AND column_name IN ('max_salary', 'status', 'follow_up_date', 'importance', 'notes')
             """
                 )
             )
@@ -339,7 +339,7 @@ def create_or_update_job_description(
         jd.max_salary = getattr(payload, "max_salary", None)
         jd.status = getattr(payload, "status", "bookmarked")
         jd.follow_up_date = getattr(payload, "follow_up_date", None)
-        jd.important_emoji = getattr(payload, "important_emoji", None)
+        jd.importance = getattr(payload, "importance", 0)
         jd.notes = getattr(payload, "notes", None)
 
         db.add(jd)
@@ -436,7 +436,7 @@ def list_user_job_descriptions(
                 SELECT COUNT(*) 
                 FROM information_schema.columns 
                 WHERE table_name = 'job_descriptions' 
-                AND column_name IN ('max_salary', 'status', 'follow_up_date', 'important_emoji', 'notes')
+                AND column_name IN ('max_salary', 'status', 'follow_up_date', 'importance', 'notes')
             """
                 )
             )
@@ -515,7 +515,7 @@ def list_user_job_descriptions(
                 jd.max_salary = None
                 jd.status = "bookmarked"
                 jd.follow_up_date = None
-                jd.important_emoji = None
+                jd.importance = 0
                 jd.notes = None
                 items.append(jd)
 
@@ -601,7 +601,7 @@ def list_user_job_descriptions(
                     "max_salary": getattr(it, "max_salary", None),
                     "status": getattr(it, "status", "bookmarked"),
                     "follow_up_date": getattr(it, "follow_up_date", None),
-                    "important_emoji": getattr(it, "important_emoji", None),
+                    "importance": getattr(it, "importance", 0),
                     "notes": getattr(it, "notes", None),
                     "best_resume_version": best_link_payload,
                     "resume_versions": resume_versions_payload,
@@ -633,7 +633,7 @@ def list_user_job_descriptions(
                         "max_salary": getattr(it, "max_salary", None),
                         "status": getattr(it, "status", "bookmarked"),
                         "follow_up_date": getattr(it, "follow_up_date", None),
-                        "important_emoji": getattr(it, "important_emoji", None),
+                        "importance": getattr(it, "importance", 0),
                         "notes": getattr(it, "notes", None),
                         "best_resume_version": None,
                         "resume_versions": [],
@@ -815,7 +815,7 @@ def get_job_description_detail(
         "max_salary": getattr(jd, "max_salary", None),
         "status": getattr(jd, "status", "bookmarked"),
         "follow_up_date": getattr(jd, "follow_up_date", None),
-        "important_emoji": getattr(jd, "important_emoji", None),
+        "importance": getattr(jd, "importance", 0),
         "notes": getattr(jd, "notes", None),
         "cover_letters": cover_letters,
     }

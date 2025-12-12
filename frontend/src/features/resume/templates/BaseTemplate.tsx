@@ -64,7 +64,7 @@ export function renderBulletPoints(
   })
 
   return (
-    <div className="space-y-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: `${config.spacing.itemGap}px` }}>
       {grouped.map((item, idx) => {
         if (item.type === 'header') {
           // Company header - render as bold text without bullet point

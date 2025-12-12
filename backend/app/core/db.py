@@ -163,7 +163,7 @@ def migrate_schema() -> None:
                 "max_salary": "INTEGER",
                 "status": "VARCHAR",
                 "follow_up_date": "TIMESTAMP",
-                "important_emoji": "VARCHAR",
+                "importance": "INTEGER",
                 "notes": "TEXT",
             },
             "users": {
@@ -186,13 +186,20 @@ def migrate_schema() -> None:
                 )
                 row = result.fetchone()
                 if not row:
-                    conn.execute(
-                        text(
-                            f"ALTER TABLE {table_name} "
-                            f"ADD COLUMN {column_name} {column_type}"
+                    try:
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE {table_name} "
+                                f"ADD COLUMN {column_name} {column_type}"
+                            )
                         )
-                    )
-                    conn.commit()
+                        conn.commit()
+                    except Exception as e:
+                        error_str = str(e)
+                        if "already exists" in error_str or "DuplicateColumn" in error_str:
+                            conn.rollback()
+                            continue
+                        raise
 
         # Create index on users.linkedin_id if it doesn't exist
         result = conn.execute(

@@ -4,7 +4,7 @@ from app.core.db import get_db
 from app.models.feedback import Feedback
 from app.models.user import User
 from app.services.email_service import send_feedback_notification
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 import re
 import logging
@@ -23,7 +23,7 @@ class FeedbackCreate(BaseModel):
 
     @field_validator('user_email')
     @classmethod
-    def validate_email_format(cls, v):
+    def validate_email_format(_cls, v):
         """Validate email format if provided"""
         if v is not None and v.strip():
             email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'

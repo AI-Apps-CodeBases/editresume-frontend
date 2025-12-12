@@ -72,7 +72,7 @@ class Settings(BaseSettings):
 
     @field_validator("additional_cors_origins", mode="before")
     @classmethod
-    def split_cors_origins(cls, value: str | List[str] | None):  # noqa: D401, N805
+    def split_cors_origins(_cls, value: str | List[str] | None):  # noqa: D401, N805
         """Split comma-separated origins into a list."""
         if value is None:
             return []

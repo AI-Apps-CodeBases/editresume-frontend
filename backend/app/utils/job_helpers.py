@@ -29,7 +29,7 @@ def safe_get_job_description(jd_id: int, db: Session) -> Tuple[Optional[JobDescr
             SELECT COUNT(*) 
             FROM information_schema.columns 
             WHERE table_name = 'job_descriptions' 
-            AND column_name IN ('max_salary', 'status', 'follow_up_date', 'important_emoji', 'notes')
+            AND column_name IN ('max_salary', 'status', 'follow_up_date', 'importance', 'notes')
         """
             )
         )
@@ -85,7 +85,7 @@ def safe_get_job_description(jd_id: int, db: Session) -> Tuple[Optional[JobDescr
             jd.max_salary = None
             jd.status = "bookmarked"
             jd.follow_up_date = None
-            jd.important_emoji = None
+            jd.importance = 0
             jd.notes = None
             return jd, False
         except Exception as e:
