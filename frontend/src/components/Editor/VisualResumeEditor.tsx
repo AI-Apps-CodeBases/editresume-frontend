@@ -137,6 +137,29 @@ export default function VisualResumeEditor({
     priority: string[];
   } | null>(null);
 
+  // Load jdKeywords and matchResult from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        // Load jdKeywords
+        const savedKeywords = localStorage.getItem('currentJDKeywords');
+        if (savedKeywords) {
+          const parsed = JSON.parse(savedKeywords);
+          setJdKeywords(parsed);
+        }
+        
+        // Load matchResult
+        const savedMatchResult = localStorage.getItem('currentMatchResult');
+        if (savedMatchResult) {
+          const parsed = JSON.parse(savedMatchResult);
+          setMatchResult(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to load data from localStorage:', e);
+      }
+    }
+  }, []);
+
   // Calculate keyword usage counts in resume if not provided as prop
   const calculatedKeywordUsageCounts = useMemo(() => {
     if (keywordUsageCounts) return keywordUsageCounts;
@@ -176,21 +199,37 @@ export default function VisualResumeEditor({
 
     const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
 
-    // Get all keywords to count
-    const allKeywords: string[] = [];
+    // Get all keywords to count - from multiple sources
+    const allKeywordsSet = new Set<string>();
+    
+    // From jdKeywords
     if (jdKeywords) {
-      allKeywords.push(...(jdKeywords.matching || []));
-      allKeywords.push(...(jdKeywords.missing || []));
-      allKeywords.push(...(jdKeywords.priority || []));
+      (jdKeywords.matching || []).forEach(kw => allKeywordsSet.add(kw));
+      (jdKeywords.missing || []).forEach(kw => allKeywordsSet.add(kw));
+      (jdKeywords.priority || []).forEach(kw => allKeywordsSet.add(kw));
       if (jdKeywords.high_frequency) {
-        allKeywords.push(...jdKeywords.high_frequency.map((item: any) => 
-          typeof item === 'string' ? item : item.keyword
-        ));
+        jdKeywords.high_frequency.forEach((item: any) => {
+          const kw = typeof item === 'string' ? item : item.keyword;
+          if (kw) allKeywordsSet.add(kw);
+        });
       }
     }
+    
+    // Also try to get keywords from matchResult if available
+    if (matchResult?.match_analysis) {
+      (matchResult.match_analysis.matching_keywords || []).forEach((kw: string) => {
+        if (kw && typeof kw === 'string') allKeywordsSet.add(kw);
+      });
+      (matchResult.match_analysis.missing_keywords || []).forEach((kw: string) => {
+        if (kw && typeof kw === 'string') allKeywordsSet.add(kw);
+      });
+    }
+    
+    const allKeywords = Array.from(allKeywordsSet);
 
     // Count occurrences for each keyword
     allKeywords.forEach((keyword) => {
+      if (!keyword || typeof keyword !== 'string') return;
       const keywordLower = keyword.toLowerCase();
       const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
       const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -203,8 +242,14 @@ export default function VisualResumeEditor({
       }
     });
 
+    // Debug: log overused keywords
+    const overused = Array.from(counts.entries()).filter(([_, count]) => count > 6);
+    if (overused.length > 0) {
+      console.log('🔴 Overused keywords found (>6 times):', overused.map(([kw, count]) => `${kw}: ${count}`));
+    }
+
     return counts;
-  }, [data, jdKeywords, keywordUsageCounts]);
+  }, [data, jdKeywords, keywordUsageCounts, matchResult]);
   const [showAIImproveModal, setShowAIImproveModal] = useState(false);
   const [aiImproveContext, setAiImproveContext] = useState<{ sectionId: string, bulletId: string, currentText: string, mode?: 'existing' | 'new' } | null>(null);
   const [selectedMissingKeywords, setSelectedMissingKeywords] = useState<Set<string>>(new Set());
@@ -2990,24 +3035,32 @@ export default function VisualResumeEditor({
                                                           {highlightKeywordsInText((companyBullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                                         </div>
                                                       )}
-                                                      {calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0 && (
-                                                        <div
-                                                          className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-[1] group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
-                                                            }`}
-                                                          data-highlight-overlay-overused="true"
-                                                          style={{ 
-                                                            position: 'absolute',
-                                                            top: 0,
-                                                            left: 0,
-                                                            right: 0,
-                                                            bottom: 0,
-                                                            zIndex: 1,
-                                                            pointerEvents: 'none'
-                                                          }}
-                                                        >
-                                                          {highlightOverusedKeywords((companyBullet.text || '').replace(/^•\s*/, ''), 6)}
-                                                        </div>
-                                                      )}
+                                                      {calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0 && (() => {
+                                                        const bulletText = (companyBullet.text || '').replace(/^•\s*/, '');
+                                                        const overusedResult = highlightOverusedKeywords(bulletText, 6);
+                                                        // Only show overlay if there are actually overused keywords highlighted
+                                                        if (overusedResult !== bulletText) {
+                                                          return (
+                                                            <div
+                                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-[1] transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                                }`}
+                                                              data-highlight-overlay-overused="true"
+                                                              style={{ 
+                                                                position: 'absolute',
+                                                                top: 0,
+                                                                left: 0,
+                                                                right: 0,
+                                                                bottom: 0,
+                                                                zIndex: 1,
+                                                                pointerEvents: 'none'
+                                                              }}
+                                                            >
+                                                              {overusedResult}
+                                                            </div>
+                                                          );
+                                                        }
+                                                        return null;
+                                                      })()}
                                                     </div>
                                                   </div>
 
@@ -3269,24 +3322,32 @@ export default function VisualResumeEditor({
                                               {highlightKeywordsInText((bullet.text || '').replace(/^•\s*/, ''), bulletMatch.matchedKeywords, bulletMatch.keywordCounts)}
                                             </div>
                                           )}
-                                          {calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0 && (
-                                            <div
-                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-[1] group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
-                                                }`}
-                                              data-highlight-overlay-overused="true"
-                                              style={{ 
-                                                position: 'absolute',
-                                                top: 0,
-                                                left: 0,
-                                                right: 0,
-                                                bottom: 0,
-                                                zIndex: 1,
-                                                pointerEvents: 'none'
-                                              }}
-                                            >
-                                              {highlightOverusedKeywords((bullet.text || '').replace(/^•\s*/, ''), 6)}
-                                            </div>
-                                          )}
+                                          {calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0 && (() => {
+                                            const bulletText = (bullet.text || '').replace(/^•\s*/, '');
+                                            const overusedResult = highlightOverusedKeywords(bulletText, 6);
+                                            // Only show overlay if there are actually overused keywords highlighted
+                                            if (overusedResult !== bulletText) {
+                                              return (
+                                                <div
+                                                  className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-[1] transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                    }`}
+                                                  data-highlight-overlay-overused="true"
+                                                  style={{ 
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    left: 0,
+                                                    right: 0,
+                                                    bottom: 0,
+                                                    zIndex: 1,
+                                                    pointerEvents: 'none'
+                                                  }}
+                                                >
+                                                  {overusedResult}
+                                                </div>
+                                              );
+                                            }
+                                            return null;
+                                          })()}
                                         </div>
                                       </div>
 
@@ -4254,4 +4315,5 @@ function ModernContactField({
     </div>
   )
 }
+
 
