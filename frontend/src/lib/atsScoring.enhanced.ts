@@ -558,38 +558,47 @@ function calculateEducationAndCertifications(
   const hasDegreeRequirement = degreePatterns.some(pattern => pattern.test(jdLower));
   
   if (resumeContent.education) {
-    const educationText = resumeContent.education.toLowerCase();
+    const educationText = resumeContent.education.toLowerCase().trim();
     const hasDegree = degreePatterns.some(pattern => pattern.test(educationText));
     const hasSchool = schoolPatterns.some(pattern => pattern.test(educationText));
-    const educationLength = educationText.trim().length;
+    const educationLength = educationText.length;
+    
+    // Count bullet points (lines or items) in education content
+    const bulletCount = (educationText.match(/\n|•|^[\s]*[-*]\s/gm) || []).length;
+    const hasMultipleItems = bulletCount > 0 || educationText.split(/\s+/).length > 5;
     
     // Give points based on content quality and length
+    // Lower thresholds to be more responsive to bullet points
     if (hasDegreeRequirement) {
       if (hasDegree) {
         // JD requires degree AND resume has degree keywords
         educationScore = 8;
         details.push('Degree requirement met');
-      } else if (hasSchool && educationLength > 20) {
+      } else if (hasSchool && (educationLength > 15 || hasMultipleItems)) {
         // JD requires degree, resume has school but no explicit degree keywords
-        // Still give points for having education content
+        // Still give points for having education content (lowered threshold from 20 to 15)
         educationScore = 5;
         details.push('Education content found (degree keywords not detected)');
-      } else if (educationLength > 10) {
-        // JD requires degree, but resume has minimal education info
+      } else if (educationLength > 5 || hasMultipleItems) {
+        // JD requires degree, but resume has minimal education info (lowered threshold from 10 to 5)
         educationScore = 2;
         details.push('Limited education information');
+      } else if (educationLength > 0) {
+        // Any education content gets at least 1 point
+        educationScore = 1;
+        details.push('Education section present');
       }
     } else {
       // No degree requirement in JD
       if (hasDegree) {
         educationScore = 6;
         details.push('Degree information present');
-      } else if (hasSchool && educationLength > 20) {
-        // School/university detected with substantial content
+      } else if (hasSchool && (educationLength > 15 || hasMultipleItems)) {
+        // School/university detected with substantial content (lowered threshold from 20 to 15)
         educationScore = 5;
         details.push('Education section with school information');
-      } else if (educationLength > 10) {
-        // Any education content
+      } else if (educationLength > 5 || hasMultipleItems) {
+        // Any education content (lowered threshold from 10 to 5)
         educationScore = 3;
         details.push('Education section present');
       } else if (educationLength > 0) {
