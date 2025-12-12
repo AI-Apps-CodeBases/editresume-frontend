@@ -1438,6 +1438,41 @@ async def generate_summary_from_experience(payload: dict):
         )
         matching_keywords = normalize_keywords(payload.get("matching_keywords", []))
         target_keywords = normalize_keywords(payload.get("target_keywords", []))
+        
+        # Extract company name from payload if available
+        company_name = payload.get("company_name") or payload.get("companyName") or None
+        
+        # Filter out company names from missing keywords
+        def filter_company_names(keywords: List[str], company: str | None) -> List[str]:
+            if not company or not keywords:
+                return keywords
+            company_lower = company.lower().strip()
+            if not company_lower:
+                return keywords
+            
+            company_words = company_lower.split()
+            filtered = []
+            for keyword in keywords:
+                keyword_lower = keyword.lower().strip()
+                # Check if keyword matches company name or contains company words
+                is_company_name = False
+                if keyword_lower == company_lower:
+                    is_company_name = True
+                else:
+                    # Check if keyword contains significant company words (length > 2)
+                    for cw in company_words:
+                        if len(cw) > 2 and (cw in keyword_lower or keyword_lower in cw):
+                            is_company_name = True
+                            break
+                
+                if not is_company_name:
+                    filtered.append(keyword)
+            
+            return filtered
+        
+        # Filter company names from missing keywords
+        if company_name:
+            missing_keywords = filter_company_names(missing_keywords, company_name)
 
         combined_keywords = []
         seen_keywords = set()
@@ -1612,13 +1647,22 @@ async def generate_summary_from_experience(payload: dict):
 
         missing_kw_section = ""
         if missing_keywords and len(missing_keywords) > 0:
+            # Limit to 5-8 missing keywords (use up to 8)
+            limited_missing = missing_keywords[:8]
             missing_kw_section = f"""
 CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
-{', '.join(missing_keywords[:15])}
+{', '.join(limited_missing)}
 
 These keywords are currently MISSING from your resume and MUST be incorporated 
 into the summary to improve ATS score. Use them naturally in context - they are 
 the highest priority for inclusion.
+"""
+        
+        company_warning = ""
+        if company_name:
+            company_warning = f"""
+CRITICAL: NEVER mention or reference the company name "{company_name}" or any company name from the job description in the professional summary. 
+The summary should be generic and applicable to any role, not specific to any particular company.
 """
         
         context = f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
@@ -1634,6 +1678,7 @@ Skills:
  Target Job Description Keywords (blend these naturally into the narrative):
 {keyword_guidance}
 {missing_kw_section}
+{company_warning}
  Job Description Snapshot (for context):
 {job_description_excerpt if job_description_excerpt else 'Not provided'}
 
@@ -1641,13 +1686,13 @@ Skills:
 {existing_summary if existing_summary else 'No existing summary provided'}
 
 Requirements for the Professional Summary:
-1. Length: 6-7 sentences (approximately 100-120 words)
+1. Length: 4-7 sentences (minimum 4 sentences, maximum 7 sentences, approximately 80-120 words)
 2. ATS-Optimized: Include relevant keywords from their experience and industry
 3. Structure:
    - Sentence 1: Opening statement with years of experience and core expertise
    - Sentences 2-4: Key achievements, skills, and value proposition with specific metrics when available
-   - Sentences 5-6: Technical competencies and areas of expertise
-   - Sentence 7: Career objective or unique value add
+   - Sentences 5-6 (if needed): Technical competencies and areas of expertise
+   - Final sentence: Career objective or unique value add
 4. Include specific technologies, tools, and methodologies mentioned in experience
 5. Use action-oriented language and quantifiable achievements
 6. Professional, confident tone
@@ -1657,6 +1702,7 @@ Requirements for the Professional Summary:
 10. Prioritize incorporating the provided priority and missing JD keywords verbatim when it fits naturally
 11. CRITICAL: The missing keywords listed above are HIGH PRIORITY - ensure they appear naturally in the summary
 12. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
+13. NEVER include any company names from the job description in the summary
 
 Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""
 
