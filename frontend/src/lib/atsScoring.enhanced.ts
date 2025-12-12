@@ -470,7 +470,7 @@ function calculateKeywordCoverage(
   const sectionWeights: Record<string, number> = {
     skills: 1.0,
     experience: 0.9,
-    summary: 0.5, // Reduced from 0.7 to balance scoring and prevent excessive summary impact
+    summary: 0.6, // Balanced weight with 5-keyword cap to prevent excessive summary impact
     education: 0.4,
     projects: 0.4,
   };
