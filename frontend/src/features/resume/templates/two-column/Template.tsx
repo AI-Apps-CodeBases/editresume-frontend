@@ -59,8 +59,8 @@ export default function TwoColumnTemplate({ data, config, replacements }: Templa
         </div>
       </header>
 
-      <div className="flex gap-6" style={{ gap: `${config.spacing.sectionGap}px` }}>
-        <div className="space-y-4" style={{ width: `${config.layout.columnWidth || 40}%` }}>
+      <div className="flex" style={{ gap: `${config.spacing.sectionGap}px` }}>
+        <div style={{ width: `${config.layout.columnWidth || 40}%`, display: 'flex', flexDirection: 'column', gap: `${config.spacing.sectionGap}px` }}>
           {data.summary && (
             <section>
               <h2
@@ -108,7 +108,7 @@ export default function TwoColumnTemplate({ data, config, replacements }: Templa
           ))}
         </div>
 
-        <div className="space-y-4" style={{ width: `${100 - (config.layout.columnWidth || 40)}%` }}>
+        <div style={{ width: `${100 - (config.layout.columnWidth || 40)}%`, display: 'flex', flexDirection: 'column', gap: `${config.spacing.sectionGap}px` }}>
           {rightColumnSections.map((section) => (
             <section key={section.id}>
               <h2

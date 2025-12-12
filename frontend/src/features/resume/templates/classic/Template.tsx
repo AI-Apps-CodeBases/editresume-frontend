@@ -69,7 +69,7 @@ export default function ClassicTemplate({ data, config, replacements }: Template
       </header>
 
       {data.summary && (
-        <section className="mb-8">
+        <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <h2
             className="mb-3 uppercase tracking-wide"
             style={{
@@ -99,7 +99,6 @@ export default function ClassicTemplate({ data, config, replacements }: Template
       {orderedSections.map((section) => (
         <section
           key={section.id}
-          className="mb-6"
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}
         >
           <h2
