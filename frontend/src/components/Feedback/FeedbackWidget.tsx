@@ -7,7 +7,7 @@ export default function FeedbackWidget() {
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-[10002] group">
+      <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-[10002] group">
         <button
           onClick={() => setIsOpen(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all hover:scale-110 relative"
