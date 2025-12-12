@@ -110,6 +110,102 @@ const flattenGroups = (groups: Bullet[][]) => {
   return flattened
 }
 
+// Filter to show only high-impact keywords that will affect ATS score
+const filterHighImpactKeywords = (
+  keywords: string[], 
+  technicalKeywords?: string[],
+  priorityKeywords?: string[],
+  highFrequencyKeywords?: Array<{keyword: string, weight?: number, importance?: string}>
+): string[] => {
+  // Common stop words and low-value keywords
+  const stopWords = new Set([
+    'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+    'from', 'up', 'about', 'into', 'through', 'during', 'including', 'required', 'needed',
+    'work', 'works', 'worked', 'working', 'use', 'uses', 'used', 'using', 'support', 'supports',
+    'additional', 'internal', 'external', 'partners', 'partner', 'solutions', 'solution',
+    'acceptance', 'test', 'tests', 'testing', 'alerts', 'diagnose', 'operational', 'applications',
+    'architecture', 'experience', 'automate', 'automation', 'iac', 'solid', 'rest', 'planning',
+    'problem', 'solving', 'project', 'management', 'software', 'failure', 'analyze', 'analyzing'
+  ]);
+
+  // Technical patterns (tools, technologies, frameworks)
+  const technicalPatterns = [
+    /^(aws|azure|gcp|kubernetes|docker|terraform|ansible|jenkins|gitlab|github|prometheus|grafana|datadog|dynatrace|elk|splunk)/i,
+    /^(python|java|javascript|typescript|go|rust|c\+\+|ruby|php|node|react|angular|vue)/i,
+    /^(sql|nosql|mongodb|postgresql|mysql|redis|cassandra|elasticsearch)/i,
+    /^(ci\/cd|devops|sre|microservices|api|rest|graphql|grpc)/i,
+    /^(linux|unix|bash|shell|powershell|yaml|json|xml)/i,
+    /^(agile|scrum|kanban|jira|confluence|slack)/i
+  ];
+
+  const filtered = keywords.filter(keyword => {
+    const trimmed = keyword.trim().toLowerCase();
+    
+    // Must be at least 3 characters
+    if (trimmed.length < 3) return false;
+    
+    // Filter out stop words
+    if (stopWords.has(trimmed)) return false;
+    
+    // Filter out pure numbers
+    if (/^\d+$/.test(trimmed)) return false;
+    
+    // Filter out numbers with units
+    if (/^\d+[+\-%]?$/.test(trimmed)) return false;
+    
+    // Prioritize technical keywords
+    const isTechnical = technicalKeywords?.some(tech => 
+      trimmed.includes(tech.toLowerCase()) || tech.toLowerCase().includes(trimmed)
+    ) || technicalPatterns.some(pattern => pattern.test(trimmed));
+    
+    // Prioritize priority keywords from JD
+    const isPriority = priorityKeywords?.some(pri => 
+      trimmed.includes(pri.toLowerCase()) || pri.toLowerCase().includes(trimmed)
+    );
+    
+    // Prioritize high-frequency keywords with high importance
+    const isHighFrequency = highFrequencyKeywords?.some(hf => {
+      const hfKeyword = (typeof hf === 'string' ? hf : hf.keyword).toLowerCase();
+      const importance = typeof hf === 'object' ? hf.importance : undefined;
+      const weight = typeof hf === 'object' ? hf.weight : undefined;
+      return (trimmed.includes(hfKeyword) || hfKeyword.includes(trimmed)) && 
+             (importance === 'high' || (weight && weight >= 8));
+    });
+    
+    // Keep if it's technical, priority, or high-frequency
+    // OR if it's a meaningful multi-word phrase (2+ words)
+    const wordCount = trimmed.split(/\s+/).length;
+    return isTechnical || isPriority || isHighFrequency || wordCount >= 2;
+  });
+
+  // Sort by priority: technical > priority > high-frequency > others
+  return filtered.sort((a, b) => {
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+    
+    const aIsTech = technicalKeywords?.some(tech => 
+      aLower.includes(tech.toLowerCase()) || tech.toLowerCase().includes(aLower)
+    ) || technicalPatterns.some(p => p.test(a));
+    const bIsTech = technicalKeywords?.some(tech => 
+      bLower.includes(tech.toLowerCase()) || tech.toLowerCase().includes(bLower)
+    ) || technicalPatterns.some(p => p.test(b));
+    
+    const aIsPriority = priorityKeywords?.some(p => 
+      aLower.includes(p.toLowerCase()) || p.toLowerCase().includes(aLower)
+    );
+    const bIsPriority = priorityKeywords?.some(p => 
+      bLower.includes(p.toLowerCase()) || p.toLowerCase().includes(bLower)
+    );
+    
+    if (aIsTech && !bIsTech) return -1;
+    if (!aIsTech && bIsTech) return 1;
+    if (aIsPriority && !bIsPriority) return -1;
+    if (!aIsPriority && bIsPriority) return 1;
+    
+    return 0;
+  });
+};
+
 export default function VisualResumeEditor({
   data,
   onChange,
@@ -3742,14 +3838,43 @@ export default function VisualResumeEditor({
                             const matchMissing = matchResult?.match_analysis?.missing_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
                             // Combine and deduplicate
                             const combined = [...new Set([...jdMissing, ...matchMissing])];
-                            keywordsToShow = combined.slice(0, 50);
+                            
+                            // Get technical/priority keywords for filtering
+                            const technicalKeywords = matchResult?.match_analysis?.technical_keywords || 
+                                                      jdKeywords?.high_frequency?.map((hf: any) => hf.keyword).filter(Boolean) || [];
+                            const priorityKeywords = matchResult?.priority_keywords || 
+                                                    jdKeywords?.priority || [];
+                            const highFrequencyKeywords = matchResult?.match_analysis?.high_frequency_keywords ||
+                                                         jdKeywords?.high_frequency || [];
+                            
+                            // Filter to show only high-impact keywords that will affect ATS score
+                            const highImpact = filterHighImpactKeywords(
+                              combined, 
+                              technicalKeywords,
+                              priorityKeywords,
+                              highFrequencyKeywords
+                            );
+                            
+                            // Limit to top 20 most impactful keywords
+                            keywordsToShow = highImpact.slice(0, 20);
                           } else if (keywordSourceType === 'matching') {
                             // Combine jdKeywords matching and matchResult matching keywords
                             const jdMatching = jdKeywords?.matching?.filter((kw: string) => kw && kw.length > 1) || [];
                             const matchMatching = matchResult?.match_analysis?.matching_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
                             // Combine and deduplicate
                             const combined = [...new Set([...jdMatching, ...matchMatching])];
-                            keywordsToShow = combined.slice(0, 50);
+                            
+                            const technicalKeywords = matchResult?.match_analysis?.technical_keywords || 
+                                                      jdKeywords?.high_frequency?.map((hf: any) => hf.keyword).filter(Boolean) || [];
+                            const priorityKeywords = matchResult?.priority_keywords || jdKeywords?.priority || [];
+                            
+                            const highImpact = filterHighImpactKeywords(
+                              combined,
+                              technicalKeywords,
+                              priorityKeywords
+                            );
+                            
+                            keywordsToShow = highImpact.slice(0, 20);
                           } else if (keywordSourceType === 'tfidf') {
                             keywordsToShow = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && kw.length > 1) || [];
                           }
