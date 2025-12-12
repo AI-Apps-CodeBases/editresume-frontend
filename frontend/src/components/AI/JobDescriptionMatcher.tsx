@@ -2353,7 +2353,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     }
 
     return result;
-  }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult]);
+  }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult, keywordUsageCounts]);
 
   // Extract high-weight missing keywords (8-10) for diagnostic panel
   const highWeightMissingKeywords = useMemo(() => {

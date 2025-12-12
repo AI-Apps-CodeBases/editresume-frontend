@@ -1693,8 +1693,19 @@ export default function VisualResumeEditor({
       return s
     })
     
+    const updatedData = { ...data, sections };
     console.log('Calling onChange with updated sections')
-    onChange({ ...data, sections })
+    onChange(updatedData);
+    
+    // Dispatch event to trigger ATS score recalculation with updated data
+    if (typeof window !== 'undefined') {
+      // Use setTimeout to ensure data is updated first
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
+          detail: { resumeData: updatedData }
+        }));
+      }, 100);
+    }
   }
 
   const addBullet = (sectionId: string | number) => {
@@ -1707,7 +1718,17 @@ export default function VisualResumeEditor({
         }
         : s
     )
-    onChange({ ...data, sections })
+    const updatedData = { ...data, sections };
+    onChange(updatedData);
+    
+    // Dispatch event to trigger ATS score recalculation
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
+          detail: { resumeData: updatedData }
+        }));
+      }, 100);
+    }
   }
 
   const insertBulletAfter = (sectionId: string | number, afterBulletId: string | number) => {
@@ -1724,7 +1745,17 @@ export default function VisualResumeEditor({
       }
       return s
     })
-    onChange({ ...data, sections })
+    const updatedData = { ...data, sections };
+    onChange(updatedData);
+    
+    // Dispatch event to trigger ATS score recalculation
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
+          detail: { resumeData: updatedData }
+        }));
+      }, 100);
+    }
   }
 
   const removeBullet = (sectionId: string | number, bulletId: string | number) => {
@@ -1738,7 +1769,17 @@ export default function VisualResumeEditor({
         }
         : s
     )
-    onChange({ ...data, sections })
+    const updatedData = { ...data, sections };
+    onChange(updatedData);
+    
+    // Dispatch event to trigger ATS score recalculation
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('resumeDataUpdated', {
+          detail: { resumeData: updatedData }
+        }));
+      }, 100);
+    }
   }
 
   const addSection = () => {
@@ -3859,8 +3900,23 @@ export default function VisualResumeEditor({
                                      );
                             });
                             
-                            // Remove duplicates and limit
-                            keywordsToShow = [...new Set(keywordsToShow)].slice(0, 50);
+                            // Remove duplicates
+                            keywordsToShow = [...new Set(keywordsToShow)];
+                            
+                            // Sort by usage count (least used first) and take at least 15
+                            const sortedByUsage = keywordsToShow.sort((a, b) => {
+                              const countA = calculatedKeywordUsageCounts?.get(a) || 0;
+                              const countB = calculatedKeywordUsageCounts?.get(b) || 0;
+                              return countA - countB; // Least used first
+                            });
+                            
+                            // Ensure at least 15 keywords are shown (prioritize least used)
+                            // If we have less than 15, show all available, otherwise show top 50
+                            if (sortedByUsage.length < 15) {
+                              keywordsToShow = sortedByUsage; // Show all if less than 15
+                            } else {
+                              keywordsToShow = sortedByUsage.slice(0, 50); // Show up to 50, but at least 15
+                            }
                           } else if (keywordSourceType === 'matching') {
                             // Combine jdKeywords matching and matchResult matching keywords
                             const jdMatching = jdKeywords?.matching?.filter((kw: string) => kw && kw.length > 1) || [];
