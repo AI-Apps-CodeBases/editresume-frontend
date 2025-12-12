@@ -28,6 +28,16 @@ body {
   height: 100%;
 }
 
+@supports (height: 100dvh) {
+  .h-screen {
+    height: 100dvh;
+  }
+  
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -39,6 +49,7 @@ body {
     font-feature-settings: 'liga';
     font-family: var(--font-sans, 'Plus Jakarta Sans'), 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     min-height: 100vh;
+    overscroll-behavior-y: contain;
   }
 
   body::before {
@@ -63,6 +74,53 @@ body {
 
   button {
     font: inherit;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  @media (min-width: 768px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    input[type="password"],
+    input[type="number"],
+    textarea,
+    select {
+      font-size: inherit;
+    }
+  }
+
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  [contenteditable="true"]:focus {
+    outline: 2px solid #0f62fe;
+    outline-offset: 2px;
+  }
+
+  [data-draggable] {
+    touch-action: pan-y;
+  }
+
+  .drag-handle {
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
   }
 }
 
@@ -466,6 +524,7 @@ body {
 
     .mobile-input {
       @apply text-base py-3 px-4;
+      font-size: 16px !important;
     }
 
   /* Mobile navigation */

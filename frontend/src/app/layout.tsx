@@ -17,6 +17,12 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'editresume.io – Structured resume editor',
   description: 'Edit your resume like code — structured, clean, and exportable to PDF or DOCX.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'EditResume',
+  },
   openGraph: {
     title: 'editresume.io',
     description: 'Edit your resume like code.',
