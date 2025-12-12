@@ -507,6 +507,8 @@ function calculateKeywordCoverage(
     
     // Her bölümde maksimum 3 geçiş sayılsın (aşırı çarpmayı önlemek için)
     const cappedOccurrences = Math.min(mapping.occurrences, 3);
+    
+    // Calculate base contribution
     const contribution = sectionWeight * keywordWeight * cappedOccurrences;
     weightedScore += contribution;
     totalWeight += keywordWeight;
@@ -527,8 +529,40 @@ function calculateKeywordCoverage(
     }
   });
 
+  // Calculate base score with improved keyword contribution
+  // Scale weightedScore to fit within 27 points max for keyword coverage
   const baseScore = totalWeight > 0 ? (weightedScore / totalWeight) * 27 : 0;
-  const finalScore = Math.max(0, Math.min(27, baseScore - stuffingPenalty));
+  
+  // Apply bonus for keyword occurrences (ensures 2-4 points per occurrence in total score)
+  // Calculate bonus based on total occurrences
+  const totalKeywordOccurrences = processedMappings.reduce((sum, m) => sum + Math.min(m.occurrences, 3), 0);
+  
+  // Each occurrence should contribute 2-4 points to total score
+  // Keyword coverage max is 27, so to get 2-4 points per occurrence:
+  // (bonus / 27) * 100 = 2-4 points → bonus = (2-4) * 27 / 100 = 0.54 - 1.08
+  const minBonusPerOccurrence = 0.54; // Minimum: ~2 points in total score
+  const maxBonusPerOccurrence = 1.08; // Maximum: ~4 points in total score
+  
+  // Calculate bonus: ensure at least 2 points per occurrence, but cap at 4 points
+  // Use a progressive bonus: start with minimum, but allow up to maximum based on keyword weight
+  const baseBonus = totalKeywordOccurrences * minBonusPerOccurrence;
+  const maxPossibleBonus = totalKeywordOccurrences * maxBonusPerOccurrence;
+  
+  // If base score is low, use minimum bonus. If base score is higher, allow more bonus
+  // This ensures each occurrence contributes meaningfully while preventing over-scoring
+  const bonusToAdd = Math.min(
+    maxPossibleBonus,
+    Math.max(baseBonus, baseScore * 0.15) // At least minimum bonus, or 15% of base score
+  );
+  
+  // Apply stuffing penalty first
+  let finalScore = Math.max(0, baseScore - stuffingPenalty);
+  
+  // Add bonus (ensures minimum 2 points per occurrence, max 4 points)
+  finalScore = finalScore + bonusToAdd;
+  
+  // Cap keyword coverage score at 27
+  finalScore = Math.min(27, finalScore);
 
   return {
     score: Math.round(finalScore * 100) / 100,
@@ -763,12 +797,21 @@ export function calculateEnhancedATSScore(
   const education = calculateEducationAndCertifications(resumeContent, jobDescription, resumeData);
   const atsCompatibility = calculateATSCompatibility(resumeContent);
 
-  const totalScore = Math.round(
+  // Calculate scores from other categories (non-keyword contributions)
+  const nonKeywordScore = Math.round(
     skillsMatch.score +
     experienceRelevance.score +
-    keywordCoverage.score +
     education.score +
     atsCompatibility.score
+  );
+
+  // Cap keyword coverage contribution so total score doesn't exceed 95
+  // Maximum allowed keyword contribution = 95 - nonKeywordScore
+  const maxAllowedKeywordScore = Math.max(0, 95 - nonKeywordScore);
+  const cappedKeywordScore = Math.min(keywordCoverage.score, maxAllowedKeywordScore);
+
+  const totalScore = Math.round(
+    nonKeywordScore + cappedKeywordScore
   );
 
   const recommendations = generateRecommendations(
@@ -777,6 +820,7 @@ export function calculateEnhancedATSScore(
     resumeContent
   );
 
+  // Total score can go up to 100, but keyword improvements are capped at 95
   return {
     totalScore: Math.min(100, Math.max(0, totalScore)),
     breakdown: {
