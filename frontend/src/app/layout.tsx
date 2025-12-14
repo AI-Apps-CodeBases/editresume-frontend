@@ -1,10 +1,12 @@
 import '../styles/globals.css'
 import type { Metadata, Viewport } from 'next'
+import { Suspense } from 'react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { ModalProvider } from '@/contexts/ModalContext'
 import Footer from '@/components/layout/Footer'
 import FeedbackWidget from '@/components/Feedback/FeedbackWidget'
+import ExtensionAuthHandler from '@/components/extension/ExtensionAuthHandler'
 import { Analytics } from '@vercel/analytics/react'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 
@@ -47,6 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <main className="flex-1">{children}</main>
                 <Footer />
               </div>
+              <Suspense fallback={null}>
+                <ExtensionAuthHandler />
+              </Suspense>
               <FeedbackWidget />
               <Analytics />
             </ModalProvider>
