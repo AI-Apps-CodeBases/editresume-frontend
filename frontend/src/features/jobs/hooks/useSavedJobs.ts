@@ -14,8 +14,10 @@ export function useSavedJobs() {
     setLoading(true)
     setError(null)
     try {
-      const primary = await fetchSavedJobs()
-      const legacy = await fetchLegacyJobDescriptions().catch(() => [])
+      const [primary, legacy] = await Promise.all([
+        fetchSavedJobs(),
+        fetchLegacyJobDescriptions().catch(() => [])
+      ])
 
       const mergedById = new Map<number, Job>()
       primary.forEach((job) => mergedById.set(job.id, job))

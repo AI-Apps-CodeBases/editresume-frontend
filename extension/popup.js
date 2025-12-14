@@ -1728,15 +1728,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   
   await checkAuth();
-  
-  let pollInterval = setInterval(async () => {
-    const hasToken = await checkAuth(false);
-    if (hasToken) {
-      clearInterval(pollInterval);
-    }
-  }, 2000);
-  
-  setTimeout(() => clearInterval(pollInterval), 30000);
 
   if (signInBtn) {
     signInBtn.addEventListener('click', async () => {

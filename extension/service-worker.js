@@ -135,10 +135,20 @@ const waitForTabComplete = (tabId) =>
         cleanup()
         resolve()
       }
-    })
   })
+})
+
+let tokenRequestInProgress = false
+let tokenRequestPromise = null
 
 const requestTokenViaApp = async (retries = 3) => {
+  if (tokenRequestInProgress && tokenRequestPromise) {
+    return tokenRequestPromise
+  }
+  
+  tokenRequestInProgress = true
+  tokenRequestPromise = (async () => {
+    try {
   const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
   let resolvedAppBase = appBase || DEFAULTS.appBase
   
@@ -265,6 +275,13 @@ const requestTokenViaApp = async (retries = 3) => {
   }
 
   throw new Error(response.error || 'token_request_failed')
+    } finally {
+      tokenRequestInProgress = false
+      tokenRequestPromise = null
+    }
+  })()
+  
+  return tokenRequestPromise
 }
 
 const ensureFreshToken = async (forceRefresh = false) => {
@@ -310,6 +327,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'GET_FIREBASE_TOKEN') {
+    const isSilent = Boolean(msg.silent)
+    
+    if (isSilent) {
+      chrome.storage.sync.get({
+        token: '',
+        tokenFetchedAt: 0
+      }).then(({ token, tokenFetchedAt }) => {
+        if (token && Date.now() - tokenFetchedAt < TOKEN_TTL_MS) {
+          sendResponse({ ok: true, token })
+        } else {
+          sendResponse({ ok: false, error: 'not_authenticated' })
+        }
+      }).catch(() => {
+        sendResponse({ ok: false, error: 'not_authenticated' })
+      })
+      return true
+    }
+    
     ensureFreshToken(Boolean(msg.forceRefresh))
       .then((token) => sendResponse({ ok: true, token }))
       .catch(async (error) => {

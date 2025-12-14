@@ -36,6 +36,7 @@ class JobRepository:
             select(JobRecord)
             .where(JobRecord.user_id == user_id)
             .order_by(JobRecord.created_at.desc())
+            .limit(100)
         )
         records = self._session.execute(statement).scalars().all()
         return [self._to_domain(record) for record in records]
