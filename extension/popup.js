@@ -32,31 +32,35 @@ async function ensureAuthToken({ silent = false, forceRefresh = false } = {}) {
 }
 
 async function resolveApiBase() {
-  const { appBase, apiBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io', apiBase: '' });
+  const { appBase, apiBase } = await chrome.storage.sync.get({ 
+    appBase: 'https://editresume.io', 
+    apiBase: 'https://editresume-api-prod.onrender.com'
+  });
   
   if (apiBase && apiBase.trim()) {
-    return apiBase.trim().replace(/\/$/, '');
+    const resolved = apiBase.trim().replace(/\/$/, '');
+    console.log('Extension: Using explicit apiBase:', resolved);
+    return resolved;
   }
+  
+  let derived = 'https://editresume-api-prod.onrender.com';
   
   if (appBase && appBase.includes('localhost')) {
     if (appBase.includes('localhost:3000')) {
-      return 'http://localhost:8000';
+      derived = 'http://localhost:8000';
     } else if (appBase.includes('localhost:8000')) {
-      return appBase.replace(/\/$/, '');
+      derived = appBase.replace(/\/$/, '');
     } else {
-      return 'http://localhost:8000';
+      derived = 'http://localhost:8000';
     }
+  } else if (appBase && appBase.includes('staging.editresume.io')) {
+    derived = 'https://editresume-staging.onrender.com';
+  } else if (appBase && appBase.includes('editresume.io') && !appBase.includes('staging')) {
+    derived = 'https://editresume-api-prod.onrender.com';
   }
   
-  if (appBase && appBase.includes('staging.editresume.io')) {
-    return 'https://editresume-staging.onrender.com';
-  }
-  
-  if (appBase && appBase.includes('editresume.io') && !appBase.includes('staging')) {
-    return 'https://editresume-api-prod.onrender.com';
-  }
-  
-  return 'https://editresume-api-prod.onrender.com';
+  console.log('Extension: Using derived apiBase from appBase:', derived, '(appBase:', appBase, ')');
+  return derived;
 }
 
 async function fetchWithRetry(url, options = {}, maxRetries = 3) {
@@ -1515,7 +1519,8 @@ async function saveJobDescription() {
 
     const resolvedApiBase = await resolveApiBase();
     const apiUrl = resolvedApiBase + '/api/job-descriptions';
-    console.log('Saving job description to:', apiUrl);
+    console.log('Extension: Saving job description to:', apiUrl);
+    console.log('Extension: Resolved API base:', resolvedApiBase);
 
     // Extract Easy Apply URL if available
     let easyApplyUrl = '';

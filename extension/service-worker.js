@@ -40,22 +40,27 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     return
   }
   
-  // Only set defaults if no settings exist - don't override user's staging settings
-  if (!current.appBase) {
+  // Only set defaults if both appBase and apiBase are missing
+  // Don't auto-derive if apiBase is explicitly set (even if empty string, user might have cleared it)
+  if (!current.appBase && !current.apiBase) {
     const defaults = {
       ...current, // Preserve existing keys
       appBase: DEFAULTS.appBase,
       apiBase: getApiBaseFromAppBase(DEFAULTS.appBase)
     }
     await chrome.storage.sync.set(defaults)
-  } else if (!current.apiBase) {
-    // If appBase exists but apiBase doesn't, derive it from appBase
+    console.log('Extension: Set default URLs on first install')
+  } else if (!current.appBase && current.apiBase) {
+    // If apiBase exists but appBase doesn't, set default appBase
     const updated = {
       ...current, // Preserve existing keys
-      apiBase: getApiBaseFromAppBase(current.appBase)
+      appBase: DEFAULTS.appBase
     }
     await chrome.storage.sync.set(updated)
+    console.log('Extension: Set default appBase, preserving existing apiBase')
   }
+  // Don't auto-derive apiBase if it's missing - let resolveApiBase() handle it at runtime
+  // This prevents overwriting user's explicit settings
 })
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -135,8 +140,8 @@ const waitForTabComplete = (tabId) =>
         cleanup()
         resolve()
       }
+    })
   })
-})
 
 let tokenRequestInProgress = false
 let tokenRequestPromise = null
