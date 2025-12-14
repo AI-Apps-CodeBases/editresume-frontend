@@ -1,8 +1,9 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config'
+import { FileTextIcon, LockIcon } from '@/components/Icons'
 
 interface Resume {
   id: number
@@ -37,6 +38,8 @@ export default function ResumesView({ onBack }: Props) {
   const { showAlert, showConfirm } = useModal()
   const [savedResumes, setSavedResumes] = useState<Resume[]>([])
   const [loading, setLoading] = useState(true)
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null)
+  const dropdownRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   const fetchSavedResumes = useCallback(async () => {
     if (!isAuthenticated || !user?.email) return
@@ -61,11 +64,30 @@ export default function ResumesView({ onBack }: Props) {
     }
   }, [isAuthenticated, user?.email, fetchSavedResumes])
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdownId !== null) {
+        const dropdown = dropdownRefs.current[openDropdownId]
+        if (dropdown && !dropdown.contains(event.target as Node)) {
+          setOpenDropdownId(null)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openDropdownId])
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="text-6xl mb-4">🔐</div>
+          <div className="flex justify-center mb-4">
+            <LockIcon size={64} color="#0f62fe" className="opacity-80" />
+          </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Sign In Required</h2>
           <p className="text-gray-600 mb-6">Please sign in to view your saved resumes.</p>
           <button
@@ -90,10 +112,73 @@ export default function ResumesView({ onBack }: Props) {
     )
   }
 
+  const getBestMatchScore = (resume: Resume): number | null => {
+    if (resume.recent_matches && resume.recent_matches.length > 0) {
+      const bestMatch = resume.recent_matches.reduce((best, match) => 
+        match.score > (best?.score || 0) ? match : best
+      )
+      return bestMatch.score
+    }
+    return null
+  }
+
+  const getMatchScoreColor = (score: number) => {
+    if (score >= 80) return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' }
+    if (score >= 60) return { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' }
+    return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' }
+  }
+
+  const handleDelete = async (resume: Resume) => {
+    const confirmed = await showConfirm({
+      title: 'Delete Resume',
+      message: `Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+      icon: '🗑️'
+    })
+    
+    if (!confirmed) return
+    
+    try {
+      const res = await fetch(`${config.apiBase}/api/resumes/${resume.id}?user_email=${encodeURIComponent(user?.email || '')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (res.ok) {
+        setSavedResumes((prev) => prev.filter((x) => x.id !== resume.id))
+        setOpenDropdownId(null)
+        await showAlert({
+          title: 'Success',
+          message: 'Resume deleted successfully',
+          type: 'success',
+          icon: '✅'
+        })
+      } else {
+        const error = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
+        await showAlert({
+          title: 'Error',
+          message: error.detail || 'Failed to delete resume',
+          type: 'error'
+        })
+      }
+    } catch (error) {
+      console.error('Failed to delete resume:', error)
+      await showAlert({
+        title: 'Error',
+        message: 'Failed to delete resume. Please try again.',
+        type: 'error'
+      })
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
-      <div className="bg-white border-b shadow-sm sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+    <div className="min-h-full bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex flex-col">
+      <div className="bg-white border-b shadow-sm sticky top-0 z-20 flex-shrink-0">
+        <div className="w-full px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -105,7 +190,10 @@ export default function ResumesView({ onBack }: Props) {
                 </svg>
                 Back to Editor
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">📄 Master Resumes</h1>
+              <div className="flex items-center gap-3">
+                <FileTextIcon size={28} color="#0f62fe" />
+                <h1 className="text-2xl font-bold text-gray-900">Master Resumes</h1>
+              </div>
             </div>
             <button
               onClick={fetchSavedResumes}
@@ -117,115 +205,190 @@ export default function ResumesView({ onBack }: Props) {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="flex-1 w-full px-6 py-8">
+        <div className="bg-white rounded-[28px] border border-border-subtle shadow-card p-6">
           {savedResumes.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
-              <div className="text-6xl mb-4">📄</div>
+            <div className="text-center py-16">
+              <div className="flex justify-center mb-4">
+                <FileTextIcon size={64} color="#0f62fe" className="opacity-60" />
+              </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">No saved resumes yet</h3>
               <p className="text-gray-600 mb-6">Save your resume from the editor to create a master resume that you can match with job descriptions.</p>
               <button
                 onClick={onBack}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                className="button-primary"
               >
                 Create Resume
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {savedResumes.map((resume) => (
-                <div
-                  key={resume.id}
-                  className="p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all shadow-sm"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 mb-1">{resume.name}</h3>
-                      {resume.title && (
-                        <p className="text-sm text-gray-600 mb-2">{resume.title}</p>
-                      )}
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        {resume.version_count && (
-                          <span>v{resume.latest_version_number || resume.version_count} •</span>
-                        )}
-                        {resume.created_at && (
-                          <span>Created: {new Date(resume.created_at).toLocaleDateString()}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-4">
-                    <button
-                      onClick={() => {
-                        const versionQuery = resume.latest_version_id ? `&resumeVersionId=${resume.latest_version_id}` : ''
-                        window.location.href = `/editor?resumeId=${resume.id}${versionQuery}`
-                      }}
-                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-all font-semibold text-center"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        const confirmed = await showConfirm({
-                          title: 'Delete Resume',
-                          message: `Are you sure you want to delete "${resume.name}"? This will permanently delete the resume and all its versions. This action cannot be undone.`,
-                          confirmText: 'Delete',
-                          cancelText: 'Cancel',
-                          type: 'danger',
-                          icon: '🗑️'
-                        })
-                        
-                        if (!confirmed) {
-                          return
-                        }
-                        
-                        try {
-                          const res = await fetch(`${config.apiBase}/api/resumes/${resume.id}?user_email=${encodeURIComponent(user?.email || '')}`, {
-                            method: 'DELETE',
-                            headers: {
-                              'Content-Type': 'application/json'
-                            }
-                          })
-                          
-                          if (res.ok) {
-                            setSavedResumes((prev) => prev.filter((x) => x.id !== resume.id))
-                            await showAlert({
-                              title: 'Success',
-                              message: 'Resume deleted successfully',
-                              type: 'success',
-                              icon: '✅'
-                            })
-                          } else {
-                            const error = await res.json().catch(() => ({ detail: 'Failed to delete resume' }))
-                            await showAlert({
-                              title: 'Error',
-                              message: error.detail || 'Failed to delete resume',
-                              type: 'error'
-                            })
-                          }
-                        } catch (error) {
-                          console.error('Failed to delete resume:', error)
-                          await showAlert({
-                            title: 'Error',
-                            message: 'Failed to delete resume. Please try again.',
-                            type: 'error'
-                          })
-                        }
-                      }}
-                      className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-all font-semibold"
-                      title="Delete this resume"
-                    >
-                      🗑️ Delete
-                    </button>
-                    {resume.match_count && resume.match_count > 0 && (
-                      <span className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-xs font-semibold">
-                        {resume.match_count} match{resume.match_count > 1 ? 'es' : ''}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px]">
+                <thead>
+                  <tr className="border-b border-border-subtle">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      Resume Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      Template
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      Versions
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      Best Match
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      Matches
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      Last Updated
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle bg-white">
+                  {savedResumes.map((resume) => {
+                    const bestMatchScore = getBestMatchScore(resume)
+                    const matchScoreColors = bestMatchScore !== null ? getMatchScoreColor(bestMatchScore) : null
+                    const isDropdownOpen = openDropdownId === resume.id
+
+                    return (
+                      <tr 
+                        key={resume.id} 
+                        className="hover:bg-gray-50/50 transition-colors group"
+                      >
+                        <td className="px-4 py-5">
+                          <button
+                            onClick={() => {
+                              const versionQuery = resume.latest_version_id ? `&resumeVersionId=${resume.latest_version_id}` : ''
+                              window.location.href = `/editor?resumeId=${resume.id}${versionQuery}`
+                            }}
+                            className="text-left group-hover:text-blue-600 transition-colors"
+                          >
+                            <div className="font-semibold text-text-primary text-sm leading-tight">
+                              {resume.name}
+                            </div>
+                            {resume.title && (
+                              <div className="text-xs text-text-muted mt-1">
+                                {resume.title}
+                              </div>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 py-5">
+                          {resume.template ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                              {resume.template}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-5">
+                          {resume.version_count ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                              v{resume.latest_version_number || resume.version_count}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-5">
+                          {bestMatchScore !== null && matchScoreColors ? (
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${matchScoreColors.border} ${matchScoreColors.bg}`}>
+                              <span className={`text-sm font-semibold ${matchScoreColors.text}`}>
+                                {Math.round(bestMatchScore)}%
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-text-muted">No matches yet</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-5">
+                          {resume.match_count && resume.match_count > 0 ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                              {resume.match_count} {resume.match_count === 1 ? 'match' : 'matches'}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-5 text-sm text-text-muted">
+                          {resume.updated_at 
+                            ? new Date(resume.updated_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric'
+                              })
+                            : resume.created_at
+                            ? new Date(resume.created_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric'
+                              })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-5">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                const versionQuery = resume.latest_version_id ? `&resumeVersionId=${resume.latest_version_id}` : ''
+                                window.location.href = `/editor?resumeId=${resume.id}${versionQuery}`
+                              }}
+                              className="button-primary text-xs px-4 py-2"
+                            >
+                              Open Editor
+                            </button>
+                            <div className="relative" ref={(el) => { dropdownRefs.current[resume.id] = el }}>
+                              <button
+                                onClick={() => setOpenDropdownId(isDropdownOpen ? null : resume.id)}
+                                className="p-2 text-text-muted hover:text-text-primary hover:bg-gray-100 rounded-lg transition-colors"
+                                aria-label="More actions"
+                              >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                </svg>
+                              </button>
+                              {isDropdownOpen && (
+                                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-border-subtle shadow-lg z-50 py-1">
+                                  <button
+                                    onClick={() => {
+                                      const versionQuery = resume.latest_version_id ? `&resumeVersionId=${resume.latest_version_id}` : ''
+                                      window.location.href = `/editor?resumeId=${resume.id}${versionQuery}`
+                                      setOpenDropdownId(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-gray-50 transition-colors flex items-center gap-2"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    View Details
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(resume)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -233,4 +396,3 @@ export default function ResumesView({ onBack }: Props) {
     </div>
   )
 }
-
