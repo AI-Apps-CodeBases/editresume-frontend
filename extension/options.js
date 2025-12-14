@@ -57,6 +57,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       
+      // Warn if staging appBase doesn't pair with staging apiBase (but allow it)
+      if (appBase.includes('staging.editresume.io') && !apiBase.includes('staging') && !apiBase.includes('localhost')) {
+        console.warn('Options: Staging appBase detected but apiBase is not staging:', { appBase, apiBase });
+      }
+      if (!appBase.includes('staging') && !appBase.includes('localhost') && apiBase.includes('staging')) {
+        console.warn('Options: Production appBase detected but apiBase is staging:', { appBase, apiBase });
+      }
+      
       // Get all existing storage to preserve other keys (like token)
       const existing = await chrome.storage.sync.get();
       
@@ -69,6 +77,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         _settingsLocked: true,
         _lastSaved: Date.now()
       };
+      
+      console.log('Options: Saving URLs:', { appBase, apiBase });
       
       // Save settings
       await chrome.storage.sync.set(updated);

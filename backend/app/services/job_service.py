@@ -23,6 +23,34 @@ from app.utils.job_helpers import (
 
 logger = logging.getLogger(__name__)
 
+# Cache schema check result to avoid repeated queries
+_SCHEMA_CHECK_CACHE: Optional[bool] = None
+
+
+def _check_new_columns_exist(db: Session) -> bool:
+    """Check if new columns exist, with caching"""
+    global _SCHEMA_CHECK_CACHE
+    if _SCHEMA_CHECK_CACHE is not None:
+        return _SCHEMA_CHECK_CACHE
+    
+    try:
+        result = db.execute(
+            text(
+                """
+            SELECT COUNT(*) 
+            FROM information_schema.columns 
+            WHERE table_name = 'job_descriptions' 
+            AND column_name IN ('max_salary', 'status', 'follow_up_date', 'importance', 'notes')
+        """
+            )
+        )
+        count = result.fetchone()[0]
+        _SCHEMA_CHECK_CACHE = count == 5
+        return _SCHEMA_CHECK_CACHE
+    except Exception:
+        _SCHEMA_CHECK_CACHE = False
+        return False
+
 
 def create_or_update_job_description(
     payload: Dict[str, Any], db: Session
@@ -428,22 +456,7 @@ def list_user_job_descriptions(
     """List job descriptions for a user"""
     logger.info(f"Listing job descriptions for user_email: {user_email}")
     try:
-        # Check if new columns exist
-        try:
-            result = db.execute(
-                text(
-                    """
-                SELECT COUNT(*) 
-                FROM information_schema.columns 
-                WHERE table_name = 'job_descriptions' 
-                AND column_name IN ('max_salary', 'status', 'follow_up_date', 'importance', 'notes')
-            """
-                )
-            )
-            count = result.fetchone()[0]
-            new_columns_exist = count == 5
-        except:
-            new_columns_exist = False
+        new_columns_exist = _check_new_columns_exist(db)
 
         if new_columns_exist:
             # Columns exist - use normal SQLAlchemy query

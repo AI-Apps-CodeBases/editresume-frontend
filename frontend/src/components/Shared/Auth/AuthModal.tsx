@@ -1,8 +1,11 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLinkedIn } from '@/hooks/useLinkedIn'
+
+const EXTENSION_AUTH_KEY = 'extensionAuth'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -11,6 +14,8 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModalProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [currentMode, setCurrentMode] = useState<typeof mode>(mode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -23,6 +28,21 @@ export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModal
   const { signIn, signUp, resetPassword, signInWithGoogle, isAuthenticated } = useAuth()
   const { connectLinkedIn } = useLinkedIn()
 
+  const getExtensionAuth = () => {
+    if (typeof window === 'undefined') return null
+    return searchParams.get('extensionAuth') || sessionStorage.getItem(EXTENSION_AUTH_KEY)
+  }
+
+  const handlePostLogin = () => {
+    const extensionAuth = getExtensionAuth()
+    if (extensionAuth === '1') {
+      sessionStorage.setItem(EXTENSION_AUTH_KEY, '1')
+      router.push('/?extensionAuth=1')
+    } else {
+      onClose()
+    }
+  }
+
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,10 +54,10 @@ export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModal
     try {
       if (currentMode === 'login') {
         await signIn(email, password)
-        onClose()
+        handlePostLogin()
       } else if (currentMode === 'signup') {
         await signUp({ email, password, name })
-        onClose()
+        handlePostLogin()
       } else {
         await resetPassword(email)
         setSuccess('Reset link sent to your inbox.')
@@ -68,7 +88,7 @@ export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModal
     setGoogleLoading(true)
     try {
       await signInWithGoogle()
-      onClose()
+      handlePostLogin()
     } catch (err: any) {
       const message = err?.message ?? 'Google sign in failed. Try again.'
       setError(message)
