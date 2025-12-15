@@ -148,7 +148,15 @@ async def export_pdf(
             # Colors
             colors = design.get("colors", {})
             primary_color = colors.get("primary", "#000000")
+            secondary_color = colors.get("secondary", "#000000")
+            accent_color = colors.get("accent", "#000000")
             text_color = colors.get("text", "#000000")
+            
+            # Check if we need gradient backgrounds (for new templates like vibrant, gradient)
+            use_gradient_header = template_id in ["vibrant", "gradient", "creative"]
+            gradient_css = ""
+            if use_gradient_header and primary_color and accent_color:
+                gradient_css = f"background: linear-gradient(135deg, {primary_color} 0%, {accent_color} 100%);"
             
             # Spacing
             spacing_config = template_config.get("spacing", {})
@@ -179,6 +187,8 @@ async def export_pdf(
             )
             layout = template_style["styles"]["layout"]
             primary_color = "#000000"
+            secondary_color = "#000000"
+            accent_color = "#000000"
             text_color = "#000000"
             section_gap = 15
             item_gap = 6
@@ -195,15 +205,43 @@ async def export_pdf(
                 "none": ""
             }
             bullet_symbol = bullet_symbols.get(bullet_style, "•")
+            use_gradient_header = False
+            gradient_css = ""
             
             logger.info(f"Using fallback font sizes: h1={h1_size}px, h2={h2_size}px, body={body_size}px, lineHeight={line_height}")
 
         # Build HTML content sections
-        contact_info = apply_replacements(payload.email or "", replacements)
-        if payload.phone:
-            contact_info += " • " + apply_replacements(payload.phone, replacements)
-        if payload.location:
-            contact_info += " • " + apply_replacements(payload.location, replacements)
+        # Handle different contact info formats based on template
+        contact_items_html = ""  # For infographic template
+        if template_id == "corporate-premium":
+            # Corporate premium uses structured contact in sidebar
+            contact_info = ""  # Will be handled in sidebar
+        elif template_id == "infographic":
+            # Infographic uses icons - will be handled in header
+            contact_info = ""
+            if payload.email:
+                contact_items_html += f'<div style="display: flex; align-items: center; gap: 8px; font-size: {body_size}px; color: {text_color};"><span style="font-size: 16px;">📧</span><span>{apply_replacements(payload.email, replacements)}</span></div>'
+            if payload.phone:
+                contact_items_html += f'<div style="display: flex; align-items: center; gap: 8px; font-size: {body_size}px; color: {text_color};"><span style="font-size: 16px;">📱</span><span>{apply_replacements(payload.phone, replacements)}</span></div>'
+            if payload.location:
+                contact_items_html += f'<div style="display: flex; align-items: center; gap: 8px; font-size: {body_size}px; color: {text_color};"><span style="font-size: 16px;">📍</span><span>{apply_replacements(payload.location, replacements)}</span></div>'
+        elif template_id == "timeline":
+            # Timeline uses simple contact string
+            contact_items = []
+            if payload.email:
+                contact_items.append(apply_replacements(payload.email, replacements))
+            if payload.phone:
+                contact_items.append(apply_replacements(payload.phone, replacements))
+            if payload.location:
+                contact_items.append(apply_replacements(payload.location, replacements))
+            contact_info = " • ".join(contact_items)
+        else:
+            # Default: simple contact info string
+            contact_info = apply_replacements(payload.email or "", replacements)
+            if payload.phone:
+                contact_info += " • " + apply_replacements(payload.phone, replacements)
+            if payload.location:
+                contact_info += " • " + apply_replacements(payload.location, replacements)
 
         # Check if this is a cover letter only export (no resume sections)
         is_cover_letter_only = bool(payload.cover_letter and not payload.sections and not payload.summary)
@@ -251,13 +289,158 @@ async def export_pdf(
             """
 
         # Determine layout from templateConfig or fallback
+        # Special handling for corporate-premium (sidebar layout)
+        is_corporate_premium = template_id == "corporate-premium"
+        is_timeline = template_id == "timeline"
+        is_infographic = template_id == "infographic"
+        
         is_two_column = layout == "two-column" or (
             template_config and 
             template_config.get("layout", {}).get("columns") in ["two-column", "asymmetric"]
-        )
+        ) or is_corporate_premium
         
         # Build sections HTML
-        if is_two_column:
+        # Special handling for corporate-premium, timeline, and infographic templates
+        if is_corporate_premium:
+            # Corporate Premium: Sidebar layout with structured contact info
+            sidebar_width = template_config.get("layout", {}).get("columnWidth", 30) if template_config else 30
+            main_width = 100 - sidebar_width
+            
+            # Build contact items for sidebar
+            contact_items = []
+            if payload.email:
+                contact_items.append(f'<div style="margin-bottom: 12px;"><div style="font-size: {body_size - 1}px; opacity: 0.8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Email</div><div style="font-size: {body_size}px; font-weight: 400;">{apply_replacements(payload.email, replacements)}</div></div>')
+            if payload.phone:
+                contact_items.append(f'<div style="margin-bottom: 12px;"><div style="font-size: {body_size - 1}px; opacity: 0.8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Phone</div><div style="font-size: {body_size}px; font-weight: 400;">{apply_replacements(payload.phone, replacements)}</div></div>')
+            if payload.location:
+                contact_items.append(f'<div style="margin-bottom: 12px;"><div style="font-size: {body_size - 1}px; opacity: 0.8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Location</div><div style="font-size: {body_size}px; font-weight: 400;">{apply_replacements(payload.location, replacements)}</div></div>')
+            
+            sidebar_html = f"""
+            <div style="width: {sidebar_width}%; background: {primary_color}; color: white; padding: 32px 24px; border-radius: 8px; min-height: 200px; box-sizing: border-box;">
+                <h1 style="font-family: {font_family}; font-size: {h1_size}px; font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px; color: white;">{apply_replacements(payload.name, replacements)}</h1>
+                {f'<p style="font-size: {body_size + 2}px; opacity: 0.9; margin-bottom: 24px; font-weight: 300;">{apply_replacements(payload.title, replacements)}</p>' if payload.title else ''}
+                <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px; margin-top: 20px;">
+                    {''.join(contact_items)}
+                </div>
+            </div>"""
+            
+            # Build main content sections
+            main_sections_html = ""
+            if payload.summary:
+                main_sections_html += f"""
+                <section style="margin-bottom: {section_gap}px;">
+                    <h2 style="font-family: {font_family}; font-size: {h2_size}px; font-weight: bold; color: {primary_color}; border-bottom: 2px solid {accent_color}; padding-bottom: 6px; display: inline-block; margin-bottom: 12px;">Professional Summary</h2>
+                    <p style="font-size: {body_size}px; line-height: {line_height}; color: {text_color}; margin-top: 12px;">{apply_replacements(payload.summary, replacements)}</p>
+                </section>"""
+            
+            for s in payload.sections:
+                section_title = s.title.lower()
+                is_work_experience = "experience" in section_title or "work" in section_title or "employment" in section_title
+                
+                if is_work_experience:
+                    bullets_html = format_work_experience_bullets(s.bullets, replacements)
+                else:
+                    bullets_html = format_regular_bullets(s.bullets, replacements, s.title)
+                
+                main_sections_html += f"""
+                <section style="margin-bottom: {section_gap}px;">
+                    <h2 style="font-family: {font_family}; font-size: {h2_size}px; font-weight: bold; color: {primary_color}; border-bottom: 2px solid {accent_color}; padding-bottom: 6px; display: inline-block; margin-bottom: 12px;">{apply_replacements(s.title, replacements)}</h2>
+                    {bullets_html}
+                </section>"""
+            
+            content_html = f"""
+            {cover_letter_html}
+            <div style="display: flex; gap: 24px; margin-bottom: 24px;">
+                {sidebar_html}
+                <div style="width: {main_width}%;">
+                    {main_sections_html}
+                </div>
+            </div>
+            <div style="width: 100%;">
+                {main_sections_html if not payload.summary else ''}
+            </div>"""
+            
+        elif is_timeline:
+            # Timeline: Timeline markers and lines
+            sections_html = ""
+            if payload.summary:
+                sections_html += f"""
+                <section style="margin-bottom: {section_gap}px;">
+                    <div style="padding-left: 24px; border-left: 3px solid {accent_color}; margin-left: 8px;">
+                        <p style="font-size: {body_size + 1}px; line-height: {line_height}; color: {text_color}; font-style: italic;">{apply_replacements(payload.summary, replacements)}</p>
+                    </div>
+                </section>"""
+            
+            for s in payload.sections:
+                section_title = s.title.lower()
+                is_work_experience = "experience" in section_title or "work" in section_title or "employment" in section_title
+                
+                if is_work_experience:
+                    bullets_html = format_work_experience_bullets(s.bullets, replacements)
+                else:
+                    bullets_html = format_regular_bullets(s.bullets, replacements, s.title)
+                
+                sections_html += f"""
+                <section style="margin-bottom: {section_gap}px; position: relative; padding-left: 32px;">
+                    <div style="position: absolute; left: 8px; top: 0; bottom: -24px; width: 3px; background: {primary_color}; border-radius: 2px;"></div>
+                    <div style="position: absolute; left: 0; top: 4px; width: 16px; height: 16px; border-radius: 50%; background: {primary_color}; border: 3px solid white; box-shadow: 0 0 0 2px {primary_color};"></div>
+                    <h2 style="font-family: {font_family}; font-size: {h2_size}px; font-weight: bold; color: {primary_color}; margin-bottom: 12px;">{apply_replacements(s.title, replacements)}</h2>
+                    <div style="padding-left: 8px;">
+                        {bullets_html}
+                    </div>
+                </section>"""
+            
+            content_html = cover_letter_html + sections_html
+            
+        elif is_infographic:
+            # Infographic: Card-based sections with icons
+            sections_html = ""
+            if payload.summary:
+                sections_html += f"""
+                <section style="margin-bottom: {section_gap}px;">
+                    <div style="background: {accent_color}10; border: 2px solid {accent_color}30; border-radius: 12px; padding: 20px;">
+                        <div style="display: flex; align-items: start; gap: 12px;">
+                            <span style="font-size: 24px; line-height: 1;">💡</span>
+                            <p style="font-size: {body_size + 1}px; line-height: {line_height}; color: {text_color}; margin: 0; flex: 1;">{apply_replacements(payload.summary, replacements)}</p>
+                        </div>
+                    </div>
+                </section>"""
+            
+            section_icons = {
+                'experience': '💼', 'education': '🎓', 'skills': '⚡', 'projects': '🚀',
+                'certifications': '🏆', 'awards': '⭐', 'languages': '🌐', 'publications': '📚'
+            }
+            
+            for s in payload.sections:
+                section_title_lower = s.title.lower()
+                icon = '📋'
+                for key, icon_char in section_icons.items():
+                    if key in section_title_lower:
+                        icon = icon_char
+                        break
+                
+                section_title = s.title.lower()
+                is_work_experience = "experience" in section_title or "work" in section_title or "employment" in section_title
+                
+                if is_work_experience:
+                    bullets_html = format_work_experience_bullets(s.bullets, replacements)
+                else:
+                    bullets_html = format_regular_bullets(s.bullets, replacements, s.title)
+                
+                sections_html += f"""
+                <section style="margin-bottom: {section_gap}px; padding: 20px; background: {primary_color}05; border-radius: 12px; border: 1px solid {primary_color}20;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, {primary_color} 0%, {accent_color} 100%); display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 2px 8px {primary_color}30;">{icon}</div>
+                        <h2 style="font-family: {font_family}; font-size: {h2_size}px; font-weight: bold; color: {primary_color}; margin: 0; letter-spacing: 0.3px;">{apply_replacements(s.title, replacements)}</h2>
+                    </div>
+                    <div style="padding-left: 8px;">
+                        {bullets_html}
+                    </div>
+                </section>"""
+            
+            content_html = cover_letter_html + sections_html
+            
+        elif is_two_column:
             left_sections_html = ""
             right_sections_html = ""
 
@@ -310,11 +493,30 @@ async def export_pdf(
                         or "employment" in section_title
                     )
 
+                    # Determine section header style based on template (for two-column layout)
+                    section_header_class = ""
+                    section_header_style = ""
+                    if template_id == "vibrant":
+                        section_colors = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#06b6d4"]
+                        section_idx = len([x for x in payload.sections if payload.sections.index(x) < payload.sections.index(s)])
+                        section_color = section_colors[section_idx % len(section_colors)]
+                        section_header_class = "section-header-vibrant"
+                        section_header_style = f"background: {section_color}; color: white; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px;"
+                    
                     if is_work_experience:
                         bullets_html = format_work_experience_bullets(
                             s.bullets, replacements
                         )
-                        section_html = f"""
+                        if section_header_style:
+                            section_html = f"""
+                        <div class="section">
+                            <div class="{section_header_class}" style="{section_header_style}">
+                                <h2 style="margin: 0; font-size: {h2_size}px; font-weight: bold;">{apply_replacements(s.title, replacements)}</h2>
+                            </div>
+                            {bullets_html}
+                        </div>"""
+                        else:
+                            section_html = f"""
                         <div class="section">
                             <h2>{apply_replacements(s.title, replacements)}</h2>
                             {bullets_html}
@@ -331,7 +533,17 @@ async def export_pdf(
                             or "expertise" in section_lower
                             or "proficiencies" in section_lower
                         )
-                        if is_skill_section:
+                        if section_header_style:
+                            section_html = f"""
+                            <div class="section">
+                                <div class="{section_header_class}" style="{section_header_style}">
+                                    <h2 style="margin: 0; font-size: {h2_size}px; font-weight: bold;">{section_title_formatted}</h2>
+                                </div>
+                                {'<ul>' if not is_skill_section else ''}
+                                {bullets_html}
+                                {'</ul>' if not is_skill_section else ''}
+                            </div>"""
+                        elif is_skill_section:
                             section_html = f"""
                             <div class="section">
                                 <h2>{section_title_formatted}</h2>
@@ -449,11 +661,35 @@ async def export_pdf(
                     or "employment" in section_title
                 )
 
+                # Determine section header style based on template
+                section_header_class = ""
+                section_header_style = ""
+                if template_id == "vibrant":
+                    # Vibrant template uses colored block headers
+                    section_colors = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#06b6d4"]
+                    section_idx = len([x for x in payload.sections if payload.sections.index(x) < payload.sections.index(s)])
+                    section_color = section_colors[section_idx % len(section_colors)]
+                    section_header_class = "section-header-vibrant"
+                    section_header_style = f"background: {section_color}; color: white; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px;"
+                elif template_id == "gradient":
+                    # Gradient template uses gradient dividers
+                    section_header_class = ""
+                    section_header_style = ""
+                
                 if is_work_experience:
                     bullets_html = format_work_experience_bullets(
                         s.bullets, replacements
                     )
-                    sections_html += f"""
+                    if section_header_style:
+                        sections_html += f"""
+                    <div class="section">
+                        <div class="{section_header_class}" style="{section_header_style}">
+                            <h2 style="margin: 0; font-size: {h2_size}px; font-weight: bold;">{apply_replacements(s.title, replacements)}</h2>
+                        </div>
+                        {bullets_html}
+                    </div>"""
+                    else:
+                        sections_html += f"""
                     <div class="section">
                         <h2>{apply_replacements(s.title, replacements)}</h2>
                         {bullets_html}
@@ -470,7 +706,17 @@ async def export_pdf(
                         or "expertise" in section_lower
                         or "proficiencies" in section_lower
                     )
-                    if is_skill_section:
+                    if section_header_style:
+                        sections_html += f"""
+                        <div class="section">
+                            <div class="{section_header_class}" style="{section_header_style}">
+                                <h2 style="margin: 0; font-size: {h2_size}px; font-weight: bold;">{section_title}</h2>
+                            </div>
+                            {'<ul>' if not is_skill_section else ''}
+                            {bullets_html}
+                            {'</ul>' if not is_skill_section else ''}
+                        </div>"""
+                    elif is_skill_section:
                         sections_html += f"""
                         <div class="section">
                             <h2>{section_title}</h2>
@@ -503,6 +749,21 @@ async def export_pdf(
         .job-entry li::before {{ content: "{bullet_symbol}"; font-weight: bold; color: {primary_color}; position: absolute; left: 0; top: 0; }}'''
         bullet_padding = "padding-left: 14px;" if bullet_style != 'none' else "padding-left: 0;"
         
+        # Build header HTML for special templates
+        header_html = ""
+        if not is_cover_letter_only:
+            if is_corporate_premium:
+                header_html = ""  # Corporate premium has header in sidebar
+            elif is_timeline:
+                title_html = f'<p style="font-size: {body_size + 3}px; color: {secondary_color}; margin-bottom: 16px; font-weight: 500;">{apply_replacements(payload.title, replacements)}</p>' if payload.title else ""
+                header_html = f'<header style="border-bottom: 3px solid {primary_color}; padding-bottom: 20px; margin-bottom: 32px;"><h1 style="font-family: {font_family}; font-size: {h1_size}px; font-weight: bold; color: {primary_color}; margin-bottom: 8px; letter-spacing: 0.2px;">{apply_replacements(payload.name, replacements)}</h1>{title_html}<div style="color: {secondary_color}; font-size: {body_size}px;">{contact_info}</div></header>'
+            elif is_infographic:
+                title_html = f'<p style="font-size: {body_size + 3}px; color: {secondary_color}; font-weight: 500;">{apply_replacements(payload.title, replacements)}</p>' if payload.title else ""
+                contact_div = f'<div style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px;">{contact_items_html}</div>' if contact_items_html else ""
+                header_html = f'<header style="background: linear-gradient(135deg, {primary_color}15 0%, {accent_color}15 100%); padding: 32px; border-radius: 16px; border: 2px solid {primary_color}30; margin-bottom: 32px;"><div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;"><div style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, {primary_color} 0%, {accent_color} 100%); display: flex; align-items: center; justify-content: center; font-size: 36px; box-shadow: 0 4px 12px {primary_color}40;">👤</div><div style="flex: 1;"><h1 style="font-family: {font_family}; font-size: {h1_size}px; font-weight: bold; color: {primary_color}; margin-bottom: 8px; letter-spacing: 0.3px;">{apply_replacements(payload.name, replacements)}</h1>{title_html}</div></div>{contact_div}</header>'
+            else:
+                header_html = f'<div class="header"><h1>{apply_replacements(payload.name, replacements)}</h1><div class="title">{apply_replacements(payload.title, replacements)}</div><div class="contact">{contact_info}</div></div>'
+        
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -510,14 +771,18 @@ async def export_pdf(
     <style>
         @page {{ size: A4; margin: {page_margin_cm}; }}
         body {{ margin: 0; padding: 0 0.1cm 0 0.1cm; width: 100%; font-family: {font_family}; font-size: {body_size}px; line-height: {line_height}; color: {text_color}; {'text-align: justify;' if is_cover_letter_only else ''} box-sizing: border-box; overflow-wrap: break-word; word-wrap: break-word; }}
-        .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: {section_gap}px; }}
-        .header h1 {{ margin: 0; font-size: {h1_size}px; font-weight: bold; color: {primary_color}; }}
-        .header .title {{ font-size: {h2_size + 2}px; margin: 5px 0; color: {text_color}; }}
-        .header .contact {{ font-size: {body_size}px; color: {text_color}; margin-top: 5px; }}
+        .header {{ text-align: {header_align}; border-bottom: {header_border}; padding-bottom: 10px; margin-bottom: {section_gap}px; {gradient_css if use_gradient_header else ''} }}
+        .header h1 {{ margin: 0; font-size: {h1_size}px; font-weight: bold; color: {'white' if use_gradient_header else primary_color}; }}
+        .header .title {{ font-size: {h2_size + 2}px; margin: 5px 0; color: {'white' if use_gradient_header else text_color}; }}
+        .header .contact {{ font-size: {body_size}px; color: {'white' if use_gradient_header else text_color}; margin-top: 5px; }}
         .summary {{ margin-bottom: {section_gap}px; font-size: {body_size}px; line-height: {line_height}; color: {text_color}; }}
         .section {{ margin-bottom: {section_gap}px; }}
         .section h2 {{ font-size: {h2_size}px; font-weight: bold; color: {primary_color}; {section_uppercase}
                        border-bottom: 1px solid {primary_color}; padding-bottom: 3px; margin-bottom: 8px; }}
+        /* Support for vibrant template - colored section headers */
+        .section-header-vibrant {{ background: {primary_color}; color: white; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; }}
+        /* Support for gradient template - gradient section dividers */
+        .section-divider-gradient {{ height: 3px; background: linear-gradient(90deg, {primary_color} 0%, {accent_color} 100%); border-radius: 2px; margin-bottom: 8px; }}
         .section ul {{ margin: 0; padding-left: 0; list-style: none; }}
         .section li {{ margin-bottom: {item_gap}px; font-size: {body_size}px; color: {text_color}; position: relative; {bullet_padding} }}
         .job-entry ul {{ margin: 0; padding-left: 0; list-style: none; }}
@@ -588,7 +853,7 @@ async def export_pdf(
     </style>
 </head>
 <body>
-    {f'<div class="header"><h1>{apply_replacements(payload.name, replacements)}</h1><div class="title">{apply_replacements(payload.title, replacements)}</div><div class="contact">{contact_info}</div></div>' if not is_cover_letter_only else ''}
+    {header_html}
     {content_html}
 </body>
 </html>"""
@@ -598,8 +863,9 @@ async def export_pdf(
         
         # Final cleanup: remove any remaining ** characters that might have slipped through
         # This ensures no ** characters appear in the final PDF
-        # Do this multiple times to catch nested or edge cases
-        while '**' in html_content:
+        # Optimized: single pass is usually enough, second pass only if needed
+        html_content = html_content.replace('**', '')
+        if '**' in html_content:
             html_content = html_content.replace('**', '')
 
         try:
@@ -627,6 +893,69 @@ async def export_pdf(
                 )
             
             logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes, header: {pdf_bytes[:8]}")
+            
+            # Return PDF immediately, track analytics asynchronously
+            # Create response first
+            response = Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f"attachment; filename=resume.pdf",
+                    "Content-Length": str(len(pdf_bytes)),
+                },
+            )
+            
+            # Track export analytics in background (non-blocking)
+            if user_email and db:
+                try:
+                    # Use a separate try-except to not block the response
+                    user = db.query(User).filter(User.email == user_email).first()
+                    if user:
+                        # Find or create resume record
+                        resume = (
+                            db.query(Resume)
+                            .filter(Resume.user_id == user.id, Resume.name == payload.name)
+                            .first()
+                        )
+
+                        if not resume:
+                            resume = Resume(
+                                user_id=user.id,
+                                name=payload.name,
+                                title=payload.title,
+                                email=payload.email,
+                                phone=payload.phone,
+                                location=payload.location,
+                                summary=payload.summary,
+                                template=template_id,
+                            )
+                            db.add(resume)
+                            db.flush()  # Get ID without full commit
+
+                        # Create export analytics record
+                        export_analytics = ExportAnalytics(
+                            user_id=user.id if user else None,
+                            session_id=session_id if not user else None,
+                            resume_id=resume.id if resume else None,
+                            export_format="pdf",
+                            template_used=template_id,
+                            file_size=len(pdf_bytes),
+                            export_success=True,
+                        )
+                        db.add(export_analytics)
+                        db.commit()  # Single commit for both operations
+
+                        logger.info(
+                            f"Export analytics tracked for user {user_email}: PDF export"
+                        )
+                except Exception as e:
+                    logger.warning(f"Export analytics tracking failed (non-blocking): {e}")
+                    try:
+                        db.rollback()  # Rollback on error
+                    except:
+                        pass
+            
+            return response
         except AttributeError as e:
             if "'super' object has no attribute" in str(e) or "transform" in str(e):
                 logger.error(f"WeasyPrint compatibility error: {str(e)}")
@@ -654,58 +983,6 @@ async def export_pdf(
                     status_code=500,
                     detail=f"PDF generation failed: {error_msg}. Please check your resume content and try again."
                 )
-
-        # Track export analytics
-        if user_email and db:
-            try:
-                user = db.query(User).filter(User.email == user_email).first()
-                if user:
-                    # Find or create resume record
-                    resume = (
-                        db.query(Resume)
-                        .filter(Resume.user_id == user.id, Resume.name == payload.name)
-                        .first()
-                    )
-
-                    if not resume:
-                        resume = Resume(
-                            user_id=user.id,
-                            name=payload.name,
-                            title=payload.title,
-                            email=payload.email,
-                            phone=payload.phone,
-                            location=payload.location,
-                            summary=payload.summary,
-                            template=template_id,
-                        )
-                        db.add(resume)
-                        db.commit()
-                        db.refresh(resume)
-
-                    # Create export analytics record
-                    export_analytics = ExportAnalytics(
-                        user_id=user.id if user else None,
-                        session_id=session_id if not user else None,
-                        resume_id=resume.id if resume else None,
-                        export_format="pdf",
-                        template_used=template_id,
-                        file_size=len(pdf_bytes),
-                        export_success=True,
-                    )
-                    db.add(export_analytics)
-                    db.commit()
-
-                    logger.info(
-                        f"Export analytics tracked for user {user_email}: PDF export"
-                    )
-            except Exception as e:
-                logger.error(f"Failed to track export analytics: {e}")
-
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=resume.pdf"},
-        )
     except HTTPException:
         raise
     except ValueError as e:
