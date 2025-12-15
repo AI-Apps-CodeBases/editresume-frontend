@@ -183,7 +183,7 @@ function inlineAllComputedStyles(element: HTMLElement, original: HTMLElement): v
   const computed = window.getComputedStyle(original)
   let style = element.getAttribute('style') || ''
   
-  // Get all important styles
+  // Get all important styles - including gradients, backgrounds, positioning
   const allProps = [
     'display', 'flex-direction', 'flex-wrap', 'gap',
     'width', 'max-width', 'min-width', 'flex-basis',
@@ -191,28 +191,63 @@ function inlineAllComputedStyles(element: HTMLElement, original: HTMLElement): v
     'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
     'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
     'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
-    'border-width', 'border-style', 'border-color',
+    'border-width', 'border-style', 'border-color', 'border-radius',
     'font-family', 'font-size', 'font-weight', 'font-style',
-    'color', 'background-color', 'background',
+    'color', 'background-color', 'background', 'background-image', 'background-size', 'background-position',
     'line-height', 'letter-spacing', 'text-align', 'text-transform',
     'vertical-align', 'text-decoration',
+    'position', 'top', 'left', 'right', 'bottom',
+    'box-shadow', 'opacity', 'overflow', 'overflow-wrap', 'word-wrap', 'word-break',
+    'white-space', 'text-overflow', 'list-style', 'list-style-type',
   ]
   
   allProps.forEach(prop => {
     try {
       const value = computed.getPropertyValue(prop)
-      if (value && value !== 'none' && value !== 'auto' && value !== 'normal' && 
-          value !== '0px' && value !== '0' && !value.includes('var(') && value.trim()) {
+      // For background-image, also check getPropertyValue with important
+      let finalValue = value
+      if (prop === 'background-image' && !value) {
+        // Try to get background-image from background shorthand
+        const bg = computed.getPropertyValue('background')
+        if (bg && bg.includes('gradient')) {
+          finalValue = bg
+        }
+      }
+      
+      if (finalValue && finalValue !== 'none' && finalValue !== 'auto' && finalValue !== 'normal' && 
+          finalValue !== '0px' && finalValue !== '0' && !finalValue.includes('var(') && finalValue.trim()) {
         // Check if this property is already in style
         const propRegex = new RegExp(`${prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*[^;]+`, 'i')
         if (!propRegex.test(style)) {
-          style = `${style} ${prop}: ${value};`.trim()
+          style = `${style} ${prop}: ${finalValue};`.trim()
+        } else {
+          // Update existing value if it's a gradient or important style
+          if (finalValue.includes('gradient') || prop === 'background' || prop === 'background-image') {
+            style = style.replace(propRegex, `${prop}: ${finalValue}`)
+          }
         }
       }
     } catch (e) {
       // Skip if property access fails
     }
   })
+  
+  // Special handling for background gradients - preserve the full background value
+  try {
+    const bg = computed.getPropertyValue('background')
+    if (bg && bg.includes('gradient') && !style.includes('background:')) {
+      style = `${style} background: ${bg};`.trim()
+    }
+    // Also preserve background-image separately if it's a gradient
+    const bgImage = computed.getPropertyValue('background-image')
+    if (bgImage && bgImage !== 'none' && bgImage.includes('gradient')) {
+      if (!style.includes('background-image:')) {
+        style = `${style} background-image: ${bgImage};`.trim()
+      }
+    }
+  } catch (e) {
+    // Skip if fails
+  }
   
   if (style) {
     element.setAttribute('style', style)
@@ -230,21 +265,75 @@ export async function capturePreviewHTML(): Promise<string> {
   // Wait a bit for React to finish rendering
   await new Promise(resolve => setTimeout(resolve, 500))
   
-  let previewElement = document.querySelector('.preview-resume-container') as HTMLElement
+  // Try multiple selectors to find the preview element
+  let previewElement: HTMLElement | null = null
+  
+  // First, try to find the preview-resume-container (used by BaseTemplate)
+  previewElement = document.querySelector('.preview-resume-container') as HTMLElement
+  
+  // If not found, try finding it within the a4-page-view wrapper
+  if (!previewElement) {
+    const pageView = document.querySelector('.a4-page-view')
+    if (pageView) {
+      previewElement = pageView.querySelector('.preview-resume-container') as HTMLElement
+    }
+  }
   
   // Try alternative selectors if main one fails
   if (!previewElement) {
     previewElement = document.querySelector('#resume-preview-container') as HTMLElement
   }
   
+  // Try finding any element with preview-resume-container class, even if nested
   if (!previewElement) {
+    const allContainers = document.querySelectorAll('.preview-resume-container')
+    if (allContainers.length > 0) {
+      // Get the last one (most likely the visible one)
+      previewElement = allContainers[allContainers.length - 1] as HTMLElement
+    }
+  }
+  
+  // Last resort: try to find the preview panel wrapper
+  if (!previewElement) {
+    const previewPanel = document.querySelector('[class*="preview"], [class*="Preview"]')
+    if (previewPanel) {
+      previewElement = previewPanel.querySelector('.preview-resume-container') as HTMLElement || previewPanel as HTMLElement
+    }
+  }
+  
+  if (!previewElement) {
+    console.error('Available elements:', {
+      previewResumeContainers: document.querySelectorAll('.preview-resume-container').length,
+      a4PageViews: document.querySelectorAll('.a4-page-view').length,
+      allDivs: document.querySelectorAll('div').length
+    })
     throw new Error('Preview element not found. Make sure the resume preview is visible.')
   }
 
   // Check if element has content
   if (!previewElement.textContent || previewElement.textContent.trim().length === 0) {
-    throw new Error('Preview element is empty. Please wait for the resume to load.')
+    console.warn('Preview element found but appears empty. Waiting longer...')
+    // Wait a bit more for content to load
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // Check again
+    if (!previewElement.textContent || previewElement.textContent.trim().length === 0) {
+      throw new Error('Preview element is empty. Please wait for the resume to load and try again.')
+    }
   }
+  
+  console.log('Found preview element:', {
+    className: previewElement.className,
+    textLength: previewElement.textContent?.length,
+    childrenCount: previewElement.children.length,
+    innerHTML: previewElement.innerHTML.substring(0, 200)
+  })
+  
+  // Ensure the preview element is visible and scrolled into view
+  previewElement.scrollIntoView({ behavior: 'instant', block: 'center' })
+  
+  // Wait a moment for any layout shifts
+  await new Promise(resolve => setTimeout(resolve, 200))
 
   try {
     // Create a deep clone
@@ -254,154 +343,93 @@ export async function capturePreviewHTML(): Promise<string> {
     const hiddenElements = clone.querySelectorAll('[style*="display: none"], [style*="visibility: hidden"], [hidden]')
     hiddenElements.forEach(el => el.remove())
     
-    // Inline all computed styles from original to clone
-    inlineAllComputedStyles(clone, previewElement)
-    
-    // Convert flex layouts to table layout for WeasyPrint compatibility
-    const flexContainers = clone.querySelectorAll('.flex, [style*="display: flex"], [style*="display:flex"]')
-    flexContainers.forEach((cloned) => {
-      if (cloned instanceof HTMLElement) {
-        let style = cloned.getAttribute('style') || ''
-        
-        // Check if it's a flex container
-        if (style.includes('display: flex') || style.includes('display:flex') || cloned.classList.contains('flex')) {
-          // Convert to table
-          style = style.replace(/display:\s*[^;]+/gi, '').trim()
-          style = `display: table; width: 100%; table-layout: fixed; ${style}`.trim()
-          
-          // Get gap from style or computed
-          const gapMatch = style.match(/gap:\s*([^;]+)/i)
-          const gapValue = gapMatch ? gapMatch[1].trim() : '0'
-          
-          // Convert children to table cells
-          Array.from(cloned.children).forEach((child, childIdx) => {
-            if (child instanceof HTMLElement) {
-              let childStyle = child.getAttribute('style') || ''
-              
-              // Get width from style
-              const widthMatch = childStyle.match(/width:\s*([^;]+)/i)
-              const width = widthMatch ? widthMatch[1].trim() : null
-              
-              // Convert to table-cell
-              childStyle = childStyle.replace(/display:\s*[^;]+/gi, '').trim()
-              
-              if (width && width.includes('%')) {
-                childStyle = `display: table-cell; width: ${width}; vertical-align: top; ${childStyle}`.trim()
-              } else {
-                // Calculate width if not set
-                const totalChildren = cloned.children.length
-                const defaultWidth = `${100 / totalChildren}%`
-                childStyle = `display: table-cell; width: ${defaultWidth}; vertical-align: top; ${childStyle}`.trim()
-              }
-              
-              // Add gap as padding-right (except last child)
-              if (gapValue !== '0' && childIdx < cloned.children.length - 1) {
-                const gapNum = parseFloat(gapValue.replace('px', ''))
-                if (!isNaN(gapNum)) {
-                  childStyle = `${childStyle} padding-right: ${gapNum / 2}px;`.trim()
-                }
-              }
-              
-              child.setAttribute('style', childStyle)
-            }
-          })
-          
-          cloned.setAttribute('style', style)
-        }
-      }
-    })
-    
-    // Convert grid layouts to table layout for WeasyPrint compatibility (critical for two-column templates)
-    // We need to traverse both original and clone to get computed styles from original
-    function convertGridToTable(original: HTMLElement, cloned: HTMLElement): void {
-      const computedStyle = window.getComputedStyle(original)
-      const display = computedStyle.display
+    // Function to recursively copy ALL computed styles from original to clone
+    function copyAllStylesRecursive(original: HTMLElement, cloned: HTMLElement): void {
+      // Get computed styles from original
+      const computed = window.getComputedStyle(original)
+      let style = cloned.getAttribute('style') || ''
       
-      // Check if it's a grid container
-      if (display === 'grid' || original.getAttribute('style')?.includes('grid-template-columns')) {
-        let style = cloned.getAttribute('style') || ''
-        
-        // Extract grid-template-columns from computed style or inline style
-        const gridCols = computedStyle.gridTemplateColumns || original.getAttribute('style')?.match(/grid-template-columns:\s*([^;]+)/i)?.[1]?.trim()
-        
-        // Convert to table
-        style = style.replace(/display:\s*[^;]+/gi, '').trim()
-        style = style.replace(/grid-template-columns:\s*[^;]+/gi, '').trim()
-        style = style.replace(/grid-gap:\s*[^;]+/gi, '').trim()
-        style = style.replace(/gap:\s*[^;]+/gi, '').trim()
-        style = `display: table; width: 100%; table-layout: fixed; ${style}`.trim()
-        
-        // Get gap from computed style or inline style
-        const gapValue = computedStyle.gap || original.getAttribute('style')?.match(/gap:\s*([^;]+)/i)?.[1]?.trim() || '0'
-        
-        // Parse grid-template-columns to get column widths
-        let columnWidths: string[] = []
-        if (gridCols && gridCols !== 'none') {
-          // Handle formats like "50% 50%" or "1fr 1fr" or "40% 60%"
-          const cols = gridCols.split(/\s+/).filter(c => c.trim())
-          columnWidths = cols.map(col => {
-            if (col.includes('%')) {
-              return col
-            } else if (col.includes('fr')) {
-              // Convert fr to percentage
-              const frValue = parseFloat(col.replace('fr', '')) || 1
-              const totalFr = cols.reduce((sum, c) => sum + (parseFloat(c.replace('fr', '')) || 1), 0)
-              return `${(frValue / totalFr) * 100}%`
-            } else {
-              // Default to equal distribution
-              return `${100 / cols.length}%`
+      // Critical properties that MUST be preserved
+      const criticalProps = [
+        'background', 'background-image', 'background-color', 'background-size', 'background-position',
+        'color', 'font-family', 'font-size', 'font-weight', 'font-style',
+        'text-align', 'line-height', 'letter-spacing',
+        'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+        'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+        'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
+        'border-radius', 'border-color', 'border-style', 'border-width',
+        'width', 'height', 'max-width', 'min-width', 'max-height', 'min-height',
+        'display', 'position', 'top', 'left', 'right', 'bottom',
+        'box-shadow', 'opacity', 'overflow', 'text-transform',
+        'flex-direction', 'flex-wrap', 'gap', 'justify-content', 'align-items',
+        'vertical-align', 'white-space', 'word-wrap', 'word-break', 'overflow-wrap',
+      ]
+      
+      // Copy all critical properties
+      criticalProps.forEach(prop => {
+        try {
+          const value = computed.getPropertyValue(prop)
+          if (value && value !== 'none' && value !== 'auto' && value !== 'normal' && 
+              value !== '0px' && value !== '0' && !value.includes('var(') && value.trim()) {
+            // Check if property already exists in style
+            const propRegex = new RegExp(`${prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*[^;]+`, 'i')
+            if (!propRegex.test(style)) {
+              style = `${style} ${prop}: ${value};`.trim()
+            } else if (value.includes('gradient') || prop === 'background' || prop === 'background-image') {
+              // Update gradient/background values even if they exist
+              style = style.replace(propRegex, `${prop}: ${value}`)
             }
-          })
-        } else {
-          // Default to equal columns
-          const totalChildren = cloned.children.length
-          columnWidths = Array(totalChildren).fill(`${100 / totalChildren}%`)
+          }
+        } catch (e) {
+          // Skip if property access fails
         }
-        
-        // Convert children to table cells
-        Array.from(cloned.children).forEach((child, childIdx) => {
-          if (child instanceof HTMLElement && childIdx < original.children.length && original.children[childIdx] instanceof HTMLElement) {
-            let childStyle = child.getAttribute('style') || ''
-            
-            // Convert to table-cell
-            childStyle = childStyle.replace(/display:\s*[^;]+/gi, '').trim()
-            
-            const width = columnWidths[childIdx] || `${100 / cloned.children.length}%`
-            childStyle = `display: table-cell; width: ${width}; vertical-align: top; ${childStyle}`.trim()
-            
-            // Add gap as padding-right (except last child)
-            if (gapValue !== '0' && gapValue !== 'none' && childIdx < cloned.children.length - 1) {
-              const gapNum = parseFloat(gapValue.replace('px', '').replace('rem', '').replace('em', ''))
-              if (!isNaN(gapNum) && gapNum > 0) {
-                // Convert rem/em to px if needed (approximate)
-                const gapPx = gapValue.includes('rem') ? gapNum * 16 : (gapValue.includes('em') ? gapNum * 16 : gapNum)
-                childStyle = `${childStyle} padding-right: ${gapPx / 2}px;`.trim()
-              }
-            }
-            
-            child.setAttribute('style', childStyle)
-            
-            // Recursively process children
-            convertGridToTable(original.children[childIdx] as HTMLElement, child)
-          }
-        })
-        
-        cloned.setAttribute('style', style)
-      } else {
-        // Not a grid, but check children recursively
-        Array.from(cloned.children).forEach((child, childIdx) => {
-          if (child instanceof HTMLElement && childIdx < original.children.length && original.children[childIdx] instanceof HTMLElement) {
-            convertGridToTable(original.children[childIdx] as HTMLElement, child)
-          }
-        })
+      })
+      
+      // Special handling for gradients - get the full background value
+      try {
+        const bg = computed.getPropertyValue('background')
+        if (bg && bg.includes('gradient')) {
+          // Remove any existing background properties
+          style = style.replace(/background[^:]*:\s*[^;]+/gi, '')
+          style = `${style} background: ${bg};`.trim()
+        }
+        const bgImage = computed.getPropertyValue('background-image')
+        if (bgImage && bgImage !== 'none' && bgImage.includes('gradient')) {
+          style = style.replace(/background-image[^:]*:\s*[^;]+/gi, '')
+          style = `${style} background-image: ${bgImage};`.trim()
+        }
+      } catch (e) {
+        // Skip if fails
       }
+      
+      // Add print-color-adjust to preserve colors
+      if (!style.includes('print-color-adjust') && !style.includes('color-adjust')) {
+        style = `${style} -webkit-print-color-adjust: exact; print-color-adjust: exact;`.trim()
+      }
+      
+      if (style) {
+        cloned.setAttribute('style', style)
+      }
+      
+      // Recursively process children
+      Array.from(cloned.children).forEach((child, idx) => {
+        if (child instanceof HTMLElement && idx < original.children.length && original.children[idx] instanceof HTMLElement) {
+          copyAllStylesRecursive(original.children[idx] as HTMLElement, child)
+        }
+      })
     }
     
-    // Apply grid conversion starting from root
-    convertGridToTable(previewElement, clone)
+    // Copy ALL styles recursively
+    copyAllStylesRecursive(previewElement, clone)
     
-    // Map original elements to cloned elements and ensure styles
-    function mapAndStyleElements(original: HTMLElement, cloned: HTMLElement): void {
+    // Also run the inlineAllComputedStyles for any missed styles
+    inlineAllComputedStyles(clone, previewElement)
+    
+    // NOTE: WeasyPrint 60+ supports flexbox and grid, so we DON'T convert them to tables
+    // This preserves the original layout exactly as shown in the preview
+    
+    // Additional pass: ensure critical styles are preserved (backgrounds, gradients, text-align)
+    function ensureCriticalStyles(original: HTMLElement, cloned: HTMLElement): void {
       const computed = window.getComputedStyle(original)
       let style = cloned.getAttribute('style') || ''
       
@@ -409,15 +437,29 @@ export async function capturePreviewHTML(): Promise<string> {
       style = style.replace(/display:\s*none/gi, '').trim()
       style = style.replace(/visibility:\s*hidden/gi, '').trim()
       
+      // Preserve background/gradients - critical for styled templates
+      const background = computed.getPropertyValue('background')
+      if (background && background !== 'none' && background !== 'rgba(0, 0, 0, 0)' && !style.includes('background:')) {
+        style = `${style} background: ${background};`.trim()
+      }
+      
+      const bgImage = computed.getPropertyValue('background-image')
+      if (bgImage && bgImage !== 'none' && !style.includes('background-image:')) {
+        style = `${style} background-image: ${bgImage};`.trim()
+      }
+      
       // Ensure color is set
       const color = computed.color
-      if (color && color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent' && color !== 'rgb(255, 255, 255)') {
+      if (color && color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') {
         if (!style.includes('color:')) {
           style = `${style} color: ${color};`.trim()
         }
-      } else if (!style.includes('color:')) {
-        // Default to black
-        style = `${style} color: #000000;`.trim()
+      }
+      
+      // Ensure text-align is preserved (critical for centering)
+      const textAlign = computed.textAlign
+      if (textAlign && textAlign !== 'start' && !style.includes('text-align:')) {
+        style = `${style} text-align: ${textAlign};`.trim()
       }
       
       // Ensure font-size is set
@@ -442,18 +484,43 @@ export async function capturePreviewHTML(): Promise<string> {
       // Recursively process children
       Array.from(cloned.children).forEach((child, idx) => {
         if (child instanceof HTMLElement && idx < original.children.length && original.children[idx] instanceof HTMLElement) {
-          mapAndStyleElements(original.children[idx] as HTMLElement, child)
+          ensureCriticalStyles(original.children[idx] as HTMLElement, child)
         }
       })
     }
     
-    // Apply styles from original to clone
-    mapAndStyleElements(previewElement, clone)
+    // Final pass: ensure critical styles are preserved
+    ensureCriticalStyles(previewElement, clone)
     
     // Verify clone has content
     if (!clone.textContent || clone.textContent.trim().length === 0) {
       throw new Error('Failed to capture resume content. Please try again.')
     }
+    
+    // Remove max-width constraints to use full A4 width
+    function removeMaxWidthConstraints(element: HTMLElement): void {
+      let style = element.getAttribute('style') || ''
+      style = style
+        .replace(/max-width:\s*[^;]+/gi, '')
+        .replace(/maxWidth:\s*[^;]+/gi, '')
+        .trim()
+      if (style && !style.includes('width:')) {
+        style = `${style} width: 100%;`.trim()
+      } else if (!style.includes('width: 100%')) {
+        style = `${style} width: 100%;`.trim()
+      }
+      element.setAttribute('style', style)
+      
+      // Recursively process children
+      Array.from(element.children).forEach(child => {
+        if (child instanceof HTMLElement) {
+          removeMaxWidthConstraints(child)
+        }
+      })
+    }
+    
+    // Remove max-width from container and all children
+    removeMaxWidthConstraints(clone)
     
     const html = `
 <!DOCTYPE html>
@@ -463,55 +530,71 @@ export async function capturePreviewHTML(): Promise<string> {
   <style>
     @page {
       size: A4;
-      margin: 0.1cm;
+      margin: 0;
     }
     * {
       box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
     }
-    body {
+    html, body {
       margin: 0;
       padding: 0;
+      width: 100%;
+      height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       color: #000;
       background: white;
-      width: 100%;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .preview-resume-container {
-      width: 100%;
-      max-width: 100%;
-      margin: 0;
-      padding: 0;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0.5cm !important;
       background: white;
       color: #000;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      box-sizing: border-box;
     }
+    /* Remove any max-width constraints - use full A4 width */
+    * {
+      max-width: none !important;
+    }
+    .preview-resume-container * {
+      max-width: none !important;
+    }
+    /* Preserve all inline styles - don't override them */
+    [style] {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    /* Ensure gradients and backgrounds are preserved */
+    [style*="gradient"],
+    [style*="background"],
+    [style*="background-image"] {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      background-image: inherit !important;
+      background: inherit !important;
+    }
+    /* Preserve colors */
+    [style*="color"] {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    /* WeasyPrint 60+ supports flexbox and grid - preserve them */
     .flex {
-      display: table !important;
-      width: 100% !important;
-      table-layout: fixed !important;
+      display: flex !important;
     }
     div[style*="display: flex"], div[style*="display:flex"] {
-      display: table !important;
-      width: 100% !important;
-      table-layout: fixed !important;
+      /* Preserve flex display */
     }
     div[style*="display: grid"], div[style*="display:grid"] {
-      display: table !important;
-      width: 100% !important;
-      table-layout: fixed !important;
-    }
-    div[style*="grid-template-columns"] {
-      display: table !important;
-      width: 100% !important;
-      table-layout: fixed !important;
-    }
-    div[style*="display: table"] {
-      display: table !important;
-      width: 100% !important;
-      table-layout: fixed !important;
-    }
-    div[style*="display: table-cell"] {
-      display: table-cell !important;
-      vertical-align: top !important;
+      /* Preserve grid display */
     }
     .space-y-4 > * + * {
       margin-top: 1rem !important;
@@ -565,6 +648,12 @@ export async function capturePreviewHTML(): Promise<string> {
 
     console.log('Captured HTML length:', html.length)
     console.log('Clone text content preview:', clone.textContent?.substring(0, 500))
+    console.log('HTML preview (first 2000 chars):', html.substring(0, 2000))
+    
+    // Debug: Check for flex/grid in HTML
+    const hasFlex = html.includes('display: flex') || html.includes('display:flex')
+    const hasGrid = html.includes('display: grid') || html.includes('display:grid')
+    console.log('Layout check:', { hasFlex, hasGrid })
 
     return html
   } catch (error) {

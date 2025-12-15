@@ -1239,16 +1239,15 @@ const EditorPageContent = () => {
       saveToHistory()
     }
     
+    // Track export asynchronously (non-blocking)
     if (isAuthenticated && user?.email) {
-      try {
-        await fetch(`${config.apiBase}/api/user/track-export`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: user.email })
-        })
-      } catch (e) {
-        console.log('Failed to track export')
-      }
+      fetch(`${config.apiBase}/api/user/track-export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email })
+      }).catch(() => {
+        // Silently fail - don't block export
+      })
     }
 
     setIsExporting(true)
