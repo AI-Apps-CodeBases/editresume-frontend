@@ -300,7 +300,19 @@ async def export_html_to_pdf(payload: dict):
         logger.info(f"Converting HTML to PDF: {len(html_content)} characters")
 
         try:
-            pdf_bytes = HTML(string=html_content).write_pdf()
+            # WeasyPrint configuration for better CSS support
+            # WeasyPrint 60+ supports modern CSS including flexbox and grid
+            from weasyprint.css.targets import get_all_computed_styles
+            
+            pdf_bytes = HTML(
+                string=html_content,
+                base_url=None  # Prevent external resource loading issues
+            ).write_pdf(
+                optimize_images=False,  # Preserve image quality
+                presentational_hints=True,  # Better CSS support
+                # Enable modern CSS features
+                enable_hinting=True
+            )
             
             if not pdf_bytes or len(pdf_bytes) == 0:
                 logger.error("PDF generation returned empty bytes")

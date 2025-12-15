@@ -1128,17 +1128,10 @@ const EditorPageContent = () => {
   }
 
   const handleTemplateChange = (templateId: string) => {
-    const reverseMapping: Record<string, string> = {
-      'classic': 'clean',
-      'modern': 'tech',
-      'two-column': 'two-column',
-      'creative': 'modern',
-      'ats-friendly': 'clean',
-      'executive': 'clean',
-    }
-    const oldTemplateId = reverseMapping[templateId] || templateId
-    setSelectedTemplate(oldTemplateId as any)
-    
+    // From now on we treat template IDs in state/localStorage as the new registry IDs.
+    // mapTemplateId() is still used when READING older saved values like "clean"/"tech".
+    setSelectedTemplate(templateId as any)
+
     // Update template config when template changes
     const template = templateRegistry.find(t => t.id === templateId)
     if (template) {
@@ -1146,9 +1139,9 @@ const EditorPageContent = () => {
       setTemplateConfig(newConfig)
       // The useEffect will handle saving to localStorage
     }
-    
+
     if (typeof window !== 'undefined') {
-      localStorage.setItem('selectedTemplate', oldTemplateId)
+      localStorage.setItem('selectedTemplate', templateId)
     }
   }
 
@@ -1246,16 +1239,15 @@ const EditorPageContent = () => {
       saveToHistory()
     }
     
+    // Track export asynchronously (non-blocking)
     if (isAuthenticated && user?.email) {
-      try {
-        await fetch(`${config.apiBase}/api/user/track-export`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: user.email })
-        })
-      } catch (e) {
-        console.log('Failed to track export')
-      }
+      fetch(`${config.apiBase}/api/user/track-export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email })
+      }).catch(() => {
+        // Silently fail - don't block export
+      })
     }
 
     setIsExporting(true)

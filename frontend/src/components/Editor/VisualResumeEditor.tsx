@@ -926,7 +926,6 @@ export default function VisualResumeEditor({
         parts.push(
           <span key={`kw-${idx}-${match.index}`} className="bg-green-200 text-green-900 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
             {keywordText}
-            {match.count > 1 && <sup className="text-xs text-green-700 ml-0.5">{match.count}</sup>}
           </span>
         );
       }
@@ -1096,7 +1095,6 @@ export default function VisualResumeEditor({
               title={`${match.keyword} (${match.count}x)`}
             >
               {keywordText}
-              {match.count > 1 && <sup className="text-xs text-green-700 ml-0.5">{match.count}</sup>}
             </span>
           );
         }
