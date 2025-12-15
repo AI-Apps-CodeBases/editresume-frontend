@@ -5,12 +5,22 @@ import { twoColumnDefaultConfig } from './two-column/config'
 import { creativeDefaultConfig } from './creative/config'
 import { atsFriendlyDefaultConfig } from './ats-friendly/config'
 import { executiveDefaultConfig } from './executive/config'
+import { vibrantDefaultConfig } from './vibrant/config'
+import { gradientDefaultConfig } from './gradient/config'
+import { corporatePremiumDefaultConfig } from './corporate-premium/config'
+import { timelineDefaultConfig } from './timeline/config'
+import { infographicDefaultConfig } from './infographic/config'
 import ClassicTemplate from './classic/Template'
 import ModernTemplate from './modern/Template'
 import TwoColumnTemplate from './two-column/Template'
 import CreativeTemplate from './creative/Template'
 import AtsFriendlyTemplate from './ats-friendly/Template'
 import ExecutiveTemplate from './executive/Template'
+import VibrantTemplate from './vibrant/Template'
+import GradientTemplate from './gradient/Template'
+import CorporatePremiumTemplate from './corporate-premium/Template'
+import TimelineTemplate from './timeline/Template'
+import InfographicTemplate from './infographic/Template'
 
 export interface TemplateRegistryEntry {
   id: string
@@ -83,6 +93,56 @@ export const templateRegistry: TemplateRegistryEntry[] = [
     preview: '/templates/previews/executive.png',
     defaultConfig: executiveDefaultConfig,
     Component: ExecutiveTemplate,
+  },
+  {
+    id: 'vibrant',
+    name: 'Vibrant',
+    description: 'Bold color-block design with vibrant sections and high contrast',
+    category: 'creative',
+    atsScore: 75,
+    preview: '/templates/previews/vibrant.png',
+    defaultConfig: vibrantDefaultConfig,
+    Component: VibrantTemplate,
+  },
+  {
+    id: 'gradient',
+    name: 'Gradient',
+    description: 'Modern gradient design with smooth color transitions and contemporary styling',
+    category: 'modern',
+    atsScore: 80,
+    preview: '/templates/previews/gradient.png',
+    defaultConfig: gradientDefaultConfig,
+    Component: GradientTemplate,
+  },
+  {
+    id: 'corporate-premium',
+    name: 'Corporate Premium',
+    description: 'Sophisticated sidebar layout with executive styling and premium feel',
+    category: 'traditional',
+    atsScore: 88,
+    preview: '/templates/previews/corporate-premium.png',
+    defaultConfig: corporatePremiumDefaultConfig,
+    Component: CorporatePremiumTemplate,
+  },
+  {
+    id: 'timeline',
+    name: 'Timeline',
+    description: 'Visual timeline-based layout with chronological elements and date emphasis',
+    category: 'modern',
+    atsScore: 82,
+    preview: '/templates/previews/timeline.png',
+    defaultConfig: timelineDefaultConfig,
+    Component: TimelineTemplate,
+  },
+  {
+    id: 'infographic',
+    name: 'Infographic',
+    description: 'Icon-based design with visual hierarchy and modern graphics',
+    category: 'creative',
+    atsScore: 78,
+    preview: '/templates/previews/infographic.png',
+    defaultConfig: infographicDefaultConfig,
+    Component: InfographicTemplate,
   },
 ]
 

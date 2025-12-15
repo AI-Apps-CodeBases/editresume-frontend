@@ -1253,6 +1253,48 @@ const EditorPageContent = () => {
 
     setIsExporting(true)
     try {
+      // For PDF exports, use client-side HTML capture to match the live preview exactly
+      if (format === 'pdf' && !isCoverLetterExport) {
+        try {
+          const { exportPreviewAsPDF } = await import('@/lib/exportUtils')
+          const filename = resumeData.name ? `${resumeData.name.replace(/[^a-z0-9]/gi, '_')}_resume.pdf` : 'resume.pdf'
+          
+          console.log('Using client-side HTML capture for PDF export')
+          console.log('Looking for preview element...')
+          
+          await exportPreviewAsPDF(filename, config.apiBase)
+          
+          console.log('PDF export completed successfully')
+          setIsExporting(false)
+          
+          // Track export analytics
+          if (isAuthenticated && user?.email) {
+            try {
+              await fetch(`${config.apiBase}/api/user/track-export`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: user.email })
+              })
+            } catch (e) {
+              console.log('Failed to track export')
+            }
+          }
+          return
+        } catch (error) {
+          console.error('Client-side PDF export failed:', error)
+          console.error('Error details:', error instanceof Error ? error.message : String(error))
+          
+          // Show error to user instead of silently falling back
+          await showAlert({
+            type: 'error',
+            title: 'Export Failed',
+            message: `Failed to export PDF: ${error instanceof Error ? error.message : 'Unknown error'}. Please make sure the resume preview is visible and try again.`
+          })
+          setIsExporting(false)
+          return
+        }
+      }
+      
       const exportFormat = format === 'cover-letter-pdf' ? 'pdf' : format
       const exportUrl = `${config.apiBase}/api/resume/export/${exportFormat}`
       console.log('Export URL:', exportUrl)
