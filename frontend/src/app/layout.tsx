@@ -17,9 +17,22 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'editresume.io – Structured resume editor',
+  title: {
+    default: 'editresume.io – Structured resume editor',
+    template: '%s | editresume.io',
+  },
   description: 'Edit your resume like code — structured, clean, and exportable to PDF or DOCX.',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/icon.png', sizes: '48x48', type: 'image/png' },
+      { url: '/logo.jpg', sizes: 'any', type: 'image/jpeg' },
+    ],
+    apple: [
+      { url: '/apple-icon.png', sizes: '48x48', type: 'image/png' },
+    ],
+    shortcut: '/icon.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
