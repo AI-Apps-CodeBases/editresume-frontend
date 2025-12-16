@@ -119,7 +119,16 @@ const EditorPageContent = () => {
   const [comparisonVersions, setComparisonVersions] = useState<{ version1Id: number; version2Id: number } | null>(null)
   const [roomId, setRoomId] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
-  const [currentView, setCurrentView] = useState<'editor' | 'jobs' | 'resumes'>('editor')
+  const [currentView, setCurrentView] = useState<'editor' | 'jobs' | 'resumes'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const view = params.get('view')
+      if (view === 'jobs' || view === 'resumes') {
+        return view
+      }
+    }
+    return 'editor'
+  })
   const [latestCoverLetter, setLatestCoverLetter] = useState<string | null>(null)
 
   // Listen for cover letter selection from job detail view
@@ -846,6 +855,20 @@ const EditorPageContent = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return
     
+    const viewParam = searchParams.get('view')
+    if (viewParam === 'templates') {
+      setShowTemplateDesignPage(true)
+      return
+    } else if (viewParam === 'jobs' || viewParam === 'resumes') {
+      setCurrentView(viewParam)
+    } else if (viewParam === 'editor' || !viewParam) {
+      setCurrentView('editor')
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     // Check if user wants to upload a resume
     const isUploadResume = searchParams.get('upload') === 'true'
     if (isUploadResume) {
@@ -1125,6 +1148,9 @@ const EditorPageContent = () => {
       // The useEffect will handle saving to localStorage
     }
     setShowTemplateDesignPage(true)
+    const url = new URL(window.location.href)
+    url.searchParams.set('view', 'templates')
+    window.history.pushState({}, '', url.toString())
   }
 
   const handleTemplateChange = (templateId: string) => {
@@ -2155,7 +2181,12 @@ const EditorPageContent = () => {
         templateConfig={templateConfig}
         onTemplateChange={handleTemplateChange}
         onTemplateConfigUpdate={handleTemplateConfigUpdate}
-        onClose={() => setShowTemplateDesignPage(false)}
+        onClose={() => {
+          setShowTemplateDesignPage(false)
+          const url = new URL(window.location.href)
+          url.searchParams.delete('view')
+          window.history.pushState({}, '', url.toString())
+        }}
       />
     )
   }
@@ -2183,7 +2214,16 @@ const EditorPageContent = () => {
       <ModernEditorLayout
         resumeData={resumeData}
         onResumeUpdate={handleResumeDataChange}
-        onViewChange={setCurrentView}
+        onViewChange={(view) => {
+          setCurrentView(view)
+          const url = new URL(window.location.href)
+          if (view === 'editor') {
+            url.searchParams.delete('view')
+          } else {
+            url.searchParams.set('view', view)
+          }
+          window.history.pushState({}, '', url.toString())
+        }}
         currentView={currentView}
         template={selectedTemplate}
         templateConfig={templateConfig}

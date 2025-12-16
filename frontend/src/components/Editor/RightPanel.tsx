@@ -104,6 +104,19 @@ export default function RightPanel({
         }
       }
 
+      // Get previous score from localStorage
+      let prevScore: number | null = null
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('lastATSScore')
+        if (stored) {
+          try {
+            prevScore = parseInt(stored, 10)
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+
       const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
         headers: {
@@ -114,7 +127,8 @@ export default function RightPanel({
           job_description: jobDescriptionToUse,
           target_role: '',
           industry: '',
-          extracted_keywords: extractedKeywordsToUse || undefined
+          extracted_keywords: extractedKeywordsToUse || undefined,
+          previous_score: prevScore
         }),
       })
 
@@ -123,9 +137,15 @@ export default function RightPanel({
       }
 
       const data = await response.json()
-      setAtsScore(data.score || null)
+      const newScore = data.score || null
+      setAtsScore(newScore)
       setAiImprovements(data.improvements_count || 0)
       setAtsSuggestions(data.suggestions || [])
+      
+      // Store the new score for next calculation
+      if (newScore !== null && typeof window !== 'undefined') {
+        localStorage.setItem('lastATSScore', newScore.toString())
+      }
     } catch (error) {
       console.error('Error calculating ATS score:', error)
       setAtsScore(null)

@@ -36,6 +36,7 @@ class EnhancedATSPayload(BaseModel):
     target_role: Optional[str] = None
     industry: Optional[str] = None
     extracted_keywords: Optional[Dict[str, Any]] = None  # Extension-extracted keywords from LLM
+    previous_score: Optional[int] = None  # Previous ATS score to prevent decreases
 
 
 class AIImprovementPayload(BaseModel):

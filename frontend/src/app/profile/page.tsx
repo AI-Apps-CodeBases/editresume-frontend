@@ -109,7 +109,10 @@ function ProfilePageContent() {
   useEffect(() => {
     const checkAuth = setTimeout(() => {
       if (!isAuthenticated) {
-        router.push('/editor')
+        const currentPath = typeof window !== 'undefined' 
+          ? `${window.location.pathname}${window.location.search}`
+          : '/profile'
+        router.push(`/auth/login?next=${encodeURIComponent(currentPath)}`)
       } else {
         loadUserData()
         checkStatus()

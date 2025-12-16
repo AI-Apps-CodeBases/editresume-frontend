@@ -266,7 +266,8 @@ async def get_enhanced_ats_score(
             resume_data, 
             payload.job_description, 
             use_industry_standard=use_tfidf,
-            extracted_keywords=payload.extracted_keywords
+            extracted_keywords=payload.extracted_keywords,
+            previous_score=payload.previous_score
         )
 
         logger.info(f"Enhanced ATS analysis completed. Score: {result.get('score', 0)}")

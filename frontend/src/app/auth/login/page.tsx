@@ -45,8 +45,10 @@ function LoginPageContent() {
       const extensionAuth = searchParams.get('extensionAuth')
       if (extensionAuth === '1') {
         router.replace(`/?extensionAuth=1`)
+      } else if (next) {
+        router.replace(next)
       } else {
-        router.replace(next || '/editor')
+        router.replace('/')
       }
     } catch (err) {
       setError(getErrorMessage(err))
@@ -64,8 +66,10 @@ function LoginPageContent() {
       const extensionAuth = searchParams.get('extensionAuth')
       if (extensionAuth === '1') {
         router.replace(`/?extensionAuth=1`)
+      } else if (next) {
+        router.replace(next)
       } else {
-        router.replace(next || '/editor')
+        router.replace('/')
       }
     } catch (err) {
       setError(getErrorMessage(err))
