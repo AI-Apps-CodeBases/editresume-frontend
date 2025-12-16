@@ -82,6 +82,7 @@ export default function EnhancedATSScoreWidget({
     limit: number | null
     period: string
   } | null>(null)
+  const [previousScore, setPreviousScore] = useState<number | null>(null)
 
   const analyzeResume = async () => {
     // Check usage limit first
@@ -130,6 +131,23 @@ export default function EnhancedATSScoreWidget({
         }
       }
 
+      // Get previous score from localStorage or current result
+      let prevScore: number | null = null
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('lastATSScore')
+        if (stored) {
+          try {
+            prevScore = parseInt(stored, 10)
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+      // Use current result score if available and no stored score
+      if (prevScore === null && atsResult?.score !== undefined) {
+        prevScore = atsResult.score
+      }
+
       const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score${sessionId ? `?session_id=${sessionId}` : ''}`, {
         method: 'POST',
         headers,
@@ -137,7 +155,8 @@ export default function EnhancedATSScoreWidget({
           resume_data: cleanedResumeData,
           job_description: jobDescription,
           target_role: targetRole,
-          industry: industry
+          industry: industry,
+          previous_score: prevScore
         }),
       })
 
@@ -158,6 +177,13 @@ export default function EnhancedATSScoreWidget({
 
       const result = await response.json()
       setAtsResult(result)
+      
+      // Store the new score for next calculation
+      if (result.score !== undefined && typeof window !== 'undefined') {
+        localStorage.setItem('lastATSScore', result.score.toString())
+        setPreviousScore(result.score)
+      }
+      
       await refreshUsage()
     } catch (error) {
       console.error('Enhanced ATS analysis error:', error)

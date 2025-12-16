@@ -349,17 +349,19 @@ function calculateSkillsMatch(
     }
   });
 
-  const baseScore = totalWeight > 0 ? (matchingWeight / totalWeight) * 35 : 0;
+  const baseScore = totalWeight > 0 ? (matchingWeight / totalWeight) * 40 : 0;
   
   let bonus = 0;
   if (requiredTotalWeight > 0) {
     const requiredMatchPercentage = (requiredMatchingWeight / requiredTotalWeight) * 100;
     if (requiredMatchPercentage >= 90) {
-      bonus = 5;
+      bonus = 8; // Increased from 5 to 8
+    } else if (requiredMatchPercentage >= 75) {
+      bonus = 4; // New tier for 75-90%
     }
   }
 
-  const finalScore = Math.min(35, baseScore + bonus);
+  const finalScore = Math.min(40, baseScore + bonus);
   const matchCount = matchedKeywords.length;
   const totalCount = technicalKeywords.length;
   const requiredCount = technicalKeywords.filter(kw => kw.isRequired).length;
@@ -476,8 +478,8 @@ function calculateKeywordCoverage(
   };
 
   // Cap summary keywords to prevent over-weighting from summary-only keyword additions
-  // Only first 5 unique keywords from summary will contribute to keyword coverage
-  const MAX_SUMMARY_KEYWORDS = 5;
+  // Increased from 5 to 20 to allow more keywords from summary to contribute
+  const MAX_SUMMARY_KEYWORDS = 20;
   const summaryKeywordMappings = keywordMappings.filter(m => m.section === 'summary');
   const otherMappings = keywordMappings.filter(m => m.section !== 'summary');
   
@@ -505,8 +507,8 @@ function calculateKeywordCoverage(
       kw.keyword.toLowerCase() === mapping.keyword.toLowerCase()
     )?.weight || 5;
     
-    // Her bölümde maksimum 3 geçiş sayılsın (aşırı çarpmayı önlemek için)
-    const cappedOccurrences = Math.min(mapping.occurrences, 3);
+    // Cap occurrences per section to prevent over-weighting (increased from 3 to 5)
+    const cappedOccurrences = Math.min(mapping.occurrences, 5);
     
     // Calculate base contribution
     const contribution = sectionWeight * keywordWeight * cappedOccurrences;
@@ -520,30 +522,31 @@ function calculateKeywordCoverage(
     keywordOccurrences.set(mapping.keyword, current + mapping.occurrences);
   });
 
+  // Removed keyword stuffing penalty - allow natural keyword usage
+  // Only penalize extreme cases (50+ occurrences) to prevent abuse
   let stuffingPenalty = 0;
   keywordOccurrences.forEach((count, keyword) => {
-    // Daha esnek ceza: sadece 10'dan fazla geçerse ceza ver
-    // Ve daha küçük ceza çarpanı kullan
-    if (count > 10) {
-      stuffingPenalty += (count - 10) * 0.15; // 0.5'ten 0.15'e düşürüldü, eşik 5'ten 10'a çıkarıldı
+    // Only penalize extreme keyword stuffing (50+ occurrences)
+    if (count > 50) {
+      stuffingPenalty += (count - 50) * 0.05; // Very minimal penalty for extreme cases
     }
   });
 
   // Calculate base score with improved keyword contribution
-  // Scale weightedScore to fit within 27 points max for keyword coverage
-  const baseScore = totalWeight > 0 ? (weightedScore / totalWeight) * 27 : 0;
+  // Increased max from 27 to 40 to allow higher scores with more keywords
+  const baseScore = totalWeight > 0 ? (weightedScore / totalWeight) * 40 : 0;
   
-  // Apply bonus for keyword occurrences (ensures 2-4 points per occurrence in total score)
+  // Apply bonus for keyword occurrences - each occurrence contributes meaningfully
   // Calculate bonus based on total occurrences
-  const totalKeywordOccurrences = processedMappings.reduce((sum, m) => sum + Math.min(m.occurrences, 3), 0);
+  const totalKeywordOccurrences = processedMappings.reduce((sum, m) => sum + Math.min(m.occurrences, 5), 0);
   
-  // Each occurrence should contribute 2-4 points to total score
-  // Keyword coverage max is 27, so to get 2-4 points per occurrence:
-  // (bonus / 27) * 100 = 2-4 points → bonus = (2-4) * 27 / 100 = 0.54 - 1.08
-  const minBonusPerOccurrence = 0.54; // Minimum: ~2 points in total score
-  const maxBonusPerOccurrence = 1.08; // Maximum: ~4 points in total score
+  // Each occurrence should contribute 2-5 points to total score
+  // Keyword coverage max is 40, so to get 2-5 points per occurrence:
+  // (bonus / 40) * 100 = 2-5 points → bonus = (2-5) * 40 / 100 = 0.8 - 2.0
+  const minBonusPerOccurrence = 0.8; // Minimum: ~2 points in total score
+  const maxBonusPerOccurrence = 2.0; // Maximum: ~5 points in total score
   
-  // Calculate bonus: ensure at least 2 points per occurrence, but cap at 4 points
+  // Calculate bonus: ensure at least 2 points per occurrence, but cap at 5 points
   // Use a progressive bonus: start with minimum, but allow up to maximum based on keyword weight
   const baseBonus = totalKeywordOccurrences * minBonusPerOccurrence;
   const maxPossibleBonus = totalKeywordOccurrences * maxBonusPerOccurrence;
@@ -552,17 +555,17 @@ function calculateKeywordCoverage(
   // This ensures each occurrence contributes meaningfully while preventing over-scoring
   const bonusToAdd = Math.min(
     maxPossibleBonus,
-    Math.max(baseBonus, baseScore * 0.15) // At least minimum bonus, or 15% of base score
+    Math.max(baseBonus, baseScore * 0.20) // At least minimum bonus, or 20% of base score
   );
   
-  // Apply stuffing penalty first
+  // Apply minimal stuffing penalty (only for extreme cases)
   let finalScore = Math.max(0, baseScore - stuffingPenalty);
   
-  // Add bonus (ensures minimum 2 points per occurrence, max 4 points)
+  // Add bonus (ensures minimum 2 points per occurrence, max 5 points)
   finalScore = finalScore + bonusToAdd;
   
-  // Cap keyword coverage score at 27
-  finalScore = Math.min(27, finalScore);
+  // Cap keyword coverage score at 40 (increased from 27)
+  finalScore = Math.min(40, finalScore);
 
   return {
     score: Math.round(finalScore * 100) / 100,
@@ -805,10 +808,9 @@ export function calculateEnhancedATSScore(
     atsCompatibility.score
   );
 
-  // Cap keyword coverage contribution so total score doesn't exceed 95
-  // Maximum allowed keyword contribution = 95 - nonKeywordScore
-  const maxAllowedKeywordScore = Math.max(0, 95 - nonKeywordScore);
-  const cappedKeywordScore = Math.min(keywordCoverage.score, maxAllowedKeywordScore);
+  // Allow keyword coverage to contribute fully - no artificial cap
+  // Scores can reach 100 with strong keyword matching
+  const cappedKeywordScore = keywordCoverage.score;
 
   const totalScore = Math.round(
     nonKeywordScore + cappedKeywordScore
@@ -824,9 +826,9 @@ export function calculateEnhancedATSScore(
   return {
     totalScore: Math.min(100, Math.max(0, totalScore)),
     breakdown: {
-      skillsMatch: { ...skillsMatch, max: 35 },
+      skillsMatch: { ...skillsMatch, max: 40 },
       experienceRelevance: { ...experienceRelevance, max: 30 },
-      keywordCoverage: { ...keywordCoverage, max: 27 },
+      keywordCoverage: { ...keywordCoverage, max: 40 },
       education: { ...education, max: 10 },
       atsCompatibility: { ...atsCompatibility, max: 5 },
     },

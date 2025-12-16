@@ -2660,6 +2660,23 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }))
       };
 
+      // Get previous score from localStorage or current match result
+      let prevScore: number | null = null
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('lastATSScore')
+        if (stored) {
+          try {
+            prevScore = parseInt(stored, 10)
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+      // Use current match result score if available and no stored score
+      if (prevScore === null && matchResult?.match_analysis?.similarity_score !== undefined) {
+        prevScore = matchResult.match_analysis.similarity_score
+      }
+
       const matchRes = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2668,7 +2685,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           resume_data: cleanedResumeData,
           target_role: '',
           industry: '',
-          extracted_keywords: extractedKeywords || undefined  // Include if available
+          extracted_keywords: extractedKeywords || undefined,  // Include if available
+          previous_score: prevScore
         }),
       });
 
@@ -2697,6 +2715,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         const newScore = normalizedMatchData?.match_analysis?.similarity_score ?? null;
 
         setMatchResult(normalizedMatchData);
+        
+        // Store the new score for next calculation
+        if (newScore !== null && typeof window !== 'undefined') {
+          localStorage.setItem('lastATSScore', newScore.toString())
+        }
 
         // Track score change using functional update to get current value
         setCurrentATSScore((prevScore) => {
@@ -3111,6 +3134,23 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             })),
           };
 
+          // Get previous score from localStorage or current match result
+          let prevScore: number | null = null
+          if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('lastATSScore')
+            if (stored) {
+              try {
+                prevScore = parseInt(stored, 10)
+              } catch (e) {
+                // Ignore parse errors
+              }
+            }
+          }
+          // Use current match result score if available and no stored score
+          if (prevScore === null && matchResult?.match_analysis?.similarity_score !== undefined) {
+            prevScore = matchResult.match_analysis.similarity_score
+          }
+
           const matchResponse = await fetch(
             `${config.apiBase}/api/ai/enhanced_ats_score`,
             {
@@ -3120,7 +3160,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 job_description: jobDescription,
                 resume_data: cleanedResumeData,
                 target_role: '',
-                industry: ''
+                industry: '',
+                previous_score: prevScore
               }),
             }
           );
@@ -3132,6 +3173,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             const newScore = roundScoreValue(matchData.match_analysis?.similarity_score);
             setUpdatedATSScore(newScore);
             setMatchResult(normalizedMatchData);
+            
+            // Store the new score for next calculation
+            if (newScore !== null && typeof window !== 'undefined') {
+              localStorage.setItem('lastATSScore', newScore.toString())
+            }
             
             // Notify parent component of updated match result
             if (onMatchResult && normalizedMatchData) {

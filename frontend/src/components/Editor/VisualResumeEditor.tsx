@@ -629,7 +629,6 @@ export default function VisualResumeEditor({
     const newField = { id: fieldId, label: 'Custom Field', field: fieldName };
     setCustomContactFields([...customContactFields, newField]);
     onChange({ ...data, [fieldName]: '' });
-    setContactFieldOrder([...contactFieldOrder, fieldName]);
   };
 
   // Remove custom field
@@ -4694,6 +4693,15 @@ function ModernContactField({
   onRemove?: () => void
 }) {
   const isVisible = (data as any).fieldsVisible?.[fieldKey] !== false
+  const [isFocused, setIsFocused] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isFocused && contentRef.current) {
+      contentRef.current.textContent = value || label
+    }
+  }, [value, label, isFocused])
+
   return (
     <div className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg group border border-gray-100">
       <input
@@ -4707,11 +4715,19 @@ function ModernContactField({
       />
       <span className="text-sm flex-shrink-0">{icon}</span>
       <div
+        ref={contentRef}
         contentEditable
         suppressContentEditableWarning
         data-editable-type="field"
         data-field={fieldKey}
+        onFocus={(e) => {
+          setIsFocused(true)
+          if (!value && e.currentTarget.textContent === label) {
+            e.currentTarget.textContent = ''
+          }
+        }}
         onBlur={(e) => {
+          setIsFocused(false)
           const newValue = e.currentTarget.textContent || ''
           onChange({ ...data, [fieldKey]: newValue })
         }}
