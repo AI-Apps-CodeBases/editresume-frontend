@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import Tooltip from '@/components/Shared/Tooltip'
 
 const aiHighlights = [
   'Write polished bullet points in seconds.',
@@ -40,12 +41,21 @@ export default function HeroSection() {
               section is tailored, scannable, and ready to send.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <Link href="/upload" className="button-primary text-sm">
-                import your resume
-              </Link>
-              <Link href="/editor?new=true" className="button-secondary text-sm">
-                create a new resume
-              </Link>
+              <Tooltip text="Upload your existing resume file (PDF or DOCX) and we'll parse it into our editor for easy editing" position="bottom" color="gray">
+                <Link href="/upload" className="button-primary text-sm">
+                  import your resume
+                </Link>
+              </Tooltip>
+              <Tooltip text="Start from scratch with a blank template and build your resume step by step with AI assistance" position="bottom" color="gray">
+                <Link href="/editor?new=true" className="button-secondary text-sm">
+                  create a new resume
+                </Link>
+              </Tooltip>
+              <Tooltip text="Watch video tutorials to learn how to use EditResume and create professional resumes" position="bottom" color="gray">
+                <Link href="/tutorial" className="button-secondary text-sm">
+                  view tutorial
+                </Link>
+              </Tooltip>
             </div>
             <div className="mt-6">
               <a

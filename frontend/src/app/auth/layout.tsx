@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Account Access | editresume.io',
-  description: 'Sign in or create an account to access editresume.io features.'
+  title: 'Account Access',
+  description: 'Sign in or create an account to access editresume.io features.',
 }
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
