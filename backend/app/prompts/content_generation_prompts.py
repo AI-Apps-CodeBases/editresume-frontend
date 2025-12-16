@@ -160,18 +160,9 @@ def get_summary_from_experience_prompt(
     company_name: str | None = None,
 ) -> str:
     """Generate professional summary from work experience prompt."""
+    # Note: missing_keywords are already limited to 3-6 in the API endpoint
+    # This section is kept for backward compatibility but keywords are handled in keyword_guidance
     missing_kw_section = ""
-    if missing_keywords and len(missing_keywords) > 0:
-        # Limit to 5-8 missing keywords (use up to 8)
-        limited_missing = missing_keywords[:8]
-        missing_kw_section = f"""
-CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
-{', '.join(limited_missing)}
-
-These keywords are currently MISSING from your resume and MUST be incorporated 
-into the summary to improve ATS score. Use them naturally in context - they are 
-the highest priority for inclusion.
-"""
     
     company_warning = ""
     if company_name:
@@ -190,9 +181,8 @@ Work Experience:
 Skills:
 {skills_text if skills_text else 'To be extracted from experience'}
 
- Target Job Description Keywords (blend these naturally into the narrative):
+ Target Job Description Keywords (use 3-6 of these keywords naturally in the summary):
 {keyword_guidance}
-{missing_kw_section}
 {company_warning}
  Job Description Snapshot (for context):
 {job_description_excerpt if job_description_excerpt else 'Not provided'}
@@ -214,9 +204,9 @@ Requirements for the Professional Summary:
 7. Third-person perspective (avoid "I")
 8. Focus on impact and results
 9. Include industry-specific keywords for ATS systems
-10. Prioritize incorporating the provided priority and missing JD keywords verbatim when it fits naturally
-11. CRITICAL: The missing keywords listed above are HIGH PRIORITY - ensure they appear naturally in the summary
-12. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
+10. Use 3-6 of the provided JD keywords naturally - do not use more than 6 keywords
+11. Prioritize the most relevant keywords that fit naturally into the narrative
+12. Avoid keyword stuffing—ensure the summary flows smoothly while covering 3-6 keywords
 13. NEVER include any company names from the job description in the summary
 
 Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""

@@ -9,9 +9,11 @@ import { getAuthHeaders } from '@/lib/auth';
 import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
 import { calculateEnhancedATSScore } from '@/lib/atsScoring.enhanced';
+import { calculateEnhancedATSScoreV2 } from '@/lib/atsScoring.v2';
 import type { ExtensionKeywordData, LegacyATSScoreResult } from '@/lib/atsScoring.types';
 
-const USE_ENHANCED_ATS_SCORING = true;
+const USE_ENHANCED_ATS_SCORING = false ;
+const USE_V2_ATS_SCORING = true;
 
 function calculateLegacyATSScore(
   resumeData: any,
@@ -243,17 +245,9 @@ function calculateATSScore(
   extensionData?: ExtensionKeywordData
 ): ATSScoreResult | null {
   if (USE_ENHANCED_ATS_SCORING) {
-    const enhancedResult = calculateEnhancedATSScore(resumeData, jobDescription, extensionData);
-    
-    const legacyResult = calculateLegacyATSScore(resumeData, jobDescription, keywordBundle);
-    if (legacyResult) {
-      console.log('ATS Score Comparison:', {
-        legacy: legacyResult.score,
-        enhanced: enhancedResult.totalScore,
-        breakdown: enhancedResult.breakdown,
-        recommendations: enhancedResult.recommendations,
-      });
-    }
+    const enhancedResult = USE_V2_ATS_SCORING 
+      ? calculateEnhancedATSScoreV2(resumeData, jobDescription, extensionData)
+      : calculateEnhancedATSScore(resumeData, jobDescription, extensionData);
     
     return {
       score: enhancedResult.totalScore,
@@ -2525,11 +2519,41 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     
     const breakdown = estimatedATS.breakdown as any;
     const categories = [
-      { name: 'Skills Match', score: breakdown?.skillsMatch?.score || 0, max: breakdown?.skillsMatch?.max || 35, percentage: ((breakdown?.skillsMatch?.score || 0) / (breakdown?.skillsMatch?.max || 35)) * 100 },
-      { name: 'Experience Relevance', score: breakdown?.experienceRelevance?.score || 0, max: breakdown?.experienceRelevance?.max || 30, percentage: ((breakdown?.experienceRelevance?.score || 0) / (breakdown?.experienceRelevance?.max || 30)) * 100 },
-      { name: 'Keyword Coverage', score: breakdown?.keywordCoverage?.score || 0, max: breakdown?.keywordCoverage?.max || 27, percentage: ((breakdown?.keywordCoverage?.score || 0) / (breakdown?.keywordCoverage?.max || 27)) * 100 },
-      { name: 'Education', score: breakdown?.education?.score || 0, max: breakdown?.education?.max || 10, percentage: ((breakdown?.education?.score || 0) / (breakdown?.education?.max || 10)) * 100 },
-      { name: 'ATS Compatibility', score: breakdown?.atsCompatibility?.score || 0, max: breakdown?.atsCompatibility?.max || 5, percentage: ((breakdown?.atsCompatibility?.score || 0) / (breakdown?.atsCompatibility?.max || 5)) * 100 },
+      { 
+        name: 'Skills Match', 
+        score: breakdown?.skillsMatch?.score || 0, 
+        max: breakdown?.skillsMatch?.max || 20, 
+        percentage: ((breakdown?.skillsMatch?.score || 0) / (breakdown?.skillsMatch?.max || 20)) * 100,
+        tip: 'Add missing technical skills from the job description'
+      },
+      { 
+        name: 'Experience Relevance', 
+        score: breakdown?.experienceRelevance?.score || 0, 
+        max: breakdown?.experienceRelevance?.max || 25, 
+        percentage: ((breakdown?.experienceRelevance?.score || 0) / (breakdown?.experienceRelevance?.max || 25)) * 100,
+        tip: 'Use action verbs and quantify achievements'
+      },
+      { 
+        name: 'Keyword Coverage', 
+        score: breakdown?.keywordCoverage?.score || 0, 
+        max: breakdown?.keywordCoverage?.max || 45, 
+        percentage: ((breakdown?.keywordCoverage?.score || 0) / (breakdown?.keywordCoverage?.max || 45)) * 100,
+        tip: 'Add missing keywords naturally throughout your resume'
+      },
+      { 
+        name: 'Education', 
+        score: breakdown?.education?.score || 0, 
+        max: breakdown?.education?.max || 5, 
+        percentage: ((breakdown?.education?.score || 0) / (breakdown?.education?.max || 5)) * 100,
+        tip: 'Include degree information and relevant certifications'
+      },
+      { 
+        name: 'ATS Compatibility', 
+        score: breakdown?.atsCompatibility?.score || 0, 
+        max: breakdown?.atsCompatibility?.max || 5, 
+        percentage: ((breakdown?.atsCompatibility?.score || 0) / (breakdown?.atsCompatibility?.max || 5)) * 100,
+        tip: 'Use standard section headers (Experience, Education, Skills)'
+      },
     ];
     
     return categories.reduce((lowest, current) => 
@@ -2660,23 +2684,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }))
       };
 
-      // Get previous score from localStorage or current match result
-      let prevScore: number | null = null
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('lastATSScore')
-        if (stored) {
-          try {
-            prevScore = parseInt(stored, 10)
-          } catch (e) {
-            // Ignore parse errors
-          }
-        }
-      }
-      // Use current match result score if available and no stored score
-      if (prevScore === null && matchResult?.match_analysis?.similarity_score !== undefined) {
-        prevScore = matchResult.match_analysis.similarity_score
-      }
-
       const matchRes = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2685,8 +2692,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           resume_data: cleanedResumeData,
           target_role: '',
           industry: '',
-          extracted_keywords: extractedKeywords || undefined,  // Include if available
-          previous_score: prevScore
+          extracted_keywords: extractedKeywords || undefined  // Include if available
         }),
       });
 
@@ -2715,11 +2721,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         const newScore = normalizedMatchData?.match_analysis?.similarity_score ?? null;
 
         setMatchResult(normalizedMatchData);
-        
-        // Store the new score for next calculation
-        if (newScore !== null && typeof window !== 'undefined') {
-          localStorage.setItem('lastATSScore', newScore.toString())
-        }
 
         // Track score change using functional update to get current value
         setCurrentATSScore((prevScore) => {
@@ -2992,10 +2993,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         
         if (headerBulletIndex === -1) return;
 
-        // Find the correct insert position - after existing bullets for this entry, before the next header or end
-        // Start by finding where existing bullets for this entry end
-        let insertIndex = headerBulletIndex + 1;
-        
         // Find the next header bullet after the current header
         // All bullets between current header and next header belong to this entry
         let nextHeaderIndex = selectedSection.bullets.length; // Default to end if no next header
@@ -3009,37 +3006,25 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           }
         }
         
-        // Insert at the end of existing bullets for this entry (right before the next header)
-        // This ensures new bullets are appended after any existing bullets for the same entry
-        insertIndex = nextHeaderIndex;
-        
-        // Ensure insertIndex is valid: at least after the header, at most at the end
-        insertIndex = Math.max(headerBulletIndex + 1, Math.min(insertIndex, selectedSection.bullets.length));
-
-        // Check for existing bullets to avoid duplicates
-        const existingTexts = new Set(
-          selectedSection.bullets.map((b: any) =>
-            (b.text || '').replace(/^•\s*/, '').trim().toLowerCase()
-          )
+        // Remove all existing bullets for this entry (between header and next header)
+        // This prevents overlaying/overwriting - we replace instead of append
+        const bulletsToKeep = selectedSection.bullets.filter((_bullet: any, idx: number) => 
+          idx <= headerBulletIndex || idx >= nextHeaderIndex
         );
+        
+        // Normalize new bullet texts
         const normalizedTexts: string[] = [];
         bulletIndices.forEach((bulletIdx: number) => {
           const raw = generatedBullets[bulletIdx] || '';
           const normalized = raw.replace(/^•\s*/, '').trim();
-          if (!normalized) {
-            return;
+          if (normalized) {
+            normalizedTexts.push(normalized);
           }
-          const lower = normalized.toLowerCase();
-          if (existingTexts.has(lower)) {
-            return;
-          }
-          existingTexts.add(lower);
-          normalizedTexts.push(normalized);
         });
 
         if (!normalizedTexts.length) {
           assignmentResults.push(
-            `Skipped duplicate bullets for ${entry.companyName}`
+            `No valid bullets to add for ${entry.companyName}`
           );
           return;
         }
@@ -3062,30 +3047,29 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             id: `bullet-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`,
             text: formattedText,
             params: {
-              visible: true, // Explicitly set visible to true
+              visible: true,
               generatedKeywords: bulletKeywords // Store keywords used to generate this bullet
             },
           };
         });
 
-        // Insert new bullets at the calculated position
-        const beforeInsert = selectedSection.bullets.slice(0, insertIndex);
-        const afterInsert = selectedSection.bullets.slice(insertIndex);
+        // Insert new bullets right after the header (replacing old ones)
+        const headerBullet = bulletsToKeep[headerBulletIndex];
+        const afterHeader = bulletsToKeep.slice(headerBulletIndex + 1);
         
-        console.log('Inserting bullets:', {
+        console.log('Replacing bullets:', {
           entry: entry.companyName,
           headerBulletIndex,
-          insertIndex,
-          bulletsBefore: beforeInsert.length,
-          bulletsAfter: afterInsert.length,
+          removedBullets: nextHeaderIndex - headerBulletIndex - 1,
           newBulletsCount: newBullets.length,
           newBullets: newBullets.map(b => b.text.substring(0, 50))
         });
         
         selectedSection.bullets = [
-          ...beforeInsert,
+          ...bulletsToKeep.slice(0, headerBulletIndex),
+          headerBullet,
           ...newBullets,
-          ...afterInsert,
+          ...afterHeader,
         ];
 
         // Ensure we have a fresh copy of the bullets array
@@ -3134,23 +3118,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             })),
           };
 
-          // Get previous score from localStorage or current match result
-          let prevScore: number | null = null
-          if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('lastATSScore')
-            if (stored) {
-              try {
-                prevScore = parseInt(stored, 10)
-              } catch (e) {
-                // Ignore parse errors
-              }
-            }
-          }
-          // Use current match result score if available and no stored score
-          if (prevScore === null && matchResult?.match_analysis?.similarity_score !== undefined) {
-            prevScore = matchResult.match_analysis.similarity_score
-          }
-
           const matchResponse = await fetch(
             `${config.apiBase}/api/ai/enhanced_ats_score`,
             {
@@ -3160,8 +3127,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 job_description: jobDescription,
                 resume_data: cleanedResumeData,
                 target_role: '',
-                industry: '',
-                previous_score: prevScore
+                industry: ''
               }),
             }
           );
@@ -3173,11 +3139,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             const newScore = roundScoreValue(matchData.match_analysis?.similarity_score);
             setUpdatedATSScore(newScore);
             setMatchResult(normalizedMatchData);
-            
-            // Store the new score for next calculation
-            if (newScore !== null && typeof window !== 'undefined') {
-              localStorage.setItem('lastATSScore', newScore.toString())
-            }
             
             // Notify parent component of updated match result
             if (onMatchResult && normalizedMatchData) {
@@ -4387,32 +4348,243 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 <h3 className="text-sm font-semibold text-gray-900">📊 Score Breakdown</h3>
               </div>
 
+              {/* Quick Wins Panel - Prominent Position */}
+              {(() => {
+                const breakdown = (estimatedATS as any).breakdown as any;
+                // Handle both 'score' and 'totalScore' property names
+                const currentScore = (estimatedATS as any).score || (estimatedATS as any).totalScore || 0;
+                const quickWins: Array<{
+                  id: string;
+                  action: string;
+                  impact: number;
+                  category: string;
+                  priority: 'high' | 'medium' | 'low';
+                  keyword?: string;
+                }> = [];
+
+                // 1. Missing high-weight keywords (biggest impact - keyword coverage is 45 points)
+                if (highWeightMissingKeywords.length > 0) {
+                  highWeightMissingKeywords.slice(0, 3).forEach((kw, idx) => {
+                    const weight = kw.weight || 5;
+                    // Estimate: each high-weight keyword can contribute ~2-4 points to keyword coverage
+                    const estimatedImpact = Math.min(4, Math.max(2, Math.round(weight / 2.5)));
+                    quickWins.push({
+                      id: `keyword-${idx}`,
+                      action: `Add "${kw.keyword}" to your resume`,
+                      impact: estimatedImpact,
+                      category: 'Keywords',
+                      priority: weight >= 8 ? 'high' : 'medium',
+                      keyword: kw.keyword,
+                    });
+                  });
+                }
+
+                // 2. Skills improvements (20 points max)
+                const skillsScore = breakdown?.skillsMatch?.score || 0;
+                const skillsMax = breakdown?.skillsMatch?.max || 20;
+                const skillsGap = skillsMax - skillsScore;
+                if (skillsGap > 3) {
+                  const impact = Math.min(5, Math.round(skillsGap * 0.3));
+                  quickWins.push({
+                    id: 'skills-improvement',
+                    action: 'Add 2-3 missing technical skills from job description',
+                    impact,
+                    category: 'Skills',
+                    priority: skillsGap > 8 ? 'high' : 'medium',
+                  });
+                }
+
+                // 3. Experience improvements (25 points max)
+                const expScore = breakdown?.experienceRelevance?.score || 0;
+                const expMax = breakdown?.experienceRelevance?.max || 25;
+                const expGap = expMax - expScore;
+                if (expGap > 3) {
+                  const impact = Math.min(4, Math.round(expGap * 0.2));
+                  quickWins.push({
+                    id: 'experience-improvement',
+                    action: 'Add quantified achievements (numbers, percentages, metrics)',
+                    impact,
+                    category: 'Experience',
+                    priority: expGap > 12 ? 'high' : 'medium',
+                  });
+                }
+
+                // 4. Add keyword stuffing warning as a quick win if present
+                if (keywordStuffingWarnings.length > 0) {
+                  quickWins.push({
+                    id: 'keyword-stuffing',
+                    action: `Reduce overused keywords (${keywordStuffingWarnings.length} keywords used >10 times)`,
+                    impact: Math.min(3, keywordStuffingWarnings.length),
+                    category: 'Keywords',
+                    priority: 'high',
+                  });
+                }
+
+                // Sort by impact (highest first) and take top 5
+                const topQuickWins = quickWins
+                  .sort((a, b) => b.impact - a.impact)
+                  .slice(0, 5);
+
+                // Always show panel if we have any quick wins
+                if (topQuickWins.length === 0) {
+                  return null;
+                }
+
+                const totalPotentialImpact = topQuickWins.reduce((sum, win) => sum + win.impact, 0);
+                const projectedScore = Math.min(100, currentScore + totalPotentialImpact);
+
+                return (
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-4 mb-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">⚡</span>
+                        <h3 className="text-sm font-bold text-gray-900">Quick Wins</h3>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-gray-600">Potential Score</div>
+                        <div className="text-lg font-bold text-blue-600">
+                          {currentScore} → {projectedScore}
+                        </div>
+                        <div className="text-xs text-green-600 font-semibold">
+                          +{totalPotentialImpact} points
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {topQuickWins.map((win, idx) => (
+                        <div
+                          key={win.id}
+                          className={`bg-white rounded-lg p-2.5 border transition-all ${
+                            win.priority === 'high' 
+                              ? 'border-red-300 shadow-sm' 
+                              : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1">
+                              <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                win.priority === 'high'
+                                  ? 'bg-red-100 text-red-700'
+                                  : win.priority === 'medium'
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-green-100 text-green-700'
+                              }`}>
+                                {idx + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-semibold text-gray-900 mb-0.5">
+                                  {win.action}
+                                </div>
+                                <div className="text-[10px] text-gray-500">
+                                  {win.category} • {win.priority === 'high' ? 'High Priority' : 'Medium Priority'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex-shrink-0 text-right">
+                              <div className="text-sm font-bold text-green-600">
+                                +{win.impact}
+                              </div>
+                              <div className="text-[10px] text-gray-500">points</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <div className="text-[10px] text-gray-600 text-center">
+                        💡 Focus on the highest-impact items first to maximize your ATS score quickly
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
                 {(() => {
                   const breakdown = estimatedATS.breakdown as any;
                   const categories = [
-                    { name: 'Skills', score: breakdown?.skillsMatch?.score || 0, max: breakdown?.skillsMatch?.max || 35, key: 'skillsMatch' },
-                    { name: 'Experience', score: breakdown?.experienceRelevance?.score || 0, max: breakdown?.experienceRelevance?.max || 30, key: 'experienceRelevance' },
-                    { name: 'Keywords', score: breakdown?.keywordCoverage?.score || 0, max: breakdown?.keywordCoverage?.max || 27, key: 'keywordCoverage' },
-                    { name: 'Education', score: breakdown?.education?.score || 0, max: breakdown?.education?.max || 10, key: 'education' },
-                    { name: 'ATS', score: breakdown?.atsCompatibility?.score || 0, max: breakdown?.atsCompatibility?.max || 5, key: 'atsCompatibility' },
+                    { 
+                      name: 'Skills', 
+                      score: breakdown?.skillsMatch?.score || 0, 
+                      max: breakdown?.skillsMatch?.max || 20, 
+                      key: 'skillsMatch',
+                      icon: '🔧',
+                      description: 'Technical skills matching'
+                    },
+                    { 
+                      name: 'Experience', 
+                      score: breakdown?.experienceRelevance?.score || 0, 
+                      max: breakdown?.experienceRelevance?.max || 25, 
+                      key: 'experienceRelevance',
+                      icon: '💼',
+                      description: 'Experience quality & relevance'
+                    },
+                    { 
+                      name: 'Keywords', 
+                      score: breakdown?.keywordCoverage?.score || 0, 
+                      max: breakdown?.keywordCoverage?.max || 45, 
+                      key: 'keywordCoverage',
+                      icon: '🎯',
+                      description: 'Keyword coverage (most important)'
+                    },
+                    { 
+                      name: 'Education', 
+                      score: breakdown?.education?.score || 0, 
+                      max: breakdown?.education?.max || 5, 
+                      key: 'education',
+                      icon: '🎓',
+                      description: 'Education & certifications'
+                    },
+                    { 
+                      name: 'ATS', 
+                      score: breakdown?.atsCompatibility?.score || 0, 
+                      max: breakdown?.atsCompatibility?.max || 5, 
+                      key: 'atsCompatibility',
+                      icon: '✅',
+                      description: 'ATS-friendly format'
+                    },
                   ];
                   
                   return categories.map((cat) => {
                     const percentage = (cat.score / cat.max) * 100;
                     const isLowest = lowestCategory && lowestCategory.name.includes(cat.name);
+                    const potentialImprovement = cat.max - cat.score;
                     
                     return (
-                      <div key={cat.key} className={`rounded p-2 ${isLowest ? 'bg-red-50 border border-red-300' : 'bg-gray-50 border border-gray-200'}`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium text-gray-700">{cat.name}</span>
-                          <span className="text-xs font-bold text-gray-900">
-                            {Math.round(cat.score)}/{cat.max}
-                          </span>
+                      <div 
+                        key={cat.key} 
+                        className={`rounded-lg p-2.5 transition-all ${
+                          isLowest 
+                            ? 'bg-red-50 border-2 border-red-400 shadow-sm' 
+                            : percentage >= 80 
+                              ? 'bg-green-50 border border-green-200' 
+                              : percentage >= 60
+                                ? 'bg-yellow-50 border border-yellow-200'
+                                : 'bg-gray-50 border border-gray-200'
+                        }`}
+                        title={cat.description}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs">{cat.icon}</span>
+                            <span className="text-xs font-semibold text-gray-700">{cat.name}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-xs font-bold text-gray-900">
+                              {Math.round(cat.score)}/{cat.max}
+                            </span>
+                            {potentialImprovement > 0 && (
+                              <div className="text-[10px] text-gray-500">
+                                +{Math.round(potentialImprovement)} possible
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
                           <div
-                            className={`h-1.5 rounded-full ${
+                            className={`h-2 rounded-full transition-all ${
                               percentage >= 80 ? 'bg-green-500' :
                               percentage >= 60 ? 'bg-yellow-500' :
                               percentage >= 40 ? 'bg-orange-500' :
@@ -4421,8 +4593,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             style={{ width: `${Math.min(100, percentage)}%` }}
                           />
                         </div>
-                        {isLowest && (
-                          <span className="text-xs text-red-600 font-medium mt-0.5 block">Lowest</span>
+                        {isLowest && potentialImprovement > 0 && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-[10px] text-red-600 font-semibold">⚠️ Focus here</span>
+                            <span className="text-[10px] text-gray-500">
+                              Can gain {Math.round(potentialImprovement)} points
+                            </span>
+                          </div>
                         )}
                       </div>
                     );
@@ -4430,25 +4607,36 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 })()}
               </div>
 
-              {/* High-Weight Missing Keywords - Compact */}
-              {highWeightMissingKeywords.length > 0 && (
-                <div className="p-2 bg-orange-50 border border-orange-200 rounded text-xs mb-2">
-                  <span className="font-semibold text-orange-900">🔥 High-Impact: </span>
-                  <span className="text-orange-700">
-                    {highWeightMissingKeywords.slice(0, 5).map(kw => kw.keyword).join(', ')}
-                    {highWeightMissingKeywords.length > 5 && ` +${highWeightMissingKeywords.length - 5} more`}
-                  </span>
-                </div>
-              )}
-
-              {/* Keyword Stuffing Warnings - Compact */}
+              {/* Keyword Stuffing Warnings - Enhanced with Red Highlighting */}
               {keywordStuffingWarnings.length > 0 ? (
-                <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs mb-2">
-                  <span className="font-semibold text-yellow-900">⚠️ Overused: </span>
-                  <span className="text-yellow-700">
-                    {keywordStuffingWarnings.slice(0, 3).map(w => `"${w.keyword}" (${w.count}x)`).join(', ')}
-                    {keywordStuffingWarnings.length > 3 && ` +${keywordStuffingWarnings.length - 3} more`}
-                  </span>
+                <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg text-xs mb-3 shadow-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base">🚨</span>
+                    <span className="font-bold text-red-900">Keyword Stuffing Detected</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="text-red-800 font-semibold">
+                      These keywords are used more than 10 times (highlighted in red in editor):
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {keywordStuffingWarnings.slice(0, 5).map(w => (
+                        <span
+                          key={w.keyword}
+                          className="px-2.5 py-1 bg-red-200 text-red-900 font-bold rounded border border-red-400"
+                        >
+                          "{w.keyword}" ({w.count}x)
+                        </span>
+                      ))}
+                      {keywordStuffingWarnings.length > 5 && (
+                        <span className="px-2.5 py-1 bg-red-200 text-red-900 font-bold rounded border border-red-400">
+                          +{keywordStuffingWarnings.length - 5} more
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-red-700 text-[11px] mt-2 italic">
+                      💡 Tip: Reduce usage of these keywords to avoid ATS penalties. They are highlighted in red throughout your resume in the editor.
+                    </div>
+                  </div>
                 </div>
               ) : null}
 

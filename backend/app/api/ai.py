@@ -266,8 +266,7 @@ async def get_enhanced_ats_score(
             resume_data, 
             payload.job_description, 
             use_industry_standard=use_tfidf,
-            extracted_keywords=payload.extracted_keywords,
-            previous_score=payload.previous_score
+            extracted_keywords=payload.extracted_keywords
         )
 
         logger.info(f"Enhanced ATS analysis completed. Score: {result.get('score', 0)}")
@@ -1475,49 +1474,52 @@ async def generate_summary_from_experience(payload: dict):
         if company_name:
             missing_keywords = filter_company_names(missing_keywords, company_name)
 
-        combined_keywords = []
+        # Limit JD keywords for summary: min 3, max 6 keywords from JD
+        # Priority: missing_keywords > priority_keywords > high_frequency_keywords
+        jd_keywords_for_summary = []
         seen_keywords = set()
-
-        def append_keywords(sequence):
-            for keyword in sequence:
-                lower = keyword.lower()
-                if lower in seen_keywords:
-                    continue
+        
+        def add_keyword(keyword: str):
+            lower = keyword.lower().strip()
+            if lower and lower not in seen_keywords and len(lower) > 1:
                 seen_keywords.add(lower)
-                combined_keywords.append(keyword)
-
-        append_keywords(target_keywords)
-        append_keywords(priority_keywords)
-        append_keywords(missing_keywords)
-        append_keywords(high_frequency_keywords)
-        append_keywords(matching_keywords)
-
-        keyword_sections = []
-        if priority_keywords:
-            keyword_sections.append(
-                "Priority Keywords (must appear naturally):\n- "
-                + "\n- ".join(priority_keywords)
-            )
-        if missing_keywords:
-            keyword_sections.append(
-                "Missing JD Keywords to add:\n- " + "\n- ".join(missing_keywords)
-            )
-        if high_frequency_keywords:
-            keyword_sections.append(
-                "High-Frequency JD Keywords:\n- "
-                + "\n- ".join(high_frequency_keywords[:12])
-            )
-        if matching_keywords:
-            keyword_sections.append(
-                "Resume Keywords to keep strength on:\n- "
-                + "\n- ".join(matching_keywords[:12])
-            )
-
-        keyword_guidance = (
-            "\n\n".join(keyword_sections)
-            if keyword_sections
-            else "No additional keyword guidance provided."
-        )
+                jd_keywords_for_summary.append(keyword)
+        
+        # Priority order: missing > priority > high frequency
+        # Fill up to max 6 keywords
+        for kw in missing_keywords[:6]:
+            if len(jd_keywords_for_summary) >= 6:
+                break
+            add_keyword(kw)
+        
+        for kw in priority_keywords:
+            if len(jd_keywords_for_summary) >= 6:
+                break
+            add_keyword(kw)
+        
+        for kw in high_frequency_keywords:
+            if len(jd_keywords_for_summary) >= 6:
+                break
+            add_keyword(kw)
+        
+        # Ensure minimum 3 keywords if we have any available
+        if len(jd_keywords_for_summary) < 3:
+            # Try to get more from matching_keywords if needed (but these are from resume, not JD)
+            for kw in matching_keywords:
+                if len(jd_keywords_for_summary) >= 3:
+                    break
+                add_keyword(kw)
+        
+        # Limit to exactly 6 max (but ensure minimum 3 if available)
+        jd_keywords_for_summary = jd_keywords_for_summary[:6]
+        
+        # Build keyword guidance with limited keywords (3-6 keywords)
+        keyword_guidance = ""
+        if jd_keywords_for_summary:
+            keyword_guidance = f"""Job Description Keywords to include naturally (use these {len(jd_keywords_for_summary)} keywords):
+- {chr(10) + '- '.join(jd_keywords_for_summary)}"""
+        else:
+            keyword_guidance = "No additional keyword guidance provided."
 
         def sanitize_bullet_text(text_value):
             if not text_value:
@@ -1627,7 +1629,7 @@ async def generate_summary_from_experience(payload: dict):
                 if len(experience_phrases) >= 5:
                     break
 
-            keyword_snippet = ", ".join(combined_keywords[:6])
+            keyword_snippet = ", ".join(jd_keywords_for_summary)
             summary_parts = []
 
             if experience_phrases:
@@ -1646,18 +1648,9 @@ async def generate_summary_from_experience(payload: dict):
                 + " ".join(summary_parts)
             )
 
+        # Keywords are already limited to 3-6 in jd_keywords_for_summary above
+        # No need for separate missing_kw_section as it's included in keyword_guidance
         missing_kw_section = ""
-        if missing_keywords and len(missing_keywords) > 0:
-            # Limit to 5-8 missing keywords (use up to 8)
-            limited_missing = missing_keywords[:8]
-            missing_kw_section = f"""
-CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
-{', '.join(limited_missing)}
-
-These keywords are currently MISSING from your resume and MUST be incorporated 
-into the summary to improve ATS score. Use them naturally in context - they are 
-the highest priority for inclusion.
-"""
         
         company_warning = ""
         if company_name:
