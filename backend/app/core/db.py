@@ -41,7 +41,15 @@ DATABASE_URL = _parse_database_url(settings.database_url or os.getenv("DATABASE_
 
 def _create_engine(database_url: str) -> Engine:
     try:
-        engine = create_engine(database_url, pool_pre_ping=True, pool_recycle=300)
+        engine = create_engine(
+            database_url,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            pool_size=10,
+            max_overflow=20,
+            pool_timeout=30,
+            echo=False
+        )
         return engine
     except Exception as exc:  # pragma: no cover - startup safety net
         raise RuntimeError(f"Error creating database engine: {exc}") from exc
@@ -326,3 +334,34 @@ def migrate_schema() -> None:
                 )
             )
             conn.commit()
+
+        # Create indexes for jobs and resumes performance optimization
+        performance_indexes = [
+            ("idx_job_descriptions_user_id", "job_descriptions", "user_id"),
+            ("idx_job_descriptions_created_at", "job_descriptions", "created_at"),
+            ("idx_resumes_user_id", "resumes", "user_id"),
+            ("idx_resumes_updated_at", "resumes", "updated_at"),
+            ("idx_resume_versions_resume_id", "resume_versions", "resume_id"),
+            ("idx_resume_versions_resume_version", "resume_versions", "resume_id, version_number DESC"),
+        ]
+
+        for index_name, table_name, column_expr in performance_indexes:
+            result = conn.execute(
+                text(
+                    """
+                    SELECT indexname 
+                    FROM pg_indexes 
+                    WHERE tablename = :table_name 
+                    AND indexname = :index_name
+                    """
+                ),
+                {"table_name": table_name, "index_name": index_name},
+            )
+            row = result.fetchone()
+            if not row:
+                conn.execute(
+                    text(
+                        f"CREATE INDEX {index_name} ON {table_name}({column_expr})"
+                    )
+                )
+                conn.commit()
