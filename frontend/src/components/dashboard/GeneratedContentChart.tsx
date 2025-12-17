@@ -41,7 +41,7 @@ export function GeneratedContentChart({ data }: GeneratedContentChartProps) {
                             <Tooltip
                                 cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
                                 contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #E5E7EB', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                formatter={(value: number) => [`${value.toLocaleString()} tokens`, 'Tokens']}
+                                formatter={(value: number | undefined) => value !== undefined ? [`${value.toLocaleString()} tokens`, 'Tokens'] : ['0 tokens', 'Tokens']}
                                 labelStyle={{ fontWeight: 600, marginBottom: '4px' }}
                             />
                             <Legend
