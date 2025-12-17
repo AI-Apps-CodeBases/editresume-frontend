@@ -111,12 +111,12 @@ export default function TemplateDesignPage({
   const config = localConfig || templateRegistry.find((t) => t.id === currentTemplate)?.defaultConfig
 
   return (
-    <div className="fixed inset-0 z-[110] bg-gray-50 flex flex-col">
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div className="fixed inset-0 z-[110] bg-gradient-to-br from-primary-50/20 to-white flex flex-col">
+      <div className="bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-4 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 flex items-center gap-2 transition-colors shadow-sm"
+            className="px-4 py-2.5 text-sm font-semibold text-text-secondary bg-primary-50/50 border border-border-subtle rounded-lg hover:bg-primary-100 flex items-center gap-2 transition-all duration-200 shadow-sm hover:shadow-md"
           >
             <span className="text-lg">←</span>
             <span>Back to Editor</span>
@@ -128,15 +128,16 @@ export default function TemplateDesignPage({
         </div>
         <button
           onClick={onClose}
-          className="px-5 py-2.5 text-sm font-semibold text-white bg-purple-600 border border-purple-600 rounded-lg hover:bg-purple-700 transition-colors shadow-sm"
+          className="px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow button-primary"
+          style={{ background: 'var(--gradient-accent)' }}
         >
           Done
         </button>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="w-[40%] border-r border-gray-200 bg-white overflow-y-auto relative">
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 z-10 shadow-sm">
+        <div className="w-[40%] border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto relative">
+          <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-border-subtle px-4 py-3 z-10 shadow-sm">
             <button
               onClick={onClose}
               className="w-full px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2 transition-colors shadow-sm"
@@ -155,13 +156,13 @@ export default function TemplateDesignPage({
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-gray-100 p-8 flex items-start justify-center">
+        <div className="flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-8 flex items-start justify-center">
           <div className="w-full max-w-4xl">
             <div className="mb-4 text-center">
-              <h2 className="text-lg font-semibold text-gray-700 mb-2">Live Preview</h2>
-              <p className="text-xs text-gray-500">See your changes in real-time</p>
+              <h2 className="text-lg font-semibold text-text-primary mb-2">Live Preview</h2>
+              <p className="text-xs text-text-muted">See your changes in real-time</p>
             </div>
-            <div className="bg-white rounded-lg shadow-xl p-2">
+            <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card">
               <PreviewPanel
                 data={resumeData}
                 replacements={{}}

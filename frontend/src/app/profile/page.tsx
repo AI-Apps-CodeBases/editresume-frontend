@@ -333,7 +333,7 @@ function ProfilePageContent() {
         <div className="mb-4">
           <button
             onClick={() => router.push('/editor')}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-secondary bg-white/95 backdrop-blur-sm border border-border-subtle rounded-lg hover:bg-primary-50/50 hover:border-primary-300 transition-all duration-200 shadow-sm hover:shadow-md"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -394,9 +394,9 @@ function ProfilePageContent() {
           <div className="mt-8 space-y-6">
             {activeTab === 'overview' && (
               <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-gray-900">Account Overview</h2>
+                <h2 className="text-2xl font-bold text-text-primary">Account Overview</h2>
                 <div className="grid grid-cols-3 gap-6">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border-2 border-blue-200">
+                  <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-6 border-2 border-primary-200 shadow-sm hover:shadow-md transition-all duration-200">
                     <div className="mb-2">
                       <DocumentIcon size={32} color="#2563eb" />
                     </div>
@@ -419,24 +419,24 @@ function ProfilePageContent() {
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
+                <div className="bg-gradient-to-br from-primary-50/30 to-white rounded-xl p-6 border-2 border-border-subtle shadow-sm surface-card">
+                  <h3 className="text-lg font-bold text-text-primary mb-4">Quick Actions</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <a
                       href="/editor?new=true"
-                      className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all"
+                      className="flex items-center gap-3 p-4 bg-white/95 backdrop-blur-sm rounded-lg border-2 border-border-subtle hover:border-primary-400 hover:shadow-[0_12px_32px_rgba(15,23,42,0.1)] transition-all duration-200 surface-card"
                     >
                       <EditIcon size={24} color="currentColor" />
                       <div>
-                        <div className="font-semibold text-gray-900">Create Resume</div>
-                        <div className="text-xs text-gray-600">Start a new resume</div>
+                        <div className="font-semibold text-text-primary">Create Resume</div>
+                        <div className="text-xs text-text-muted">Start a new resume</div>
                       </div>
                     </a>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">LinkedIn Integration</h3>
+                <div className="bg-gradient-to-br from-primary-50/30 to-white rounded-xl p-6 border-2 border-border-subtle shadow-sm surface-card">
+                  <h3 className="text-lg font-bold text-text-primary mb-4">LinkedIn Integration</h3>
                   {linkedInStatus?.connected ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border-2 border-green-200">
@@ -461,8 +461,8 @@ function ProfilePageContent() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <div className="p-4 bg-white rounded-lg border-2 border-gray-200">
-                        <div className="text-sm text-gray-600 mb-3">
+                      <div className="p-4 bg-white/95 backdrop-blur-sm rounded-lg border-2 border-border-subtle shadow-sm surface-card">
+                        <div className="text-sm text-text-muted mb-3">
                           Connect your LinkedIn account to import profile data and share resumes directly to LinkedIn.
                         </div>
                         <button
@@ -485,7 +485,7 @@ function ProfilePageContent() {
             {activeTab === 'history' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-gray-900">Resume History</h2>
+                  <h2 className="text-2xl font-bold text-text-primary">Resume History</h2>
                   <button
                     onClick={() => {
                       localStorage.removeItem('resumeHistory')
@@ -502,11 +502,12 @@ function ProfilePageContent() {
                     <div className="flex justify-center mb-4">
                       <DocumentIcon size={64} color="#0f62fe" className="opacity-60" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">No resumes yet</h3>
-                    <p className="text-gray-600 mb-6">Create your first resume to see it here</p>
+                    <h3 className="text-xl font-bold text-text-primary mb-2">No resumes yet</h3>
+                    <p className="text-text-secondary mb-6">Create your first resume to see it here</p>
                     <a
                       href="/editor"
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                      className="inline-flex items-center gap-2 px-6 py-3 text-white rounded-xl font-semibold hover:shadow-glow transition-all duration-200 button-primary"
+                      style={{ background: 'var(--gradient-accent)' }}
                     >
                       Create Resume
                     </a>
@@ -516,15 +517,15 @@ function ProfilePageContent() {
                     {resumeHistory.map((resume) => (
                       <div
                         key={resume.id}
-                        className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border-2 border-gray-200 hover:border-blue-400 transition-all"
+                        className="flex items-center justify-between p-4 bg-white/95 backdrop-blur-sm rounded-xl border-2 border-border-subtle hover:border-primary-400 hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] transition-all duration-200 surface-card"
                       >
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xl">
                             📄
                           </div>
                           <div>
-                            <div className="font-semibold text-gray-900">{resume.name}</div>
-                            <div className="text-sm text-gray-600">
+                            <div className="font-semibold text-text-primary">{resume.name}</div>
+                            <div className="text-sm text-text-muted">
                               Template: {resume.template} • Last modified: {resume.lastModified}
                             </div>
                           </div>
@@ -542,7 +543,7 @@ function ProfilePageContent() {
             {activeTab === 'resumes' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-gray-900">Master Resumes</h2>
+                  <h2 className="text-2xl font-bold text-text-primary">Master Resumes</h2>
                   <button
                     onClick={fetchSavedResumes}
                     disabled={resumesLoading}
@@ -553,22 +554,23 @@ function ProfilePageContent() {
                 </div>
 
                 {resumesLoading && savedResumes.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
+                  <div className="text-center py-12 bg-gradient-to-br from-primary-50/30 to-white rounded-xl border-2 border-border-subtle shadow-sm surface-card">
                     <div className="flex justify-center mb-4">
                       <DocumentIcon size={48} color="#0f62fe" className="animate-pulse opacity-60" />
                     </div>
-                    <p className="text-gray-600">Loading resumes...</p>
+                    <p className="text-text-secondary">Loading resumes...</p>
                   </div>
                 ) : savedResumes.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-gray-200">
+                  <div className="text-center py-12 bg-gradient-to-br from-primary-50/30 to-white rounded-xl border-2 border-border-subtle shadow-sm surface-card">
                     <div className="flex justify-center mb-4">
                       <DocumentIcon size={64} color="#0f62fe" className="opacity-60" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">No saved resumes yet</h3>
-                    <p className="text-gray-600 mb-6">Save your resume from the editor to create a master resume that you can match with job descriptions.</p>
+                    <h3 className="text-xl font-bold text-text-primary mb-2">No saved resumes yet</h3>
+                    <p className="text-text-secondary mb-6">Save your resume from the editor to create a master resume that you can match with job descriptions.</p>
                     <a
                       href="/editor"
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                      className="inline-flex items-center gap-2 px-6 py-3 text-white rounded-xl font-semibold hover:shadow-glow transition-all duration-200 button-primary"
+                      style={{ background: 'var(--gradient-accent)' }}
                     >
                       Create Resume
                     </a>
@@ -578,15 +580,15 @@ function ProfilePageContent() {
                     {savedResumes.map((resume) => (
                       <div
                         key={resume.id}
-                        className="p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all shadow-sm"
+                        className="p-6 bg-gradient-to-br from-primary-50/50 to-purple-50/50 rounded-xl border-2 border-primary-200 hover:border-primary-400 hover:shadow-[0_12px_32px_rgba(15,23,42,0.1)] transition-all duration-200 shadow-sm surface-card"
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
-                            <h3 className="text-lg font-bold text-gray-900 mb-1">{resume.name}</h3>
+                            <h3 className="text-lg font-bold text-text-primary mb-1">{resume.name}</h3>
                             {resume.title && (
-                              <p className="text-sm text-gray-600 mb-2">{resume.title}</p>
+                              <p className="text-sm text-text-muted mb-2">{resume.title}</p>
                             )}
-                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <div className="flex items-center gap-2 text-xs text-text-muted">
                               {resume.version_count && (
                                 <span>v{resume.latest_version_number || resume.version_count} •</span>
                               )}
@@ -599,7 +601,8 @@ function ProfilePageContent() {
                         <div className="flex items-center gap-2 mt-4">
                           <a
                             href={`/editor?resumeId=${resume.id}${resume.latest_version_id ? `&resumeVersionId=${resume.latest_version_id}` : ''}`}
-                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-all font-semibold text-center"
+                            className="flex-1 px-4 py-2 text-white rounded-lg text-sm transition-all duration-200 font-semibold text-center shadow-sm hover:shadow-md button-primary"
+                            style={{ background: 'var(--gradient-accent)' }}
                           >
                             Edit
                           </a>
@@ -619,25 +622,25 @@ function ProfilePageContent() {
 
             {activeTab === 'billing' && (
               <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-gray-900">Billing & Subscription</h2>
+                <h2 className="text-2xl font-bold text-text-primary">Billing & Subscription</h2>
 
                 {subscriptionLoading ? (
-                  <div className="rounded-xl border-2 border-purple-200 bg-purple-50 py-10 text-center text-purple-700">
+                    <div className="rounded-xl border-2 border-primary-200 bg-primary-50/50 py-10 text-center text-primary-700 shadow-sm">
                     Checking subscription status…
                   </div>
                 ) : isPremiumMember ? (
                   <>
-                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
+                    <div className="bg-gradient-to-br from-primary-50/50 to-purple-50/50 rounded-xl p-6 border-2 border-primary-200 shadow-sm surface-card">
                       <div className="flex items-start justify-between">
                         <div>
-                          <h3 className="text-xl font-bold text-purple-900 mb-2">Premium Plan</h3>
-                          <p className="text-purple-700">Unlimited exports and premium templates</p>
+                          <h3 className="text-xl font-bold text-primary-900 mb-2">Premium Plan</h3>
+                          <p className="text-primary-700">Unlimited exports and premium templates</p>
                           <div className="mt-4 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold text-purple-900">$9.99</span>
-                            <span className="text-lg font-normal text-purple-700">/month</span>
-                            <span className="text-sm text-purple-600 ml-2">or $79/year</span>
+                            <span className="text-3xl font-bold text-primary-900">$9.99</span>
+                            <span className="text-lg font-normal text-primary-700">/month</span>
+                            <span className="text-sm text-primary-600 ml-2">or $79/year</span>
                           </div>
-                          <div className="mt-3 text-sm text-purple-800">
+                          <div className="mt-3 text-sm text-primary-800">
                             Status: <span className="font-semibold capitalize">{subscriptionStatus || 'active'}</span>
                             {nextBillingDate && (
                               <span className="ml-2">
@@ -652,24 +655,24 @@ function ProfilePageContent() {
 
                     {paymentHistory.length > 0 && (
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">Payment History</h3>
+                        <h3 className="text-lg font-bold text-text-primary mb-4">Payment History</h3>
                         <div className="space-y-2">
                           {paymentHistory.map((payment) => (
                             <div
                               key={payment.id}
-                              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                              className="flex items-center justify-between p-4 bg-white/95 backdrop-blur-sm rounded-lg border border-border-subtle shadow-sm surface-card"
                             >
                               <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
                                   ✓
                                 </div>
                                 <div>
-                                  <div className="font-semibold text-gray-900">{payment.plan}</div>
-                                  <div className="text-sm text-gray-600">{payment.date}</div>
+                                  <div className="font-semibold text-text-primary">{payment.plan}</div>
+                                  <div className="text-sm text-text-muted">{payment.date}</div>
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="font-bold text-gray-900">{payment.amount}</div>
+                                <div className="font-bold text-text-primary">{payment.amount}</div>
                                 <div className="text-sm text-green-600">{payment.status}</div>
                               </div>
                             </div>
@@ -693,12 +696,12 @@ function ProfilePageContent() {
                     </button>
                   </>
                 ) : (
-                  <div className="text-center py-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
+                  <div className="text-center py-12 bg-gradient-to-br from-primary-50/50 to-purple-50/50 rounded-xl border-2 border-primary-200 shadow-sm surface-card">
                     <div className="flex justify-center mb-4">
                       <DiamondIcon size={64} color="#0f62fe" />
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Upgrade to Premium</h3>
-                    <p className="text-gray-600 mb-4 max-w-md mx-auto">
+                    <h3 className="text-2xl font-bold text-text-primary mb-2">Upgrade to Premium</h3>
+                    <p className="text-text-secondary mb-4 max-w-md mx-auto">
                       Get unlimited access to all features and advanced tools
                     </p>
                     
@@ -706,31 +709,33 @@ function ProfilePageContent() {
                     <div className="flex justify-center gap-2 mb-6">
                       <button
                         onClick={() => setBillingPeriod('monthly')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                           billingPeriod === 'monthly'
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            ? 'text-white shadow-sm hover:shadow-md'
+                            : 'bg-primary-50/50 text-text-secondary hover:bg-primary-100 border border-border-subtle'
                         }`}
+                        style={billingPeriod === 'monthly' ? { background: 'var(--gradient-accent)' } : {}}
                       >
                         Monthly
                       </button>
                       <button
                         onClick={() => setBillingPeriod('annual')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                           billingPeriod === 'annual'
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            ? 'text-white shadow-sm hover:shadow-md'
+                            : 'bg-primary-50/50 text-text-secondary hover:bg-primary-100 border border-border-subtle'
                         }`}
+                        style={billingPeriod === 'annual' ? { background: 'var(--gradient-accent)' } : {}}
                       >
                         Annual
                       </button>
                     </div>
 
                     <div className="mb-6 text-center">
-                      <div className="text-4xl font-bold text-gray-900">
+                      <div className="text-4xl font-bold text-text-primary">
                         {billingPeriod === 'annual' ? '$79' : '$9.99'}
                       </div>
-                      <div className="text-gray-600 mt-1">
+                      <div className="text-text-secondary mt-1">
                         {billingPeriod === 'annual' ? 'per year' : 'per month'}
                         {billingPeriod === 'annual' && (
                           <span className="text-green-600 text-sm font-medium ml-2">Save $40</span>
@@ -739,41 +744,42 @@ function ProfilePageContent() {
                     </div>
 
                     <ul className="text-left max-w-md mx-auto mb-8 space-y-2">
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Unlimited PDF/DOCX exports
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> All premium templates
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Unlimited AI improvements
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Unlimited grammar checks
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Unlimited ATS scoring
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Unlimited cover letters
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Job match analytics & insights
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Version history & comparisons
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Collaboration & comments
                       </li>
-                      <li className="flex items-center gap-2 text-gray-700">
+                      <li className="flex items-center gap-2 text-text-secondary">
                         <span className="text-green-500">✓</span> Priority support
                       </li>
                     </ul>
                     <button
                       onClick={handleStartCheckout}
                       disabled={checkoutLoading || subscriptionLoading}
-                      className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="px-8 py-4 text-white rounded-xl font-bold text-lg hover:shadow-glow transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed button-primary"
+                      style={{ background: 'var(--gradient-accent)' }}
                     >
                       {checkoutLoading ? 'Redirecting…' : `Upgrade to Premium (${billingPeriod === 'annual' ? '$79/year' : '$9.99/month'})`}
                     </button>
