@@ -104,18 +104,9 @@ export default function RightPanel({
         }
       }
 
-      // Get previous score from localStorage
-      let prevScore: number | null = null
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('lastATSScore')
-        if (stored) {
-          try {
-            prevScore = parseInt(stored, 10)
-          } catch (e) {
-            // Ignore parse errors
-          }
-        }
-      }
+      // Don't send previous_score for auto-updates to ensure accurate absolute scores
+      // The backend's max(calculated_score, previous_score) logic prevents accurate scoring
+      // when resume content changes. Only calculate absolute scores for auto-updates.
 
       const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
@@ -127,8 +118,7 @@ export default function RightPanel({
           job_description: jobDescriptionToUse,
           target_role: '',
           industry: '',
-          extracted_keywords: extractedKeywordsToUse || undefined,
-          previous_score: prevScore
+          extracted_keywords: extractedKeywordsToUse || undefined
         }),
       })
 
