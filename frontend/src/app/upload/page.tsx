@@ -118,7 +118,7 @@ export default function UploadPage() {
             <div className="order-2 lg:order-1">
               <div className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-3xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-                <div className="relative rounded-3xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-8 shadow-2xl">
+                <div className="relative rounded-3xl border border-border-subtle bg-white/95 backdrop-blur-md p-8 shadow-[0_20px_60px_rgba(15,23,42,0.15)]">
                   <div className="mb-6 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-600 mb-2">Upload Resume</p>
@@ -149,7 +149,7 @@ export default function UploadPage() {
                     <Link
                       key={item.title}
                       href={item.href}
-                      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                      className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-white/95 backdrop-blur-sm p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-1 surface-card"
                     >
 
                       <div className="relative flex items-start gap-4">
@@ -172,7 +172,7 @@ export default function UploadPage() {
                       automationSignalRef.current += 1
                       setAutomationOpenSignal(automationSignalRef.current)
                     }}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 text-left w-full"
+                    className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-white/95 backdrop-blur-sm p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-1 text-left w-full surface-card"
                   >
 
                     <div className="relative flex items-start gap-4">
@@ -197,7 +197,7 @@ export default function UploadPage() {
         {/* What Happens After Import Section */}
         <section className="relative">
           <div className="absolute -inset-1 bg-gradient-to-r from-primary-200/20 via-purple-200/20 to-blue-200/20 rounded-3xl blur-xl"></div>
-          <div className="relative rounded-3xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-8 lg:p-12 shadow-xl">
+          <div className="relative rounded-3xl border border-border-subtle bg-white/95 backdrop-blur-md p-8 lg:p-12 shadow-[0_20px_60px_rgba(15,23,42,0.12)] surface-card">
             <div className="flex flex-wrap items-center justify-between gap-6 mb-10">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-100 border border-primary-200 mb-4">
@@ -206,7 +206,7 @@ export default function UploadPage() {
                 <h2 className="text-3xl lg:text-4xl font-bold text-slate-900">What happens after import?</h2>
                 <p className="mt-3 text-lg text-slate-600">See how we transform your resume into an editable masterpiece</p>
               </div>
-              <Link href="/editor" className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold hover:from-primary-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl hover:scale-105">
+              <Link href="/editor" className="px-6 py-3 rounded-xl text-white font-semibold transition-all duration-200 shadow-lg hover:shadow-glow hover:scale-105 button-primary" style={{ background: 'var(--gradient-accent)' }}>
                 Go to editor
               </Link>
             </div>
@@ -237,7 +237,7 @@ export default function UploadPage() {
                   borderColor: 'border-purple-200',
                 },
               ].map((item) => (
-                <div key={item.title} className={`group rounded-2xl border-2 ${item.borderColor} bg-gradient-to-br ${item.gradient} p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}>
+                <div key={item.title} className={`group rounded-2xl border-2 ${item.borderColor} bg-gradient-to-br ${item.gradient} p-6 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-1`}>
                   <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">{item.icon}</div>
                   <h3 className="text-xl font-bold text-slate-900 mb-3">{item.title}</h3>
                   <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>

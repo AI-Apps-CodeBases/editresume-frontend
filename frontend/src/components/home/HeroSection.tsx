@@ -13,7 +13,7 @@ export default function HeroSection() {
     <section className="relative overflow-hidden bg-gradient-to-b from-white via-[#f4f7ff] to-white">
       {/* Logo */}
       <div className="absolute top-6 left-6 z-20">
-        <Link href="/" className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm p-2 hover:shadow-md transition-shadow">
+        <Link href="/" className="flex items-center bg-white/95 backdrop-blur-md border border-border-subtle rounded-lg shadow-[0_4px_12px_rgba(15,23,42,0.08)] p-2 hover:shadow-[0_8px_20px_rgba(15,23,42,0.12)] transition-all duration-200">
           <Image 
             src="/logo.jpg" 
             alt="editresume.io" 
