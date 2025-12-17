@@ -346,6 +346,7 @@ async def test_db():
 async def startup_event():
     """Warm up database connection pool on startup"""
     from app.core.db import engine
+    logger = logging.getLogger(__name__)
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
