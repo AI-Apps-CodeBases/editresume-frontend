@@ -2543,7 +2543,7 @@ export default function VisualResumeEditor({
           <Tooltip text="Open navigation menu" color="gray" position="bottom">
             <button
               onClick={() => {/* TODO: Add mobile sidebar toggle */ }}
-              className="bg-white shadow-lg rounded-lg p-3 border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="surface-card rounded-xl p-3 hover:shadow-glow transition-all duration-200 hover:-translate-y-0.5"
             >
               <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -2573,7 +2573,7 @@ export default function VisualResumeEditor({
         {/* Resume Editor Canvas */}
         <div className="h-full overflow-y-auto bg-gray-50 custom-scrollbar">
           {/* Editor Toolbar */}
-          <div ref={toolbarRef} className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3">
+          <div ref={toolbarRef} className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-3 shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
             <div className="flex items-center justify-between">
               {/* Breadcrumb */}
               <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -2597,7 +2597,7 @@ export default function VisualResumeEditor({
 
           {/* Keyword Highlighting Info - Sticky at top - Always visible when scrolling */}
           {jdKeywords && ((jdKeywords.matching?.length ?? 0) > 0 || calculatedKeywordUsageCounts?.size > 0) && (
-            <div className="sticky z-50 bg-white border-b-2 border-blue-300 px-6 py-3 shadow-lg w-full" style={{ top: `${toolbarHeight}px` }}>
+            <div className="sticky z-50 bg-white/95 backdrop-blur-md border-b-2 border-primary-400 px-6 py-3 shadow-[0_4px_16px_rgba(15,98,254,0.12)] w-full" style={{ top: `${toolbarHeight}px` }}>
               <div className="max-w-4xl mx-auto">
                 <div className="flex items-center gap-2 text-xs text-gray-700">
                   <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2627,7 +2627,7 @@ export default function VisualResumeEditor({
                 data-editable-type="field"
                 data-field="name"
                 onBlur={(e) => updateField('name', e.currentTarget.textContent || '')}
-                className="text-2xl font-bold text-gray-900 text-center outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text px-2 py-1"
+                className="text-2xl font-bold text-text-primary text-center outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-3 py-2"
               >
                 {data.name || 'Your Name'}
               </h1>
@@ -2676,7 +2676,7 @@ export default function VisualResumeEditor({
                                 data-editable-type="field"
                                 data-field="title"
                                 onBlur={(e) => updateField('title', e.currentTarget.textContent || '')}
-                                className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${(data as any).fieldsVisible?.title === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                className={`flex-1 text-sm outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text ${(data as any).fieldsVisible?.title === false ? 'text-text-muted line-through' : 'text-text-secondary'
                                   }`}
                               >
                                 {data.title || 'Click to edit title'}
@@ -2704,7 +2704,7 @@ export default function VisualResumeEditor({
                                     const value = e.currentTarget.textContent || '';
                                     onChange({ ...data, [customField.field]: value });
                                   }}
-                                  className={`flex-1 text-sm outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${(data as any).fieldsVisible?.[customField.field] === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                  className={`flex-1 text-sm outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text ${(data as any).fieldsVisible?.[customField.field] === false ? 'text-text-muted line-through' : 'text-text-secondary'
                                     }`}
                                 >
                                   {(data as any)[customField.field] || 'Click to edit custom title'}
@@ -2726,7 +2726,7 @@ export default function VisualResumeEditor({
                             <Tooltip text="Add a custom field to the title section" color="gray" position="top">
                               <button
                                 onClick={addCustomTitleField}
-                                className="w-full mt-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                                className="w-full mt-2 px-3 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 border-2 border-dashed border-border-subtle rounded-lg hover:border-primary-400 hover:bg-primary-50/50 transition-all duration-200 hover:shadow-sm"
                               >
                                 + Add Title Field
                               </button>
@@ -2873,7 +2873,7 @@ export default function VisualResumeEditor({
                                     shouldRehighlightRef.current = false;
                                   }, 300);
                                 }}
-                                className={`text-sm leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-blue-50 focus:bg-blue-50 transition-colors cursor-text border border-gray-200 relative z-10 ${
+                                className={`text-sm leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 transition-all duration-200 cursor-text border border-border-subtle relative z-10 ${
                                   ((jdKeywords?.matching?.length ?? 0) > 0 || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim()
                                     ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700'
                                     : 'text-gray-700'
@@ -2913,7 +2913,8 @@ export default function VisualResumeEditor({
                               <button
                                 onClick={generateSummaryFromExperience}
                                 disabled={isSummaryGenerating || !data.sections.length}
-                                className="mt-3 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                                className="mt-3 px-4 py-2 text-white rounded-lg text-xs font-semibold hover:shadow-glow transition-all duration-200 disabled:opacity-50 flex items-center gap-2 button-primary"
+                                style={{ background: 'var(--gradient-accent)' }}
                               >
                                 {isSummaryGenerating ? (
                                   <>
@@ -3052,7 +3053,8 @@ export default function VisualResumeEditor({
                                           onChange({ ...data, sections })
                                         }
                                       }}
-                                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                                      className="px-4 py-2 text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow flex items-center gap-2 button-primary"
+                                      style={{ background: 'var(--gradient-accent)' }}
                                     >
                                       <span>+</span> Add {section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work') ? 'Company' : 'Bullet Point'}
                                     </button>
@@ -3082,7 +3084,8 @@ export default function VisualResumeEditor({
                                         )
                                         onChange({ ...data, sections })
                                       }}
-                                      className="px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+                                      className="px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
+                                      style={{ background: 'var(--gradient-accent)' }}
                                     >
                                       <span>+</span> Add Skill
                                     </button>
@@ -3117,7 +3120,7 @@ export default function VisualResumeEditor({
                                   return (
                                     <div
                                       key={companyGroupId}
-                                      className={`bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow ${uncheckedBulletCount > 0 ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200'} ${headerBullet.params?.visible === false ? 'opacity-60 grayscale' : ''}`}
+                                      className={`surface-card rounded-xl p-5 transition-all duration-200 ${uncheckedBulletCount > 0 ? 'border-primary-300 bg-primary-50/40 border-2' : ''} ${headerBullet.params?.visible === false ? 'opacity-60 grayscale' : 'hover:shadow-glow hover:-translate-y-0.5'}`}
                                     >
                                       <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-3 flex-1">
@@ -3194,7 +3197,7 @@ export default function VisualResumeEditor({
                                                   const newText = `**${e.currentTarget.textContent || 'Company Name'} / ${locationText} / ${jobTitle} / ${dateRange}**`
                                                   updateBullet(section.id, headerBullet.id, newText)
                                                 }}
-                                                className={`text-lg font-bold outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-900'
+                                                className={`text-lg font-bold outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : 'text-text-primary'
                                                   }`}
                                               >
                                                 {companyName}
@@ -3213,7 +3216,7 @@ export default function VisualResumeEditor({
                                                   const newText = `**${companyName} / ${e.currentTarget.textContent || 'Location'} / ${jobTitle} / ${dateRange}**`
                                                   updateBullet(section.id, headerBullet.id, newText)
                                                 }}
-                                                className={`text-sm text-gray-600 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${headerBullet.params?.visible === false ? 'text-gray-400 line-through' : ''
+                                                className={`text-sm text-text-secondary outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : ''
                                                   }`}
                                               >
                                                 {location || 'Location'}
@@ -3233,7 +3236,7 @@ export default function VisualResumeEditor({
                                                   const newText = `**${companyName} / ${locationText} / ${e.currentTarget.textContent || 'Job Title'} / ${dateRange}**`
                                                   updateBullet(section.id, headerBullet.id, newText)
                                                 }}
-                                                className={`text-sm font-medium outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text ${headerBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-700'
+                                                className={`text-sm font-medium outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : 'text-text-secondary'
                                                   }`}
                                               >
                                                 {jobTitle}
@@ -3250,7 +3253,7 @@ export default function VisualResumeEditor({
                                                   const newText = `**${companyName} / ${locationText} / ${jobTitle} / ${e.currentTarget.textContent || 'Date Range'}**`
                                                   updateBullet(section.id, headerBullet.id, newText)
                                                 }}
-                                                className="text-sm text-gray-500 outline-none hover:bg-blue-50 focus:bg-blue-50 px-2 py-1 rounded transition-colors cursor-text"
+                                                className="text-sm text-text-muted outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text"
                                               >
                                                 {dateRange}
                                               </div>
@@ -3274,7 +3277,8 @@ export default function VisualResumeEditor({
                                                 })
                                                 setShowAIWorkExperience(true)
                                               }}
-                                              className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white text-xs font-semibold rounded-lg hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 transition-all shadow-md hover:shadow-lg flex items-center gap-1.5"
+                                              className="px-3 py-1.5 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow flex items-center gap-1.5 button-primary"
+                                              style={{ background: 'var(--gradient-accent)' }}
                                             >
                                               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                                                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -3295,7 +3299,7 @@ export default function VisualResumeEditor({
                                                 )
                                                 onChange({ ...data, sections })
                                               }}
-                                              className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 text-xs transition-all shadow-sm hover:shadow-md"
+                                              className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 text-xs transition-all duration-200 shadow-sm hover:shadow-md"
                                             >
                                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -3307,7 +3311,7 @@ export default function VisualResumeEditor({
                                       </div>
 
                                       {!isCompanyCollapsed && (
-                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                        <div className="bg-primary-50/30 border border-border-subtle rounded-xl p-4 surface-card">
                                           <div className="space-y-1.5">
                                             {companyBullets.filter(companyBullet => {
                                               const normalizedText = companyBullet.text?.trim() || ''
@@ -3397,7 +3401,7 @@ export default function VisualResumeEditor({
                                                           const text = e.currentTarget.textContent || '';
                                                           updateBullet(section.id, companyBullet.id, text);
                                                         }}
-                                                        className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : hasMatch && bulletMatch.matchedKeywords.length > 0 ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700' : 'text-gray-700'}`}
+                                                        className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary group-hover:text-text-secondary' : 'text-text-secondary'}`}
                                                         style={{ position: 'relative', zIndex: 10 }}
                                                       >
                                                         {(companyBullet.text || '').replace(/^•\s*/, '')}
@@ -3457,7 +3461,8 @@ export default function VisualResumeEditor({
                                                         }
                                                       }}
                                                       disabled={isAILoading}
-                                                      className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
+                                                      className="px-2 py-1 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow flex items-center gap-1 disabled:opacity-50 button-primary"
+                                                      style={{ background: 'var(--gradient-accent)' }}
                                                       title="✨ AI Improve - Enhance with missing JD keywords"
                                                     >
                                                       <span>{isAILoading ? '⏳' : '✨'}</span>
@@ -3691,7 +3696,7 @@ export default function VisualResumeEditor({
                                               const text = e.currentTarget.textContent || '';
                                               updateBullet(section.id, bullet.id, text);
                                             }}
-                                            className={`text-sm leading-relaxed outline-none hover:bg-blue-50 focus:bg-blue-50 rounded transition-colors cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700' : 'text-gray-700'}`}
+                                            className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary group-hover:text-text-secondary' : 'text-text-secondary'}`}
                                             style={{ position: 'relative', zIndex: 10 }}
                                           >
                                             {(bullet.text || '').replace(/^•\s*/, '')}
@@ -3754,7 +3759,8 @@ export default function VisualResumeEditor({
                                             }
                                           }}
                                           disabled={isAILoading}
-                                          className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded hover:from-blue-600 hover:to-purple-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1 disabled:opacity-50"
+                                          className="px-2 py-1 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow flex items-center gap-1 disabled:opacity-50 button-primary"
+                                          style={{ background: 'var(--gradient-accent)' }}
                                           title={jdKeywords 
                                             ? "✨ AI Improve - Enhance with JD keywords from job description" 
                                             : "✨ AI Improve - Enhance bullet point"}

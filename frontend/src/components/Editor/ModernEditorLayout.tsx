@@ -130,7 +130,7 @@ export default function ModernEditorLayout({
   }, [showLeftDrawer, showRightDrawer])
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-primary-50/30 via-white to-primary-50/20">
       <TopNavigationBar 
         onNewResume={onNewResume}
         onSaveResume={onSaveResume}
@@ -166,7 +166,7 @@ export default function ModernEditorLayout({
 
         <div className={`flex-1 lg:flex-[55] overflow-hidden transition-all duration-300 h-full ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
           {currentView === 'editor' ? (
-            <div className="h-full overflow-y-auto bg-gray-50 pb-20 lg:pb-0">
+            <div className="h-full overflow-y-auto bg-gradient-to-b from-primary-50/20 to-transparent pb-20 lg:pb-0">
               <VisualResumeEditor
                 data={resumeData}
                 onChange={onResumeUpdate || (() => {})}
@@ -216,15 +216,15 @@ export default function ModernEditorLayout({
             
             {showRightDrawer && (
               <div className="lg:hidden fixed inset-0 z-50">
-                <div className="absolute inset-0 bg-black/50" onClick={() => setShowRightDrawer(false)} />
-                <div className="absolute right-0 top-0 bottom-0 w-[90vw] max-w-md bg-white shadow-xl">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRightDrawer(false)} />
+                <div className="absolute right-0 top-0 bottom-0 w-[90vw] max-w-md bg-white shadow-[0_12px_48px_rgba(15,23,42,0.15)]">
                   <div className="h-full flex flex-col">
-                    <div className="flex items-center justify-between p-4 border-b">
-                      <h2 className="text-lg font-semibold">AI Tools</h2>
+                    <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-transparent">
+                      <h2 className="text-lg font-semibold text-text-primary">AI Tools</h2>
                       <Tooltip text="Close AI Tools panel" color="gray" position="left">
                         <button
                           onClick={() => setShowRightDrawer(false)}
-                          className="p-2 hover:bg-gray-100 rounded-lg touch-target"
+                          className="p-2 hover:bg-primary-50/50 rounded-lg touch-target transition-all duration-200"
                         >
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -255,12 +255,12 @@ export default function ModernEditorLayout({
       </div>
 
       {currentView === 'editor' && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-inset-bottom shadow-lg">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-border-subtle z-40 safe-area-inset-bottom shadow-[0_-4px_20px_rgba(15,23,42,0.08)]">
           <div className="flex items-center justify-around px-2 py-2">
             <Tooltip text="Open navigation menu" color="gray" position="top">
               <button
                 onClick={() => setShowLeftDrawer(true)}
-                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target"
+                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
               >
                 <span className="text-lg">📝</span>
                 <span className="font-medium">Menu</span>
@@ -269,7 +269,7 @@ export default function ModernEditorLayout({
             <Tooltip text="Open AI Tools panel" color="purple" position="top">
               <button
                 onClick={() => setShowRightDrawer(true)}
-                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target"
+                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
               >
                 <span className="text-lg">⚡</span>
                 <span className="font-medium">AI Tools</span>
@@ -289,7 +289,7 @@ export default function ModernEditorLayout({
               <Tooltip text="Save resume to your account" color="green" position="top">
                 <button
                   onClick={onSaveResume}
-                  className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target"
+                  className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
                 >
                   <span className="text-lg">💾</span>
                   <span className="font-medium">Save</span>
