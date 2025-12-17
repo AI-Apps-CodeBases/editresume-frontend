@@ -53,7 +53,7 @@ export function SubscriberChart({ data, totalSubscriptions = 0, subscriptionsCha
                         <Tooltip
                             cursor={{ fill: 'transparent' }}
                             contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                            formatter={(value: number) => [`Sales: ${value}`, '']}
+                            formatter={(value: number | undefined) => value !== undefined ? [`Sales: ${value}`, ''] : ['Sales: 0', '']}
                         />
                         <Bar dataKey="count" radius={[10, 10, 10, 10]} barSize={20}>
                             {data.map((entry, index) => (

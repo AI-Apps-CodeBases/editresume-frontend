@@ -71,7 +71,7 @@ export function SalesChart({ data, totalIncome = 0, incomeChange = 0 }: SalesCha
                         <Tooltip
                             contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                             itemStyle={{ color: '#4F46E5' }}
-                            formatter={(value: number) => [`$${value}`, 'Amount']}
+                            formatter={(value: number | undefined) => value !== undefined ? [`$${value}`, 'Amount'] : ['$0', 'Amount']}
                         />
                         <Area
                             type="monotone"
