@@ -44,9 +44,9 @@ export default function FeatureGrid() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="flex h-full flex-col gap-4 rounded-3xl border border-border-subtle bg-[#f8fbff] p-6 shadow-[0_12px_24px_rgba(15,23,42,0.04)]"
+              className="flex h-full flex-col gap-4 rounded-3xl border border-border-subtle bg-gradient-to-br from-primary-50/30 to-white p-6 shadow-[0_12px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.1)] transition-all duration-200 hover:-translate-y-1 surface-card"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xl shadow-[0_10px_22px_rgba(15,23,42,0.08)]">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xl shadow-[0_10px_22px_rgba(15,23,42,0.1)] hover:shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition-all duration-200">
                 {feature.icon}
               </span>
               <h3 className="text-lg font-semibold text-text-primary">{feature.title}</h3>

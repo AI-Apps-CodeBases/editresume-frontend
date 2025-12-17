@@ -2660,22 +2660,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }))
       };
 
-      // Get previous score from localStorage or current match result
-      let prevScore: number | null = null
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('lastATSScore')
-        if (stored) {
-          try {
-            prevScore = parseInt(stored, 10)
-          } catch (e) {
-            // Ignore parse errors
-          }
-        }
-      }
-      // Use current match result score if available and no stored score
-      if (prevScore === null && matchResult?.match_analysis?.similarity_score !== undefined) {
-        prevScore = matchResult.match_analysis.similarity_score
-      }
+      // Don't send previous_score for auto-updates to ensure accurate absolute scores
+      // The backend's max(calculated_score, previous_score) logic prevents accurate scoring
+      // when resume content changes. Only calculate absolute scores for auto-updates.
 
       const matchRes = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
@@ -2685,8 +2672,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           resume_data: cleanedResumeData,
           target_role: '',
           industry: '',
-          extracted_keywords: extractedKeywords || undefined,  // Include if available
-          previous_score: prevScore
+          extracted_keywords: extractedKeywords || undefined
         }),
       });
 
@@ -3134,22 +3120,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             })),
           };
 
-          // Get previous score from localStorage or current match result
-          let prevScore: number | null = null
-          if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('lastATSScore')
-            if (stored) {
-              try {
-                prevScore = parseInt(stored, 10)
-              } catch (e) {
-                // Ignore parse errors
-              }
-            }
-          }
-          // Use current match result score if available and no stored score
-          if (prevScore === null && matchResult?.match_analysis?.similarity_score !== undefined) {
-            prevScore = matchResult.match_analysis.similarity_score
-          }
+          // Don't send previous_score for score recalculation after applying improvements
+          // This ensures we get accurate absolute scores, not inflated ones
 
           const matchResponse = await fetch(
             `${config.apiBase}/api/ai/enhanced_ats_score`,
@@ -3160,8 +3132,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 job_description: jobDescription,
                 resume_data: cleanedResumeData,
                 target_role: '',
-                industry: '',
-                previous_score: prevScore
+                industry: ''
               }),
             }
           );

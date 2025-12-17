@@ -104,18 +104,9 @@ export default function RightPanel({
         }
       }
 
-      // Get previous score from localStorage
-      let prevScore: number | null = null
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('lastATSScore')
-        if (stored) {
-          try {
-            prevScore = parseInt(stored, 10)
-          } catch (e) {
-            // Ignore parse errors
-          }
-        }
-      }
+      // Don't send previous_score for auto-updates to ensure accurate absolute scores
+      // The backend's max(calculated_score, previous_score) logic prevents accurate scoring
+      // when resume content changes. Only calculate absolute scores for auto-updates.
 
       const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
         method: 'POST',
@@ -127,8 +118,7 @@ export default function RightPanel({
           job_description: jobDescriptionToUse,
           target_role: '',
           industry: '',
-          extracted_keywords: extractedKeywordsToUse || undefined,
-          previous_score: prevScore
+          extracted_keywords: extractedKeywordsToUse || undefined
         }),
       })
 
@@ -181,9 +171,9 @@ export default function RightPanel({
 
 
   return (
-    <div className="bg-white border-l border-gray-200 flex flex-col h-full w-full custom-scrollbar transition-all duration-300">
+    <div className="bg-white/95 backdrop-blur-sm border-l border-border-subtle flex flex-col h-full w-full custom-scrollbar transition-all duration-300 shadow-sm">
       {/* Tabs */}
-      <div className="flex items-center border-b border-gray-200 bg-gray-50">
+      <div className="flex items-center border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-transparent">
         {tabs.map((tab) => (
           <Tooltip 
             key={tab.id}
@@ -197,10 +187,10 @@ export default function RightPanel({
           >
             <button
               onClick={() => onTabChange?.(tab.id)}
-              className={`flex-1 flex flex-col items-center gap-1 px-2 sm:px-3 py-2 sm:py-2 text-xs font-medium transition-colors touch-target ${
+              className={`flex-1 flex flex-col items-center gap-1 px-2 sm:px-3 py-2.5 sm:py-2.5 text-xs font-medium transition-all duration-200 touch-target ${
                 activeTab === tab.id
-                  ? 'text-blue-600 bg-white border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  ? 'text-primary-700 bg-white border-b-2 border-primary-500 shadow-sm'
+                  : 'text-text-muted hover:text-text-primary hover:bg-primary-50/50'
               }`}
             >
               <span>{tab.icon}</span>
@@ -218,14 +208,14 @@ export default function RightPanel({
           <div className="p-4 h-full overflow-y-auto custom-scrollbar">
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Comments</h3>
+                <h3 className="text-lg font-semibold text-text-primary">Comments</h3>
                 <Tooltip text="Add a new comment to collaborate on your resume" color="blue" position="bottom">
-                  <button className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                  <button className="px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-all duration-200 shadow-sm hover:shadow-md">
                     + Add Comment
                   </button>
                 </Tooltip>
               </div>
-              <div className="text-center py-12 text-gray-400">
+              <div className="text-center py-12 text-text-muted">
                 <div className="text-4xl mb-2">💬</div>
                 <p className="text-sm">No comments yet</p>
                 <p className="text-xs mt-1">Add comments to collaborate with your team</p>
@@ -249,19 +239,19 @@ export default function RightPanel({
         )}
 
         {activeTab === 'live' && (
-          <div className="flex-1 overflow-y-auto bg-gray-50 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-primary-50/20 to-transparent custom-scrollbar">
             {resumeData && (resumeData.name || resumeData.sections?.length > 0) ? (
               <div className="flex flex-col h-full">
-                <div className="mb-3 sticky top-0 bg-gray-50 px-4 pt-3 pb-2 z-10 border-b border-gray-200">
+                <div className="mb-3 sticky top-0 bg-white/95 backdrop-blur-md px-4 pt-3 pb-2 z-10 border-b border-border-subtle shadow-sm">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-semibold text-gray-700">Live Preview</span>
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium capitalize">
+                      <span className="text-sm font-semibold text-text-primary">Live Preview</span>
+                      <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full font-medium capitalize shadow-sm">
                         {template}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                    <div className="flex items-center gap-1.5 text-xs text-text-muted">
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -269,7 +259,7 @@ export default function RightPanel({
                       <span>Auto-save enabled</span>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Real-time CV preview</p>
+                  <p className="text-xs text-text-muted">Real-time CV preview</p>
                 </div>
                 <div className="flex-1 flex items-start justify-center p-3 overflow-y-auto custom-scrollbar">
                   <PreviewPanel
@@ -299,8 +289,8 @@ export default function RightPanel({
               <div className="flex items-center justify-center h-full p-4">
                 <div className="text-center">
                   <div className="text-4xl mb-2">📄</div>
-                  <p className="text-sm text-gray-600 mb-1">No resume data</p>
-                  <p className="text-xs text-gray-500">Start editing to see live preview</p>
+                  <p className="text-sm text-text-secondary mb-1">No resume data</p>
+                  <p className="text-xs text-text-muted">Start editing to see live preview</p>
                 </div>
               </div>
             )}

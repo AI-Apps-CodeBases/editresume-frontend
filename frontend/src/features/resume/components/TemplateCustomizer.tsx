@@ -37,29 +37,29 @@ export function TemplateCustomizer({
   const [activeTab, setActiveTab] = useState<'templates' | 'customize'>('templates')
 
   return (
-    <div className="h-full flex flex-col bg-white">
-      <div className="border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50 p-4">
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Template & Design</h2>
-        <p className="text-sm text-gray-600">Choose templates and customize appearance</p>
+    <div className="h-full flex flex-col bg-white/95 backdrop-blur-sm">
+      <div className="border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-purple-50/30 p-4">
+        <h2 className="text-xl font-bold text-text-primary mb-2">Template & Design</h2>
+        <p className="text-sm text-text-muted">Choose templates and customize appearance</p>
       </div>
 
-      <div className="flex border-b border-gray-200 bg-gray-50">
+      <div className="flex border-b border-border-subtle bg-gradient-to-r from-primary-50/20 to-transparent">
         <button
           onClick={() => setActiveTab('templates')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
             activeTab === 'templates'
-              ? 'bg-white border-b-2 border-purple-600 text-purple-700'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              ? 'bg-white border-b-2 border-primary-500 text-primary-700 shadow-sm'
+              : 'text-text-muted hover:text-text-primary hover:bg-primary-50/50'
           }`}
         >
           Templates
         </button>
         <button
           onClick={() => setActiveTab('customize')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
             activeTab === 'customize'
-              ? 'bg-white border-b-2 border-purple-600 text-purple-700'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              ? 'bg-white border-b-2 border-primary-500 text-primary-700 shadow-sm'
+              : 'text-text-muted hover:text-text-primary hover:bg-primary-50/50'
           }`}
         >
           Customize
@@ -77,10 +77,10 @@ export function TemplateCustomizer({
         {activeTab === 'customize' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Customize Design</h3>
+              <h3 className="text-lg font-semibold text-text-primary">Customize Design</h3>
               <button
                 onClick={onResetConfig}
-                className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg"
+                className="px-3 py-1.5 text-xs text-text-muted hover:text-text-primary border border-border-subtle rounded-lg hover:bg-primary-50/50 transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 Reset to Default
               </button>

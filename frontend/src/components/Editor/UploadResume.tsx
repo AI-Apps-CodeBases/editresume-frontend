@@ -179,6 +179,14 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
     }
   }
 
+  const handleLabelClick = (e: React.MouseEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (fileInputRef.current && !isUploading && !isScanning) {
+      fileInputRef.current.click()
+    }
+  }
+
   const dropZone = (
     <div 
       className={`relative rounded-2xl border-2 border-dashed text-center transition-all duration-500 px-6 py-12 sm:px-8 sm:py-16 ${
@@ -306,6 +314,7 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
 
           <label
             htmlFor="file-upload"
+            onClick={handleLabelClick}
             className={`group relative inline-flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-primary-600 via-purple-600 to-blue-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-2xl transform hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none overflow-hidden ${
               isUploading || isScanning ? 'opacity-50 cursor-not-allowed' : ''
             }`}

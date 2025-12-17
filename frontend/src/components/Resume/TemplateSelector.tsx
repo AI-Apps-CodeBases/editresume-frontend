@@ -28,13 +28,13 @@ export default function TemplateSelector({ selected, onChange }: Props) {
   const displayTemplates = showAll ? templates : templates.slice(0, 6)
 
   return (
-    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-purple-200 p-4 shadow-sm">
+    <div className="bg-gradient-to-br from-primary-50/50 to-purple-50/50 rounded-2xl border-2 border-primary-200 p-4 shadow-sm surface-card">
       <div className="flex items-center justify-between mb-3">
-        <label className="text-sm font-bold text-gray-900">📄 Resume Template</label>
+        <label className="text-sm font-bold text-text-primary">📄 Resume Template</label>
         <a 
           href="/templates" 
           target="_blank"
-          className="text-xs text-purple-600 hover:text-purple-800 font-medium underline"
+          className="text-xs text-primary-600 hover:text-primary-800 font-medium underline transition-colors duration-200"
         >
           View All
         </a>
@@ -44,13 +44,13 @@ export default function TemplateSelector({ selected, onChange }: Props) {
           <button
             key={template.id}
             onClick={() => onChange(template.id)}
-            className={`p-2 rounded-lg border-2 transition text-left ${
+            className={`p-2 rounded-lg border-2 transition-all duration-200 text-left shadow-sm hover:shadow-md ${
               selected === template.id
-                ? 'border-purple-600 bg-purple-100'
-                : 'border-gray-200 bg-white hover:border-purple-300'
+                ? 'border-primary-500 bg-primary-100 shadow-md'
+                : 'border-border-subtle bg-white/95 backdrop-blur-sm hover:border-primary-300'
             }`}
           >
-            <div className="mb-2 bg-gray-50 rounded border overflow-hidden" style={{ height: '60px' }}>
+            <div className="mb-2 bg-primary-50/30 rounded border border-border-subtle overflow-hidden shadow-sm" style={{ height: '60px' }}>
               <img 
                 src={template.preview} 
                 alt={`${template.name} template preview`}
@@ -62,15 +62,15 @@ export default function TemplateSelector({ selected, onChange }: Props) {
                 }}
               />
             </div>
-            <div className="font-semibold text-xs text-gray-900">{template.name}</div>
-            <div className="text-[10px] text-gray-600 opacity-75">{template.industry}</div>
+            <div className="font-semibold text-xs text-text-primary">{template.name}</div>
+            <div className="text-[10px] text-text-muted opacity-75">{template.industry}</div>
           </button>
         ))}
       </div>
       {templates.length > 6 && !showAll && (
         <button
           onClick={() => setShowAll(true)}
-          className="w-full mt-2 py-2 text-xs text-purple-600 hover:text-purple-800 font-medium"
+          className="w-full mt-2 py-2 text-xs text-primary-600 hover:text-primary-800 font-medium transition-colors duration-200"
         >
           Show {templates.length - 6} more templates →
         </button>
@@ -78,7 +78,7 @@ export default function TemplateSelector({ selected, onChange }: Props) {
       {showAll && (
         <button
           onClick={() => setShowAll(false)}
-          className="w-full mt-2 py-2 text-xs text-purple-600 hover:text-purple-800 font-medium"
+          className="w-full mt-2 py-2 text-xs text-primary-600 hover:text-primary-800 font-medium transition-colors duration-200"
         >
           Show less ←
         </button>

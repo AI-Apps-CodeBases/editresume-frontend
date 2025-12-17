@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 from sqlalchemy import or_, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.dependencies import keyword_extractor
 from app.models import JobDescription, JobCoverLetter, JobResumeVersion, User, Resume, ResumeVersion
@@ -477,7 +477,12 @@ def list_user_job_descriptions(
             else:
                 logger.warning("No user_email provided - Firebase auth may have failed. Returning jobs with user_id IS NULL only.")
                 q = q.filter(JobDescription.user_id.is_(None))
-            items = q.order_by(JobDescription.created_at.desc()).limit(100).all()
+            items = (
+                q.options(selectinload(JobDescription.resume_versions))
+                .order_by(JobDescription.created_at.desc())
+                .limit(100)
+                .all()
+            )
             logger.info(f"Found {len(items)} job descriptions for user_email: {user_email}")
         else:
             # Columns don't exist - use raw SQL query

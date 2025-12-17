@@ -11,7 +11,8 @@ from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import func
 
 from app.api.models import ExportPayload, ResumePayload, SaveResumePayload
 from app.core.db import get_db
@@ -1102,6 +1103,7 @@ async def list_user_resumes(
         resumes = (
             db.query(Resume)
             .filter(Resume.user_id == user.id)
+            .options(selectinload(Resume.versions))
             .order_by(Resume.updated_at.desc())
             .all()
         )
@@ -1109,14 +1111,25 @@ async def list_user_resumes(
             f"list_user_resumes: Found {len(resumes)} resumes for user {user.id}"
         )
 
+        resume_ids = [r.id for r in resumes]
+        version_counts = {}
+        if resume_ids:
+            version_counts_query = (
+                db.query(
+                    ResumeVersion.resume_id,
+                    func.count(ResumeVersion.id).label('count')
+                )
+                .filter(ResumeVersion.resume_id.in_(resume_ids))
+                .group_by(ResumeVersion.resume_id)
+                .all()
+            )
+            version_counts = {rv.resume_id: rv.count for rv in version_counts_query}
+
         result = []
         for resume in resumes:
-            # Get latest version info
             latest_version = (
-                db.query(ResumeVersion)
-                .filter(ResumeVersion.resume_id == resume.id)
-                .order_by(ResumeVersion.version_number.desc())
-                .first()
+                max(resume.versions, key=lambda v: v.version_number)
+                if resume.versions else None
             )
 
             result.append(
@@ -1135,9 +1148,7 @@ async def list_user_resumes(
                     "latest_version_number": (
                         latest_version.version_number if latest_version else None
                     ),
-                    "version_count": db.query(ResumeVersion)
-                    .filter(ResumeVersion.resume_id == resume.id)
-                    .count(),
+                    "version_count": version_counts.get(resume.id, 0),
                 }
             )
 

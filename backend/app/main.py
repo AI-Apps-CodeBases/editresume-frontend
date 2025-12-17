@@ -9,6 +9,7 @@ from time import perf_counter
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -339,3 +340,16 @@ async def test_db():
         return {"status": "error", "message": f"Database error: {str(e)}"}
     finally:
         db.close()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Warm up database connection pool on startup"""
+    from app.core.db import engine
+    logger = logging.getLogger(__name__)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("Database connection pool warmed up")
+    except Exception as e:
+        logger.warning(f"Failed to warm up database connection: {e}")
