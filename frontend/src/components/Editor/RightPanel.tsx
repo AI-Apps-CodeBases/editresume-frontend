@@ -65,6 +65,85 @@ export default function RightPanel({
 
     setIsAnalyzing(true)
     try {
+      // Extract text from live preview only if already on 'live' tab
+      // Don't switch tabs automatically - preserve user's current view
+      let previewText = '';
+      let previewExtractionSuccess = false;
+      
+      // Only try to extract preview text if we're already on the 'live' tab
+      if (activeTab === 'live') {
+        try {
+          // Wait for preview container to be ready with retry mechanism
+          const maxRetries = 3;
+          let retryCount = 0;
+          let previewContainer = null;
+          
+          while (retryCount < maxRetries && !previewContainer) {
+            // Wait progressively longer on each retry
+            await new Promise(resolve => setTimeout(resolve, 100 + (retryCount * 50)));
+            
+            // Find the preview container in the DOM
+            previewContainer = document.querySelector('.preview-resume-container[data-preview-container]') || 
+                             document.querySelector('.preview-resume-container');
+            
+            // Check if container has meaningful content
+            if (previewContainer) {
+              const hasContent = previewContainer.textContent && previewContainer.textContent.trim().length > 50;
+              if (!hasContent) {
+                previewContainer = null; // Reset and retry
+              }
+            }
+            
+            retryCount++;
+          }
+          
+          if (previewContainer) {
+            // Clone to avoid modifying the original
+            const clone = previewContainer.cloneNode(true) as HTMLElement;
+            
+            // Remove non-text elements (buttons, inputs, page breaks, etc.)
+            clone.querySelectorAll(
+              'button, input, .no-print, .page-break-marker, .page-break-label, .page-number, .page-layout-indicator, [style*="display: none"], [style*="display:none"]'
+            ).forEach(el => el.remove());
+            
+            // Remove elements with display: none from computed styles
+            Array.from(clone.querySelectorAll('*')).forEach(el => {
+              try {
+                const computed = window.getComputedStyle(el);
+                if (computed.display === 'none' || computed.visibility === 'hidden') {
+                  el.remove();
+                }
+              } catch (e) {
+                // Skip if element is not in DOM
+              }
+            });
+            
+            // Extract text content
+            previewText = clone.innerText || clone.textContent || '';
+            
+            // Clean up extra whitespace but preserve structure
+            previewText = previewText
+              .replace(/\s+/g, ' ')  // Multiple spaces to single
+              .replace(/\n\s*\n/g, '\n')  // Multiple newlines to single
+              .trim();
+              
+            if (previewText.length > 50) {
+              previewExtractionSuccess = true;
+              console.log(`📄 Extracted preview text length: ${previewText.length}`);
+            } else {
+              console.warn('Preview container found but text content too short:', previewText.length);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to extract preview text, falling back to resume data:', e);
+        }
+      } else {
+        // Not on 'live' tab - will use resume_data extraction (backend handles this)
+        console.log('Not on live tab, using resume_data for ATS score calculation');
+      }
+
+      // Always prepare resume_data for backend (backend will use resume_text if available, otherwise extract from resume_data)
+      // This ensures consistency - if preview extraction fails, backend can still extract from resume_data
       const cleanedResumeData = {
         name: resumeData.name || '',
         title: resumeData.title || '',
@@ -75,13 +154,15 @@ export default function RightPanel({
         sections: (resumeData.sections || []).map((section: any) => ({
           id: section.id,
           title: section.title,
-          bullets: (section.bullets || []).map((bullet: any) => ({
-            id: bullet.id,
-            text: bullet.text,
-            params: {}
-          }))
+          bullets: (section.bullets || [])
+            .filter((bullet: any) => bullet?.params?.visible !== false)  // Filter out invisible bullets
+            .map((bullet: any) => ({
+              id: bullet.id,
+              text: bullet.text,
+              params: bullet.params || {}  // Preserve params instead of resetting
+            }))
         }))
-      }
+      };
 
       // Use job description if available (from deepLinkedJD or localStorage)
       let jobDescriptionToUse = deepLinkedJD || '';
@@ -114,7 +195,8 @@ export default function RightPanel({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resume_data: cleanedResumeData,
+          resume_text: previewExtractionSuccess ? previewText : undefined,  // Send extracted preview text if available
+          resume_data: cleanedResumeData,  // Always send resume_data for consistency (backend will use resume_text if available, otherwise extract from resume_data)
           job_description: jobDescriptionToUse,
           target_role: '',
           industry: '',
@@ -149,6 +231,27 @@ export default function RightPanel({
   useEffect(() => {
     if (analyzeTimeoutRef.current) {
       clearTimeout(analyzeTimeoutRef.current)
+    }
+
+    // Try to get score from match result first (more accurate - from Match JD tab)
+    if (typeof window !== 'undefined') {
+      try {
+        const savedMatchResult = localStorage.getItem('currentMatchResult')
+        if (savedMatchResult) {
+          const matchResult = JSON.parse(savedMatchResult)
+          const matchScore = matchResult?.match_analysis?.similarity_score
+          if (matchScore !== null && matchScore !== undefined && !isNaN(matchScore)) {
+            setAtsScore(Math.round(matchScore))
+            // Still calculate in background to keep it updated, but use match result for display
+            analyzeTimeoutRef.current = setTimeout(() => {
+              calculateATSScore()
+            }, 2000)
+            return
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load match result score:', e)
+      }
     }
 
     analyzeTimeoutRef.current = setTimeout(() => {
@@ -251,12 +354,51 @@ export default function RightPanel({
                         {template}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      <span>Auto-save enabled</span>
+                    <div className="flex items-center gap-3">
+                      {atsScore !== null && (
+                        <div className="flex items-center gap-2">
+                          <div className="relative inline-flex h-12 w-12 items-center justify-center">
+                            <svg viewBox="0 0 36 36" className="h-12 w-12">
+                              <path
+                                className="text-gray-200"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                fill="none"
+                                d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                              />
+                              <path
+                                className={atsScore >= 80 ? 'text-green-500' : atsScore >= 60 ? 'text-blue-500' : atsScore >= 40 ? 'text-yellow-500' : 'text-red-500'}
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeWidth="3"
+                                fill="none"
+                                strokeDasharray={`${atsScore}, 100`}
+                                d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <span className={`text-lg font-bold ${atsScore >= 80 ? 'text-green-600' : atsScore >= 60 ? 'text-blue-600' : atsScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                {Math.round(atsScore)}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                              Match Score
+                            </span>
+                            <span className="text-xs text-gray-600">
+                              {atsScore >= 80 ? 'Excellent' : atsScore >= 60 ? 'Strong' : atsScore >= 40 ? 'Fair' : 'Needs Work'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5 text-xs text-text-muted">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>Auto-save enabled</span>
+                      </div>
                     </div>
                   </div>
                   <p className="text-xs text-text-muted">Real-time CV preview</p>

@@ -30,6 +30,7 @@ from app.core.dependencies import (
     OPENAI_MODEL,
     ai_improvement_engine,
     ats_checker,
+    ats_scoring_agent,
     content_generation_agent,
     cover_letter_agent,
     enhanced_ats_checker,
@@ -103,6 +104,7 @@ async def health_check():
         "ats_checker": ats_checker is not None,
         "enhanced_ats_checker": enhanced_ats_checker is not None,
         "ai_improvement_engine": ai_improvement_engine is not None,
+        "ats_scoring_agent": ats_scoring_agent is not None,
         "content_generation_agent": content_generation_agent is not None,
         "cover_letter_agent": cover_letter_agent is not None,
         "improvement_agent": improvement_agent is not None,
@@ -235,26 +237,65 @@ async def get_enhanced_ats_score(
                 "error": "Enhanced ATS checker not available",
             }
 
-        # Convert ResumePayload to dict for EnhancedATSChecker
-        resume_data = {
-            "name": payload.resume_data.name,
-            "title": payload.resume_data.title,
-            "email": payload.resume_data.email,
-            "phone": payload.resume_data.phone,
-            "location": payload.resume_data.location,
-            "summary": payload.resume_data.summary,
-            "sections": [
-                {
-                    "id": section.id,
-                    "title": section.title,
-                    "bullets": [
-                        {"id": bullet.id, "text": bullet.text, "params": bullet.params}
-                        for bullet in section.bullets
+        # If resume_text is provided (from live preview), use it directly for more accurate scoring
+        resume_text_to_use = None
+        resume_data_to_use = None
+        
+        if payload.resume_text and payload.resume_text.strip():
+            resume_text_to_use = payload.resume_text.strip()
+            logger.info(f"Using resume_text from preview (length: {len(resume_text_to_use)})")
+            # Still need resume_data for structure analysis
+            if payload.resume_data:
+                resume_data_to_use = {
+                    "name": payload.resume_data.name,
+                    "title": payload.resume_data.title,
+                    "email": payload.resume_data.email,
+                    "phone": payload.resume_data.phone,
+                    "location": payload.resume_data.location,
+                    "summary": payload.resume_data.summary,
+                    "sections": [
+                        {
+                            "id": section.id,
+                            "title": section.title,
+                            "bullets": [
+                                {"id": bullet.id, "text": bullet.text, "params": bullet.params}
+                                for bullet in section.bullets
+                            ],
+                        }
+                        for section in payload.resume_data.sections
                     ],
                 }
-                for section in payload.resume_data.sections
-            ],
-        }
+        elif payload.resume_data:
+            # Fallback to extracting from resume_data
+            resume_data_to_use = {
+                "name": payload.resume_data.name,
+                "title": payload.resume_data.title,
+                "email": payload.resume_data.email,
+                "phone": payload.resume_data.phone,
+                "location": payload.resume_data.location,
+                "summary": payload.resume_data.summary,
+                "sections": [
+                    {
+                        "id": section.id,
+                        "title": section.title,
+                        "bullets": [
+                            {"id": bullet.id, "text": bullet.text, "params": bullet.params}
+                            for bullet in section.bullets
+                        ],
+                    }
+                    for section in payload.resume_data.sections
+                ],
+            }
+            resume_text_to_use = enhanced_ats_checker.extract_text_from_resume(resume_data_to_use)
+            logger.info(f"Extracted resume_text from resume_data (length: {len(resume_text_to_use)})")
+        else:
+            raise HTTPException(status_code=400, detail="Either resume_text or resume_data required")
+        
+        # Log for debugging score inconsistency issues
+        if previewExtractionSuccess := (payload.resume_text and payload.resume_text.strip()):
+            logger.info(f"Score calculation: Using resume_text from preview (length: {len(payload.resume_text)})")
+        else:
+            logger.info(f"Score calculation: Using resume_data extraction (resume_data provided: {payload.resume_data is not None})")
 
         # Get enhanced ATS score and analysis
         # Automatically use industry-standard TF-IDF when job description or extracted_keywords is provided
@@ -263,8 +304,9 @@ async def get_enhanced_ats_score(
             (payload.extracted_keywords and payload.extracted_keywords.get("total_keywords", 0) > 0)
         )
         result = enhanced_ats_checker.get_enhanced_ats_score(
-            resume_data, 
+            resume_data_to_use,  # Still pass for structure analysis
             payload.job_description, 
+            resume_text=resume_text_to_use,  # Pass extracted text for more accurate scoring
             use_industry_standard=use_tfidf,
             extracted_keywords=payload.extracted_keywords,
             previous_score=payload.previous_score
@@ -1475,6 +1517,41 @@ async def generate_summary_from_experience(payload: dict):
         if company_name:
             missing_keywords = filter_company_names(missing_keywords, company_name)
 
+        # Limit total keywords to 8 for professional summary
+        # Prioritize missing keywords first, then priority, then others
+        MAX_KEYWORDS_FOR_SUMMARY = 8
+        limited_missing_for_sections = missing_keywords[:MAX_KEYWORDS_FOR_SUMMARY]
+        remaining_slots = MAX_KEYWORDS_FOR_SUMMARY - len(limited_missing_for_sections)
+        
+        limited_priority = []
+        if remaining_slots > 0:
+            limited_priority = priority_keywords[:remaining_slots]
+            remaining_slots -= len(limited_priority)
+        
+        limited_high_freq = []
+        if remaining_slots > 0:
+            limited_high_freq = high_frequency_keywords[:remaining_slots]
+            remaining_slots -= len(limited_high_freq)
+        
+        limited_matching = []
+        if remaining_slots > 0:
+            limited_matching = matching_keywords[:remaining_slots]
+        
+        # Limit target_keywords to fill any remaining slots (lowest priority)
+        limited_target = []
+        if remaining_slots > 0:
+            # Remove duplicates with already selected keywords
+            seen_in_limited = set()
+            for kw_list in [limited_missing_for_sections, limited_priority, limited_high_freq, limited_matching]:
+                for kw in kw_list:
+                    seen_in_limited.add(kw.lower())
+            
+            limited_target = [
+                kw for kw in target_keywords 
+                if kw.lower() not in seen_in_limited
+            ][:remaining_slots]
+        
+        # Build combined_keywords from LIMITED keywords only (for tracking)
         combined_keywords = []
         seen_keywords = set()
 
@@ -1486,31 +1563,37 @@ async def generate_summary_from_experience(payload: dict):
                 seen_keywords.add(lower)
                 combined_keywords.append(keyword)
 
-        append_keywords(target_keywords)
-        append_keywords(priority_keywords)
-        append_keywords(missing_keywords)
-        append_keywords(high_frequency_keywords)
-        append_keywords(matching_keywords)
+        # Only add the limited keywords, not the full lists
+        append_keywords(limited_missing_for_sections)
+        append_keywords(limited_priority)
+        append_keywords(limited_high_freq)
+        append_keywords(limited_matching)
+        append_keywords(limited_target)
 
         keyword_sections = []
-        if priority_keywords:
+        if limited_missing_for_sections:
+            keyword_sections.append(
+                "Missing JD Keywords to add:\n- " + "\n- ".join(limited_missing_for_sections)
+            )
+        if limited_priority:
             keyword_sections.append(
                 "Priority Keywords (must appear naturally):\n- "
-                + "\n- ".join(priority_keywords)
+                + "\n- ".join(limited_priority)
             )
-        if missing_keywords:
-            keyword_sections.append(
-                "Missing JD Keywords to add:\n- " + "\n- ".join(missing_keywords)
-            )
-        if high_frequency_keywords:
+        if limited_high_freq:
             keyword_sections.append(
                 "High-Frequency JD Keywords:\n- "
-                + "\n- ".join(high_frequency_keywords[:12])
+                + "\n- ".join(limited_high_freq)
             )
-        if matching_keywords:
+        if limited_matching:
             keyword_sections.append(
                 "Resume Keywords to keep strength on:\n- "
-                + "\n- ".join(matching_keywords[:12])
+                + "\n- ".join(limited_matching)
+            )
+        if limited_target:
+            keyword_sections.append(
+                "Additional Target Keywords:\n- "
+                + "\n- ".join(limited_target)
             )
 
         keyword_guidance = (
@@ -1646,18 +1729,21 @@ async def generate_summary_from_experience(payload: dict):
                 + " ".join(summary_parts)
             )
 
-        missing_kw_section = ""
-        if missing_keywords and len(missing_keywords) > 0:
-            # Limit to 5-8 missing keywords (use up to 8)
-            limited_missing = missing_keywords[:8]
-            missing_kw_section = f"""
-CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
-{', '.join(limited_missing)}
-
-These keywords are currently MISSING from your resume and MUST be incorporated 
-into the summary to improve ATS score. Use them naturally in context - they are 
-the highest priority for inclusion.
-"""
+        # Calculate total keywords being used for logging
+        total_keywords_used = (
+            len(limited_missing_for_sections) + 
+            len(limited_priority) + 
+            len(limited_high_freq) + 
+            len(limited_matching) +
+            len(limited_target)
+        )
+        logger.info(f"Professional summary generation: Using {total_keywords_used} total keywords (max 8): "
+                   f"missing={len(limited_missing_for_sections)}, priority={len(limited_priority)}, "
+                   f"high_freq={len(limited_high_freq)}, matching={len(limited_matching)}, target={len(limited_target)}")
+        
+        # Verify we're not exceeding the limit
+        if total_keywords_used > MAX_KEYWORDS_FOR_SUMMARY:
+            logger.warning(f"Keyword limit exceeded! Total: {total_keywords_used}, Max: {MAX_KEYWORDS_FOR_SUMMARY}")
         
         company_warning = ""
         if company_name:
@@ -1676,9 +1762,8 @@ Work Experience:
 Skills:
 {skills_text if skills_text else 'To be extracted from experience'}
 
- Target Job Description Keywords (blend these naturally into the narrative):
+ Target Job Description Keywords (blend these naturally into the narrative - MAXIMUM 8 keywords total):
 {keyword_guidance}
-{missing_kw_section}
 {company_warning}
  Job Description Snapshot (for context):
 {job_description_excerpt if job_description_excerpt else 'Not provided'}
@@ -1700,10 +1785,9 @@ Requirements for the Professional Summary:
 7. Third-person perspective (avoid "I")
 8. Focus on impact and results
 9. Include industry-specific keywords for ATS systems
-10. Prioritize incorporating the provided priority and missing JD keywords verbatim when it fits naturally
-11. CRITICAL: The missing keywords listed above are HIGH PRIORITY - ensure they appear naturally in the summary
-12. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
-13. NEVER include any company names from the job description in the summary
+10. CRITICAL: Use ONLY the keywords provided above (maximum 8 total) - prioritize missing keywords first, then priority keywords
+11. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms naturally
+12. NEVER include any company names from the job description in the summary
 
 Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""
 
@@ -1788,7 +1872,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
 
         uncovered_missing_keywords = [
             keyword
-            for keyword in missing_keywords
+            for keyword in limited_missing_for_sections
             if keyword and keyword.lower() not in summary_lower
         ]
 

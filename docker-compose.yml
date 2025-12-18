@@ -38,6 +38,10 @@ services:
       STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL}
       STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL}
       ADDITIONAL_CORS_ORIGINS: ${ADDITIONAL_CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+    # DNS configuration to fix Google OAuth2 connection timeout
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     depends_on:
       - db
     ports:

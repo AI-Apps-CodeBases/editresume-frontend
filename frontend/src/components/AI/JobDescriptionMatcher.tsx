@@ -2232,128 +2232,141 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     };
   }, [jobDescription, selectedJobMetadata, matchResult]);
 
+  // REMOVED: Client-side ATS score calculation - now using only backend results
+  // This prevents inconsistencies between frontend and backend scoring
   const estimatedATS = useMemo(() => {
-    if (!resumeData) return null;
-    const keywordBundle = buildPrecomputedKeywordPayload();
-    if (!keywordBundle) return null;
-
-    let extensionDataForScoring = convertExtensionDataToEnhancedFormat(extractedKeywords || keywordBundle.extractedKeywordsPayload);
+    // Only use backend matchResult - no client-side calculation
+    // This ensures consistent scoring between frontend and backend
+    return null;
     
-    if (matchResult?.match_analysis) {
-      const matchAnalysis = matchResult.match_analysis;
-      if (!extensionDataForScoring) {
-        extensionDataForScoring = {};
-      }
-      
-      if (matchAnalysis.matching_keywords && matchAnalysis.matching_keywords.length > 0) {
-        extensionDataForScoring.matchingKeywords = matchAnalysis.matching_keywords.map((kw: string) => ({
-          keyword: kw,
-          weight: 5,
-        }));
-      }
-      
-      if (matchAnalysis.missing_keywords && matchAnalysis.missing_keywords.length > 0) {
-        extensionDataForScoring.missingKeywords = matchAnalysis.missing_keywords.map((kw: string) => ({
-          keyword: kw,
-          weight: 5,
-        }));
-      }
-      
-      if (matchAnalysis.technical_matches && matchAnalysis.technical_matches.length > 0) {
-        extensionDataForScoring.technicalKeywords = [
-          ...(extensionDataForScoring.technicalKeywords || []),
-          ...matchAnalysis.technical_matches.map((kw: string) => ({
-            keyword: kw,
-            weight: 8,
-            isRequired: false,
-          })),
-        ];
-      }
-    }
+    // OLD CODE (disabled):
+    // if (!resumeData) return null;
+    // const keywordBundle = buildPrecomputedKeywordPayload();
+    // if (!keywordBundle) return null;
+    //
+    // let extensionDataForScoring = convertExtensionDataToEnhancedFormat(extractedKeywords || keywordBundle.extractedKeywordsPayload);
+    // 
+    // if (matchResult?.match_analysis) {
+    //   const matchAnalysis = matchResult.match_analysis;
+    //   if (!extensionDataForScoring) {
+    //     extensionDataForScoring = {};
+    //   }
+    //   
+    //   if (matchAnalysis.matching_keywords && matchAnalysis.matching_keywords.length > 0) {
+    //     extensionDataForScoring.matchingKeywords = matchAnalysis.matching_keywords.map((kw: string) => ({
+    //       keyword: kw,
+    //       weight: 5,
+    //     }));
+    //   }
+    //   
+    //   if (matchAnalysis.missing_keywords && matchAnalysis.missing_keywords.length > 0) {
+    //     extensionDataForScoring.missingKeywords = matchAnalysis.missing_keywords.map((kw: string) => ({
+    //       keyword: kw,
+    //       weight: 5,
+    //     }));
+    //   }
+    //   
+    //   if (matchAnalysis.technical_matches && matchAnalysis.technical_matches.length > 0) {
+    //     extensionDataForScoring.technicalKeywords = [
+    //       ...(extensionDataForScoring.technicalKeywords || []),
+    //       ...matchAnalysis.technical_matches.map((kw: string) => ({
+    //         keyword: kw,
+    //         weight: 8,
+    //         isRequired: false,
+    //       })),
+    //     ];
+    //   }
+    // }
+    // 
+    // const result = calculateATSScore(resumeData, jobDescription || '', keywordBundle, extensionDataForScoring);
+    //
+    // if (!result) return null;
+    //
+    // if (USE_ENHANCED_ATS_SCORING && 'breakdown' in result) {
+    //   // Calculate matched/missing keywords from extension data for display
+    //   const allKeywords: string[] = [];
+    //   const matchedKeywords: string[] = [];
+    //   const missingKeywords: string[] = [];
+    //   
+    //   // Extract all keywords from extension data
+    //   if (extensionDataForScoring) {
+    //     const extractKeywords = (arr?: Array<{ keyword: string } | string>) => {
+    //       if (!Array.isArray(arr)) return [];
+    //       return arr.map(kw => typeof kw === 'string' ? kw : kw.keyword);
+    //     };
+    //     
+    //     const technical = extractKeywords(extensionDataForScoring.technicalKeywords);
+    //     const matching = extractKeywords(extensionDataForScoring.matchingKeywords);
+    //     const missing = extractKeywords(extensionDataForScoring.missingKeywords);
+    //     
+    //     allKeywords.push(...technical, ...matching, ...missing);
+    //     
+    //     // Build resume text for matching
+    //     const resumeFragments: string[] = [];
+    //     const appendText = (value?: string) => {
+    //       const normalized = normalizeTextForATS(value);
+    //       if (normalized) {
+    //         resumeFragments.push(normalized.toLowerCase());
+    //       }
+    //     };
+    //     
+    //     appendText(resumeData.title);
+    //     appendText(resumeData.summary);
+    //     if (resumeData.sections && Array.isArray(resumeData.sections)) {
+    //       resumeData.sections.forEach((section: any) => {
+    //         appendText(section.title);
+    //         if (section.bullets && Array.isArray(section.bullets)) {
+    //           section.bullets
+    //             .filter((bullet: any) => bullet?.params?.visible !== false)
+    //             .forEach((bullet: any) => appendText(bullet?.text));
+    //         }
+    //       });
+    //     }
+    //     
+    //     const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
+    //     
+    //     // Check which keywords are in resume
+    //     allKeywords.forEach((keyword) => {
+    //       const hasSpecialChars = /[\/\-_]/g.test(keyword);
+    //       const escaped = escapeRegExp(keyword);
+    //       const pattern = hasSpecialChars
+    //         ? new RegExp(escaped, 'i')
+    //         : new RegExp(`\\b${escaped}\\b`, 'i');
+    //       
+    //       if (pattern.test(resumeText)) {
+    //         matchedKeywords.push(keyword);
+    //       } else {
+    //         missingKeywords.push(keyword);
+    //       }
+    //     });
+    //   }
+    //   
+    //   // Fallback to matchResult if extension data is empty
+    //   if (allKeywords.length === 0 && matchResult?.match_analysis) {
+    //     const matchAnalysis = matchResult.match_analysis;
+    //     matchedKeywords.push(...(matchAnalysis.matching_keywords || []));
+    //     missingKeywords.push(...(matchAnalysis.missing_keywords || []));
+    //   }
+    //   
+    //   return {
+    //     score: result.score,
+    //     matchedKeywords: matchedKeywords,
+    //     missingKeywords: missingKeywords,
+    //     totalKeywords: matchedKeywords.length + missingKeywords.length,
+    //     breakdown: result.breakdown,
+    //     recommendations: result.recommendations,
+    //     matchLevel: result.matchLevel,
+    //   };
+    // }
+    //
+    // return result;
+    // }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult, keywordUsageCounts]);
     
-    const result = calculateATSScore(resumeData, jobDescription || '', keywordBundle, extensionDataForScoring);
-
-    if (!result) return null;
-
-    if (USE_ENHANCED_ATS_SCORING && 'breakdown' in result) {
-      // Calculate matched/missing keywords from extension data for display
-      const allKeywords: string[] = [];
-      const matchedKeywords: string[] = [];
-      const missingKeywords: string[] = [];
-      
-      // Extract all keywords from extension data
-      if (extensionDataForScoring) {
-        const extractKeywords = (arr?: Array<{ keyword: string } | string>) => {
-          if (!Array.isArray(arr)) return [];
-          return arr.map(kw => typeof kw === 'string' ? kw : kw.keyword);
-        };
-        
-        const technical = extractKeywords(extensionDataForScoring.technicalKeywords);
-        const matching = extractKeywords(extensionDataForScoring.matchingKeywords);
-        const missing = extractKeywords(extensionDataForScoring.missingKeywords);
-        
-        allKeywords.push(...technical, ...matching, ...missing);
-        
-        // Build resume text for matching
-        const resumeFragments: string[] = [];
-        const appendText = (value?: string) => {
-          const normalized = normalizeTextForATS(value);
-          if (normalized) {
-            resumeFragments.push(normalized.toLowerCase());
-          }
-        };
-        
-        appendText(resumeData.title);
-        appendText(resumeData.summary);
-        if (resumeData.sections && Array.isArray(resumeData.sections)) {
-          resumeData.sections.forEach((section: any) => {
-            appendText(section.title);
-            if (section.bullets && Array.isArray(section.bullets)) {
-              section.bullets
-                .filter((bullet: any) => bullet?.params?.visible !== false)
-                .forEach((bullet: any) => appendText(bullet?.text));
-            }
-          });
-        }
-        
-        const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
-        
-        // Check which keywords are in resume
-        allKeywords.forEach((keyword) => {
-          const hasSpecialChars = /[\/\-_]/g.test(keyword);
-          const escaped = escapeRegExp(keyword);
-          const pattern = hasSpecialChars
-            ? new RegExp(escaped, 'i')
-            : new RegExp(`\\b${escaped}\\b`, 'i');
-          
-          if (pattern.test(resumeText)) {
-            matchedKeywords.push(keyword);
-          } else {
-            missingKeywords.push(keyword);
-          }
-        });
-      }
-      
-      // Fallback to matchResult if extension data is empty
-      if (allKeywords.length === 0 && matchResult?.match_analysis) {
-        const matchAnalysis = matchResult.match_analysis;
-        matchedKeywords.push(...(matchAnalysis.matching_keywords || []));
-        missingKeywords.push(...(matchAnalysis.missing_keywords || []));
-      }
-      
-      return {
-        score: result.score,
-        matchedKeywords: matchedKeywords,
-        missingKeywords: missingKeywords,
-        totalKeywords: matchedKeywords.length + missingKeywords.length,
-        breakdown: result.breakdown,
-        recommendations: result.recommendations,
-        matchLevel: result.matchLevel,
-      };
-    }
-
-    return result;
-  }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult, keywordUsageCounts]);
+    // REMOVED: Client-side calculation disabled - using only backend matchResult
+    // }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult, keywordUsageCounts]);
+    
+    // Empty dependency array since we always return null
+  }, []);
 
   // Extract high-weight missing keywords (8-10) for diagnostic panel
   const highWeightMissingKeywords = useMemo(() => {
@@ -2416,12 +2429,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
     });
     
-    // Also add missing keywords from estimatedATS and matchResult for completeness
-    if (estimatedATS && 'missingKeywords' in estimatedATS && estimatedATS.missingKeywords) {
-      estimatedATS.missingKeywords.forEach((k: string) => {
-        if (k) missingKeywordsSet.add(k.toLowerCase());
-      });
-    }
+    // Also add missing keywords from matchResult for completeness
     if (matchResult?.match_analysis?.missing_keywords) {
       matchResult.match_analysis.missing_keywords.forEach((k: string) => {
         if (k) missingKeywordsSet.add(k.toLowerCase());
@@ -2517,25 +2525,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       if (a.isRequired && !b.isRequired) return -1;
       return 0;
     });
-  }, [estimatedATS, extractedKeywords, matchResult, resumeData, keywordUsageCounts]);
+  }, [extractedKeywords, matchResult, resumeData, keywordUsageCounts]);
 
-  // Find lowest scoring category
-  const lowestCategory = useMemo(() => {
-    if (!estimatedATS || !('breakdown' in estimatedATS) || !estimatedATS.breakdown) return null;
-    
-    const breakdown = estimatedATS.breakdown as any;
-    const categories = [
-      { name: 'Skills Match', score: breakdown?.skillsMatch?.score || 0, max: breakdown?.skillsMatch?.max || 35, percentage: ((breakdown?.skillsMatch?.score || 0) / (breakdown?.skillsMatch?.max || 35)) * 100 },
-      { name: 'Experience Relevance', score: breakdown?.experienceRelevance?.score || 0, max: breakdown?.experienceRelevance?.max || 30, percentage: ((breakdown?.experienceRelevance?.score || 0) / (breakdown?.experienceRelevance?.max || 30)) * 100 },
-      { name: 'Keyword Coverage', score: breakdown?.keywordCoverage?.score || 0, max: breakdown?.keywordCoverage?.max || 27, percentage: ((breakdown?.keywordCoverage?.score || 0) / (breakdown?.keywordCoverage?.max || 27)) * 100 },
-      { name: 'Education', score: breakdown?.education?.score || 0, max: breakdown?.education?.max || 10, percentage: ((breakdown?.education?.score || 0) / (breakdown?.education?.max || 10)) * 100 },
-      { name: 'ATS Compatibility', score: breakdown?.atsCompatibility?.score || 0, max: breakdown?.atsCompatibility?.max || 5, percentage: ((breakdown?.atsCompatibility?.score || 0) / (breakdown?.atsCompatibility?.max || 5)) * 100 },
-    ];
-    
-    return categories.reduce((lowest, current) => 
-      current.percentage < lowest.percentage ? current : lowest
-    );
-  }, [estimatedATS, resumeData]);
 
   // Detect keyword stuffing (keywords appearing >10 times)
   const keywordStuffingWarnings = useMemo(() => {
@@ -2579,14 +2570,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const overallATSScore = roundScoreValue(overallATSScoreRaw);
 
   const scoreSnapshotBase = useMemo(() => {
-    if (!matchResult && overallATSScore === null && !estimatedATS) {
+    if (!matchResult && overallATSScore === null) {
       return null;
     }
 
     const matchedCount =
-      atsKeywordMetrics.matchedCount ?? estimatedATS?.matchedKeywords.length ?? null;
+      atsKeywordMetrics.matchedCount ?? null;
     const totalCount =
-      atsKeywordMetrics.totalCount ?? (estimatedATS?.totalKeywords ?? null);
+      atsKeywordMetrics.totalCount ?? null;
     const coverage =
       atsKeywordMetrics.keywordCoverage ??
       (totalCount && matchedCount !== null ? Math.round((matchedCount / totalCount) * 100) : null);
@@ -2594,21 +2585,17 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       atsKeywordMetrics.missingCount ??
       (totalCount !== null && matchedCount !== null ? Math.max(totalCount - matchedCount, 0) : null);
     const missingSample =
-      (estimatedATS?.missingKeywords?.length
-        ? estimatedATS.missingKeywords.slice(0, 5)
-        : matchResult?.match_analysis?.missing_keywords?.slice(0, 5)) || [];
+      matchResult?.match_analysis?.missing_keywords?.slice(0, 5) || [];
     const matchingSample =
-      (matchResult?.match_analysis?.matching_keywords?.length
-        ? matchResult.match_analysis.matching_keywords.slice(0, 5)
-        : estimatedATS?.matchedKeywords?.slice(0, 5)) || [];
+      matchResult?.match_analysis?.matching_keywords?.slice(0, 5) || [];
 
-    if (overallATSScore === null && estimatedATS?.score == null && coverage == null) {
+    if (overallATSScore === null && coverage == null) {
       return null;
     }
 
     return {
       overall_score: overallATSScore,
-      estimated_keyword_score: estimatedATS?.score ?? null,
+      estimated_keyword_score: null,
       keyword_coverage: coverage,
       total_keywords: totalCount,
       matched_keywords_count: matchedCount,
@@ -2627,7 +2614,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 : 'needs_improvement'
           : null,
     };
-  }, [atsKeywordMetrics, estimatedATS, matchResult, overallATSScore]);
+  }, [atsKeywordMetrics, matchResult, overallATSScore]);
 
   // Function to recalculate ATS score
   const recalculateATSScore = useCallback(async (resumeDataToUse: any, showLoading = true) => {
@@ -3112,11 +3099,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             sections: updatedResume.sections.map((section: any) => ({
               id: section.id,
               title: section.title,
-              bullets: section.bullets.map((bullet: any) => ({
-                id: bullet.id,
-                text: bullet.text,
-                params: {},
-              })),
+              bullets: (section.bullets || [])
+                .filter((bullet: any) => bullet?.params?.visible !== false)  // Filter out invisible bullets
+                .map((bullet: any) => ({
+                  id: bullet.id,
+                  text: bullet.text,
+                  params: bullet.params || {},  // Preserve params instead of resetting
+                })),
             })),
           };
 
@@ -3941,19 +3930,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const matchedKeywordCount =
     atsKeywordMetrics.matchedCount ??
     scoreSnapshotBase?.matched_keywords_count ??
-    estimatedATS?.matchedKeywords.length ??
     null;
   const totalKeywordCount =
     atsKeywordMetrics.totalCount ??
     scoreSnapshotBase?.total_keywords ??
-    estimatedATS?.totalKeywords ??
     null;
   const missingKeywordSample =
     (scoreSnapshotBase?.missing_keywords_sample &&
       scoreSnapshotBase.missing_keywords_sample.length > 0
       ? scoreSnapshotBase.missing_keywords_sample
-      : estimatedATS?.missingKeywords?.slice(0, 3) ||
-      matchResult?.match_analysis?.missing_keywords?.slice(0, 3) ||
+      : matchResult?.match_analysis?.missing_keywords?.slice(0, 3) ||
       []) || [];
   const matchTierLabel =
     overallATSScore !== null
@@ -4103,11 +4089,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 Estimated Fit
               </div>
               <div className="text-2xl font-bold text-blue-700 mb-1">
-                {estimatedATS ? `${String(estimatedATS.score)}%` : '—'}
+                {overallATSScore !== null ? `${String(overallATSScore)}%` : '—'}
               </div>
-              {estimatedATS && (
+              {overallATSScore !== null && (
                 <div className="text-xs text-blue-600">
-                  {Array.isArray(estimatedATS.matchedKeywords) ? estimatedATS.matchedKeywords.length : 0} of {typeof estimatedATS.totalKeywords === 'number' ? estimatedATS.totalKeywords : 0} terms
+                  {matchedKeywordCount ?? 0} of {totalKeywordCount ?? 0} terms
                 </div>
               )}
             </div>
@@ -4350,95 +4336,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               </div>
             </div>
           )}
-
-          {/* ATS Score Diagnostic Panel - Compact */}
-          {estimatedATS && 'breakdown' in estimatedATS && estimatedATS.breakdown ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-sm font-semibold text-gray-900">📊 Score Breakdown</h3>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
-                {(() => {
-                  const breakdown = estimatedATS.breakdown as any;
-                  const categories = [
-                    { name: 'Skills', score: breakdown?.skillsMatch?.score || 0, max: breakdown?.skillsMatch?.max || 35, key: 'skillsMatch' },
-                    { name: 'Experience', score: breakdown?.experienceRelevance?.score || 0, max: breakdown?.experienceRelevance?.max || 30, key: 'experienceRelevance' },
-                    { name: 'Keywords', score: breakdown?.keywordCoverage?.score || 0, max: breakdown?.keywordCoverage?.max || 27, key: 'keywordCoverage' },
-                    { name: 'Education', score: breakdown?.education?.score || 0, max: breakdown?.education?.max || 10, key: 'education' },
-                    { name: 'ATS', score: breakdown?.atsCompatibility?.score || 0, max: breakdown?.atsCompatibility?.max || 5, key: 'atsCompatibility' },
-                  ];
-                  
-                  return categories.map((cat) => {
-                    const percentage = (cat.score / cat.max) * 100;
-                    const isLowest = lowestCategory && lowestCategory.name.includes(cat.name);
-                    
-                    return (
-                      <div key={cat.key} className={`rounded p-2 ${isLowest ? 'bg-red-50 border border-red-300' : 'bg-gray-50 border border-gray-200'}`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium text-gray-700">{cat.name}</span>
-                          <span className="text-xs font-bold text-gray-900">
-                            {Math.round(cat.score)}/{cat.max}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div
-                            className={`h-1.5 rounded-full ${
-                              percentage >= 80 ? 'bg-green-500' :
-                              percentage >= 60 ? 'bg-yellow-500' :
-                              percentage >= 40 ? 'bg-orange-500' :
-                              'bg-red-500'
-                            }`}
-                            style={{ width: `${Math.min(100, percentage)}%` }}
-                          />
-                        </div>
-                        {isLowest && (
-                          <span className="text-xs text-red-600 font-medium mt-0.5 block">Lowest</span>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-
-              {/* High-Weight Missing Keywords - Compact */}
-              {highWeightMissingKeywords.length > 0 && (
-                <div className="p-2 bg-orange-50 border border-orange-200 rounded text-xs mb-2">
-                  <span className="font-semibold text-orange-900">🔥 High-Impact: </span>
-                  <span className="text-orange-700">
-                    {highWeightMissingKeywords.slice(0, 5).map(kw => kw.keyword).join(', ')}
-                    {highWeightMissingKeywords.length > 5 && ` +${highWeightMissingKeywords.length - 5} more`}
-                  </span>
-                </div>
-              )}
-
-              {/* Keyword Stuffing Warnings - Compact */}
-              {keywordStuffingWarnings.length > 0 ? (
-                <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs mb-2">
-                  <span className="font-semibold text-yellow-900">⚠️ Overused: </span>
-                  <span className="text-yellow-700">
-                    {keywordStuffingWarnings.slice(0, 3).map(w => `"${w.keyword}" (${w.count}x)`).join(', ')}
-                    {keywordStuffingWarnings.length > 3 && ` +${keywordStuffingWarnings.length - 3} more`}
-                  </span>
-                </div>
-              ) : null}
-
-              {/* Recommendations - Compact */}
-              {'recommendations' in estimatedATS && estimatedATS.recommendations && Array.isArray(estimatedATS.recommendations) && estimatedATS.recommendations.length > 0 ? (
-                <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                  <span className="font-semibold text-blue-900">💡 Tips: </span>
-                  <span className="text-blue-700">
-                    {estimatedATS.recommendations.slice(0, 2).map((rec: any) => String(rec)).join(' • ')}
-                    {estimatedATS.recommendations.length > 2 && ` +${estimatedATS.recommendations.length - 2} more`}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
           </div>
         </>
       )}
-
 
       {/* Easy Apply Button - Always visible when JD is loaded */}
       <div className="p-3 sm:p-6">
@@ -4872,111 +4772,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           ) : null}
 
 
-          {/* Estimated ATS (when no match result) - Simplified */}
-          {!matchResult && estimatedATS && (
-            <div className="space-y-4 mt-6">
-              {/* Simple Score Display */}
-              <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between">
-                    <div>
-                    <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                      Estimated Match Score
-                    </div>
-                    <div className="text-4xl font-bold text-indigo-600">
-                      {estimatedATS?.score}%
-                    </div>
-                  </div>
-                  {isATSUpdatePending && (
-                    <span className="text-xs font-medium text-gray-500">Pending sync</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Missing Keywords */}
-              {(() => {
-                const companyName = currentJDInfo?.company || selectedJobMetadata?.company || null;
-                const filteredMissingKeywords = estimatedATS?.missingKeywords 
-                  ? filterIrrelevantKeywords(estimatedATS.missingKeywords, companyName)
-                  : [];
-                return filteredMissingKeywords.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                          Missing Keywords
-                      </h3>
-                        <p className="text-sm text-gray-500">
-                          Add these {filteredMissingKeywords.length} keywords to improve your match score
-                      </p>
-                    </div>
-                    {selectedKeywords.size > 0 && (
-                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                        <Tooltip text="Generate AI-powered bullet points using the selected keywords and add them to your work experience" color="blue" position="bottom">
-                          <button
-                            onClick={() => {
-                              const workExpSections = resumeData.sections.filter((s: any) =>
-                                s.title.toLowerCase().includes('experience') || s.title.toLowerCase().includes('work')
-                              );
-                              if (workExpSections.length > 0) {
-                                setSelectedWorkExpSection(workExpSections[0].id);
-                              }
-                              setShowBulletGenerator(true);
-                            }}
-                            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Create Bullets ({selectedKeywords.size})
-                          </button>
-                        </Tooltip>
-                        <Tooltip text="Add the selected keywords directly to your Skills section" color="emerald" position="bottom">
-                          <button
-                            onClick={() => addKeywordsToSkillsSection(Array.from(selectedKeywords))}
-                            className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add to Skills ({selectedKeywords.size})
-                          </button>
-                        </Tooltip>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                      {filteredMissingKeywords.map((keyword, idx) => (
-                      <label
-                        key={keyword}
-                        className={`px-2 py-0.5 text-xs rounded cursor-pointer border transition-all flex items-center gap-1.5 ${selectedKeywords.has(keyword)
-                          ? 'bg-red-100 text-red-800 border-red-400 font-medium'
-                          : 'bg-red-50 text-red-700 border-red-200 hover:border-red-300'
-                          }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedKeywords.has(keyword)}
-                          onChange={(e) => {
-                            const newSelected = new Set(selectedKeywords);
-                            if (e.target.checked) {
-                              newSelected.add(keyword);
-                            } else {
-                              newSelected.delete(keyword);
-                            }
-                            setSelectedKeywords(newSelected);
-                          }}
-                          className="w-3 h-3 text-red-600 rounded focus:ring-red-500"
-                        />
-                        <span>{prettifyKeyword(keyword)}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                );
-              })()}
-                </div>
-              )}
-            </div>
+      </div>
       </div>
       </div>
     </div>
