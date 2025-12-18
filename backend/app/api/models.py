@@ -31,7 +31,8 @@ class ResumePayload(BaseModel):
 
 
 class EnhancedATSPayload(BaseModel):
-    resume_data: ResumePayload
+    resume_data: Optional[ResumePayload] = None  # Make optional since we can use resume_text
+    resume_text: Optional[str] = None  # Text extracted from live preview - more accurate than resume_data
     job_description: Optional[str] = None
     target_role: Optional[str] = None
     industry: Optional[str] = None

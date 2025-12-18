@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import CollaborationPanel from './CollaborationPanel'
 
 interface Props {
@@ -84,8 +85,9 @@ export default function LeftSidebar({
         if (token) {
           headers['Authorization'] = `Bearer ${token}`
         }
-        const res = await fetch(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
-          headers
+        const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+          headers,
+          timeout: 15000,
         })
         if (res.ok) {
           const data = await res.json()

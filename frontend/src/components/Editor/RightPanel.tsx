@@ -65,6 +65,95 @@ export default function RightPanel({
 
     setIsAnalyzing(true)
     try {
+      // Extract text from live preview instead of raw resume data
+      let previewText = '';
+      let previewExtractionSuccess = false;
+      
+      try {
+        // Ensure we're on the 'live' tab to see preview (if available)
+        const originalTab = activeTab;
+        if (activeTab !== 'live' && onTabChange) {
+          // Temporarily switch to live tab to ensure preview is rendered
+          onTabChange('live');
+          // Wait for tab switch to render
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        // Wait for preview container to be ready with retry mechanism
+        const maxRetries = 5;
+        let retryCount = 0;
+        let previewContainer = null;
+        
+        while (retryCount < maxRetries && !previewContainer) {
+          // Wait progressively longer on each retry
+          await new Promise(resolve => setTimeout(resolve, 100 + (retryCount * 50)));
+          
+          // Find the preview container in the DOM
+          previewContainer = document.querySelector('.preview-resume-container[data-preview-container]') || 
+                           document.querySelector('.preview-resume-container');
+          
+          // Check if container has meaningful content
+          if (previewContainer) {
+            const hasContent = previewContainer.textContent && previewContainer.textContent.trim().length > 50;
+            if (!hasContent) {
+              previewContainer = null; // Reset and retry
+            }
+          }
+          
+          retryCount++;
+        }
+        
+        // Restore original tab if we switched
+        if (originalTab !== 'live' && originalTab && onTabChange) {
+          // Don't restore immediately - let user see the live preview if they want
+          // onTabChange(originalTab);
+        }
+        
+        if (previewContainer) {
+          // Clone to avoid modifying the original
+          const clone = previewContainer.cloneNode(true) as HTMLElement;
+          
+          // Remove non-text elements (buttons, inputs, page breaks, etc.)
+          clone.querySelectorAll(
+            'button, input, .no-print, .page-break-marker, .page-break-label, .page-number, .page-layout-indicator, [style*="display: none"], [style*="display:none"]'
+          ).forEach(el => el.remove());
+          
+          // Remove elements with display: none from computed styles
+          Array.from(clone.querySelectorAll('*')).forEach(el => {
+            try {
+              const computed = window.getComputedStyle(el);
+              if (computed.display === 'none' || computed.visibility === 'hidden') {
+                el.remove();
+              }
+            } catch (e) {
+              // Skip if element is not in DOM
+            }
+          });
+          
+          // Extract text content
+          previewText = clone.innerText || clone.textContent || '';
+          
+          // Clean up extra whitespace but preserve structure
+          previewText = previewText
+            .replace(/\s+/g, ' ')  // Multiple spaces to single
+            .replace(/\n\s*\n/g, '\n')  // Multiple newlines to single
+            .trim();
+            
+          if (previewText.length > 50) {
+            previewExtractionSuccess = true;
+            console.log(`📄 Extracted preview text length: ${previewText.length} (retry: ${retryCount})`);
+          } else {
+            console.warn('Preview container found but text content too short:', previewText.length);
+          }
+        } else {
+          console.warn(`Preview container not found after ${maxRetries} retries, falling back to resume data`);
+        }
+      } catch (e) {
+        console.warn('Failed to extract preview text, falling back to resume data:', e);
+      }
+
+      // Always prepare resume_data for backend (backend will use resume_text if available, otherwise extract from resume_data)
+      // This ensures consistency - if preview extraction fails, backend can still extract from resume_data
       const cleanedResumeData = {
         name: resumeData.name || '',
         title: resumeData.title || '',
@@ -75,13 +164,15 @@ export default function RightPanel({
         sections: (resumeData.sections || []).map((section: any) => ({
           id: section.id,
           title: section.title,
-          bullets: (section.bullets || []).map((bullet: any) => ({
-            id: bullet.id,
-            text: bullet.text,
-            params: {}
-          }))
+          bullets: (section.bullets || [])
+            .filter((bullet: any) => bullet?.params?.visible !== false)  // Filter out invisible bullets
+            .map((bullet: any) => ({
+              id: bullet.id,
+              text: bullet.text,
+              params: bullet.params || {}  // Preserve params instead of resetting
+            }))
         }))
-      }
+      };
 
       // Use job description if available (from deepLinkedJD or localStorage)
       let jobDescriptionToUse = deepLinkedJD || '';
@@ -114,7 +205,8 @@ export default function RightPanel({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resume_data: cleanedResumeData,
+          resume_text: previewExtractionSuccess ? previewText : undefined,  // Send extracted preview text if available
+          resume_data: cleanedResumeData,  // Always send resume_data for consistency (backend will use resume_text if available, otherwise extract from resume_data)
           job_description: jobDescriptionToUse,
           target_role: '',
           industry: '',

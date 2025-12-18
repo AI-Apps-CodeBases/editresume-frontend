@@ -30,6 +30,7 @@ from app.core.dependencies import (
     OPENAI_MODEL,
     ai_improvement_engine,
     ats_checker,
+    ats_scoring_agent,
     content_generation_agent,
     cover_letter_agent,
     enhanced_ats_checker,
@@ -103,6 +104,7 @@ async def health_check():
         "ats_checker": ats_checker is not None,
         "enhanced_ats_checker": enhanced_ats_checker is not None,
         "ai_improvement_engine": ai_improvement_engine is not None,
+        "ats_scoring_agent": ats_scoring_agent is not None,
         "content_generation_agent": content_generation_agent is not None,
         "cover_letter_agent": cover_letter_agent is not None,
         "improvement_agent": improvement_agent is not None,
@@ -235,26 +237,65 @@ async def get_enhanced_ats_score(
                 "error": "Enhanced ATS checker not available",
             }
 
-        # Convert ResumePayload to dict for EnhancedATSChecker
-        resume_data = {
-            "name": payload.resume_data.name,
-            "title": payload.resume_data.title,
-            "email": payload.resume_data.email,
-            "phone": payload.resume_data.phone,
-            "location": payload.resume_data.location,
-            "summary": payload.resume_data.summary,
-            "sections": [
-                {
-                    "id": section.id,
-                    "title": section.title,
-                    "bullets": [
-                        {"id": bullet.id, "text": bullet.text, "params": bullet.params}
-                        for bullet in section.bullets
+        # If resume_text is provided (from live preview), use it directly for more accurate scoring
+        resume_text_to_use = None
+        resume_data_to_use = None
+        
+        if payload.resume_text and payload.resume_text.strip():
+            resume_text_to_use = payload.resume_text.strip()
+            logger.info(f"Using resume_text from preview (length: {len(resume_text_to_use)})")
+            # Still need resume_data for structure analysis
+            if payload.resume_data:
+                resume_data_to_use = {
+                    "name": payload.resume_data.name,
+                    "title": payload.resume_data.title,
+                    "email": payload.resume_data.email,
+                    "phone": payload.resume_data.phone,
+                    "location": payload.resume_data.location,
+                    "summary": payload.resume_data.summary,
+                    "sections": [
+                        {
+                            "id": section.id,
+                            "title": section.title,
+                            "bullets": [
+                                {"id": bullet.id, "text": bullet.text, "params": bullet.params}
+                                for bullet in section.bullets
+                            ],
+                        }
+                        for section in payload.resume_data.sections
                     ],
                 }
-                for section in payload.resume_data.sections
-            ],
-        }
+        elif payload.resume_data:
+            # Fallback to extracting from resume_data
+            resume_data_to_use = {
+                "name": payload.resume_data.name,
+                "title": payload.resume_data.title,
+                "email": payload.resume_data.email,
+                "phone": payload.resume_data.phone,
+                "location": payload.resume_data.location,
+                "summary": payload.resume_data.summary,
+                "sections": [
+                    {
+                        "id": section.id,
+                        "title": section.title,
+                        "bullets": [
+                            {"id": bullet.id, "text": bullet.text, "params": bullet.params}
+                            for bullet in section.bullets
+                        ],
+                    }
+                    for section in payload.resume_data.sections
+                ],
+            }
+            resume_text_to_use = enhanced_ats_checker.extract_text_from_resume(resume_data_to_use)
+            logger.info(f"Extracted resume_text from resume_data (length: {len(resume_text_to_use)})")
+        else:
+            raise HTTPException(status_code=400, detail="Either resume_text or resume_data required")
+        
+        # Log for debugging score inconsistency issues
+        if previewExtractionSuccess := (payload.resume_text and payload.resume_text.strip()):
+            logger.info(f"Score calculation: Using resume_text from preview (length: {len(payload.resume_text)})")
+        else:
+            logger.info(f"Score calculation: Using resume_data extraction (resume_data provided: {payload.resume_data is not None})")
 
         # Get enhanced ATS score and analysis
         # Automatically use industry-standard TF-IDF when job description or extracted_keywords is provided
@@ -263,8 +304,9 @@ async def get_enhanced_ats_score(
             (payload.extracted_keywords and payload.extracted_keywords.get("total_keywords", 0) > 0)
         )
         result = enhanced_ats_checker.get_enhanced_ats_score(
-            resume_data, 
+            resume_data_to_use,  # Still pass for structure analysis
             payload.job_description, 
+            resume_text=resume_text_to_use,  # Pass extracted text for more accurate scoring
             use_industry_standard=use_tfidf,
             extracted_keywords=payload.extracted_keywords,
             previous_score=payload.previous_score

@@ -876,6 +876,7 @@ export default function PreviewPanel({
   const renderContent = () => (
     <div 
       ref={contentRef}
+      data-preview-container
       className="preview-resume-container"
       style={{
         fontFamily: bodyFont,
