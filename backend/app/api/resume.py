@@ -1103,7 +1103,6 @@ async def list_user_resumes(
         resumes = (
             db.query(Resume)
             .filter(Resume.user_id == user.id)
-            .options(selectinload(Resume.versions))
             .order_by(Resume.updated_at.desc())
             .all()
         )
@@ -1112,25 +1111,35 @@ async def list_user_resumes(
         )
 
         resume_ids = [r.id for r in resumes]
-        version_counts = {}
+        version_info_map = {}
         if resume_ids:
-            version_counts_query = (
+            version_info_query = (
                 db.query(
                     ResumeVersion.resume_id,
-                    func.count(ResumeVersion.id).label('count')
+                    func.count(ResumeVersion.id).label('count'),
+                    func.max(ResumeVersion.id).label('latest_version_id'),
+                    func.max(ResumeVersion.version_number).label('latest_version_number')
                 )
                 .filter(ResumeVersion.resume_id.in_(resume_ids))
                 .group_by(ResumeVersion.resume_id)
                 .all()
             )
-            version_counts = {rv.resume_id: rv.count for rv in version_counts_query}
+            version_info_map = {
+                rv.resume_id: {
+                    'count': rv.count,
+                    'latest_version_id': rv.latest_version_id,
+                    'latest_version_number': rv.latest_version_number
+                }
+                for rv in version_info_query
+            }
 
         result = []
         for resume in resumes:
-            latest_version = (
-                max(resume.versions, key=lambda v: v.version_number)
-                if resume.versions else None
-            )
+            version_info = version_info_map.get(resume.id, {
+                'count': 0,
+                'latest_version_id': None,
+                'latest_version_number': None
+            })
 
             result.append(
                 {
@@ -1144,11 +1153,9 @@ async def list_user_resumes(
                     "updated_at": (
                         resume.updated_at.isoformat() if resume.updated_at else None
                     ),
-                    "latest_version_id": latest_version.id if latest_version else None,
-                    "latest_version_number": (
-                        latest_version.version_number if latest_version else None
-                    ),
-                    "version_count": version_counts.get(resume.id, 0),
+                    "latest_version_id": version_info['latest_version_id'],
+                    "latest_version_number": version_info['latest_version_number'],
+                    "version_count": version_info['count'],
                 }
             )
 

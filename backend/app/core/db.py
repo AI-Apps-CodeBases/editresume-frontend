@@ -235,6 +235,7 @@ def migrate_schema() -> None:
 
         # Create indexes for dashboard performance optimization
         indexes_to_create = [
+            ("idx_users_email", "users", "email"),
             ("idx_users_created_at", "users", "created_at"),
             ("idx_users_is_premium", "users", "is_premium"),
             ("idx_users_premium_created", "users", "is_premium, created_at"),
