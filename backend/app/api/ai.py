@@ -1708,16 +1708,16 @@ async def generate_summary_from_experience(payload: dict):
                 + " ".join(summary_parts)
             )
 
-        missing_kw_section = ""
-        if limited_missing_for_sections and len(limited_missing_for_sections) > 0:
-            missing_kw_section = f"""
-CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
-{', '.join(limited_missing_for_sections)}
-
-These keywords are currently MISSING from your resume and MUST be incorporated 
-into the summary to improve ATS score. Use them naturally in context - they are 
-the highest priority for inclusion.
-"""
+        # Calculate total keywords being used for logging
+        total_keywords_used = (
+            len(limited_missing_for_sections) + 
+            len(limited_priority) + 
+            len(limited_high_freq) + 
+            len(limited_matching)
+        )
+        logger.info(f"Professional summary generation: Using {total_keywords_used} total keywords (max 8): "
+                   f"missing={len(limited_missing_for_sections)}, priority={len(limited_priority)}, "
+                   f"high_freq={len(limited_high_freq)}, matching={len(limited_matching)}")
         
         company_warning = ""
         if company_name:
@@ -1736,9 +1736,8 @@ Work Experience:
 Skills:
 {skills_text if skills_text else 'To be extracted from experience'}
 
- Target Job Description Keywords (blend these naturally into the narrative):
+ Target Job Description Keywords (blend these naturally into the narrative - MAXIMUM 8 keywords total):
 {keyword_guidance}
-{missing_kw_section}
 {company_warning}
  Job Description Snapshot (for context):
 {job_description_excerpt if job_description_excerpt else 'Not provided'}
@@ -1760,10 +1759,9 @@ Requirements for the Professional Summary:
 7. Third-person perspective (avoid "I")
 8. Focus on impact and results
 9. Include industry-specific keywords for ATS systems
-10. Prioritize incorporating the provided priority and missing JD keywords verbatim when it fits naturally
-11. CRITICAL: The missing keywords listed above are HIGH PRIORITY - ensure they appear naturally in the summary
-12. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms
-13. NEVER include any company names from the job description in the summary
+10. CRITICAL: Use ONLY the keywords provided above (maximum 8 total) - prioritize missing keywords first, then priority keywords
+11. Avoid keyword stuffing—ensure the summary flows smoothly while covering the critical terms naturally
+12. NEVER include any company names from the job description in the summary
 
 Return ONLY the professional summary paragraph, no labels, explanations, or formatting markers."""
 
