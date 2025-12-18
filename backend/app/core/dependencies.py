@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Import agents after OpenAI client is initialized
 try:
+    from app.agents.ats_scoring_agent import ATSScoringAgent
     from app.agents.content_generation_agent import ContentGenerationAgent
     from app.agents.cover_letter_agent import CoverLetterAgent
     from app.agents.grammar_agent import GrammarAgent
@@ -28,6 +29,7 @@ try:
     logger.debug("All agent imports successful")
 except ImportError as e:
     logger.error(f"Failed to import agents: {e}", exc_info=True)
+    ATSScoringAgent = None
     ContentGenerationAgent = None
     CoverLetterAgent = None
     GrammarAgent = None
@@ -72,11 +74,20 @@ keyword_extractor = KeywordExtractor()
 grammar_checker = GrammarStyleChecker()
 
 # Initialize AI agents
+ats_scoring_agent: Optional[ATSScoringAgent] = None
 cover_letter_agent: Optional[CoverLetterAgent] = None
 content_generation_agent: Optional[ContentGenerationAgent] = None
 improvement_agent: Optional[ImprovementAgent] = None
 grammar_agent: Optional[GrammarAgent] = None
 job_matching_agent: Optional[JobMatchingAgent] = None
+
+try:
+    if ATSScoringAgent is not None:
+        ats_scoring_agent = ATSScoringAgent()
+        logger.info("ATS scoring agent initialized successfully")
+except Exception as e:
+    logger.warning(f"ATS scoring agent not available: {e}")
+    ats_scoring_agent = None
 
 try:
     cover_letter_agent = CoverLetterAgent()

@@ -2,6 +2,7 @@
 
 import config from '@/lib/config'
 import { getAuthHeaders } from '@/lib/auth'
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import type { CreateJobPayload, Job } from '../types'
 
 const baseUrl = config.apiBase
@@ -36,9 +37,10 @@ export async function fetchSavedJobs(): Promise<Job[]> {
   Object.assign(headers, getAuthHeaders())
 
   try {
-    const response = await fetch(`${baseUrl}/api/jobs`, {
+    const response = await fetchWithTimeout(`${baseUrl}/api/jobs`, {
       headers,
       credentials: 'include',
+      timeout: 15000,
     })
     if (response.status === 404) {
       return []
@@ -48,6 +50,9 @@ export async function fetchSavedJobs(): Promise<Job[]> {
     if (error instanceof TypeError && error.message.includes('fetch')) {
       console.error(`Cannot connect to API server at ${baseUrl}. Please ensure the backend is running.`)
       throw new Error(`Cannot connect to API server. Please ensure the backend is running at ${baseUrl}`)
+    }
+    if (error instanceof Error && error.message.includes('timeout')) {
+      throw new Error('Request timed out. The server may be experiencing issues.')
     }
     throw error
   }
@@ -59,7 +64,7 @@ export async function createJob(payload: CreateJobPayload): Promise<Job> {
   }
   Object.assign(headers, getAuthHeaders())
 
-  const response = await fetch(`${baseUrl}/api/jobs`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/jobs`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -67,6 +72,7 @@ export async function createJob(payload: CreateJobPayload): Promise<Job> {
       skills: payload.skills ?? [],
     }),
     credentials: 'include',
+    timeout: 15000,
   })
   return handleResponse<Job>(response)
 }
@@ -77,9 +83,10 @@ export async function fetchJob(jobId: number): Promise<Job> {
   }
   Object.assign(headers, getAuthHeaders())
 
-  const response = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/jobs/${jobId}`, {
     headers,
     credentials: 'include',
+    timeout: 15000,
   })
   return handleResponse<Job>(response)
 }
@@ -87,10 +94,11 @@ export async function fetchJob(jobId: number): Promise<Job> {
 export async function deleteJob(jobId: number): Promise<void> {
   const headers = getAuthHeaders()
 
-  const response = await fetch(`${baseUrl}/api/jobs/${jobId}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/jobs/${jobId}`, {
     method: 'DELETE',
     headers: Object.keys(headers).length > 0 ? headers : undefined,
     credentials: 'include',
+    timeout: 15000,
   })
   await handleResponse<void>(response)
 }
@@ -109,9 +117,10 @@ export async function fetchLegacyJobDescriptions(): Promise<Job[]> {
   }
   Object.assign(headers, getAuthHeaders())
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchWithTimeout(url.toString(), {
     headers,
     credentials: 'include',
+    timeout: 15000,
   })
 
   if (response.status === 404) {

@@ -46,8 +46,9 @@ def _load_service_account_info() -> Optional[Dict[str, Any]]:
     return None
 
 
-def _initialize_firebase_with_timeout(cred, options, timeout: int = 10) -> Optional[firebase_admin.App]:
-    """Initialize Firebase with timeout to prevent hanging on network issues."""
+def _initialize_firebase_with_timeout(cred, options, timeout: int = 30) -> Optional[firebase_admin.App]:
+    """Initialize Firebase with timeout to prevent hanging on network issues.
+    Increased to 30s for Docker environments with slow network connections."""
     result = [None]
     exception = [None]
 
@@ -127,8 +128,8 @@ def get_firebase_app() -> Optional[firebase_admin.App]:
         if settings.firebase_project_id:
             options["projectId"] = settings.firebase_project_id
 
-        # Use timeout wrapper to prevent hanging
-        app = _initialize_firebase_with_timeout(cred, options, timeout=10)
+        # Use timeout wrapper to prevent hanging (increased to 30s for Docker/slow networks)
+        app = _initialize_firebase_with_timeout(cred, options, timeout=30)
         if app:
             logger.info("Firebase Admin SDK initialized successfully")
             return app

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import JobDetailView from './JobDetailView'
 import JobDescriptionParser from './JobDescriptionParser'
 import { BriefcaseIcon, FolderIcon, LockIcon, BookmarkIcon, CheckIcon, XIcon, CalendarIcon, HandshakeIcon, EditIcon } from '@/components/Icons'
@@ -83,16 +84,22 @@ export default function JobsView({ onBack }: Props) {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
       }
-      const res = await fetch(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
-        headers
+      const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+        headers,
+        timeout: 15000,
       })
       if (res.ok) {
         const data = await res.json()
         const jds = Array.isArray(data) ? data : data.results || []
         setSavedJDs(jds)
+      } else {
+        console.error('Failed to load job descriptions:', res.status, res.statusText)
       }
     } catch (e) {
       console.error('Failed to load job descriptions', e)
+      if (e instanceof Error && e.message.includes('timeout')) {
+        alert('Request timed out. The server may be experiencing issues. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -228,11 +235,12 @@ export default function JobsView({ onBack }: Props) {
     try {
       const url = `${config.apiBase}/api/job-descriptions/${jd.id}${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`
       
-      const res = await fetch(url, { 
+      const res = await fetchWithTimeout(url, { 
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 15000,
       })
       
       if (res.ok) {
@@ -354,10 +362,11 @@ export default function JobsView({ onBack }: Props) {
                                       headers['Authorization'] = `Bearer ${token}`
                                     }
                                     
-                                    const res = await fetch(`${config.apiBase}/api/job-descriptions/${jd.id}${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`, {
+                                    const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions/${jd.id}${user?.email ? `?user_email=${encodeURIComponent(user.email)}` : ''}`, {
                                       method: 'PATCH',
                                       headers,
-                                      body: JSON.stringify({ importance: newRating })
+                                      body: JSON.stringify({ importance: newRating }),
+                                      timeout: 15000,
                                     })
                                     
                                     if (res.ok) {
