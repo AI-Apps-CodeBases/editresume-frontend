@@ -4336,6 +4336,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               </div>
             </div>
           )}
+          </div>
         </>
       )}
 
@@ -4771,6 +4772,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           ) : null}
 
 
+      </div>
       </div>
       </div>
     </div>
