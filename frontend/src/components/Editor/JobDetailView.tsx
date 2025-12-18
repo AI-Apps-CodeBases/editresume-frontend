@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config'
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import UploadResume from './UploadResume'
 import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, StarIcon, FireIcon, DiamondIcon, RocketIcon, TargetIcon, SparklesIcon, TrophyIcon, MailIcon, DocumentIcon, ChartIcon, BrainIcon } from '@/components/Icons'
@@ -121,7 +122,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     
     setLoading(true)
     try {
-      const res = await fetch(`${config.apiBase}/api/job-descriptions/${jobId}?user_email=${encodeURIComponent(user.email)}`)
+      const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions/${jobId}?user_email=${encodeURIComponent(user.email)}`, {
+        timeout: 15000,
+      })
       if (res.ok) {
         const data = await res.json()
         setJob(data)
@@ -133,7 +136,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         // Always fetch cover letters directly from the dedicated endpoint
         let letters: JobCoverLetter[] = []
         try {
-          const coverLetterRes = await fetch(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters`)
+          const coverLetterRes = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters`, {
+            timeout: 15000,
+          })
           if (coverLetterRes.ok) {
             const coverLetterData = await coverLetterRes.json()
             if (coverLetterData && Array.isArray(coverLetterData)) {
@@ -299,13 +304,14 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       return
     }
     try {
-      const res = await fetch(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters/${editingLetterId}`, {
+      const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters/${editingLetterId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: editingLetterTitle.trim(),
           content: editingLetterContent.trim()
-        })
+        }),
+        timeout: 15000,
       })
       if (res.ok) {
         const updated = await res.json()
@@ -343,8 +349,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
   const handleDeleteCoverLetter = async (letterId: number) => {
     try {
-      const res = await fetch(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters/${letterId}`, {
-        method: 'DELETE'
+      const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions/${jobId}/cover-letters/${letterId}`, {
+        method: 'DELETE',
+        timeout: 15000,
       })
       if (res.ok) {
         console.log('Cover letter deleted successfully:', letterId)

@@ -1020,7 +1020,7 @@ class EnhancedATSChecker:
         return improvements
 
     def calculate_tfidf_cosine_score(
-        self, resume_text: str, job_description: str = None, extracted_keywords: Dict = None
+        self, resume_text: str, job_description: str = None, extracted_keywords: Dict = None, resume_data: Dict = None
     ) -> Dict[str, Any]:
         """
         Industry-standard TF-IDF + Cosine Similarity scoring method.
@@ -1212,8 +1212,52 @@ class EnhancedATSChecker:
             # Limit missing keywords to top 40 most impactful (those that will meaningfully improve score)
             missing_keywords = missing_keywords[:40]
             
+            # Count summary keyword matches and limit to 8 to prevent excessive score inflation
+            summary_match_count = 0
+            if resume_data:
+                summary = resume_data.get("summary", "")
+                if summary and summary.strip() and use_extracted_keywords and extracted_keywords:
+                    summary_lower = summary.lower()
+                    # Count unique keywords found in summary
+                    all_keywords = []
+                    for keyword_list in [
+                        extracted_keywords.get("technical_keywords", []),
+                        extracted_keywords.get("general_keywords", []),
+                        extracted_keywords.get("soft_skills", []),
+                        extracted_keywords.get("priority_keywords", []),
+                    ]:
+                        all_keywords.extend([str(kw).lower().strip() for kw in keyword_list if kw])
+                    
+                    high_freq = extracted_keywords.get("high_frequency_keywords", [])
+                    for kw_item in high_freq:
+                        kw = kw_item.get("keyword", kw_item) if isinstance(kw_item, dict) else kw_item
+                        if kw:
+                            all_keywords.append(str(kw).lower().strip())
+                    
+                    # Count matches in summary (limit to 8)
+                    summary_matches = set()
+                    for kw_str in all_keywords:
+                        if len(summary_matches) >= 8:
+                            break  # Stop at 8
+                        pattern = r'\b' + re.escape(kw_str) + r'\b'
+                        if re.search(pattern, summary_lower):
+                            summary_matches.add(kw_str)
+                        # Also check if keyword is part of summary text (for compound words)
+                        elif kw_str in summary_lower:
+                            summary_matches.add(kw_str)
+                    summary_match_count = len(summary_matches)
+            
+            # Adjust matching_count: subtract excess summary matches (if > 8)
+            total_matching_count = len(matching_keywords)
+            if summary_match_count > 8:
+                excess_summary_matches = summary_match_count - 8
+                # Reduce matching_count by excess (but don't go below 0)
+                matching_count = max(0, total_matching_count - excess_summary_matches)
+                logger.debug(f"Summary keyword limit: {summary_match_count} matches found in summary, limiting to 8. Adjusted matching_count: {matching_count} (was {total_matching_count})")
+            else:
+                matching_count = total_matching_count
+            
             # Increased boost for matching keywords to reward keyword additions
-            matching_count = len(matching_keywords)
             if matching_count > 20:
                 # More generous boost for very high counts
                 boost = min(20, 10 + (matching_count - 20) * 0.8)  # 12->20, 8->10, 0.2->0.8
@@ -1358,7 +1402,7 @@ class EnhancedATSChecker:
         }
 
     def calculate_industry_standard_score(
-        self, resume_data: Dict, job_description: str = None, extracted_keywords: Dict = None
+        self, resume_data: Dict, job_description: str = None, extracted_keywords: Dict = None, resume_text: str = None
     ) -> Dict[str, Any]:
         """
         Industry-standard ATS score using TF-IDF + Cosine Similarity.
@@ -1373,10 +1417,12 @@ class EnhancedATSChecker:
         
         Keyword matching is 85% of the score, making keyword improvements the primary factor.
         """
-        resume_text = self.extract_text_from_resume(resume_data)
+        # Use provided resume_text or extract from resume_data
+        resume_text = resume_text if resume_text else self.extract_text_from_resume(resume_data)
 
         # 1. TF-IDF + Cosine Similarity (5% weight - keyword-focused scoring)
-        tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description, extracted_keywords=extracted_keywords)
+        # Pass resume_data to limit summary keywords to max 8
+        tfidf_analysis = self.calculate_tfidf_cosine_score(resume_text, job_description, extracted_keywords=extracted_keywords, resume_data=resume_data)
         tfidf_score = tfidf_analysis.get("score", 0)
 
         # 2. Keyword Match Percentage (85% weight - primary factor)
@@ -1557,10 +1603,11 @@ class EnhancedATSChecker:
         }
 
     def calculate_comprehensive_score(
-        self, resume_data: Dict, job_description: str = None
+        self, resume_data: Dict, job_description: str = None, resume_text: str = None
     ) -> Dict[str, Any]:
         """Calculate comprehensive ATS compatibility score"""
-        resume_text = self.extract_text_from_resume(resume_data)
+        # Use provided resume_text or extract from resume_data
+        resume_text = resume_text if resume_text else self.extract_text_from_resume(resume_data)
 
         # Get individual analyses
         structure_analysis = self.analyze_resume_structure(resume_data)
@@ -1652,28 +1699,36 @@ class EnhancedATSChecker:
         job_description: str = None,
         use_industry_standard: bool = False,
         extracted_keywords: Dict = None,
+        resume_text: str = None,  # Add this parameter - text extracted from live preview
         previous_score: int = None,
     ) -> Dict[str, Any]:
         """
         Main method to get enhanced ATS compatibility score and AI improvements.
+        If resume_text is provided, use it directly; otherwise extract from resume_data.
         
         Args:
             resume_data: Resume data dictionary
             job_description: Optional job description for matching
             use_industry_standard: If True, uses TF-IDF + Cosine Similarity (industry standard).
                                   If False, uses custom comprehensive scoring (default).
+            resume_text: Optional pre-extracted text from live preview (more accurate)
             previous_score: DEPRECATED - kept for backward compatibility but not used
         """
         try:
+            # Use provided resume_text or extract from resume_data
+            resume_text_to_use = resume_text if resume_text else self.extract_text_from_resume(resume_data)
+            
             if use_industry_standard and (job_description or extracted_keywords):
                 # Use industry-standard TF-IDF + Cosine Similarity method
                 # Pass extracted_keywords if available (from extension)
                 result = self.calculate_industry_standard_score(
-                    resume_data, job_description, extracted_keywords=extracted_keywords
+                    resume_data, job_description, extracted_keywords=extracted_keywords, resume_text=resume_text_to_use
                 )
+                # Note: calculate_industry_standard_score calls calculate_tfidf_cosine_score internally
+                # and will pass resume_data to it for summary keyword limiting
             else:
                 # Use custom comprehensive scoring (original method)
-                result = self.calculate_comprehensive_score(resume_data, job_description)
+                result = self.calculate_comprehensive_score(resume_data, job_description, resume_text=resume_text_to_use)
 
             calculated_score = result["overall_score"]
             
