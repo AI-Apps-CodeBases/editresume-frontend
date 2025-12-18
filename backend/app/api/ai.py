@@ -1492,25 +1492,45 @@ async def generate_summary_from_experience(payload: dict):
         append_keywords(high_frequency_keywords)
         append_keywords(matching_keywords)
 
+        # Limit total keywords to 8 for professional summary
+        # Prioritize missing keywords first, then priority, then others
+        MAX_KEYWORDS_FOR_SUMMARY = 8
+        limited_missing_for_sections = missing_keywords[:MAX_KEYWORDS_FOR_SUMMARY]
+        remaining_slots = MAX_KEYWORDS_FOR_SUMMARY - len(limited_missing_for_sections)
+        
+        limited_priority = []
+        if remaining_slots > 0:
+            limited_priority = priority_keywords[:remaining_slots]
+            remaining_slots -= len(limited_priority)
+        
+        limited_high_freq = []
+        if remaining_slots > 0:
+            limited_high_freq = high_frequency_keywords[:remaining_slots]
+            remaining_slots -= len(limited_high_freq)
+        
+        limited_matching = []
+        if remaining_slots > 0:
+            limited_matching = matching_keywords[:remaining_slots]
+
         keyword_sections = []
-        if priority_keywords:
+        if limited_priority:
             keyword_sections.append(
                 "Priority Keywords (must appear naturally):\n- "
-                + "\n- ".join(priority_keywords)
+                + "\n- ".join(limited_priority)
             )
-        if missing_keywords:
+        if limited_missing_for_sections:
             keyword_sections.append(
-                "Missing JD Keywords to add:\n- " + "\n- ".join(missing_keywords)
+                "Missing JD Keywords to add:\n- " + "\n- ".join(limited_missing_for_sections)
             )
-        if high_frequency_keywords:
+        if limited_high_freq:
             keyword_sections.append(
                 "High-Frequency JD Keywords:\n- "
-                + "\n- ".join(high_frequency_keywords[:12])
+                + "\n- ".join(limited_high_freq)
             )
-        if matching_keywords:
+        if limited_matching:
             keyword_sections.append(
                 "Resume Keywords to keep strength on:\n- "
-                + "\n- ".join(matching_keywords[:12])
+                + "\n- ".join(limited_matching)
             )
 
         keyword_guidance = (
@@ -1647,12 +1667,10 @@ async def generate_summary_from_experience(payload: dict):
             )
 
         missing_kw_section = ""
-        if missing_keywords and len(missing_keywords) > 0:
-            # Limit to 5-8 missing keywords (use up to 8)
-            limited_missing = missing_keywords[:8]
+        if limited_missing_for_sections and len(limited_missing_for_sections) > 0:
             missing_kw_section = f"""
 CRITICAL - Missing Keywords from Job Description (HIGH PRIORITY - MUST include these naturally):
-{', '.join(limited_missing)}
+{', '.join(limited_missing_for_sections)}
 
 These keywords are currently MISSING from your resume and MUST be incorporated 
 into the summary to improve ATS score. Use them naturally in context - they are 
@@ -1788,7 +1806,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
 
         uncovered_missing_keywords = [
             keyword
-            for keyword in missing_keywords
+            for keyword in limited_missing_for_sections
             if keyword and keyword.lower() not in summary_lower
         ]
 
