@@ -484,6 +484,21 @@ def list_user_job_descriptions(
                 .all()
             )
             logger.info(f"Found {len(items)} job descriptions for user_email: {user_email}")
+            
+            # Use the already-loaded resume_versions from selectinload instead of querying again
+            resume_links_map: Dict[int, List[JobResumeVersion]] = {}
+            for it in items:
+                if hasattr(it, 'resume_versions') and it.resume_versions:
+                    # Sort by updated_at and ats_score as needed
+                    sorted_versions = sorted(
+                        it.resume_versions,
+                        key=lambda v: (
+                            v.updated_at if v.updated_at else datetime.min,
+                            v.ats_score if v.ats_score else 0
+                        ),
+                        reverse=True
+                    )
+                    resume_links_map[it.id] = sorted_versions
         else:
             # Columns don't exist - use raw SQL query
             sql = """
@@ -537,27 +552,28 @@ def list_user_job_descriptions(
                 jd.notes = None
                 items.append(jd)
 
-        job_ids = [it.id for it in items if getattr(it, "id", None)]
-        resume_links_map: Dict[int, List[JobResumeVersion]] = {}
-        if job_ids:
-            try:
-                resume_links = (
-                    db.query(JobResumeVersion)
-                    .filter(JobResumeVersion.job_description_id.in_(job_ids))
-                    .order_by(
-                        JobResumeVersion.updated_at.desc().nullslast(),
-                        JobResumeVersion.ats_score.desc().nullslast(),
+            # For raw SQL path, we need to query resume_versions separately
+            job_ids = [it.id for it in items if getattr(it, "id", None)]
+            resume_links_map: Dict[int, List[JobResumeVersion]] = {}
+            if job_ids:
+                try:
+                    resume_links = (
+                        db.query(JobResumeVersion)
+                        .filter(JobResumeVersion.job_description_id.in_(job_ids))
+                        .order_by(
+                            JobResumeVersion.updated_at.desc().nullslast(),
+                            JobResumeVersion.ats_score.desc().nullslast(),
+                        )
+                        .all()
                     )
-                    .all()
-                )
-                for link in resume_links:
-                    resume_links_map.setdefault(link.job_description_id, []).append(
-                        link
+                    for link in resume_links:
+                        resume_links_map.setdefault(link.job_description_id, []).append(
+                            link
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to load resume links for jobs: {e}", exc_info=True
                     )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to load resume links for jobs: {e}", exc_info=True
-                )
 
         result = []
         for it in items:
