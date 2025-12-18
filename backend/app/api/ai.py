@@ -1517,23 +1517,6 @@ async def generate_summary_from_experience(payload: dict):
         if company_name:
             missing_keywords = filter_company_names(missing_keywords, company_name)
 
-        combined_keywords = []
-        seen_keywords = set()
-
-        def append_keywords(sequence):
-            for keyword in sequence:
-                lower = keyword.lower()
-                if lower in seen_keywords:
-                    continue
-                seen_keywords.add(lower)
-                combined_keywords.append(keyword)
-
-        append_keywords(target_keywords)
-        append_keywords(priority_keywords)
-        append_keywords(missing_keywords)
-        append_keywords(high_frequency_keywords)
-        append_keywords(matching_keywords)
-
         # Limit total keywords to 8 for professional summary
         # Prioritize missing keywords first, then priority, then others
         MAX_KEYWORDS_FOR_SUMMARY = 8
@@ -1553,16 +1536,49 @@ async def generate_summary_from_experience(payload: dict):
         limited_matching = []
         if remaining_slots > 0:
             limited_matching = matching_keywords[:remaining_slots]
+        
+        # Limit target_keywords to fill any remaining slots (lowest priority)
+        limited_target = []
+        if remaining_slots > 0:
+            # Remove duplicates with already selected keywords
+            seen_in_limited = set()
+            for kw_list in [limited_missing_for_sections, limited_priority, limited_high_freq, limited_matching]:
+                for kw in kw_list:
+                    seen_in_limited.add(kw.lower())
+            
+            limited_target = [
+                kw for kw in target_keywords 
+                if kw.lower() not in seen_in_limited
+            ][:remaining_slots]
+        
+        # Build combined_keywords from LIMITED keywords only (for tracking)
+        combined_keywords = []
+        seen_keywords = set()
+
+        def append_keywords(sequence):
+            for keyword in sequence:
+                lower = keyword.lower()
+                if lower in seen_keywords:
+                    continue
+                seen_keywords.add(lower)
+                combined_keywords.append(keyword)
+
+        # Only add the limited keywords, not the full lists
+        append_keywords(limited_missing_for_sections)
+        append_keywords(limited_priority)
+        append_keywords(limited_high_freq)
+        append_keywords(limited_matching)
+        append_keywords(limited_target)
 
         keyword_sections = []
+        if limited_missing_for_sections:
+            keyword_sections.append(
+                "Missing JD Keywords to add:\n- " + "\n- ".join(limited_missing_for_sections)
+            )
         if limited_priority:
             keyword_sections.append(
                 "Priority Keywords (must appear naturally):\n- "
                 + "\n- ".join(limited_priority)
-            )
-        if limited_missing_for_sections:
-            keyword_sections.append(
-                "Missing JD Keywords to add:\n- " + "\n- ".join(limited_missing_for_sections)
             )
         if limited_high_freq:
             keyword_sections.append(
@@ -1573,6 +1589,11 @@ async def generate_summary_from_experience(payload: dict):
             keyword_sections.append(
                 "Resume Keywords to keep strength on:\n- "
                 + "\n- ".join(limited_matching)
+            )
+        if limited_target:
+            keyword_sections.append(
+                "Additional Target Keywords:\n- "
+                + "\n- ".join(limited_target)
             )
 
         keyword_guidance = (
@@ -1713,11 +1734,16 @@ async def generate_summary_from_experience(payload: dict):
             len(limited_missing_for_sections) + 
             len(limited_priority) + 
             len(limited_high_freq) + 
-            len(limited_matching)
+            len(limited_matching) +
+            len(limited_target)
         )
         logger.info(f"Professional summary generation: Using {total_keywords_used} total keywords (max 8): "
                    f"missing={len(limited_missing_for_sections)}, priority={len(limited_priority)}, "
-                   f"high_freq={len(limited_high_freq)}, matching={len(limited_matching)}")
+                   f"high_freq={len(limited_high_freq)}, matching={len(limited_matching)}, target={len(limited_target)}")
+        
+        # Verify we're not exceeding the limit
+        if total_keywords_used > MAX_KEYWORDS_FOR_SUMMARY:
+            logger.warning(f"Keyword limit exceeded! Total: {total_keywords_used}, Max: {MAX_KEYWORDS_FOR_SUMMARY}")
         
         company_warning = ""
         if company_name:

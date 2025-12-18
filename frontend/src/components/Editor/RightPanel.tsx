@@ -233,6 +233,27 @@ export default function RightPanel({
       clearTimeout(analyzeTimeoutRef.current)
     }
 
+    // Try to get score from match result first (more accurate - from Match JD tab)
+    if (typeof window !== 'undefined') {
+      try {
+        const savedMatchResult = localStorage.getItem('currentMatchResult')
+        if (savedMatchResult) {
+          const matchResult = JSON.parse(savedMatchResult)
+          const matchScore = matchResult?.match_analysis?.similarity_score
+          if (matchScore !== null && matchScore !== undefined && !isNaN(matchScore)) {
+            setAtsScore(Math.round(matchScore))
+            // Still calculate in background to keep it updated, but use match result for display
+            analyzeTimeoutRef.current = setTimeout(() => {
+              calculateATSScore()
+            }, 2000)
+            return
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load match result score:', e)
+      }
+    }
+
     analyzeTimeoutRef.current = setTimeout(() => {
       calculateATSScore()
     }, 1000)
