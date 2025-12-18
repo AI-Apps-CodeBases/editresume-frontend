@@ -75,11 +75,13 @@ export default function RightPanel({
         sections: (resumeData.sections || []).map((section: any) => ({
           id: section.id,
           title: section.title,
-          bullets: (section.bullets || []).map((bullet: any) => ({
-            id: bullet.id,
-            text: bullet.text,
-            params: {}
-          }))
+          bullets: (section.bullets || [])
+            .filter((bullet: any) => bullet?.params?.visible !== false)  // Filter out invisible bullets
+            .map((bullet: any) => ({
+              id: bullet.id,
+              text: bullet.text,
+              params: bullet.params || {}  // Preserve params instead of resetting
+            }))
         }))
       }
 

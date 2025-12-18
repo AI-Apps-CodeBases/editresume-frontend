@@ -2,6 +2,7 @@ import re
 import math
 import json
 import logging
+import asyncio
 from typing import Dict, List, Tuple, Optional, Any
 from collections import Counter
 from dataclasses import dataclass
@@ -328,6 +329,11 @@ class EnhancedATSChecker:
 
             bullets = get_value(section, "bullets", [])
             for bullet in bullets:
+                # Filter out invisible bullets (visible=false)
+                bullet_params = get_value(bullet, "params", {})
+                if isinstance(bullet_params, dict) and bullet_params.get("visible") is False:
+                    continue  # Skip invisible bullets
+                
                 bullet_text = get_value(bullet, "text")
                 if bullet_text:
                     # Extract company headers from work experience sections
@@ -346,12 +352,10 @@ class EnhancedATSChecker:
                         # Regular bullet point
                         text_parts.append(bullet_text)
                 
-                # Also check for any additional metadata in bullet params
-                bullet_params = get_value(bullet, "params", {})
+                # Also check for any additional metadata in bullet params (excluding visible flag)
                 if isinstance(bullet_params, dict):
-                    # Extract any text fields from params
                     for key, value in bullet_params.items():
-                        if isinstance(value, str) and value.strip():
+                        if key != "visible" and isinstance(value, str) and value.strip():
                             text_parts.append(value)
 
         if separate_sections:
@@ -734,16 +738,16 @@ class EnhancedATSChecker:
             1 for word in buzzwords if word.lower() in text_content.lower()
         )
 
-        # Stabilized quality score calculation with logarithmic scaling
-        quality_score = 45
+        # Stabilized quality score calculation - reduced base to prevent summary inflation
+        quality_score = 35  # Reduced from 45 to 35 to prevent excessive score from summary
         
         if quantified_achievements > 0:
-            # Use logarithmic scaling to prevent large swings
-            quality_score += min(30, math.log1p(quantified_achievements) * 8)
+            # Reduced scaling to prevent large swings
+            quality_score += min(25, math.log1p(quantified_achievements) * 6)  # 30->25, 8->6
 
         if strong_verb_count > 0:
-            # Use logarithmic scaling for smoother changes
-            quality_score += min(20, math.log1p(strong_verb_count) * 6)
+            # Reduced scaling for smoother changes
+            quality_score += min(15, math.log1p(strong_verb_count) * 4)  # 20->15, 6->4
 
         if vague_count > 0:
             # Further reduced penalty to allow higher scores
@@ -1208,24 +1212,27 @@ class EnhancedATSChecker:
             # Limit missing keywords to top 40 most impactful (those that will meaningfully improve score)
             missing_keywords = missing_keywords[:40]
             
-            # Add responsive boost based on number of matching keywords
-            # Each matching keyword adds 1.0-1.5 points to cosine score
+            # Increased boost for matching keywords to reward keyword additions
             matching_count = len(matching_keywords)
-            if matching_count > 15:
-                # Linear scaling for high counts - very responsive
-                boost = min(25, 8 + (matching_count - 15) * 1.2)  # Increased to 1.2 per keyword
+            if matching_count > 20:
+                # More generous boost for very high counts
+                boost = min(20, 10 + (matching_count - 20) * 0.8)  # 12->20, 8->10, 0.2->0.8
+                cosine_score = min(100, cosine_score + boost)
+            elif matching_count > 15:
+                # More generous boost for high counts
+                boost = min(15, 8 + (matching_count - 15) * 1.0)  # 8->15, 5->8, 0.6->1.0
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 10:
-                # Linear scaling for medium-high counts - highly responsive
-                boost = min(15, 4 + (matching_count - 10) * 1.5)  # Increased to 1.5 per keyword
+                # More generous boost for medium-high counts
+                boost = min(10, 5 + (matching_count - 10) * 1.0)  # 5->10, 2->5, 0.6->1.0
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 5:
-                # Linear scaling for small-medium counts - most responsive
-                boost = min(10, (matching_count - 5) * 1.5)  # Increased to 1.5 per keyword
+                # More generous boost for medium counts
+                boost = min(5, (matching_count - 5) * 0.8)  # 2->5, 0.4->0.8
                 cosine_score = min(100, cosine_score + boost)
             elif matching_count > 0:
-                # Even small counts get a boost - reward any matches
-                boost = min(5, matching_count * 1.0)  # 1.0 point per keyword
+                # More generous boost for small counts
+                boost = min(2, matching_count * 0.4)  # 1->2, 0.2->0.4 per keyword
                 cosine_score = min(100, cosine_score + boost)
 
             # Calculate keyword match percentage with improved algorithm
@@ -1271,15 +1278,15 @@ class EnhancedATSChecker:
             base_match_percentage = (weighted_match_percentage * 0.6) + (simple_match_percentage * 0.4)
             
             # Add responsive boost for having matching keywords
-            # Each matching keyword adds 1.0-1.5% to match percentage
+            # Increased boost to reward keyword additions
             matching_count = len(matching_keywords)
             if matching_count > 20:
-                # Linear scaling for high counts - very responsive
-                boost = min(20, (matching_count - 20) * 1.0)  # 1.0% per keyword
+                # More generous boost for high counts
+                boost = min(30, (matching_count - 20) * 1.5)  # 20->30, 1.0->1.5% per keyword
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 15:
-                # Linear scaling for medium-high counts - highly responsive
-                boost = min(15, 3 + (matching_count - 15) * 1.2)  # 1.2% per keyword
+                # More generous boost for medium-high counts
+                boost = min(20, 5 + (matching_count - 15) * 1.5)  # 15->20, 3->5, 1.2->1.5% per keyword
                 match_percentage = min(100, base_match_percentage + boost)
             elif matching_count > 10:
                 # Linear scaling for medium counts - very responsive
@@ -1579,23 +1586,26 @@ class EnhancedATSChecker:
             + max(0, formatting_analysis["score"] - 1) * 0.12
         )
         
-        # Calculate content-based baseline (works without previous_score)
+        # Calculate content-based baseline (reduced to prevent excessive scores)
         content_baseline = 0
         if resume_text.strip():
-            content_baseline = 28
+            content_baseline = 20  # Reduced from 28 to 20
             sections = resume_data.get("sections", [])
             if len(sections) > 0:
-                content_baseline += min(12, len(sections) * 1.8)
+                content_baseline += min(8, len(sections) * 1.2)  # Reduced from 12/1.8 to 8/1.2
             if resume_data.get("summary"):
-                content_baseline += 3
+                content_baseline += 2  # Reduced from 3 to 2
             if resume_data.get("email") or resume_data.get("phone"):
-                content_baseline += 2
+                content_baseline += 1  # Reduced from 2 to 1
             
-            # Add protected component contributions
-            content_baseline += (structure_analysis["section_score"] * 0.25 * 0.85)
-            content_baseline += (formatting_analysis["score"] * 0.12 * 0.9)
-            content_baseline += (quality_analysis["score"] * 0.28 * 0.8)
-            content_baseline += (keyword_analysis["score"] * 0.35 * 0.7)
+            # Add protected component contributions (reduced multipliers)
+            content_baseline += (structure_analysis["section_score"] * 0.25 * 0.70)  # 0.85 -> 0.70
+            content_baseline += (formatting_analysis["score"] * 0.12 * 0.75)  # 0.9 -> 0.75
+            content_baseline += (quality_analysis["score"] * 0.28 * 0.65)  # 0.8 -> 0.65
+            content_baseline += (keyword_analysis["score"] * 0.35 * 0.60)  # 0.7 -> 0.6
+        
+        # Cap content_baseline at 50 to allow scores above 82 (increased from 45)
+        content_baseline = min(50, content_baseline)
         
         # Use the highest of: base score, protected baseline, or content baseline
         overall_score = max(base_overall_score, protected_baseline, content_baseline)
@@ -1652,7 +1662,7 @@ class EnhancedATSChecker:
             job_description: Optional job description for matching
             use_industry_standard: If True, uses TF-IDF + Cosine Similarity (industry standard).
                                   If False, uses custom comprehensive scoring (default).
-            previous_score: Optional previous score to enforce maximum 5-point drop limit
+            previous_score: DEPRECATED - kept for backward compatibility but not used
         """
         try:
             if use_industry_standard and (job_description or extracted_keywords):
@@ -1667,15 +1677,68 @@ class EnhancedATSChecker:
 
             calculated_score = result["overall_score"]
             
-            # Prevent score decreases when previous_score is provided
-            # Score can only increase or stay the same when improving resume
-            if previous_score is not None:
-                # Only allow increase or maintain - never decrease
-                calculated_score = max(calculated_score, previous_score)
+            # Apply AI agent semantic quality adjustment if available
+            try:
+                from app.core.dependencies import ats_scoring_agent
+                
+                if ats_scoring_agent and extracted_keywords:
+                    # Extract keyword matches and missing from result
+                    keyword_matches = []
+                    missing_keywords = []
+                    
+                    # Get from TF-IDF analysis if available (industry standard method)
+                    if "tfidf_analysis" in result:
+                        tfidf_analysis = result["tfidf_analysis"]
+                        keyword_matches = [
+                            kw["keyword"] if isinstance(kw, dict) else kw
+                            for kw in tfidf_analysis.get("matching_keywords", [])
+                        ]
+                        missing_keywords = [
+                            kw["keyword"] if isinstance(kw, dict) else kw
+                            for kw in tfidf_analysis.get("missing_keywords", [])
+                        ]
+                    # Or get from keyword_analysis (comprehensive method)
+                    elif "keyword_analysis" in result:
+                        keyword_analysis = result["keyword_analysis"]
+                        # Extract matched/missing from job_match_score analysis if available
+                        job_match = keyword_analysis.get("job_match_keywords", {})
+                        keyword_matches = job_match.get("matched", [])
+                        missing_keywords = job_match.get("missing", [])
+                    
+                    # Only run agent if we have keyword data
+                    if keyword_matches or missing_keywords:
+                        # Run async agent analysis (sync wrapper)
+                        try:
+                            loop = asyncio.get_event_loop()
+                        except RuntimeError:
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                        
+                        semantic_analysis = loop.run_until_complete(
+                            ats_scoring_agent.analyze_semantic_quality(
+                                resume_data=resume_data,
+                                job_description=job_description,
+                                extracted_keywords=extracted_keywords,
+                                keyword_matches=keyword_matches,
+                                missing_keywords=missing_keywords,
+                            )
+                        )
+                        
+                        # Apply semantic adjustment (30% of adjustment to prevent over-correction)
+                        adjustment = semantic_analysis.get("adjustment", 0) * 0.3
+                        calculated_score = max(0, min(100, calculated_score + adjustment))
+                        
+                        # Add semantic analysis to details
+                        result["semantic_analysis"] = semantic_analysis
+                        logger.debug(f"Applied semantic adjustment: {adjustment:.2f} (quality_score: {semantic_analysis.get('quality_score', 50)})")
+                    
+            except Exception as e:
+                # Non-critical: if agent fails, continue with rule-based score
+                logger.warning(f"ATS scoring agent analysis failed, using rule-based score only: {e}")
             
             return {
                 "success": True,
-                "score": calculated_score,
+                "score": round(calculated_score, 1),
                 "details": result,
                 "suggestions": result["suggestions"],
                 "ai_improvements": result.get("ai_improvements", []),

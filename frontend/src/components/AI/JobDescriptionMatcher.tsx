@@ -2232,10 +2232,17 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     };
   }, [jobDescription, selectedJobMetadata, matchResult]);
 
+  // REMOVED: Client-side ATS score calculation - now using only backend results
+  // This prevents inconsistencies between frontend and backend scoring
   const estimatedATS = useMemo(() => {
-    if (!resumeData) return null;
-    const keywordBundle = buildPrecomputedKeywordPayload();
-    if (!keywordBundle) return null;
+    // Only use backend matchResult - no client-side calculation
+    // This ensures consistent scoring between frontend and backend
+    return null;
+    
+    // OLD CODE (disabled):
+    // if (!resumeData) return null;
+    // const keywordBundle = buildPrecomputedKeywordPayload();
+    // if (!keywordBundle) return null;
 
     let extensionDataForScoring = convertExtensionDataToEnhancedFormat(extractedKeywords || keywordBundle.extractedKeywordsPayload);
     
@@ -2352,8 +2359,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       };
     }
 
-    return result;
-  }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult, keywordUsageCounts]);
+    // return result;
+    // }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult, keywordUsageCounts]);
+    
+    // REMOVED: Client-side calculation disabled - using only backend matchResult
+    // }, [resumeData, buildPrecomputedKeywordPayload, jobDescription, extractedKeywords, matchResult, keywordUsageCounts]);
+    
+    // Empty dependency array since we always return null
+  }, []);
 
   // Extract high-weight missing keywords (8-10) for diagnostic panel
   const highWeightMissingKeywords = useMemo(() => {
@@ -3112,11 +3125,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             sections: updatedResume.sections.map((section: any) => ({
               id: section.id,
               title: section.title,
-              bullets: section.bullets.map((bullet: any) => ({
-                id: bullet.id,
-                text: bullet.text,
-                params: {},
-              })),
+              bullets: (section.bullets || [])
+                .filter((bullet: any) => bullet?.params?.visible !== false)  // Filter out invisible bullets
+                .map((bullet: any) => ({
+                  id: bullet.id,
+                  text: bullet.text,
+                  params: bullet.params || {},  // Preserve params instead of resetting
+                })),
             })),
           };
 
