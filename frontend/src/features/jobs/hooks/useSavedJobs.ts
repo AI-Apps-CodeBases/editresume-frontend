@@ -14,22 +14,40 @@ export function useSavedJobs() {
     setLoading(true)
     setError(null)
     try {
-      const [primary, legacy] = await Promise.all([
+      const [primary, legacy] = await Promise.allSettled([
         fetchSavedJobs(),
         fetchLegacyJobDescriptions().catch(() => [])
       ])
 
       const mergedById = new Map<number, Job>()
-      primary.forEach((job) => mergedById.set(job.id, job))
-      legacy.forEach((job) => {
-        if (!mergedById.has(job.id)) mergedById.set(job.id, job)
-      })
+      
+      if (primary.status === 'fulfilled') {
+        primary.value.forEach((job) => mergedById.set(job.id, job))
+      }
+      
+      if (legacy.status === 'fulfilled') {
+        legacy.value.forEach((job) => {
+          if (!mergedById.has(job.id)) mergedById.set(job.id, job)
+        })
+      }
 
       const combined = Array.from(mergedById.values())
       setJobs(combined)
 
       if (combined.length === 0) {
-        setError('No saved jobs found')
+        if (primary.status === 'rejected' && legacy.status === 'rejected') {
+          const errorMsg = primary.reason instanceof Error 
+            ? primary.reason.message 
+            : 'Failed to load jobs'
+          setError(errorMsg)
+        } else {
+          setError('No saved jobs found')
+        }
+      } else if (primary.status === 'rejected' || legacy.status === 'rejected') {
+        console.warn('Partial job load failure:', {
+          primary: primary.status === 'rejected' ? primary.reason : null,
+          legacy: legacy.status === 'rejected' ? legacy.reason : null
+        })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load jobs')

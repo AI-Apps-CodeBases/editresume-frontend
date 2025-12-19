@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { shouldPromptAuthentication } from '@/lib/guestAuth';
 import { useModal } from '@/contexts/ModalContext';
 import { getAuthHeaders } from '@/lib/auth';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
 import { calculateEnhancedATSScore } from '@/lib/atsScoring.enhanced';
@@ -1669,13 +1670,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       } else {
         // Try to fetch from API if not in localStorage
         Promise.all([
-          fetch(`${config.apiBase}/api/jobs/${currentJobDescriptionId}`, {
-            headers: getAuthHeaders()
+          fetchWithTimeout(`${config.apiBase}/api/jobs/${currentJobDescriptionId}`, {
+            headers: getAuthHeaders(),
+            timeout: 20000,
           }).then(res => {
             if (!res.ok && res.status === 404) return null;
             return res.ok ? res.json() : null;
           }).catch(() => null),
-          fetch(`${config.apiBase}/api/job-descriptions/${currentJobDescriptionId}`).then(res => {
+          fetchWithTimeout(`${config.apiBase}/api/job-descriptions/${currentJobDescriptionId}`, {
+            timeout: 20000,
+          }).then(res => {
             if (!res.ok && res.status === 404) return null;
             return res.ok ? res.json() : null;
           }).catch(() => null)

@@ -86,7 +86,7 @@ export default function JobsView({ onBack }: Props) {
       }
       const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
         headers,
-        timeout: 15000,
+        timeout: 25000,
       })
       if (res.ok) {
         const data = await res.json()
