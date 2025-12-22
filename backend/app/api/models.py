@@ -203,3 +203,7 @@ class JobCoverLetterUpdate(BaseModel):
 class ExtractKeywordsPayload(BaseModel):
     job_description: str
 
+
+class ScrapeJobUrlPayload(BaseModel):
+    url: str
+

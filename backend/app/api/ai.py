@@ -23,6 +23,7 @@ from app.api.models import (
     ImproveBulletPayload,
     JobDescriptionMatchPayload,
     ResumePayload,
+    ScrapeJobUrlPayload,
     WorkExperienceRequest,
 )
 from app.core.dependencies import (
@@ -43,6 +44,7 @@ from app.core.dependencies import (
 from app.core.db import get_db
 from app.models import JobMatch, Resume, User
 from app.services.ai_improvement_engine import ImprovementStrategy
+from app.services.url_scraper import URLScraper
 from app.services.usage_service import (
     check_usage_limit,
     get_plan_tier,
@@ -887,6 +889,77 @@ async def extract_job_keywords(payload: ExtractKeywordsPayload):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to extract keywords: {str(e)}"
+        )
+
+
+@router.post("/scrape_job_url")
+async def scrape_job_url(payload: ScrapeJobUrlPayload):
+    """Scrape job description from URL and extract keywords"""
+    try:
+        if not payload.url or not payload.url.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="URL cannot be empty"
+            )
+
+        url_scraper = URLScraper()
+        scrape_result = url_scraper.scrape_url(payload.url.strip())
+        
+        if not scrape_result.get("success") or not scrape_result.get("content"):
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to extract content from the URL"
+            )
+
+        job_description = scrape_result["content"]
+        job_keywords = keyword_extractor.extract_keywords(job_description)
+        
+        technical_keywords = job_keywords.get("technical_keywords", [])
+        general_keywords = job_keywords.get("general_keywords", [])
+        soft_skills = job_keywords.get("soft_skills", [])
+        ats_focused = job_keywords.get("ats_focused_keywords", [])
+        high_frequency_keywords = job_keywords.get("high_frequency_keywords", [])
+
+        high_intensity_keywords = [
+            item for item in high_frequency_keywords 
+            if item.get("importance") == "high"
+        ]
+        high_intensity_keywords.sort(key=lambda x: x.get("frequency", 0), reverse=True)
+        
+        all_high_priority = set()
+        all_high_priority.update([kw.lower() for kw in technical_keywords])
+        all_high_priority.update([
+            item["keyword"].lower() 
+            for item in high_intensity_keywords[:20]
+            if isinstance(item, dict) and item.get("keyword")
+        ])
+        all_high_priority.update([kw.lower() for kw in ats_focused[:10]])
+
+        return {
+            "success": True,
+            "job_description": job_description,
+            "technical_keywords": technical_keywords,
+            "high_intensity_keywords": high_intensity_keywords[:30],
+            "high_priority_keywords": list(all_high_priority)[:40],
+            "general_keywords": general_keywords[:30],
+            "soft_skills": soft_skills[:20],
+            "ats_focused_keywords": ats_focused[:20],
+            "total_keywords": len(technical_keywords) + len(general_keywords) + len(soft_skills),
+        }
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"URL scraping error: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"URL scraping error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to scrape URL and extract keywords: {str(e)}"
         )
 
 
