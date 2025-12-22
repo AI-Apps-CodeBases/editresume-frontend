@@ -48,6 +48,20 @@ const plans: Plan[] = [
     ]
   },
   {
+    id: 'trial',
+    name: 'Trial Plan',
+    price: '$6.99',
+    cadence: 'for 2 weeks',
+    headline: 'Try all premium features for 14 days',
+    features: [
+      'All Premium features',
+      'Unlimited everything',
+      'Full access for 14 days',
+      'Perfect to try everything'
+    ],
+    highlight: true
+  },
+  {
     id: 'premium',
     name: 'Premium',
     price: '$9.99',
@@ -63,8 +77,7 @@ const plans: Plan[] = [
       'Job match analytics & insights',
       'Version history & comparisons',
       'Priority support'
-    ],
-    highlight: true
+    ]
   }
 ]
 
@@ -388,28 +401,28 @@ function BillingContent() {
         </div>
       )}
 
-      <div className="mt-12 grid gap-6 md:grid-cols-2">
+      <div className="mt-12 grid gap-4 md:grid-cols-3">
         {plans.map((plan) => {
-          const isCurrent = (plan.id === 'premium' && (isPremium || isTrialActive)) || (plan.id === 'free' && !isPremium && !isTrialActive)
+          const isCurrent = (plan.id === 'premium' && (isPremium || isTrialActive)) || (plan.id === 'free' && !isPremium && !isTrialActive) || (plan.id === 'trial' && isTrialActive)
           return (
             <div
               key={plan.id}
-              className={`relative overflow-hidden rounded-[32px] border border-border-subtle bg-white p-8 shadow-[0_20px_38px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_28px_48px_rgba(15,23,42,0.08)] ${
+              className={`relative overflow-hidden rounded-2xl border border-border-subtle bg-white p-4 shadow-[0_10px_20px_rgba(15,23,42,0.03)] transition hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_14px_24px_rgba(15,23,42,0.04)] ${
                 plan.highlight ? 'ring-2 ring-primary-200' : ''
               }`}
             >
               {plan.highlight && (
-                <div className="absolute right-5 top-5 rounded-pill bg-primary-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-primary-700">
-                  Most loved
+                <div className="absolute right-2.5 top-2.5 rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-700">
+                  Best Value
                 </div>
               )}
-              <h2 className="text-xl font-semibold text-text-primary">{plan.name}</h2>
-              <p className="mt-2 text-sm text-text-muted">{plan.headline}</p>
+              <h2 className="text-lg font-semibold text-text-primary">{plan.name}</h2>
+              <p className="mt-1 text-xs text-text-muted">{plan.headline}</p>
               {plan.id === 'premium' && (
-                <div className="mt-4 flex gap-2">
+                <div className="mt-2 flex gap-1.5">
                   <button
                     onClick={() => setBillingPeriod('monthly')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                       billingPeriod === 'monthly'
                         ? 'bg-primary-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -419,7 +432,7 @@ function BillingContent() {
                   </button>
                   <button
                     onClick={() => setBillingPeriod('annual')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                       billingPeriod === 'annual'
                         ? 'bg-primary-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -429,32 +442,32 @@ function BillingContent() {
                   </button>
                 </div>
               )}
-              <div className="mt-6 flex items-baseline gap-2">
-                <span className="text-4xl font-semibold text-text-primary">
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="text-2xl font-semibold text-text-primary">
                   {plan.id === 'premium' && billingPeriod === 'annual' ? '$79' : plan.price}
                 </span>
-                <span className="text-sm text-text-muted">
+                <span className="text-xs text-text-muted">
                   {plan.id === 'premium' && billingPeriod === 'annual' ? 'per year' : plan.cadence}
                 </span>
                 {plan.id === 'premium' && billingPeriod === 'annual' && (
-                  <span className="text-xs text-green-600 font-medium">Save $40</span>
+                  <span className="text-[10px] text-green-600 font-medium">Save $40</span>
                 )}
               </div>
-              <ul className="mt-6 space-y-3 text-sm text-text-muted">
+              <ul className="mt-3 space-y-1.5 text-xs text-text-muted">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2">
-                    <span className="text-primary-600">●</span>
+                  <li key={feature} className="flex items-center gap-1.5">
+                    <span className="text-primary-600 text-xs">●</span>
                     <span className="text-text-muted">{feature}</span>
                   </li>
                 ))}
               </ul>
-              <div className="mt-8 flex flex-col gap-3">
+              <div className="mt-4 flex flex-col gap-2">
                 {plan.id === 'premium' ? (
                   isPremium || isTrialActive ? (
                     <button
                       onClick={handleManageSubscription}
                       disabled={portalLoading || isTrialActive}
-                      className="button-secondary justify-center disabled:cursor-not-allowed disabled:opacity-70"
+                      className="button-secondary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       {portalLoading ? 'Opening portal…' : isTrialActive ? 'Trial Active' : 'Manage subscription'}
                     </button>
@@ -462,17 +475,25 @@ function BillingContent() {
                     <button
                       onClick={() => handleCheckout(billingPeriod)}
                       disabled={checkoutLoading}
-                      className="button-primary justify-center disabled:cursor-not-allowed disabled:opacity-70"
+                      className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {checkoutLoading ? 'Starting checkout…' : `Upgrade to Premium (${billingPeriod === 'annual' ? '$79/year' : '$9.99/month'})`}
+                      {checkoutLoading ? 'Starting checkout…' : `Upgrade (${billingPeriod === 'annual' ? '$79/yr' : '$9.99/mo'})`}
                     </button>
                   )
+                ) : plan.id === 'trial' ? (
+                  <button
+                    onClick={() => handleCheckout('monthly')}
+                    disabled={checkoutLoading}
+                    className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {checkoutLoading ? 'Starting checkout…' : 'Start Trial ($6.99)'}
+                  </button>
                 ) : (
-                  <div className="rounded-[20px] border border-border-subtle bg-primary-50/60 px-5 py-3 text-sm text-text-muted">
+                  <div className="rounded-lg border border-border-subtle bg-primary-50/60 px-3 py-2 text-xs text-text-muted">
                     Always available with every account.
                   </div>
                 )}
-                {isCurrent && <span className="text-xs uppercase tracking-[0.3em] text-primary-600">Current plan</span>}
+                {isCurrent && <span className="text-[10px] uppercase tracking-wider text-primary-600">Current plan</span>}
               </div>
             </div>
           )
