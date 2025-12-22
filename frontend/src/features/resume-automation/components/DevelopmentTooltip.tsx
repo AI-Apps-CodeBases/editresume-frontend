@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 interface DevelopmentTooltipProps {
   message: string
@@ -64,10 +65,10 @@ export function DevelopmentTooltip({ message, children }: DevelopmentTooltipProp
       >
         {children}
       </div>
-      {isVisible && (
+      {isVisible && typeof window !== 'undefined' && createPortal(
         <div
           ref={tooltipRef}
-          className="fixed z-[99999] w-72 pointer-events-none opacity-100"
+          className="fixed z-[999999] w-72 pointer-events-none opacity-100"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
@@ -82,7 +83,8 @@ export function DevelopmentTooltip({ message, children }: DevelopmentTooltipProp
               <div className="border-4 border-transparent border-t-amber-400"></div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

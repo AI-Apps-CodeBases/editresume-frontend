@@ -170,7 +170,7 @@ export default function InlineGrammarChecker({ text, onApplySuggestion, showInli
 
       {/* Hover tooltip */}
       {hoveredIssue && (
-        <div className="absolute z-50 bg-gray-900 text-white text-xs rounded-lg px-2 py-1 shadow-lg max-w-xs">
+        <div className="absolute z-[999999] bg-gray-900 text-white text-xs rounded-lg px-2 py-1 shadow-lg max-w-xs">
           <div className="font-medium">{hoveredIssue.message}</div>
           {hoveredIssue.replacements.length > 0 && (
             <div className="text-gray-300 mt-1">
