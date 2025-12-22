@@ -3,7 +3,6 @@ import FeatureGrid from '@/components/home/FeatureGrid'
 import Pricing from '@/components/Pricing'
 import StepsSection from '@/components/home/StepsSection'
 import TestimonialsSection from '@/components/home/TestimonialsSection'
-import CollaborationSection from '@/components/home/CollaborationSection'
 
 export default function Page() {
   return (
@@ -13,7 +12,6 @@ export default function Page() {
       <Pricing />
       <StepsSection />
       <TestimonialsSection />
-      <CollaborationSection />
     </div>
   )
 }
