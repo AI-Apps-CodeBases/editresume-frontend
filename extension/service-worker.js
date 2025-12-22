@@ -299,15 +299,24 @@ const ensureFreshToken = async (forceRefresh = false) => {
     return token
   }
 
-  const freshToken = await requestTokenViaApp()
-  // Preserve existing settings when updating token
-  const current = await chrome.storage.sync.get()
-  await chrome.storage.sync.set({ 
-    ...current,
-    token: freshToken, 
-    tokenFetchedAt: Date.now() 
-  })
-  return freshToken
+  try {
+    const freshToken = await requestTokenViaApp()
+    if (freshToken) {
+      const current = await chrome.storage.sync.get()
+      await chrome.storage.sync.set({ 
+        ...current,
+        token: freshToken, 
+        tokenFetchedAt: Date.now() 
+      })
+      return freshToken
+    }
+    throw new Error('not_authenticated')
+  } catch (error) {
+    if (error.message === 'not_authenticated') {
+      throw error
+    }
+    throw new Error('token_request_failed')
+  }
 }
 
 const clearStoredToken = async () => {
@@ -328,6 +337,111 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'OPEN_AUTH') {
     chrome.runtime.openOptionsPage()
     sendResponse({ ok: true })
+    return true
+  }
+
+  if (msg.type === 'SYNC_TOKEN_FROM_TAB') {
+    if (msg.tabId) {
+      handleExtensionAuthTab(msg.tabId).then(() => {
+        sendResponse({ ok: true })
+      }).catch(() => {
+        sendResponse({ ok: false })
+      })
+      return true
+    }
+    sendResponse({ ok: false })
+    return true
+  }
+
+  if (msg.type === 'FETCH_JOBS') {
+    (async () => {
+      try {
+        const token = await ensureFreshToken()
+        const { apiBase } = await chrome.storage.sync.get({ 
+          apiBase: 'https://editresume-api-prod.onrender.com' 
+        })
+        const base = apiBase || 'https://editresume-api-prod.onrender.com'
+        const response = await fetch(`${base}/api/job-descriptions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const jobs = await response.json()
+          sendResponse({ ok: true, jobs })
+        } else {
+          sendResponse({ ok: false, error: `HTTP ${response.status}` })
+        }
+      } catch (error) {
+        sendResponse({ ok: false, error: error.message })
+      }
+    })()
+    return true
+  }
+
+  if (msg.type === 'FETCH_JOB_MATCHES') {
+    (async () => {
+      try {
+        const token = await ensureFreshToken()
+        const { apiBase } = await chrome.storage.sync.get({ 
+          apiBase: 'https://editresume-api-prod.onrender.com' 
+        })
+        const base = apiBase || 'https://editresume-api-prod.onrender.com'
+        const response = await fetch(`${base}/api/job-descriptions/${msg.jobId}/matches`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const matches = await response.json()
+          sendResponse({ ok: true, matches })
+        } else {
+          sendResponse({ ok: false, error: `HTTP ${response.status}` })
+        }
+      } catch (error) {
+        sendResponse({ ok: false, error: error.message })
+      }
+    })()
+    return true
+  }
+
+  if (msg.type === 'GENERATE_ANSWERS') {
+    (async () => {
+      try {
+        const token = await ensureFreshToken()
+        const { apiBase } = await chrome.storage.sync.get({ 
+          apiBase: 'https://editresume-api-prod.onrender.com' 
+        })
+        const base = apiBase || 'https://editresume-api-prod.onrender.com'
+        
+        const response = await fetch(`${base}/api/job-descriptions/generate-answers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(msg.payload)
+        })
+        
+        if (response.status === 405) {
+          sendResponse({ 
+            ok: false, 
+            error: 'Backend endpoint not implemented. The /api/job/generate-answers endpoint needs to be created on the backend.' 
+          })
+          return
+        }
+        
+        if (response.ok) {
+          const data = await response.json()
+          sendResponse({ ok: true, data })
+        } else {
+          const errorData = await response.json().catch(() => ({}))
+          sendResponse({ ok: false, error: errorData.detail || `HTTP ${response.status}: ${response.statusText}` })
+        }
+      } catch (error) {
+        sendResponse({ ok: false, error: error.message })
+      }
+    })()
     return true
   }
 
@@ -373,17 +487,31 @@ const handleExtensionAuthTab = async (tabId) => {
 
     try {
       const url = new URL(tabStatus.url)
-      if (url.protocol === 'chrome-error:' || url.protocol === 'chrome-extension-error:' || url.protocol === 'about:') {
+      if (url.protocol === 'chrome-error:' || 
+          url.protocol === 'chrome-extension-error:' || 
+          url.protocol === 'about:' ||
+          url.protocol === 'chrome-extension:' ||
+          url.protocol === 'chrome:' ||
+          !url.hostname) {
         return false
       }
     } catch {
       return false
     }
 
+    const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
+    const normalizedBase = normalizeBaseUrl(appBase)
+    if (!tabStatus.url.startsWith(normalizedBase)) {
+      return false
+    }
+
     const injected = await chrome.scripting.executeScript({
       target: { tabId },
       files: ['appBridge.js']
-    }).catch(() => null)
+    }).catch((err) => {
+      console.warn('Extension: Failed to inject appBridge.js:', err.message)
+      return null
+    })
     
     if (!injected) return false
     
@@ -435,19 +563,93 @@ const handleExtensionAuthTab = async (tabId) => {
   }
 }
 
+let syncInProgress = new Set()
+
+const isValidTabUrl = (url) => {
+  if (!url) return false
+  try {
+    const urlObj = new URL(url)
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const syncTokenIfNeeded = async (tabId) => {
+  if (syncInProgress.has(tabId)) return
+  
+  try {
+    const tab = await chrome.tabs.get(tabId).catch(() => null)
+    if (!tab || !tab.url || !isValidTabUrl(tab.url)) return
+    
+    const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
+    const normalizedBase = normalizeBaseUrl(appBase)
+    
+    if (!tab.url.startsWith(normalizedBase)) return
+    
+    const url = new URL(tab.url)
+    if (url.searchParams.get('extensionAuth') === '1') {
+      syncInProgress.add(tabId)
+      setTimeout(() => {
+        handleExtensionAuthTab(tabId).finally(() => {
+          syncInProgress.delete(tabId)
+        })
+      }, 2000)
+      return
+    }
+    
+    const isEditResumePage = tab.url.includes('editresume.io') || tab.url.includes('localhost:3000')
+    if (isEditResumePage && tab.status === 'complete') {
+      syncInProgress.add(tabId)
+      setTimeout(async () => {
+        try {
+          const { token, tokenFetchedAt } = await chrome.storage.sync.get({
+            token: '',
+            tokenFetchedAt: 0
+          })
+          
+          const tokenExpired = !token || (Date.now() - tokenFetchedAt > TOKEN_TTL_MS)
+          
+          if (tokenExpired) {
+            await handleExtensionAuthTab(tabId)
+          }
+        } catch (err) {
+          console.warn('Auto-sync token failed:', err)
+        } finally {
+          syncInProgress.delete(tabId)
+        }
+      }, 3000)
+    }
+  } catch (err) {
+    syncInProgress.delete(tabId)
+  }
+}
+
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || !tab?.url) return
   
   try {
     const url = new URL(tab.url)
-    if (url.searchParams.get('extensionAuth') !== '1') return
-    
     const { appBase } = await chrome.storage.sync.get({ appBase: DEFAULTS.appBase })
     const normalizedBase = normalizeBaseUrl(appBase)
+    
     if (!tab.url.startsWith(normalizedBase)) return
     
-    setTimeout(() => handleExtensionAuthTab(tabId), 2000)
+    if (url.searchParams.get('extensionAuth') === '1') {
+      setTimeout(() => handleExtensionAuthTab(tabId), 2000)
+      return
+    }
+    
+    await syncTokenIfNeeded(tabId)
   } catch (err) {
     // Ignore invalid URLs
+  }
+})
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    await syncTokenIfNeeded(activeInfo.tabId)
+  } catch (err) {
+    // Ignore errors
   }
 })

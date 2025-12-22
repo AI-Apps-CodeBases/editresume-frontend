@@ -30,6 +30,8 @@ from app.services.job_service import (
 )
 from app.utils.job_helpers import safe_get_job_description
 from app.utils.match_helpers import _resume_to_text, _compute_match_breakdown
+from app.core.dependencies import openai_client, OPENAI_MODEL
+from app.api.models import GenerateAnswersRequest, GenerateAnswersResponse, AnswerResponse
 
 logger = logging.getLogger(__name__)
 
@@ -729,3 +731,196 @@ def get_match(match_id: int, db: Session):
         "excess_keywords": ms.excess_keywords,
         "created_at": ms.created_at.isoformat(),
     }
+
+
+@router.post("/generate-answers", response_model=GenerateAnswersResponse)
+async def generate_answers(
+    payload: GenerateAnswersRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Generate AI-assisted answers for LinkedIn Easy Apply questions"""
+    try:
+        firebase_user = getattr(request.state, "firebase_user", None)
+        if not firebase_user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        email = firebase_user.get("email")
+        if not email:
+            raise HTTPException(status_code=401, detail="User email not found")
+        
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        job = db.query(JobDescription).filter(
+            JobDescription.id == payload.job_id,
+            JobDescription.user_id == user.id
+        ).first()
+        
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        resume_text = ""
+        if payload.resume_version_id:
+            resume_version = db.query(ResumeVersion).filter(
+                ResumeVersion.id == payload.resume_version_id,
+                ResumeVersion.user_id == user.id
+            ).first()
+            
+            if resume_version:
+                resume_text = _resume_to_text(resume_version.resume_data)
+            else:
+                logger.warning(f"Resume version {payload.resume_version_id} not found, using job description only")
+        else:
+            matches = db.query(MatchSession).filter(
+                MatchSession.job_description_id == payload.job_id,
+                MatchSession.user_id == user.id
+            ).order_by(MatchSession.created_at.desc()).limit(1).all()
+            
+            if matches:
+                resume_id = matches[0].resume_id
+                resume = db.query(Resume).filter(Resume.id == resume_id).first()
+                if resume:
+                    latest_version = db.query(ResumeVersion).filter(
+                        ResumeVersion.resume_id == resume.id
+                    ).order_by(ResumeVersion.version_number.desc()).first()
+                    if latest_version:
+                        resume_text = _resume_to_text(latest_version.resume_data)
+        
+        if not resume_text:
+            raise HTTPException(
+                status_code=400, 
+                detail="No resume found. Please create a resume match for this job first."
+            )
+        
+        if not openai_client:
+            raise HTTPException(status_code=503, detail="OpenAI service not available")
+        
+        questions_json = json.dumps([{
+            "question_id": q.question_id,
+            "question_text": q.question_text,
+            "input_type": q.input_type,
+            "required": q.required,
+            "options": q.options
+        } for q in payload.questions], indent=2)
+        
+        prompt = f"""You are an AI assistant helping job applicants answer application screening questions.
+
+STRICT RULES (MUST FOLLOW):
+- Do NOT invent skills, experience, certifications, or qualifications.
+- Only answer "Yes" if the resume CLEARLY supports it.
+- If the resume does NOT clearly support a requirement, answer conservatively (prefer "No" or neutral wording).
+- Do NOT exaggerate years of experience.
+- Do NOT claim authorization, relocation, or legal eligibility unless explicitly stated.
+- Keep answers professional, concise, and ATS-friendly.
+- Never include emojis.
+- Never include explanations unless explicitly requested.
+- If the question is ambiguous, provide a cautious, honest response.
+
+Your goal is to help the user apply honestly and safely, not to optimize at all costs.
+
+JOB DESCRIPTION:
+
+{job.content}
+
+MATCHED RESUME (TAILORED VERSION):
+
+{resume_text}
+
+APPLICATION QUESTIONS:
+
+{questions_json}
+
+TASK:
+
+For each application question:
+
+1. Determine the most accurate and honest answer based ONLY on the resume and job description.
+
+2. Match the answer to the input type:
+   - yes_no → "Yes" or "No"
+   - short_text → 1–3 concise sentences
+   - numeric → a number ONLY if explicitly supported
+   - select → choose the most accurate option if determinable
+
+3. If the resume does not clearly support a positive answer, respond conservatively.
+
+4. Do NOT add extra information beyond what is asked.
+
+OUTPUT FORMAT (JSON ONLY):
+
+{{
+  "answers": [
+    {{
+      "question_id": "<id>",
+      "suggested_answer": "<answer>",
+      "confidence": "high | medium | low"
+    }}
+  ]
+}}"""
+        
+        headers = {
+            "Authorization": f"Bearer {openai_client['api_key']}",
+            "Content-Type": "application/json",
+        }
+        
+        data = {
+            "model": OPENAI_MODEL,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that generates honest, conservative answers to job application questions based on resume content. Always return valid JSON."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 2000,
+        }
+        
+        response = openai_client["requests"].post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=60,
+        )
+        
+        if response.status_code != 200:
+            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate answers: OpenAI API returned {response.status_code}"
+            )
+        
+        result = response.json()
+        content = result["choices"][0]["message"]["content"].strip()
+        
+        content = content.replace("```json", "").replace("```", "").strip()
+        
+        try:
+            parsed = json.loads(content)
+            answers = parsed.get("answers", [])
+            
+            if len(answers) != len(payload.questions):
+                logger.warning(f"Expected {len(payload.questions)} answers, got {len(answers)}")
+            
+            return GenerateAnswersResponse(answers=[
+                AnswerResponse(
+                    question_id=ans.get("question_id", ""),
+                    suggested_answer=ans.get("suggested_answer", ""),
+                    confidence=ans.get("confidence", "medium")
+                )
+                for ans in answers
+            ])
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse OpenAI response: {e}\nContent: {content}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to parse AI response"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to generate answers")
+        raise HTTPException(status_code=500, detail=str(e))

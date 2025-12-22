@@ -119,6 +119,30 @@ class ExtractSentencesPayload(BaseModel):
     job_description: str
 
 
+class ApplicationQuestion(BaseModel):
+    question_id: str
+    question_text: str
+    input_type: str
+    required: bool
+    options: List[str] = []
+
+
+class GenerateAnswersRequest(BaseModel):
+    job_id: int
+    resume_version_id: Optional[int] = None
+    questions: List[ApplicationQuestion]
+
+
+class AnswerResponse(BaseModel):
+    question_id: str
+    suggested_answer: str
+    confidence: str
+
+
+class GenerateAnswersResponse(BaseModel):
+    answers: List[AnswerResponse]
+
+
 class GrammarCheckPayload(BaseModel):
     text: str
     check_type: str = "all"  # "grammar", "style", "all"

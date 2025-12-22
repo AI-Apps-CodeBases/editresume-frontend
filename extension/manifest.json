@@ -45,7 +45,8 @@
         "https://www.linkedin.com/jobs/*"
       ],
       "js": [
-        "content.js"
+        "content.js",
+        "easyApplyQuestions.js"
       ],
       "run_at": "document_idle"
     },

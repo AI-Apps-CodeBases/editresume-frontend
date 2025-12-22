@@ -1719,15 +1719,50 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const checkAuth = async (forceRefresh = false) => {
     try {
-      const token = await ensureAuthToken({ silent: true, forceRefresh });
-      const hasToken = !!token;
+      let token = await ensureAuthToken({ silent: true, forceRefresh });
+      let hasToken = !!token;
+      
+      if (!hasToken) {
+        setSaveStatus('Syncing with webapp...', '');
+        
+        try {
+          const { appBase } = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
+          const normalizedBase = appBase?.trim().replace(/\/+$/, '') || 'https://editresume.io';
+          
+          const tabs = await chrome.tabs.query({ url: `${normalizedBase}/*` });
+          if (tabs.length > 0) {
+            const editResumeTab = tabs.find(tab => 
+              tab.url && (tab.url.includes('editresume.io') || tab.url.includes('localhost:3000'))
+            );
+            
+            if (editResumeTab && editResumeTab.id) {
+              await chrome.runtime.sendMessage({
+                type: 'SYNC_TOKEN_FROM_TAB',
+                tabId: editResumeTab.id
+              });
+              
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+          
+          token = await ensureAuthToken({ silent: false, forceRefresh: true });
+          hasToken = !!token;
+        } catch (err) {
+          console.log('Auth sync failed:', err.message);
+        }
+      }
+      
       updateAuthStatus(hasToken);
       if (hasToken) {
         loadSavedJDs();
+        setSaveStatus('', '');
+      } else {
+        setSaveStatus('', '');
       }
       return hasToken;
     } catch (err) {
       updateAuthStatus(false);
+      setSaveStatus('', '');
       return false;
     }
   };
