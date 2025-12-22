@@ -58,14 +58,22 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
         setJobDescription(result.job_description)
         setScrapedKeywords(result)
         
-        const metadata = deriveJobMetadataFromText(result.job_description)
+        const metadata = deriveJobMetadataFromText(result.job_description) || {}
         
-        if (metadata) {
-          if (result.technical_keywords || result.general_keywords) {
-            metadata.skills = result.technical_keywords || metadata.skills || []
-            metadata.keywords = result.general_keywords || metadata.keywords || []
-            metadata.soft_skills = result.soft_skills || metadata.soft_skills || []
-          }
+        if (result.title) {
+          metadata.title = result.title
+        }
+        if (result.company) {
+          metadata.company = result.company
+        }
+        if (result.work_type) {
+          metadata.jobType = result.work_type
+        }
+        
+        if (result.technical_keywords || result.general_keywords) {
+          metadata.skills = result.technical_keywords || metadata.skills || []
+          metadata.keywords = result.general_keywords || metadata.keywords || []
+          metadata.soft_skills = result.soft_skills || metadata.soft_skills || []
         }
         
         setParsedMetadata(metadata)

@@ -935,7 +935,7 @@ async def scrape_job_url(payload: ScrapeJobUrlPayload):
         ])
         all_high_priority.update([kw.lower() for kw in ats_focused[:10]])
 
-        return {
+        result = {
             "success": True,
             "job_description": job_description,
             "technical_keywords": technical_keywords,
@@ -946,6 +946,15 @@ async def scrape_job_url(payload: ScrapeJobUrlPayload):
             "ats_focused_keywords": ats_focused[:20],
             "total_keywords": len(technical_keywords) + len(general_keywords) + len(soft_skills),
         }
+        
+        if scrape_result.get("title"):
+            result["title"] = scrape_result["title"]
+        if scrape_result.get("company"):
+            result["company"] = scrape_result["company"]
+        if scrape_result.get("work_type"):
+            result["work_type"] = scrape_result["work_type"]
+        
+        return result
 
     except HTTPException:
         raise
