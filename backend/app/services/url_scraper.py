@@ -25,6 +25,48 @@ class URLScraper:
         except Exception:
             return False
 
+    def _is_login_page(self, soup: BeautifulSoup, url: str) -> bool:
+        """Detect if the page is a login/authentication page"""
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.lower()
+        
+        # Check for LinkedIn login page indicators
+        if "linkedin.com" in domain:
+            page_text = soup.get_text(separator=" ", strip=True).lower()
+            login_indicators = [
+                "sign in",
+                "sign in with apple",
+                "join linkedin",
+                "agree & join linkedin",
+                "user agreement",
+                "privacy policy",
+                "cookie policy",
+                "email or phone",
+                "forgot password",
+            ]
+            # If we see multiple login indicators, it's likely a login page
+            indicator_count = sum(1 for indicator in login_indicators if indicator in page_text)
+            if indicator_count >= 3:
+                return True
+                
+            # Check for specific LinkedIn login page elements
+            login_selectors = [
+                'input[name="session_key"]',
+                'input[type="password"][name="session_password"]',
+                'button[data-tracking-control-name="homepage-basic_sign-in-submit-btn"]',
+            ]
+            if any(soup.select_one(sel) for sel in login_selectors):
+                return True
+        
+        # Check page title
+        title_tag = soup.find('title')
+        if title_tag:
+            title_text = title_tag.get_text(strip=True).lower()
+            if "sign in" in title_text or "login" in title_text:
+                return True
+        
+        return False
+
     def _extract_linkedin_title(self, soup: BeautifulSoup) -> Optional[str]:
         selectors = [
             "h1.jobs-unified-top-card__job-title",
@@ -243,6 +285,21 @@ class URLScraper:
                 response.raise_for_status()
 
                 soup = BeautifulSoup(response.content, "lxml")
+                
+                # Check if we got a login page
+                if self._is_login_page(soup, url):
+                    parsed_url = urlparse(url)
+                    domain = parsed_url.netloc.lower()
+                    if "linkedin.com" in domain:
+                        raise ValueError(
+                            "This LinkedIn job posting requires authentication. "
+                            "Please copy and paste the job description text directly, or ensure you're logged into LinkedIn and try again."
+                        )
+                    else:
+                        raise ValueError(
+                            "This job posting requires authentication. "
+                            "Please copy and paste the job description text directly."
+                        )
                 
                 parsed_url = urlparse(url)
                 domain = parsed_url.netloc.lower()
