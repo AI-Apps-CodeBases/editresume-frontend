@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { useModal } from '@/contexts/ModalContext'
-import config from '@/lib/config';
+import config from '@/lib/config'
+import { FileEdit, Bot, Sparkles, Save, FileText } from 'lucide-react'
 interface ResumeData {
   name: string
   title: string
@@ -515,7 +516,10 @@ export default function CoverLetterGenerator({
           {/* Left Panel - Input Form */}
           <div className="w-1/2 p-6 border-r flex flex-col overflow-hidden">
             <div className="flex items-center justify-between mb-6 flex-shrink-0">
-              <h2 className="text-xl font-bold text-gray-900">📝 Cover Letter Generator</h2>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <FileEdit className="w-5 h-5" />
+                Cover Letter Generator
+              </h2>
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 text-2xl"
@@ -661,7 +665,19 @@ export default function CoverLetterGenerator({
                 disabled={isGenerating}
                 className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isGenerating ? '🤖 Generating...' : '✨ Generate Cover Letter'}
+                <span className="flex items-center gap-2">
+                  {isGenerating ? (
+                    <>
+                      <Bot className="w-4 h-4" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Generate Cover Letter
+                    </>
+                  )}
+                </span>
               </button>
             </div>
           </div>
@@ -698,7 +714,7 @@ export default function CoverLetterGenerator({
             
             {!coverLetter ? (
               <div className="text-center py-12">
-                <div className="text-4xl mb-4">📝</div>
+                <FileEdit className="w-16 h-16 mx-auto mb-4 text-gray-400" />
                 <p className="text-gray-500">Fill in the details and generate your cover letter</p>
               </div>
             ) : (
@@ -765,7 +781,10 @@ export default function CoverLetterGenerator({
                       disabled={isSaving || !coverLetter}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSaving ? '💾 Saving...' : '💾 Save'}
+                      <span className="flex items-center gap-2">
+                        <Save className="w-4 h-4" />
+                        {isSaving ? 'Saving...' : 'Save'}
+                      </span>
                     </button>
                   )}
                   <button
@@ -773,14 +792,20 @@ export default function CoverLetterGenerator({
                     disabled={!coverLetter}
                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    📄 Export PDF
+                    <span className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Export PDF
+                    </span>
                   </button>
                   <button
                     onClick={() => exportCoverLetter('docx')}
                     disabled={!coverLetter}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    📝 Export DOCX
+                    <span className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Export DOCX
+                    </span>
                   </button>
                 </div>
               </div>

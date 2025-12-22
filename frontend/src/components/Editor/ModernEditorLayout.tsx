@@ -7,6 +7,7 @@ import RightPanel from './RightPanel'
 import JobsView from './JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 import Tooltip from '@/components/Shared/Tooltip'
+import { Menu, Zap, Upload, Save } from 'lucide-react'
 
 interface ModernEditorLayoutProps {
   resumeData: {
@@ -262,7 +263,7 @@ export default function ModernEditorLayout({
                 onClick={() => setShowLeftDrawer(true)}
                 className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
               >
-                <span className="text-lg">📝</span>
+                <Menu className="w-5 h-5" />
                 <span className="font-medium">Menu</span>
               </button>
             </Tooltip>
@@ -271,7 +272,7 @@ export default function ModernEditorLayout({
                 onClick={() => setShowRightDrawer(true)}
                 className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
               >
-                <span className="text-lg">⚡</span>
+                <Zap className="w-5 h-5" />
                 <span className="font-medium">AI Tools</span>
               </button>
             </Tooltip>
@@ -281,7 +282,7 @@ export default function ModernEditorLayout({
                 disabled={!resumeData.name || isExporting}
                 className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target disabled:opacity-50"
               >
-                <span className="text-lg">📤</span>
+                <Upload className="w-5 h-5" />
                 <span className="font-medium">Export</span>
               </button>
             </Tooltip>
@@ -291,7 +292,7 @@ export default function ModernEditorLayout({
                   onClick={onSaveResume}
                   className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
                 >
-                  <span className="text-lg">💾</span>
+                  <Save className="w-5 h-5" />
                   <span className="font-medium">Save</span>
                 </button>
               </Tooltip>
