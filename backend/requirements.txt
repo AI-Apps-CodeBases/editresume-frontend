@@ -13,6 +13,8 @@ openai==1.1.1
 requests==2.31.0
 httpx==0.27.0
 textstat==0.7.3
+beautifulsoup4==4.12.3
+lxml==5.1.0
 # Industry-standard resume parsing libraries
 PyMuPDF==1.23.8
 docx2txt==0.8

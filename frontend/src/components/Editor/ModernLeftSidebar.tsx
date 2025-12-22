@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
+import { FileEdit, Briefcase, FileText, Users, Palette } from 'lucide-react'
 
 interface ModernLeftSidebarProps {
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
@@ -47,35 +48,35 @@ export default function ModernLeftSidebar({
     {
       id: 'editor',
       title: 'Editor',
-      icon: '📝',
+      icon: FileEdit,
       description: 'Resume builder',
       requiresAuth: false,
     },
     {
       id: 'jobs',
       title: 'Jobs',
-      icon: '💼',
+      icon: Briefcase,
       description: 'Saved job descriptions',
       requiresAuth: true,
     },
     {
       id: 'resumes',
       title: 'Resumes',
-      icon: '📄',
+      icon: FileText,
       description: 'Master resumes',
       requiresAuth: true,
     },
     {
       id: 'collaboration',
       title: 'Collaboration',
-      icon: '🤝',
+      icon: Users,
       description: 'Real-time collab',
       requiresAuth: false,
     },
     {
       id: 'templates',
       title: 'Templates',
-      icon: '🎨',
+      icon: Palette,
       description: 'Resume templates',
       requiresAuth: false,
     },
@@ -83,7 +84,7 @@ export default function ModernLeftSidebar({
 
 
 
-  const secondaryItems: Array<{ id: string; title: string; icon: string }> = []
+  const secondaryItems: Array<{ id: string; title: string; icon: React.ComponentType<{ className?: string }> }> = []
 
   const handleItemClick = (itemId: string) => {
     if (itemId === 'editor') {
@@ -123,6 +124,7 @@ export default function ModernLeftSidebar({
                 {mainItems.map((item) => {
                   const isDisabled = item.requiresAuth && !isAuthenticated
                   const isActive = currentView === item.id
+                  const IconComponent = item.icon
                   return (
                     <button
                       key={item.id}
@@ -136,7 +138,7 @@ export default function ModernLeftSidebar({
                           : 'text-text-secondary hover:bg-primary-50/50 hover:shadow-sm hover:-translate-y-0.5'
                       }`}
                     >
-                      <span className="text-xl">{item.icon}</span>
+                      <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium">{item.title}</div>
                         <div className={`text-xs ${isActive ? 'text-primary-600' : 'text-text-muted'}`}>{item.description}</div>
@@ -152,16 +154,19 @@ export default function ModernLeftSidebar({
                     <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">More</p>
                   </div>
                   <div className="space-y-1">
-                    {secondaryItems.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleItemClick(item.id)}
-                        className="w-full flex items-center gap-3 px-3 py-3 text-sm text-text-secondary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target hover:shadow-sm"
-                      >
-                        <span className="text-base">{item.icon}</span>
-                        <span>{item.title}</span>
-                      </button>
-                    ))}
+                    {secondaryItems.map((item) => {
+                      const IconComponent = item.icon
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleItemClick(item.id)}
+                          className="w-full flex items-center gap-3 px-3 py-3 text-sm text-text-secondary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target hover:shadow-sm"
+                        >
+                          <IconComponent className="w-4 h-4 text-gray-500" />
+                          <span>{item.title}</span>
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -212,16 +217,19 @@ export default function ModernLeftSidebar({
               </svg>
             </button>
           </Tooltip>
-          {mainItems.map((item) => (
-            <Tooltip key={item.id} text={`${item.title} - ${item.description}`} color="blue" position="right">
-              <button
-                onClick={() => handleItemClick(item.id)}
-                className="p-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200 hover:shadow-sm"
-              >
-                <span className="text-xl">{item.icon}</span>
-              </button>
-            </Tooltip>
-          ))}
+          {mainItems.map((item) => {
+            const IconComponent = item.icon
+            return (
+              <Tooltip key={item.id} text={`${item.title} - ${item.description}`} color="blue" position="right">
+                <button
+                  onClick={() => handleItemClick(item.id)}
+                  className="p-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200 hover:shadow-sm"
+                >
+                  <IconComponent className="w-5 h-5 text-gray-600" />
+                </button>
+              </Tooltip>
+            )
+          })}
 
         </div>
         <div className="border-t border-border-subtle p-2">
@@ -260,6 +268,7 @@ export default function ModernLeftSidebar({
           {mainItems.map((item) => {
             const isDisabled = item.requiresAuth && !isAuthenticated
             const isActive = currentView === item.id
+            const IconComponent = item.icon
             return (
               <button
                 key={item.id}
@@ -273,7 +282,7 @@ export default function ModernLeftSidebar({
                     : 'text-text-secondary hover:bg-primary-50/50 hover:shadow-sm hover:-translate-y-0.5'
                 }`}
               >
-                <span className="text-lg">{item.icon}</span>
+                <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium">{item.title}</div>
                   <div className={`text-xs ${isActive ? 'text-primary-600' : 'text-text-muted'}`}>{item.description}</div>
@@ -291,16 +300,19 @@ export default function ModernLeftSidebar({
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">More</p>
             </div>
             <div className="space-y-1">
-              {secondaryItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleItemClick(item.id)}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target hover:shadow-sm"
-                >
-                  <span className="text-base">{item.icon}</span>
-                  <span>{item.title}</span>
-                </button>
-              ))}
+              {secondaryItems.map((item) => {
+                const IconComponent = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleItemClick(item.id)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target hover:shadow-sm"
+                  >
+                    <IconComponent className="w-4 h-4 text-gray-500" />
+                    <span>{item.title}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

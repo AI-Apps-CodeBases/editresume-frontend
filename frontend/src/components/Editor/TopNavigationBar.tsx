@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
+import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap } from 'lucide-react'
 
 interface TopNavigationBarProps {
   onNewResume?: () => void
@@ -80,7 +81,8 @@ export default function TopNavigationBar({
                 className="px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all touch-target flex items-center gap-2 relative overflow-hidden button-primary hover:shadow-glow"
                 style={{ background: 'var(--gradient-accent)' }}
               >
-                <span className="relative z-10">⚡ Actions</span>
+                <Zap className="w-4 h-4 relative z-10" />
+                <span className="relative z-10">Actions</span>
                 <svg className="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -98,7 +100,7 @@ export default function TopNavigationBar({
                       }}
                       className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
                     >
-                      <span className="text-base">✨</span>
+                      <Sparkles className="w-4 h-4 text-primary-600" />
                       <span className="font-medium">New Resume</span>
                     </button>
                   </Tooltip>
@@ -116,7 +118,7 @@ export default function TopNavigationBar({
                         }}
                         className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
                       >
-                        <span className="text-base">💾</span>
+                        <Save className="w-4 h-4 text-primary-600" />
                         <span className="font-medium">Save Resume</span>
                       </button>
                     </Tooltip>
@@ -133,7 +135,7 @@ export default function TopNavigationBar({
                       }}
                       className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
                     >
-                      <span className="text-base">📤</span>
+                      <Upload className="w-4 h-4 text-primary-600" />
                       <span className="font-medium">Upload Resume</span>
                     </button>
                   </Tooltip>
@@ -149,7 +151,7 @@ export default function TopNavigationBar({
                       }}
                       className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
                     >
-                      <span className="text-base">🔗</span>
+                      <LinkIcon className="w-4 h-4 text-primary-600" />
                       <span className="font-medium">Share Resume</span>
                     </button>
                   </Tooltip>
@@ -171,7 +173,7 @@ export default function TopNavigationBar({
                         disabled={!hasResumeName || isExporting}
                         className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
                       >
-                        <span className="text-base">📄</span>
+                        <FileText className="w-4 h-4 text-primary-600" />
                         <span className="font-medium">{isExporting ? 'Exporting Resume...' : 'Export Resume PDF'}</span>
                       </button>
                     </Tooltip>
@@ -184,7 +186,7 @@ export default function TopNavigationBar({
                         disabled={!hasCoverLetter || isExporting}
                         className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
                       >
-                        <span className="text-base">📄</span>
+                        <FileText className="w-4 h-4 text-primary-600" />
                         <span className="font-medium">{isExporting ? 'Exporting Cover Letter...' : 'Export Cover Letter PDF'}</span>
                       </button>
                     </Tooltip>

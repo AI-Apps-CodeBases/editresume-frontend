@@ -1,15 +1,15 @@
 'use client'
 import { SearchIcon, AlertIcon, RocketIcon, DocumentIcon } from '@/components/Icons'
-
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useCallback, useState, useRef } from 'react'
 import UploadResume from '@/components/Editor/UploadResume'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { deduplicateSections } from '@/utils/sectionDeduplication'
+import { Brain, Sparkles, Search, AlertTriangle, Rocket } from 'lucide-react'
 
 const quickActions = [
-  { icon: '🧠', title: 'Match a Job', description: 'Upload JD and tailor in minutes.', href: '/editor?view=jobs' },
+  { icon: Brain, title: 'Match Job Description', description: 'Upload JD and tailor in minutes.', href: '/editor?view=jobs' },
 ]
 
 export default function UploadPage() {
@@ -133,7 +133,10 @@ export default function UploadPage() {
                   <UploadResume variant="modal" onUploadSuccess={handleUploadSuccess} />
                   <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-purple-50/50 border border-blue-100">
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      <span className="font-semibold text-slate-700">✨ Smart parsing:</span> We retain layouts, sections, and bullet hierarchy. No formatting nightmares—just a clean editor ready for collaboration.
+                      <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        Smart parsing:
+                      </span> We retain layouts, sections, and bullet hierarchy. No formatting nightmares—just a clean editor ready for collaboration.
                     </p>
                   </div>
                 </div>
@@ -153,8 +156,8 @@ export default function UploadPage() {
                     >
 
                       <div className="relative flex items-start gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300">
-                          {item.icon}
+                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                          {typeof item.icon === 'string' ? item.icon : <item.icon className="w-6 h-6 text-primary-600" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 mb-1">{item.title}</div>
@@ -176,8 +179,8 @@ export default function UploadPage() {
                   >
 
                     <div className="relative flex items-start gap-4">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300">
-                        ✨
+                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                        <Sparkles className="w-6 h-6 text-primary-600" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 mb-1">Generate Resume</div>
@@ -213,36 +216,44 @@ export default function UploadPage() {
             <div className="grid gap-6 md:grid-cols-3">
               {[
                 {
-                  icon: '🔍',
+                  icon: Search,
                   title: 'Parse & normalize',
                   description:
                     'We map sections, experience, and bullet structure into the editor so you can start editing instantly.',
                   gradient: 'from-blue-50 to-cyan-50',
                   borderColor: 'border-blue-200',
+                  iconColor: 'text-blue-600',
                 },
                 {
-                  icon: '⚠️',
+                  icon: AlertTriangle,
                   title: 'Flag risks automatically',
                   description:
                     'ATS diagnostics highlight missing keywords, tense issues, and filler language you can rewrite fast.',
                   gradient: 'from-amber-50 to-orange-50',
                   borderColor: 'border-amber-200',
+                  iconColor: 'text-amber-600',
                 },
                 {
-                  icon: '🚀',
+                  icon: Rocket,
                   title: 'Version & share',
                   description:
                     'Branch tailored versions, share via secure links, and see feedback without exporting a single PDF.',
                   gradient: 'from-purple-50 to-pink-50',
                   borderColor: 'border-purple-200',
+                  iconColor: 'text-purple-600',
                 },
-              ].map((item) => (
-                <div key={item.title} className={`group rounded-2xl border-2 ${item.borderColor} bg-gradient-to-br ${item.gradient} p-6 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-1`}>
-                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">{item.icon}</div>
+              ].map((item) => {
+                const IconComponent = item.icon
+                return (
+                  <div key={item.title} className={`group rounded-2xl border-2 ${item.borderColor} bg-gradient-to-br ${item.gradient} p-6 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-1`}>
+                    <div className="mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <IconComponent className={`w-10 h-10 ${item.iconColor}`} />
+                    </div>
                   <h3 className="text-xl font-bold text-slate-900 mb-3">{item.title}</h3>
                   <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </section>

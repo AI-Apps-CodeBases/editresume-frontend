@@ -465,7 +465,7 @@ export default function JobsView({ onBack }: Props) {
                                   }}
                                   className="button-primary text-xs px-4 py-2"
                                 >
-                                  Open Editor
+                                  Optimize Resume
                                 </button>
                               )}
                               <div className="relative" ref={(el) => { dropdownRefs.current[jd.id] = el }}>

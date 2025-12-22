@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import CollaborationPanel from './CollaborationPanel'
+import { Briefcase, FileText, Users, Bot, Sparkles, Target, BarChart3, Mail, FileEdit, TrendingUp } from 'lucide-react'
 
 interface Props {
   resumeData: any
@@ -111,21 +112,21 @@ export default function LeftSidebar({
     {
       id: 'jobs',
       title: 'Jobs',
-      icon: '💼',
+      icon: Briefcase,
       description: 'Saved job descriptions',
       requiresAuth: true
     },
     {
       id: 'resumes',
       title: 'Resumes',
-      icon: '📄',
+      icon: FileText,
       description: 'Master resumes',
       requiresAuth: true
     },
     {
       id: 'collaboration',
       title: 'Collaboration',
-      icon: '🤝',
+      icon: Users,
       description: 'Real-time collaboration',
       requiresAuth: false
     }
@@ -134,7 +135,7 @@ export default function LeftSidebar({
   const aiShortcuts: Array<{
     id: string
     title: string
-    icon: string
+    icon: React.ComponentType<{ className?: string }>
     description: string
     onClick: () => void
     isActive?: boolean
@@ -144,7 +145,7 @@ export default function LeftSidebar({
     aiShortcuts.push({
       id: 'ai-wizard',
       title: 'AI Content Wizard',
-      icon: '🤖',
+      icon: Bot,
       description: 'Generate resume sections with guided prompts',
       onClick: onOpenAIWizard
     })
@@ -154,7 +155,7 @@ export default function LeftSidebar({
     aiShortcuts.push({
       id: 'ai-improvements',
       title: 'AI Resume Improvements',
-      icon: '✨',
+      icon: Sparkles,
       description: 'Analyze and upgrade your resume instantly',
       onClick: onOpenAIImprovements
     })
@@ -164,7 +165,7 @@ export default function LeftSidebar({
     aiShortcuts.push({
       id: 'job-match',
       title: 'Job Match Assistant',
-      icon: '🎯',
+      icon: Target,
       description: 'Compare your resume with job descriptions',
       onClick: onShowMatchView,
       isActive: previewMode === 'match'
@@ -175,7 +176,7 @@ export default function LeftSidebar({
     aiShortcuts.push({
       id: 'ats-analysis',
       title: 'Enhanced ATS Analyzer',
-      icon: '📊',
+      icon: BarChart3,
       description: 'Run our advanced ATS compatibility analysis',
       onClick: onShowAnalysisView,
       isActive: previewMode === 'analysis'
@@ -186,7 +187,7 @@ export default function LeftSidebar({
     aiShortcuts.push({
       id: 'cover-letter',
       title: 'Cover Letter Generator',
-      icon: '✉️',
+      icon: Mail,
       description: 'Draft tailored cover letters in seconds',
       onClick: onOpenCoverLetter
     })
@@ -196,7 +197,7 @@ export default function LeftSidebar({
     aiShortcuts.push({
       id: 'grammar',
       title: 'Grammar & Style Review',
-      icon: '📝',
+      icon: FileEdit,
       description: 'Polish writing with AI-powered grammar checks',
       onClick: onOpenGrammarPanel
     })
@@ -206,7 +207,7 @@ export default function LeftSidebar({
     aiShortcuts.push({
       id: 'job-analytics',
       title: 'Job Match Analytics',
-      icon: '📈',
+      icon: TrendingUp,
       description: 'Review performance across job applications',
       onClick: onOpenJobMatchAnalytics
     })
@@ -239,6 +240,7 @@ export default function LeftSidebar({
         <div className="p-3 space-y-2">
           {sidebarItems.map((item) => {
             const isDisabled = item.requiresAuth && !isAuthenticated
+            const IconComponent = item.icon
             return (
               <button
                 key={item.id}
@@ -252,7 +254,7 @@ export default function LeftSidebar({
                     : 'hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 text-gray-700 hover:shadow-sm hover:border hover:border-gray-200'
                 }`}
               >
-                <div className="text-xl flex-shrink-0">{item.icon}</div>
+                <IconComponent className={`w-5 h-5 flex-shrink-0 ${activeSection === item.id ? 'text-blue-600' : 'text-gray-500'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate">{item.title}</div>
                   <p className="text-xs text-gray-500 truncate leading-relaxed">{item.description}</p>
@@ -271,23 +273,26 @@ export default function LeftSidebar({
               <h3 className="text-xs font-semibold text-gray-500 tracking-wide uppercase">AI Features</h3>
             </div>
             <div className="space-y-2">
-              {aiShortcuts.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={item.onClick}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 ${
-                    item.isActive
-                      ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-2 border-purple-200 shadow-md'
-                      : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 text-gray-700 hover:shadow-sm hover:border hover:border-purple-200'
-                  }`}
-                >
-                  <div className="text-xl flex-shrink-0">{item.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm truncate">{item.title}</div>
-                    <p className="text-xs text-gray-500 truncate leading-relaxed">{item.description}</p>
-                  </div>
-                </button>
-              ))}
+              {aiShortcuts.map((item) => {
+                const IconComponent = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    onClick={item.onClick}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 ${
+                      item.isActive
+                        ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-2 border-purple-200 shadow-md'
+                        : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 text-gray-700 hover:shadow-sm hover:border hover:border-purple-200'
+                    }`}
+                  >
+                    <IconComponent className={`w-5 h-5 flex-shrink-0 ${item.isActive ? 'text-purple-600' : 'text-gray-500'}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm truncate">{item.title}</div>
+                      <p className="text-xs text-gray-500 truncate leading-relaxed">{item.description}</p>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

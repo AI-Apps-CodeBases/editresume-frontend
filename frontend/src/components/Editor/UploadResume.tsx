@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef } from 'react'
 import config from '@/lib/config'
+import { FileText, Zap, AlertTriangle } from 'lucide-react'
 
 interface Props {
   onUploadSuccess: (data: any) => void
@@ -204,8 +205,12 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
       <div className="space-y-8">
         <div className="text-center space-y-5">
           <div className="relative inline-block">
-            <div className={`text-7xl transition-all duration-500 ${isUploading ? 'animate-bounce scale-110' : 'scale-100 hover:scale-110'}`}>
-              {isUploading ? '⚡' : '📄'}
+            <div className={`transition-all duration-500 ${isUploading ? 'animate-bounce scale-110' : 'scale-100 hover:scale-110'}`}>
+              {isUploading ? (
+                <Zap className="w-20 h-20 text-primary-600" />
+              ) : (
+                <FileText className="w-20 h-20 text-primary-600" />
+              )}
             </div>
             {isDragging && (
               <div className="absolute inset-0 flex items-center justify-center">
@@ -344,7 +349,7 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
             <div className="p-5 bg-gradient-to-r from-red-50 via-pink-50 to-red-50 border-2 border-red-200 rounded-xl shadow-lg text-left animate-in slide-in-from-top-2">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                  <span className="text-lg">⚠️</span>
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
                 </div>
                 <div className="flex-1">
                   <span className="text-sm font-semibold text-red-700 block">{error}</span>

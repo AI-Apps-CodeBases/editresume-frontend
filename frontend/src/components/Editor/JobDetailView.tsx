@@ -7,6 +7,7 @@ import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import UploadResume from './UploadResume'
 import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, StarIcon, FireIcon, DiamondIcon, RocketIcon, TargetIcon, SparklesIcon, TrophyIcon, MailIcon, DocumentIcon, ChartIcon, BrainIcon } from '@/components/Icons'
+import { BarChart3 } from 'lucide-react'
 import { StarRating } from '@/components/Shared/StarRating'
 
 interface JobResumeSummary {
@@ -1108,7 +1109,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                         {highlightedKeywords.length > 0 && (
                           <div>
                             <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2 flex items-center gap-2">
-                              <span className="text-base">📊</span>
+                              <BarChart3 className="w-4 h-4 text-gray-600" />
                               Top Keywords
                             </div>
                             <div className="flex flex-wrap gap-2">
@@ -1209,7 +1210,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
                     disabled={!selectedResumeId}
                   >
-                    Open in Editor
+                    Optimize for Job Description
                   </button>
                   <button
                     onClick={() => setShowUploadResumeModal(true)}

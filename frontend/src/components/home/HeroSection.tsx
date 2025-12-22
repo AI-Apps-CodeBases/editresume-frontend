@@ -51,11 +51,6 @@ export default function HeroSection() {
                   create a new resume
                 </Link>
               </Tooltip>
-              <Tooltip text="Watch video tutorials to learn how to use EditResume and create professional resumes" position="bottom" color="gray">
-                <Link href="/tutorial" className="button-secondary text-sm">
-                  view tutorial
-                </Link>
-              </Tooltip>
             </div>
             <div className="mt-6">
               <a
