@@ -1209,7 +1209,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
                     disabled={!selectedResumeId}
                   >
-                    Open in Editor
+                    Optimize for Job Description
                   </button>
                   <button
                     onClick={() => setShowUploadResumeModal(true)}

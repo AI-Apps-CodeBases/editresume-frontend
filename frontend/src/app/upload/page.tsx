@@ -9,7 +9,7 @@ import { ResumeAutomationFlow } from '@/features/resume-automation/components/Re
 import { deduplicateSections } from '@/utils/sectionDeduplication'
 
 const quickActions = [
-  { icon: '🧠', title: 'Match a Job', description: 'Upload JD and tailor in minutes.', href: '/editor?view=jobs' },
+  { icon: '🧠', title: 'Match Job Description', description: 'Upload JD and tailor in minutes.', href: '/editor?view=jobs' },
 ]
 
 export default function UploadPage() {
