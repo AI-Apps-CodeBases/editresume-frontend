@@ -37,7 +37,17 @@ export default function VideoTutorialSection() {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="flex justify-center mb-6">
+          <Link
+            href="/tutorial"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
+          >
+            <span>📚</span>
+            <span>More Tutorial Videos</span>
+          </Link>
+        </div>
+
+        <div className="max-w-5xl mx-auto">
           {videos.map((video) => (
             <div
               key={video.id}
@@ -63,8 +73,8 @@ export default function VideoTutorialSection() {
                     >
                       <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors" />
                       <div className="relative z-10">
-                        <div className="w-20 h-20 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                          <svg className="w-10 h-10 text-primary-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                        <div className="w-24 h-24 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                          <svg className="w-14 h-14 text-primary-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 5v14l11-7z" />
                           </svg>
                         </div>
@@ -78,26 +88,12 @@ export default function VideoTutorialSection() {
                   </>
                 )}
               </div>
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-text-primary mb-2">{video.title}</h3>
+              <div className="p-6 text-center">
+                <h3 className="text-xl font-semibold text-text-primary mb-2">{video.title}</h3>
                 <p className="text-sm text-text-muted">{video.description}</p>
               </div>
             </div>
           ))}
-          
-          <Link
-            href="/tutorial"
-            className="group relative overflow-hidden rounded-2xl border-2 border-dashed border-primary-300 bg-primary-50/50 hover:bg-primary-100/50 transition-all duration-300 flex flex-col items-center justify-center p-8 min-h-[300px]"
-          >
-            <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">📚</div>
-            <h3 className="text-lg font-semibold text-text-primary mb-2">View All Tutorials</h3>
-            <p className="text-sm text-text-muted text-center mb-4">
-              Access the complete tutorial library with step-by-step guides
-            </p>
-            <span className="text-primary-600 font-semibold text-sm group-hover:underline">
-              Go to Tutorials →
-            </span>
-          </Link>
         </div>
       </div>
     </section>
