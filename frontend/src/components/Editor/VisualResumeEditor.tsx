@@ -3262,14 +3262,15 @@ export default function VisualResumeEditor({
                                                       bullets: s.bullets.map(b => {
                                                         if (b.id !== bullet.id) return b
                                                         
-                                                        const { visible, ...restParams } = b.params || {}
+                                                        const currentParams = b.params || {}
+                                                        const { visible, ...restParams } = currentParams
                                                         const newParams = newChecked
-                                                          ? restParams  // Remove visible property when checked
-                                                          : { ...restParams, visible: false }  // Set visible: false when unchecked
+                                                          ? restParams  // Remove visible property when checked (undefined = visible)
+                                                          : { ...restParams, visible: false }  // Explicitly set visible: false when unchecked
                                                         
                                                         return {
                                                           ...b,
-                                                          params: newParams
+                                                          params: Object.keys(newParams).length > 0 ? newParams : undefined
                                                         }
                                                       })
                                                     }
@@ -3386,14 +3387,15 @@ export default function VisualResumeEditor({
                                                 bullets: s.bullets.map(b => {
                                                   if (b.id !== bullet.id) return b
                                                   
-                                                  const { visible, ...restParams } = b.params || {}
+                                                  const currentParams = b.params || {}
+                                                  const { visible, ...restParams } = currentParams
                                                   const newParams = newChecked
-                                                    ? restParams  // Remove visible property when checked
-                                                    : { ...restParams, visible: false }  // Set visible: false when unchecked
+                                                    ? restParams  // Remove visible property when checked (undefined = visible)
+                                                    : { ...restParams, visible: false }  // Explicitly set visible: false when unchecked
                                                   
                                                   return {
                                                     ...b,
-                                                    params: newParams
+                                                    params: Object.keys(newParams).length > 0 ? newParams : undefined
                                                   }
                                                 })
                                               }
@@ -4535,10 +4537,14 @@ function SortableCompanyGroup({
                           const updatedBullets = s.bullets.map(b => {
                             if (b.id !== companyBullet.id) return b
                             
-                            const { visible, ...restParams } = b.params || {}
+                            const currentParams = b.params || {}
+                            const { visible, ...restParams } = currentParams
+                            
+                            // When checked: remove visible property (undefined = visible in preview)
+                            // When unchecked: explicitly set visible: false (hidden in preview)
                             const newParams = newChecked 
-                              ? restParams  // Remove visible property when checked
-                              : { ...restParams, visible: false }  // Set visible: false when unchecked
+                              ? (Object.keys(restParams).length > 0 ? restParams : {})
+                              : { ...restParams, visible: false }
                             
                             return {
                               ...b,
