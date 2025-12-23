@@ -601,22 +601,28 @@ export default function PreviewPanel({
         
         if (isHeader) {
           // Check if this header is visible
-          currentHeaderVisible = bullet.params?.visible !== false && bullet.text?.trim()
+          // Only hide if visible is explicitly false
+          const isVisible = !bullet.params || bullet.params.visible !== false
+          currentHeaderVisible = isVisible && bullet.text?.trim()
           if (currentHeaderVisible) {
             validBullets.push(bullet)
           }
         } else {
           // This is a bullet point - only include if current header is visible and bullet itself is visible
-          if (currentHeaderVisible && bullet.params?.visible !== false && bullet.text?.trim()) {
+          // Only hide if visible is explicitly false
+          const bulletVisible = !bullet.params || bullet.params.visible !== false
+          if (currentHeaderVisible && bulletVisible && bullet.text?.trim()) {
             validBullets.push(bullet)
           }
         }
       }
     } else {
       // For non-work experience sections, just filter by visibility
-      validBullets = bullets.filter(b => 
-        b.text && b.text.trim() && b.params?.visible !== false && !b.text?.startsWith('**')
-      )
+      // Only hide if visible is explicitly false
+      validBullets = bullets.filter(b => {
+        if (!b.text || !b.text.trim() || b.text.startsWith('**')) return false
+        return !b.params || b.params.visible !== false
+      })
     }
     
     if (validBullets.length === 0) {

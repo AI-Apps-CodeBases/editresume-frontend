@@ -4546,10 +4546,13 @@ function SortableCompanyGroup({
                               ? (Object.keys(restParams).length > 0 ? restParams : {})
                               : { ...restParams, visible: false }
                             
-                            return {
+                            // Ensure params object exists and visible is set correctly
+                            const updatedBullet = {
                               ...b,
                               params: newParams
                             }
+                            
+                            return updatedBullet
                           })
 
                           return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
