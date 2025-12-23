@@ -4546,6 +4546,20 @@ function SortableCompanyGroup({
                               ? (Object.keys(restParams).length > 0 ? restParams : {})
                               : { ...restParams, visible: false }
                             
+                            // Debug logging (remove after fixing)
+                            if (b.id === companyBullet.id) {
+                              console.log('🔍 Bullet visibility update:', {
+                                bulletId: b.id,
+                                bulletText: b.text?.substring(0, 50),
+                                newChecked,
+                                currentParams,
+                                newParams,
+                                visibleValue: newParams.visible,
+                                visibleType: typeof newParams.visible,
+                                paramsKeys: Object.keys(newParams)
+                              })
+                            }
+                            
                             // Ensure params object exists and visible is set correctly
                             const updatedBullet = {
                               ...b,

@@ -601,16 +601,32 @@ export default function PreviewPanel({
         
         if (isHeader) {
           // Check if this header is visible
-          // Only hide if visible is explicitly false
-          const isVisible = !bullet.params || bullet.params.visible !== false
+          // Hide ONLY if visible is explicitly set to false (boolean false)
+          const isHeaderHidden = bullet.params && bullet.params.visible === false
+          const isVisible = !isHeaderHidden
           currentHeaderVisible = isVisible && bullet.text?.trim()
           if (currentHeaderVisible) {
             validBullets.push(bullet)
           }
         } else {
           // This is a bullet point - only include if current header is visible and bullet itself is visible
-          // Only hide if visible is explicitly false
-          const bulletVisible = !bullet.params || bullet.params.visible !== false
+          // Hide ONLY if visible is explicitly set to false (boolean false)
+          const isBulletHidden = bullet.params && bullet.params.visible === false
+          const bulletVisible = !isBulletHidden
+          
+          // Debug logging (remove after fixing)
+          if (isBulletHidden) {
+            console.log('🚫 Hiding bullet in preview:', {
+              bulletId: bullet.id,
+              bulletText: bullet.text?.substring(0, 50),
+              params: bullet.params,
+              visible: bullet.params.visible,
+              visibleType: typeof bullet.params.visible,
+              isBulletHidden,
+              bulletVisible
+            })
+          }
+          
           if (currentHeaderVisible && bulletVisible && bullet.text?.trim()) {
             validBullets.push(bullet)
           }
@@ -618,10 +634,28 @@ export default function PreviewPanel({
       }
     } else {
       // For non-work experience sections, just filter by visibility
-      // Only hide if visible is explicitly false
+      // Hide ONLY if visible is explicitly set to false (boolean false)
       validBullets = bullets.filter(b => {
         if (!b.text || !b.text.trim() || b.text.startsWith('**')) return false
-        return !b.params || b.params.visible !== false
+        
+        // Hide only if params exists AND visible is explicitly false
+        const isHidden = b.params && b.params.visible === false
+        const isVisible = !isHidden
+        
+        // Debug logging (remove after fixing)
+        if (isHidden) {
+          console.log('🚫 Hiding bullet in preview (non-work):', {
+            bulletId: b.id,
+            bulletText: b.text?.substring(0, 50),
+            params: b.params,
+            visible: b.params.visible,
+            visibleType: typeof b.params.visible,
+            isHidden,
+            isVisible
+          })
+        }
+        
+        return isVisible
       })
     }
     
