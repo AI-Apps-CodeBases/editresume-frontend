@@ -32,7 +32,7 @@ import TemplateDesignPage from '@/components/Editor/TemplateDesignPage'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { versionControlService } from '@/lib/services/versionControl'
 import { shouldPromptAuthentication } from '@/lib/guestAuth'
-import { getAuthHeaders } from '@/lib/auth'
+import { getAuthHeadersAsync } from '@/lib/auth'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { ATSScoreCard } from '@/features/resume-automation/components/ATSScoreCard'
 import { OptimizationSuggestions } from '@/features/resume-automation/components/OptimizationSuggestions'
@@ -359,35 +359,40 @@ const EditorPageContent = () => {
               setDeepLinkedJD(savedJD)
               setPreviewMode('match')
             } else {
-              Promise.all([
-                fetch(`${config.apiBase}/api/jobs/${jobId}`, {
-                  headers: getAuthHeaders()
-                }).then(res => {
-                  if (res.status === 404) return null;
-                  return res.ok ? res.json() : null;
-                }).catch(() => null),
-                fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
-                  if (res.status === 404) return null;
-                  return res.ok ? res.json() : null;
-                }).catch(() => null)
-              ]).then(([newJob, legacyJob]) => {
-                if (!cancelled) {
-                  const jobData = newJob || legacyJob
-                  if (jobData) {
-                    const description = newJob?.description || legacyJob?.content || ''
-                    if (description) {
-                      setDeepLinkedJD(description)
-                      setPreviewMode('match')
-                      if (typeof window !== 'undefined') {
-                        localStorage.setItem('deepLinkedJD', description)
-                        localStorage.setItem('activeJobDescriptionId', String(jobId))
+              (async () => {
+                try {
+                  const headers = await getAuthHeadersAsync();
+                  const [newJob, legacyJob] = await Promise.all([
+                    fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+                      headers
+                    }).then(res => {
+                      if (res.status === 404) return null;
+                      return res.ok ? res.json() : null;
+                    }).catch(() => null),
+                    fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
+                      if (res.status === 404) return null;
+                      return res.ok ? res.json() : null;
+                    }).catch(() => null)
+                  ]);
+                  
+                  if (!cancelled) {
+                    const jobData = newJob || legacyJob
+                    if (jobData) {
+                      const description = newJob?.description || legacyJob?.content || ''
+                      if (description) {
+                        setDeepLinkedJD(description)
+                        setPreviewMode('match')
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('deepLinkedJD', description)
+                          localStorage.setItem('activeJobDescriptionId', String(jobId))
+                        }
                       }
                     }
                   }
+                } catch (error) {
+                  console.error('Failed to load job description:', error)
                 }
-              }).catch((error) => {
-                console.error('Failed to load job description:', error)
-              })
+              })();
             }
           }
         }
@@ -486,34 +491,39 @@ const EditorPageContent = () => {
           setPreviewMode('match')
         } else {
           // Fetch from API
-          console.log('Fetching JD from API')
-          Promise.all([
-            fetch(`${config.apiBase}/api/jobs/${jobId}`, {
-              headers: getAuthHeaders()
-            }).then(res => res.ok ? res.json() : null).catch(() => null),
-            fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
-          ]).then(([newJob, legacyJob]) => {
-            const jobData = newJob || legacyJob
-            if (jobData) {
-              const description = newJob?.description || legacyJob?.content || ''
-              if (description) {
-                console.log('Loaded JD from API, setting preview mode to match')
-                setDeepLinkedJD(description)
-                setPreviewMode('match')
-                // Store extracted_keywords if available (from extension)
-                const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords
-                if (extractedKeywords && typeof window !== 'undefined') {
-                  localStorage.setItem('extractedKeywords', JSON.stringify(extractedKeywords))
-                }
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('deepLinkedJD', description)
-                  localStorage.setItem('activeJobDescriptionId', String(jobId))
+          console.log('Fetching JD from API');
+          (async () => {
+            try {
+              const headers = await getAuthHeadersAsync();
+              const [newJob, legacyJob] = await Promise.all([
+                fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+                  headers
+                }).then(res => res.ok ? res.json() : null).catch(() => null),
+                fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
+              ]);
+              
+              const jobData = newJob || legacyJob
+              if (jobData) {
+                const description = newJob?.description || legacyJob?.content || ''
+                if (description) {
+                  console.log('Loaded JD from API, setting preview mode to match')
+                  setDeepLinkedJD(description)
+                  setPreviewMode('match')
+                  // Store extracted_keywords if available (from extension)
+                  const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords
+                  if (extractedKeywords && typeof window !== 'undefined') {
+                    localStorage.setItem('extractedKeywords', JSON.stringify(extractedKeywords))
+                  }
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('deepLinkedJD', description)
+                    localStorage.setItem('activeJobDescriptionId', String(jobId))
+                  }
                 }
               }
+            } catch (error) {
+              console.error('Failed to load job description:', error)
             }
-          }).catch((error) => {
-            console.error('Failed to load job description:', error)
-          })
+          })();
         }
       }
     }
@@ -662,38 +672,45 @@ const EditorPageContent = () => {
     const id = searchParams.get('jdId')
     if (id) {
       const jobId = Number(id)
-      setActiveJobDescriptionId(jobId)
+      setActiveJobDescriptionId(jobId);
       
-      Promise.all([
-        fetch(`${config.apiBase}/api/jobs/${jobId}`, {
-          headers: getAuthHeaders()
-        }).then(res => {
-          if (res.status === 404) return null;
-          return res.ok ? res.json() : null;
-        }).catch(() => null),
-        fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
-          if (res.status === 404) return null;
-          return res.ok ? res.json() : null;
-        }).catch(() => null)
-      ]).then(([newJob, legacyJob]) => {
-        const jobData = newJob || legacyJob
-        if (jobData) {
-          const description = newJob?.description || legacyJob?.content || ''
-          if (description) {
-            setDeepLinkedJD(description)
-            setPreviewMode('match')
+      (async () => {
+        try {
+          const headers = await getAuthHeadersAsync();
+          const [newJob, legacyJob] = await Promise.all([
+            fetch(`${config.apiBase}/api/jobs/${jobId}`, {
+              headers
+            }).then(res => {
+              if (res.status === 404) return null;
+              return res.ok ? res.json() : null;
+            }).catch(() => null),
+            fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
+              if (res.status === 404) return null;
+              return res.ok ? res.json() : null;
+            }).catch(() => null)
+          ]);
+          
+          const jobData = newJob || legacyJob
+          if (jobData) {
+            const description = newJob?.description || legacyJob?.content || ''
+            if (description) {
+              setDeepLinkedJD(description)
+              setPreviewMode('match')
+            }
+          } else {
+            // Job not found - clear the ID from URL and localStorage
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('activeJobDescriptionId');
+              const newUrl = new URL(window.location.href);
+              newUrl.searchParams.delete('jdId');
+              window.history.replaceState({}, '', newUrl.toString());
+            }
+            setActiveJobDescriptionId(null);
           }
-        } else {
-          // Job not found - clear the ID from URL and localStorage
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('activeJobDescriptionId');
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete('jdId');
-            window.history.replaceState({}, '', newUrl.toString());
-          }
-          setActiveJobDescriptionId(null);
+        } catch (error) {
+          // Silently handle errors
         }
-      }).catch(() => {})
+      })();
     }
   }, [searchParams])
 

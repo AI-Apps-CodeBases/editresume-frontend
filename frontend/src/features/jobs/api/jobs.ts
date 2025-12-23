@@ -1,7 +1,7 @@
 "use client"
 
 import config from '@/lib/config'
-import { getAuthHeaders } from '@/lib/auth'
+import { getAuthHeadersAsync } from '@/lib/auth'
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import type { CreateJobPayload, Job } from '../types'
 
@@ -61,7 +61,7 @@ export async function fetchSavedJobs(): Promise<Job[]> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  Object.assign(headers, getAuthHeaders())
+  Object.assign(headers, await getAuthHeadersAsync())
 
   return fetchWithRetry(async (attempt) => {
     const timeout = attempt === 0 ? 30000 : 15000
@@ -93,7 +93,7 @@ export async function createJob(payload: CreateJobPayload): Promise<Job> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  Object.assign(headers, getAuthHeaders())
+  Object.assign(headers, await getAuthHeadersAsync())
 
   const response = await fetchWithTimeout(`${baseUrl}/api/jobs`, {
     method: 'POST',
@@ -112,7 +112,7 @@ export async function fetchJob(jobId: number): Promise<Job> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  Object.assign(headers, getAuthHeaders())
+  Object.assign(headers, await getAuthHeadersAsync())
 
   const response = await fetchWithTimeout(`${baseUrl}/api/jobs/${jobId}`, {
     headers,
@@ -123,7 +123,7 @@ export async function fetchJob(jobId: number): Promise<Job> {
 }
 
 export async function deleteJob(jobId: number): Promise<void> {
-  const headers = getAuthHeaders()
+  const headers = await getAuthHeadersAsync()
 
   const response = await fetchWithTimeout(`${baseUrl}/api/jobs/${jobId}`, {
     method: 'DELETE',
@@ -146,7 +146,7 @@ export async function fetchLegacyJobDescriptions(): Promise<Job[]> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  Object.assign(headers, getAuthHeaders())
+  Object.assign(headers, await getAuthHeadersAsync())
 
   return fetchWithRetry(async (attempt) => {
     const timeout = attempt === 0 ? 30000 : 15000

@@ -1,6 +1,7 @@
 "use client"
 
 import config from '@/lib/config'
+import { getAuthHeadersAsync } from '@/lib/auth'
 import type {
   AutoGenerateRequest,
   AutoGenerateResponse,
@@ -12,12 +13,6 @@ import type {
 } from '../types'
 
 const baseUrl = config.apiBase
-
-const getAuthHeaders = (): Record<string, string> => {
-  if (typeof window === 'undefined') return {}
-  const token = localStorage.getItem('authToken')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
@@ -43,7 +38,7 @@ export async function autoGenerateResume(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  Object.assign(headers, getAuthHeaders())
+  Object.assign(headers, await getAuthHeadersAsync())
 
   const url = new URL('/api/resumes/auto-generate', baseUrl)
   const response = await fetch(url.toString(), {
@@ -66,7 +61,7 @@ export async function extractJobKeywords(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  Object.assign(headers, getAuthHeaders())
+  Object.assign(headers, await getAuthHeadersAsync())
 
   const response = await fetch(`${baseUrl}/api/ai/extract_job_keywords`, {
     method: 'POST',
@@ -198,7 +193,7 @@ export async function fetchUserResumes(): Promise<ResumeListItem[]> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  Object.assign(headers, getAuthHeaders())
+  Object.assign(headers, await getAuthHeadersAsync())
 
   const response = await fetch(url.toString(), {
     headers,

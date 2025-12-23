@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { deriveJobMetadataFromText, type JobMetadata } from '@/lib/utils/jobDescriptionParser'
 import config from '@/lib/config'
-import { getAuthHeaders } from '@/lib/auth'
+import { getAuthHeadersAsync } from '@/lib/auth'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface Props {
@@ -34,7 +34,7 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
     setScrapedKeywords(null)
 
     try {
-      const headers = getAuthHeaders()
+      const headers = await getAuthHeadersAsync()
       headers['Content-Type'] = 'application/json'
 
       const response = await fetch(`${config.apiBase}/api/ai/scrape_job_url`, {
@@ -107,7 +107,7 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
     setScrapedKeywords(null)
 
     try {
-      const headers = getAuthHeaders()
+      const headers = await getAuthHeadersAsync()
       headers['Content-Type'] = 'application/json'
 
       const response = await fetch(`${config.apiBase}/api/ai/extract_job_keywords`, {
@@ -193,7 +193,7 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
         ats_insights: metadata?.ats_insights || null,
       }
 
-      const headers = getAuthHeaders()
+      const headers = await getAuthHeadersAsync()
       headers['Content-Type'] = 'application/json'
 
       const response = await fetch(`${config.apiBase}/api/job-descriptions`, {

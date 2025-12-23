@@ -5,7 +5,7 @@ import config from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { shouldPromptAuthentication } from '@/lib/guestAuth';
 import { useModal } from '@/contexts/ModalContext';
-import { getAuthHeaders } from '@/lib/auth';
+import { getAuthHeadersAsync } from '@/lib/auth';
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
@@ -1669,50 +1669,57 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         setJobDescription(savedJD);
       } else {
         // Try to fetch from API if not in localStorage
-        Promise.all([
-          fetchWithTimeout(`${config.apiBase}/api/jobs/${currentJobDescriptionId}`, {
-            headers: getAuthHeaders(),
-            timeout: 20000,
-          }).then(res => {
-            if (!res.ok && res.status === 404) return null;
-            return res.ok ? res.json() : null;
-          }).catch(() => null),
-          fetchWithTimeout(`${config.apiBase}/api/job-descriptions/${currentJobDescriptionId}`, {
-            timeout: 20000,
-          }).then(res => {
-            if (!res.ok && res.status === 404) return null;
-            return res.ok ? res.json() : null;
-          }).catch(() => null)
-        ]).then(([newJob, legacyJob]) => {
-          const jobData = newJob || legacyJob;
-          if (jobData) {
-            const description = newJob?.description || legacyJob?.content || '';
-            if (description) {
-              setJobDescription(description);
-              // Store extracted_keywords if available (from extension)
-              const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords;
-              if (extractedKeywords) {
-                // Transform saved keywords format to match UI expectations
-                const transformedKeywords = transformSavedKeywords(extractedKeywords);
-                setExtractedKeywords(transformedKeywords);
+        (async () => {
+          try {
+            const headers = await getAuthHeadersAsync();
+            const [newJob, legacyJob] = await Promise.all([
+              fetchWithTimeout(`${config.apiBase}/api/jobs/${currentJobDescriptionId}`, {
+                headers,
+                timeout: 20000,
+              }).then(res => {
+                if (!res.ok && res.status === 404) return null;
+                return res.ok ? res.json() : null;
+              }).catch(() => null),
+              fetchWithTimeout(`${config.apiBase}/api/job-descriptions/${currentJobDescriptionId}`, {
+                timeout: 20000,
+              }).then(res => {
+                if (!res.ok && res.status === 404) return null;
+                return res.ok ? res.json() : null;
+              }).catch(() => null)
+            ]);
+            
+            const jobData = newJob || legacyJob;
+            if (jobData) {
+              const description = newJob?.description || legacyJob?.content || '';
+              if (description) {
+                setJobDescription(description);
+                // Store extracted_keywords if available (from extension)
+                const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords;
+                if (extractedKeywords) {
+                  // Transform saved keywords format to match UI expectations
+                  const transformedKeywords = transformSavedKeywords(extractedKeywords);
+                  setExtractedKeywords(transformedKeywords);
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('extractedKeywords', JSON.stringify(transformedKeywords));
+                  }
+                }
                 if (typeof window !== 'undefined') {
-                  localStorage.setItem('extractedKeywords', JSON.stringify(transformedKeywords));
+                  localStorage.setItem('deepLinkedJD', description);
                 }
               }
+            } else {
+              // Job description not found - clear stale ID from localStorage if present
               if (typeof window !== 'undefined') {
-                localStorage.setItem('deepLinkedJD', description);
+                const savedId = localStorage.getItem('activeJobDescriptionId');
+                if (savedId === String(currentJobDescriptionId)) {
+                  localStorage.removeItem('activeJobDescriptionId');
+                }
               }
             }
-          } else {
-            // Job description not found - clear stale ID from localStorage if present
-            if (typeof window !== 'undefined') {
-              const savedId = localStorage.getItem('activeJobDescriptionId');
-              if (savedId === String(currentJobDescriptionId)) {
-                localStorage.removeItem('activeJobDescriptionId');
-              }
-            }
+          } catch (error) {
+            // Silently handle errors
           }
-        }).catch(() => { });
+        })();
       }
     }
   }, [currentJobDescriptionId, jobDescription]);
