@@ -3251,6 +3251,7 @@ export default function VisualResumeEditor({
                                             type="checkbox"
                                             checked={bullet.params?.visible !== false}
                                             onChange={(e) => {
+                                              console.log('✅ Skills checkbox onChange FIRED', { bulletId: bullet.id, checked: e.target.checked })
                                               e.stopPropagation()
                                               const newChecked = Boolean(e.target.checked)
                                               const updatedData = {
@@ -3264,13 +3265,23 @@ export default function VisualResumeEditor({
                                                         
                                                         const currentParams = b.params || {}
                                                         const { visible, ...restParams } = currentParams
+                                                        
+                                                        // When checked: remove visible property (undefined = visible in preview)
+                                                        // When unchecked: explicitly set visible: false (hidden in preview)
                                                         const newParams = newChecked
-                                                          ? restParams  // Remove visible property when checked (undefined = visible)
-                                                          : { ...restParams, visible: false }  // Explicitly set visible: false when unchecked
+                                                          ? (Object.keys(restParams).length > 0 ? restParams : {})
+                                                          : { ...restParams, visible: false }
+                                                        
+                                                        console.log('🔍 Skills bullet visibility update:', {
+                                                          bulletId: b.id,
+                                                          newChecked,
+                                                          newParams,
+                                                          visibleValue: newParams.visible
+                                                        })
                                                         
                                                         return {
                                                           ...b,
-                                                          params: Object.keys(newParams).length > 0 ? newParams : undefined
+                                                          params: newParams
                                                         }
                                                       })
                                                     }
@@ -3378,6 +3389,7 @@ export default function VisualResumeEditor({
                                         type="checkbox"
                                         checked={bullet.params?.visible !== false}
                                         onChange={(e) => {
+                                          console.log('✅ Regular bullet checkbox onChange FIRED', { bulletId: bullet.id, checked: e.target.checked })
                                           e.stopPropagation()
                                           const newChecked = e.target.checked
                                           const sections = data.sections.map(s =>
@@ -3389,13 +3401,25 @@ export default function VisualResumeEditor({
                                                   
                                                   const currentParams = b.params || {}
                                                   const { visible, ...restParams } = currentParams
+                                                  
+                                                  // When checked: remove visible property (undefined = visible in preview)
+                                                  // When unchecked: explicitly set visible: false (hidden in preview)
                                                   const newParams = newChecked
-                                                    ? restParams  // Remove visible property when checked (undefined = visible)
-                                                    : { ...restParams, visible: false }  // Explicitly set visible: false when unchecked
+                                                    ? (Object.keys(restParams).length > 0 ? restParams : {})
+                                                    : { ...restParams, visible: false }
+                                                  
+                                                  console.log('🔍 Regular bullet visibility update:', {
+                                                    bulletId: b.id,
+                                                    bulletText: b.text?.substring(0, 50),
+                                                    newChecked,
+                                                    newParams,
+                                                    visibleValue: newParams.visible,
+                                                    visibleType: typeof newParams.visible
+                                                  })
                                                   
                                                   return {
                                                     ...b,
-                                                    params: Object.keys(newParams).length > 0 ? newParams : undefined
+                                                    params: newParams
                                                   }
                                                 })
                                               }
@@ -4527,6 +4551,7 @@ function SortableCompanyGroup({
                     type="checkbox"
                     checked={companyBullet.params?.visible !== false}
                     onChange={(e) => {
+                      console.log('✅ Work experience bullet checkbox onChange FIRED', { bulletId: companyBullet.id, checked: e.target.checked })
                       e.stopPropagation()
                       const newChecked = Boolean(e.target.checked)
                       const updatedData = {
@@ -4546,9 +4571,9 @@ function SortableCompanyGroup({
                               ? (Object.keys(restParams).length > 0 ? restParams : {})
                               : { ...restParams, visible: false }
                             
-                            // Debug logging (remove after fixing)
+                            // Debug logging
                             if (b.id === companyBullet.id) {
-                              console.log('🔍 Bullet visibility update:', {
+                              console.log('🔍 Work experience bullet visibility update:', {
                                 bulletId: b.id,
                                 bulletText: b.text?.substring(0, 50),
                                 newChecked,
@@ -4560,13 +4585,10 @@ function SortableCompanyGroup({
                               })
                             }
                             
-                            // Ensure params object exists and visible is set correctly
-                            const updatedBullet = {
+                            return {
                               ...b,
                               params: newParams
                             }
-                            
-                            return updatedBullet
                           })
 
                           return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }

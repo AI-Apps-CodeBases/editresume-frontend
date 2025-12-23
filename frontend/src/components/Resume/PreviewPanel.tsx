@@ -577,6 +577,22 @@ export default function PreviewPanel({
     if (!bullets || !Array.isArray(bullets)) {
       return <div className="text-gray-500 text-sm">No content available</div>
     }
+    
+    // Debug: Log bullets with their visibility status
+    const hiddenBullets = bullets.filter(b => b.params && b.params.visible === false)
+    if (hiddenBullets.length > 0) {
+      console.log('📋 renderBullets called with hidden bullets:', {
+        sectionTitle,
+        totalBullets: bullets.length,
+        hiddenCount: hiddenBullets.length,
+        hiddenBullets: hiddenBullets.map(b => ({
+          id: b.id,
+          text: b.text?.substring(0, 50),
+          params: b.params,
+          visible: b.params.visible
+        }))
+      })
+    }
 
     const isWorkExperience = sectionTitle.toLowerCase().includes('experience') || 
                              sectionTitle.toLowerCase().includes('work') || 
