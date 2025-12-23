@@ -60,6 +60,33 @@ interface Props {
   onBack: () => void
 }
 
+async function fetchWithRetry<T>(
+  fn: (attempt: number) => Promise<T>,
+  maxRetries = 3,
+  baseDelay = 1000
+): Promise<T> {
+  let lastError: Error | null = null
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn(attempt)
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      const isTimeout = lastError.message.includes('timeout') || lastError.message.includes('timed out')
+      const isLastAttempt = attempt === maxRetries - 1
+      
+      if (!isTimeout || isLastAttempt) {
+        throw lastError
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded')
+}
+
 export default function JobsView({ onBack }: Props) {
   const { user, isAuthenticated } = useAuth()
   const [savedJDs, setSavedJDs] = useState<JobDescription[]>([])
@@ -84,21 +111,30 @@ export default function JobsView({ onBack }: Props) {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
       }
-      const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
-        headers,
-        timeout: 25000,
+
+      const data = await fetchWithRetry(async (attempt) => {
+        const timeout = attempt === 0 ? 30000 : 15000
+        
+        const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+          headers,
+          timeout,
+        })
+        
+        if (!res.ok) {
+          throw new Error(`Request failed with status ${res.status}: ${res.statusText}`)
+        }
+        
+        return await res.json()
       })
-      if (res.ok) {
-        const data = await res.json()
-        const jds = Array.isArray(data) ? data : data.results || []
-        setSavedJDs(jds)
-      } else {
-        console.error('Failed to load job descriptions:', res.status, res.statusText)
-      }
+
+      const jds = Array.isArray(data) ? data : data.results || []
+      setSavedJDs(jds)
     } catch (e) {
       console.error('Failed to load job descriptions', e)
       if (e instanceof Error && e.message.includes('timeout')) {
-        alert('Request timed out. The server may be experiencing issues. Please try again.')
+        alert('Request timed out after multiple retries. The server may be experiencing issues. Please try again.')
+      } else {
+        alert(`Failed to load job descriptions: ${e instanceof Error ? e.message : 'Unknown error'}`)
       }
     } finally {
       setLoading(false)

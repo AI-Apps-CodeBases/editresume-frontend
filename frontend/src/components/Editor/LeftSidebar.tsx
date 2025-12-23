@@ -6,6 +6,33 @@ import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import CollaborationPanel from './CollaborationPanel'
 import { Briefcase, FileText, Users, Bot, Sparkles, Target, BarChart3, Mail, FileEdit, TrendingUp } from 'lucide-react'
 
+async function fetchWithRetry<T>(
+  fn: (attempt: number) => Promise<T>,
+  maxRetries = 3,
+  baseDelay = 1000
+): Promise<T> {
+  let lastError: Error | null = null
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn(attempt)
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      const isTimeout = lastError.message.includes('timeout') || lastError.message.includes('timed out')
+      const isLastAttempt = attempt === maxRetries - 1
+      
+      if (!isTimeout || isLastAttempt) {
+        throw lastError
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded')
+}
+
 interface Props {
   resumeData: any
   onResumeUpdate?: (updatedResume: any) => void
@@ -86,14 +113,23 @@ export default function LeftSidebar({
         if (token) {
           headers['Authorization'] = `Bearer ${token}`
         }
-        const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
-          headers,
-          timeout: 15000,
+        
+        const data = await fetchWithRetry(async (attempt) => {
+          const timeout = attempt === 0 ? 30000 : 15000
+          
+          const res = await fetchWithTimeout(`${config.apiBase}/api/job-descriptions?user_email=${encodeURIComponent(user.email)}`, {
+            headers,
+            timeout,
+          })
+          
+          if (!res.ok) {
+            throw new Error(`Request failed with status ${res.status}: ${res.statusText}`)
+          }
+          
+          return await res.json()
         })
-        if (res.ok) {
-          const data = await res.json()
-          setSavedJDs(Array.isArray(data) ? data : data.results || [])
-        }
+        
+        setSavedJDs(Array.isArray(data) ? data : data.results || [])
       } else if (activeSection === 'resumes') {
         const res = await fetch(`${config.apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
         if (res.ok) {
