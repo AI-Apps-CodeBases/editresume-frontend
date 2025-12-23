@@ -3289,6 +3289,16 @@ export default function VisualResumeEditor({
                                                 )
                                               }
                                               onChange(updatedData)
+                                              
+                                              // Verify the update
+                                              const updatedBullet = updatedData.sections.find(s => s.id === section.id)?.bullets.find(b => b.id === bullet.id)
+                                              console.log('✅ Skills data updated:', {
+                                                sectionId: section.id,
+                                                bulletId: bullet.id,
+                                                newChecked,
+                                                updatedParams: updatedBullet?.params,
+                                                visibleValue: updatedBullet?.params?.visible
+                                              })
                                             }}
                                             className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
                                             onClick={(e) => e.stopPropagation()}
@@ -3426,6 +3436,16 @@ export default function VisualResumeEditor({
                                               : s
                                           )
                                           onChange({ ...data, sections })
+                                          
+                                          // Verify the update
+                                          const updatedBullet = sections.find(s => s.id === section.id)?.bullets.find(b => b.id === bullet.id)
+                                          console.log('✅ Regular bullet data updated:', {
+                                            sectionId: section.id,
+                                            bulletId: bullet.id,
+                                            newChecked,
+                                            updatedParams: updatedBullet?.params,
+                                            visibleValue: updatedBullet?.params?.visible
+                                          })
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
@@ -4595,6 +4615,17 @@ function SortableCompanyGroup({
                         })
                       }
                       onChange(updatedData)
+                      
+                      // Verify the update
+                      const updatedBullet = updatedData.sections.find(s => s.id === section.id)?.bullets.find(b => b.id === companyBullet.id)
+                      console.log('✅ Work experience data updated:', {
+                        sectionId: section.id,
+                        bulletId: companyBullet.id,
+                        newChecked,
+                        updatedParams: updatedBullet?.params,
+                        visibleValue: updatedBullet?.params?.visible,
+                        visibleType: typeof updatedBullet?.params?.visible
+                      })
                     }}
                     className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
                     title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
