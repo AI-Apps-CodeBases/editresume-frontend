@@ -25,7 +25,7 @@ export default function VideoTutorialSection() {
   const [activeVideo, setActiveVideo] = useState<string | null>(null)
 
   return (
-    <section className="section-spacing bg-white">
+    <section className="pt-8 sm:pt-12 lg:pt-16 pb-20 sm:pb-24 lg:pb-28 bg-white">
       <div className="container-padding mx-auto max-w-7xl">
         <div className="text-center mb-12">
           <span className="badge-gradient">VIDEO TUTORIALS</span>
