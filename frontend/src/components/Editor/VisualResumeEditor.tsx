@@ -4617,7 +4617,7 @@ function SortableCompanyGroup({
                       onChange(updatedData)
                       
                       // Verify the update
-                      const updatedBullet = updatedData.sections.find(s => s.id === section.id)?.bullets.find(b => b.id === companyBullet.id)
+                      const updatedBullet = updatedData.sections.find(s => s.id === section.id)?.bullets.find((b: Bullet) => b.id === companyBullet.id)
                       console.log('✅ Work experience data updated:', {
                         sectionId: section.id,
                         bulletId: companyBullet.id,
