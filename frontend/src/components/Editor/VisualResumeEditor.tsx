@@ -98,8 +98,25 @@ const partitionCompanyGroups = (bullets: Bullet[]) => {
 
 const getOrderedCompanyGroups = (bullets: Bullet[]) => {
   const groups = partitionCompanyGroups(bullets)
-  const visible = groups.filter(group => !isCompanyHeaderBullet(group[0]) || group[0].params?.visible !== false)
-  const hidden = groups.filter(group => isCompanyHeaderBullet(group[0]) && group[0].params?.visible === false)
+  
+  // Sort bullets within each company group: visible first, then invisible
+  const sortedGroups = groups.map(group => {
+    if (group.length === 1 || !isCompanyHeaderBullet(group[0])) {
+      return group
+    }
+    
+    // For company groups, sort bullets: header first, then visible bullets, then invisible bullets
+    const header = group[0]
+    const companyBullets = group.slice(1)
+    const visibleBullets = companyBullets.filter(b => b.params?.visible !== false)
+    const invisibleBullets = companyBullets.filter(b => b.params?.visible === false)
+    
+    return [header, ...visibleBullets, ...invisibleBullets]
+  })
+  
+  // Sort company groups: visible companies first, then hidden companies
+  const visible = sortedGroups.filter(group => !isCompanyHeaderBullet(group[0]) || group[0].params?.visible !== false)
+  const hidden = sortedGroups.filter(group => isCompanyHeaderBullet(group[0]) && group[0].params?.visible === false)
   return [...visible, ...hidden]
 }
 
@@ -3242,17 +3259,19 @@ export default function VisualResumeEditor({
                                                   s.id === section.id
                                                     ? {
                                                       ...s,
-                                                      bullets: s.bullets.map(b =>
-                                                        b.id === bullet.id
-                                                          ? {
-                                                            ...b,
-                                                            params: {
-                                                              ...(b.params || {}),
-                                                              visible: newChecked ? true : false
-                                                            }
-                                                          }
-                                                          : b
-                                                      )
+                                                      bullets: s.bullets.map(b => {
+                                                        if (b.id !== bullet.id) return b
+                                                        
+                                                        const { visible, ...restParams } = b.params || {}
+                                                        const newParams = newChecked
+                                                          ? restParams  // Remove visible property when checked
+                                                          : { ...restParams, visible: false }  // Set visible: false when unchecked
+                                                        
+                                                        return {
+                                                          ...b,
+                                                          params: newParams
+                                                        }
+                                                      })
                                                     }
                                                     : s
                                                 )
@@ -3364,11 +3383,19 @@ export default function VisualResumeEditor({
                                             s.id === section.id
                                               ? {
                                                 ...s,
-                                                bullets: s.bullets.map(b =>
-                                                  b.id === bullet.id
-                                                    ? { ...b, params: { ...b.params, visible: newChecked } }
-                                                    : b
-                                                )
+                                                bullets: s.bullets.map(b => {
+                                                  if (b.id !== bullet.id) return b
+                                                  
+                                                  const { visible, ...restParams } = b.params || {}
+                                                  const newParams = newChecked
+                                                    ? restParams  // Remove visible property when checked
+                                                    : { ...restParams, visible: false }  // Set visible: false when unchecked
+                                                  
+                                                  return {
+                                                    ...b,
+                                                    params: newParams
+                                                  }
+                                                })
                                               }
                                               : s
                                           )
@@ -4505,17 +4532,19 @@ function SortableCompanyGroup({
                         sections: data.sections.map(s => {
                           if (s.id !== section.id) return s
 
-                          const updatedBullets = s.bullets.map(b =>
-                            b.id === companyBullet.id
-                              ? {
-                                  ...b,
-                                  params: {
-                                    ...(b.params || {}),
-                                    visible: newChecked ? true : false
-                                  }
-                                }
-                              : b
-                          )
+                          const updatedBullets = s.bullets.map(b => {
+                            if (b.id !== companyBullet.id) return b
+                            
+                            const { visible, ...restParams } = b.params || {}
+                            const newParams = newChecked 
+                              ? restParams  // Remove visible property when checked
+                              : { ...restParams, visible: false }  // Set visible: false when unchecked
+                            
+                            return {
+                              ...b,
+                              params: newParams
+                            }
+                          })
 
                           return { ...s, bullets: flattenGroups(getOrderedCompanyGroups(updatedBullets)) }
                         })
