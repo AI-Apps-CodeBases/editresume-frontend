@@ -577,7 +577,7 @@ export default function PreviewPanel({
     if (!bullets || !Array.isArray(bullets)) {
       return <div className="text-gray-500 text-sm">No content available</div>
     }
-
+    
     const isWorkExperience = sectionTitle.toLowerCase().includes('experience') || 
                              sectionTitle.toLowerCase().includes('work') || 
                              sectionTitle.toLowerCase().includes('employment')
@@ -600,28 +600,27 @@ export default function PreviewPanel({
         const isHeader = bullet.text?.startsWith('**') && bullet.text?.includes('**', 2)
         
         if (isHeader) {
-          // Check if this header is visible
-          // Only hide if visible is explicitly false
-          const isVisible = !bullet.params || bullet.params.visible !== false
-          currentHeaderVisible = isVisible && bullet.text?.trim()
+          // Check if this header is visible - hide if visible is explicitly false
+          const isHeaderHidden = bullet.params && bullet.params.visible === false
+          currentHeaderVisible = !isHeaderHidden && bullet.text?.trim()
           if (currentHeaderVisible) {
             validBullets.push(bullet)
           }
         } else {
-          // This is a bullet point - only include if current header is visible and bullet itself is visible
-          // Only hide if visible is explicitly false
-          const bulletVisible = !bullet.params || bullet.params.visible !== false
-          if (currentHeaderVisible && bulletVisible && bullet.text?.trim()) {
+          // This is a bullet point - hide if visible is explicitly false
+          const isBulletHidden = bullet.params && bullet.params.visible === false
+          if (currentHeaderVisible && !isBulletHidden && bullet.text?.trim()) {
             validBullets.push(bullet)
           }
         }
       }
     } else {
-      // For non-work experience sections, just filter by visibility
-      // Only hide if visible is explicitly false
+      // For non-work experience sections, filter out bullets where visible === false
       validBullets = bullets.filter(b => {
         if (!b.text || !b.text.trim() || b.text.startsWith('**')) return false
-        return !b.params || b.params.visible !== false
+        // Hide only if params exists AND visible is explicitly false
+        const isHidden = b.params && b.params.visible === false
+        return !isHidden
       })
     }
     
