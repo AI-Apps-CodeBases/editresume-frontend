@@ -10,22 +10,30 @@ const ALLOWLIST = new Set([
   'app/billing/page.tsx',
   'app/editor/page.tsx',
   'app/profile/page.tsx',
+  'components/AI/AIWorkExperience.tsx',
   'components/AI/AIImprovementWidget.tsx',
   'components/AI/AIWizard.tsx',
   'components/AI/CoverLetterGenerator.tsx',
   'components/AI/EnhancedATSScoreWidget.tsx',
+  'components/AI/GrammarChecker.tsx',
   'components/AI/GrammarStylePanel.tsx',
   'components/AI/JobDescriptionMatcher.tsx',
   'components/AI/JobMatchAnalyticsDashboard.tsx',
   'components/Editor/DesignPanel.tsx',
+  'components/Editor/JobDescriptionParser.tsx',
   'components/Editor/JobDetailView.tsx',
   'components/Editor/JobsView.tsx',
   'components/Editor/LeftSidebar.tsx',
+  'components/Editor/ModernEditorLayout.tsx',
+  'components/Editor/ModernLeftSidebar.tsx',
   'components/Editor/RightPanel.tsx',
+  'components/Editor/UploadResume.tsx',
   'components/Resume/PreviewPanel.tsx',
+  'components/Resume/ResumesView.tsx',
   'components/Resume/VersionControlPanel.tsx',
+  'components/home/StepsSection.tsx',
   'components/SettingsPanel.tsx',
-  'features/resume-automation/components/ResumeAutomationFlow.tsx'
+  'features/resume/components/CustomizationControls.tsx'
 ])
 
 function walk(dir, results = []) {

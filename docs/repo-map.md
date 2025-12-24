@@ -58,8 +58,7 @@ editresume-frontend/
 │   │   ├── contexts/                 # React Context providers
 │   │   ├── features/                 # Feature modules (domain-driven)
 │   │   │   ├── jobs/                 # Job management feature
-│   │   │   ├── resume/               # Resume feature
-│   │   │   └── resume-automation/    # Resume automation feature
+│   │   │   └── resume/               # Resume feature
 │   │   ├── hooks/                    # Custom React hooks
 │   │   ├── lib/                      # Libraries & utilities
 │   │   │   └── services/             # API service clients
@@ -106,7 +105,6 @@ editresume-frontend/
 
 #### **AI Domain**
 - `src/components/AI/` - AI-powered features (ATS scoring, improvements, grammar, cover letters)
-- `src/features/resume-automation/` - Automated resume generation
 
 #### **Analytics Domain**
 - `src/lib/services/exportAnalytics.ts` - Export tracking
@@ -287,7 +285,6 @@ editresume-frontend/
 ### 🎯 **FEATURE** - Feature-specific, actively used
 
 **Frontend:**
-- `src/features/resume-automation/` - Resume automation
 - `src/components/AI/` - AI-powered features
 - `src/app/billing/` - Billing pages
 - `src/app/shared/` - Shared resume pages

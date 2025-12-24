@@ -7,7 +7,6 @@ import SettingsPanel from '@/components/SettingsPanel'
 import config from '@/lib/config'
 import { auth } from '@/lib/firebaseClient'
 import ProtectedRoute from '@/components/Shared/Auth/ProtectedRoute'
-import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { StatsPanel } from '@/components/home/StatsPanel'
 import { DocumentIcon, DownloadIcon, ClockIcon, FolderIcon, DiamondIcon, EditIcon } from '@/components/Icons'
 import { useLinkedIn } from '@/hooks/useLinkedIn'
@@ -786,7 +785,6 @@ function ProfilePageContent() {
                   </div>
                 )}
 
-                <ResumeAutomationFlow />
               </div>
             )}
 

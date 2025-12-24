@@ -1,10 +1,9 @@
 'use client'
 import { SearchIcon, AlertIcon, RocketIcon, DocumentIcon } from '@/components/Icons'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { useCallback, useState, useRef } from 'react'
+import { Suspense, useCallback, useMemo, useState } from 'react'
 import UploadResume from '@/components/Editor/UploadResume'
-import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { deduplicateSections } from '@/utils/sectionDeduplication'
 import { Brain, Sparkles, Search, AlertTriangle, Rocket } from 'lucide-react'
 
@@ -13,9 +12,30 @@ const quickActions = [
 ]
 
 export default function UploadPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/40 flex items-center justify-center">
+          <div className="text-sm text-slate-600">Loading…</div>
+        </div>
+      }
+    >
+      <UploadPageContent />
+    </Suspense>
+  )
+}
+
+function UploadPageContent() {
   const router = useRouter()
-  const [automationOpenSignal, setAutomationOpenSignal] = useState<number | undefined>(undefined)
-  const automationSignalRef = useRef(0)
+  const searchParams = useSearchParams()
+  const [nextAction, setNextAction] = useState<'editor' | 'tailor'>(() => {
+    const next = searchParams.get('next')
+    return next === 'tailor' ? 'tailor' : 'editor'
+  })
+  const nextAfterUpload = useMemo(() => {
+    const next = searchParams.get('next')
+    return next === 'tailor' ? 'tailor' : nextAction
+  }, [searchParams, nextAction])
 
   const handleUploadSuccess = useCallback(
     (data: any) => {
@@ -69,16 +89,20 @@ export default function UploadPage() {
           console.log('💾 Storing uploaded resume in sessionStorage:', uploadToken)
           window.sessionStorage.setItem(`uploadedResume:${uploadToken}`, JSON.stringify(payload))
 
-          router.push(`/editor?resumeUpload=1&uploadToken=${uploadToken}`)
+          if (nextAfterUpload === 'tailor') {
+            router.push(`/tailor-suggestions?resumeUpload=1&uploadToken=${uploadToken}`)
+          } else {
+            router.push(`/editor?resumeUpload=1&uploadToken=${uploadToken}`)
+          }
           return
         } catch (error) {
           console.error('Failed to cache uploaded resume payload:', error)
         }
       }
 
-      router.push('/editor?resumeUpload=1')
+      router.push(nextAfterUpload === 'tailor' ? '/tailor-suggestions?resumeUpload=1' : '/editor?resumeUpload=1')
     },
-    [router]
+    [router, nextAfterUpload]
   )
 
   return (
@@ -90,8 +114,6 @@ export default function UploadPage() {
       </div>
 
       <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-20 px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
-        <ResumeAutomationFlow hideJobList hideHeader openSignal={automationOpenSignal} />
-        
         {/* Hero Section */}
         <section className="relative">
           <div className="text-center space-y-6 mb-12">
@@ -129,6 +151,36 @@ export default function UploadPage() {
                       <span className="text-primary-300">·</span>
                       <span className="text-xs font-semibold text-primary-700">DOCX</span>
                     </div>
+                  </div>
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNextAction('editor')
+                        router.push('/upload?next=editor')
+                      }}
+                      className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-all ${
+                        nextAfterUpload === 'editor'
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      Edit after upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNextAction('tailor')
+                        router.push('/upload?next=tailor')
+                      }}
+                      className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-all ${
+                        nextAfterUpload === 'tailor'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      Tailor to a job after upload
+                    </button>
                   </div>
                   <UploadResume variant="modal" onUploadSuccess={handleUploadSuccess} />
                   <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-purple-50/50 border border-blue-100">
@@ -169,28 +221,23 @@ export default function UploadPage() {
                       </div>
                     </Link>
                   ))}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      automationSignalRef.current += 1
-                      setAutomationOpenSignal(automationSignalRef.current)
-                    }}
-                    className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-white/95 backdrop-blur-sm p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-1 text-left w-full surface-card"
+                  <Link
+                    href="/tailor-select-resume"
+                    className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-white/95 backdrop-blur-sm p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_12px_32px_rgba(15,23,42,0.12)] text-left w-full surface-card transition-all duration-300 hover:scale-[1.02]"
                   >
-
                     <div className="relative flex items-start gap-4">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
                         <Sparkles className="w-6 h-6 text-primary-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 mb-1">Generate Resume</div>
-                        <p className="text-sm text-slate-600 leading-relaxed">Generate resume from job in minutes.</p>
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 mb-1">Generate Resume for JD</div>
+                        <p className="text-sm text-slate-600 leading-relaxed">Tailor your resume to match a job description and increase ATS score.</p>
                       </div>
-                      <div className="flex-shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors">
+                      <div className="flex-shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors group-hover:translate-x-1">
                         →
                       </div>
                     </div>
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>

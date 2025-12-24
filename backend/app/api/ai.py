@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.models import (
     AIImprovementPayload,
+    BulletParam,
     CoverLetterPayload,
     EnhancedATSPayload,
     ExtractKeywordsPayload,
@@ -24,6 +25,7 @@ from app.api.models import (
     JobDescriptionMatchPayload,
     ResumePayload,
     ScrapeJobUrlPayload,
+    Section,
     WorkExperienceRequest,
 )
 from app.core.dependencies import (
@@ -2370,4 +2372,553 @@ async def apply_ai_improvement(payload: AIImprovementPayload):
             "suggestions": ["Unable to apply AI improvement. Please try again."],
             "error": str(e),
         }
+
+
+@router.post("/tailor_resume_suggestions")
+async def tailor_resume_suggestions(
+    payload: dict,
+):
+    """Get suggestions for tailoring resume before optimization - doesn't require DB or auth"""
+    try:
+        resume_data = payload.get("resume_data")
+        job_description = payload.get("job_description", "")
+
+        if not resume_data:
+            raise HTTPException(status_code=400, detail="resume_data is required")
+        if not job_description.strip():
+            raise HTTPException(status_code=400, detail="job_description is required")
+
+        # Convert resume_data to ResumePayload format
+        resume_payload = ResumePayload(
+            name=resume_data.get("name", ""),
+            title=resume_data.get("title", ""),
+            email=resume_data.get("email"),
+            phone=resume_data.get("phone"),
+            location=resume_data.get("location"),
+            summary=resume_data.get("summary", ""),
+            sections=[
+                Section(
+                    id=section.get("id", ""),
+                    title=section.get("title", ""),
+                    bullets=[
+                        BulletParam(
+                            id=bullet.get("id", ""),
+                            text=bullet.get("text", ""),
+                            params=bullet.get("params", {}),
+                        )
+                        for bullet in section.get("bullets", [])
+                    ],
+                )
+                for section in resume_data.get("sections", [])
+            ],
+        )
+
+        # Calculate current ATS score
+        current_score = None
+        try:
+            if enhanced_ats_checker:
+                ats_result = enhanced_ats_checker.get_enhanced_ats_score(
+                    resume_payload.dict(),
+                    job_description=job_description,
+                    use_industry_standard=True,
+                )
+                current_score = ats_result.get("score", None)
+        except Exception as e:
+            logger.warning(f"Failed to calculate current ATS score: {e}")
+
+        # Extract keywords from job description
+        missing_keywords = []
+        job_keywords_data = {}
+        try:
+            job_keywords_data = keyword_extractor.extract_keywords(job_description)
+            
+            # Get resume text to find missing keywords
+            resume_text = enhanced_ats_checker.extract_text_from_resume(resume_data) if enhanced_ats_checker else ""
+            resume_words = set(resume_text.lower().split())
+            job_words = set(job_description.lower().split())
+            
+            # Find missing important keywords
+            all_jd_keywords = []
+            all_jd_keywords.extend(job_keywords_data.get("technical_keywords", [])[:30])
+            all_jd_keywords.extend(job_keywords_data.get("high_frequency_keywords", [])[:20])
+            all_jd_keywords.extend(job_keywords_data.get("priority_keywords", [])[:15])
+            
+            for keyword in all_jd_keywords:
+                kw_str = keyword.get("keyword", keyword) if isinstance(keyword, dict) else str(keyword)
+                kw_lower = kw_str.lower()
+                # Check if keyword appears in resume (as whole word or part of phrase)
+                if kw_lower not in resume_words and not any(kw_lower in word for word in resume_words):
+                    if len(missing_keywords) < 30:  # Limit to top 30
+                        missing_keywords.append(kw_str)
+        except Exception as e:
+            logger.warning(f"Failed to extract missing keywords: {e}")
+
+        # Generate AI improvements
+        improvements = []
+        try:
+            if enhanced_ats_checker:
+                improvements = enhanced_ats_checker.generate_ai_improvements(
+                    resume_data, job_description
+                )
+        except Exception as e:
+            logger.warning(f"Failed to generate AI improvements: {e}")
+
+        # Categorize improvements
+        categories = {
+            "Searchability": {"count": 0, "items": []},
+            "Hard Skills": {"count": 0, "items": []},
+            "Soft Skills": {"count": 0, "items": []},
+            "Formatting": {"count": 0, "items": []},
+            "Content Quality": {"count": 0, "items": []},
+        }
+
+        # Map improvement categories to our categories
+        category_mapping = {
+            "Keywords": "Searchability",
+            "Skills": "Hard Skills",
+            "Achievements": "Content Quality",
+            "Summary": "Content Quality",
+            "Experience": "Content Quality",
+            "Content": "Content Quality",
+            "Format": "Formatting",
+            "Leadership": "Soft Skills",
+        }
+
+        for improvement in improvements:
+            category = category_mapping.get(improvement.category, "Content Quality")
+            if category in categories:
+                categories[category]["count"] += 1
+                categories[category]["items"].append({
+                    "title": improvement.title,
+                    "description": improvement.description,
+                    "priority": improvement.priority,
+                    "impact_score": improvement.impact_score,
+                    "specific_suggestion": improvement.specific_suggestion,
+                    "example": improvement.example,
+                })
+
+        # Calculate total issue count
+        total_issues = sum(cat["count"] for cat in categories.values())
+
+        return {
+            "success": True,
+            "current_score": current_score,
+            "missing_keywords": missing_keywords[:15],  # Top 15 missing keywords
+            "categories": categories,
+            "total_issues": total_issues,
+            "improvements": [
+                {
+                    "category": imp.category,
+                    "title": imp.title,
+                    "description": imp.description,
+                    "priority": imp.priority,
+                    "impact_score": imp.impact_score,
+                    "specific_suggestion": imp.specific_suggestion,
+                    "example": imp.example,
+                }
+                for imp in improvements
+            ],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Tailor resume suggestions error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate suggestions: {str(e)}",
+        )
+
+
+@router.post("/tailor_resume")
+async def tailor_resume(
+    payload: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+    session_id: Optional[str] = None,
+):
+    """Tailor resume to match job description using AI"""
+    try:
+        use_openai = bool(openai_client)
+
+        # Check usage limits
+        allowed, info = await check_and_record_ai_usage(
+            request, db, "tailor_resume", session_id
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=403,
+                detail=info.get("message", "Usage limit exceeded for tailor_resume feature"),
+            )
+
+        resume_data = payload.get("resume_data")
+        job_description = payload.get("job_description", "")
+        options = payload.get("options", {})
+        tone = options.get("tone", "professional")
+        max_new_bullets = options.get("maxNewBullets", 12)  # Increased from 6 to 12
+
+        if not resume_data:
+            raise HTTPException(status_code=400, detail="resume_data is required")
+        if not job_description.strip():
+            raise HTTPException(status_code=400, detail="job_description is required")
+
+        # Convert resume_data to ResumePayload format
+        resume_payload = ResumePayload(
+            name=resume_data.get("name", ""),
+            title=resume_data.get("title", ""),
+            email=resume_data.get("email"),
+            phone=resume_data.get("phone"),
+            location=resume_data.get("location"),
+            summary=resume_data.get("summary", ""),
+            sections=[
+                Section(
+                    id=section.get("id", ""),
+                    title=section.get("title", ""),
+                    bullets=[
+                        BulletParam(
+                            id=bullet.get("id", ""),
+                            text=bullet.get("text", ""),
+                            params=bullet.get("params", {}),
+                        )
+                        for bullet in section.get("bullets", [])
+                    ],
+                )
+                for section in resume_data.get("sections", [])
+            ],
+        )
+
+        def fallback_generate():
+            base_summary = resume_payload.summary or ""
+            jd_snippet = " ".join(job_description.split()[:80])
+            new_summary = (
+                f"{base_summary}\n\nTailored for this role: {jd_snippet}".strip()
+                if base_summary
+                else f"Tailored for this role: {jd_snippet}".strip()
+            )
+
+            keywords: list[str] = []
+            for token in job_description.replace("\n", " ").split():
+                t = token.strip(",.;:()[]{}").lower()
+                if 4 <= len(t) <= 18 and t.isalpha() and t not in keywords:
+                    keywords.append(t)
+                if len(keywords) >= 8:
+                    break
+
+            ops: list[dict] = [
+                {
+                    "op": "update_summary",
+                    "next": new_summary,
+                    "prev": base_summary,
+                }
+            ]
+            for kw in keywords[:5]:
+                ops.append({"op": "add_skill", "keyword": kw})
+
+            opt_sections = []
+            for section in resume_data.get("sections", []):
+                opt_sections.append(
+                    {
+                        "id": section.get("id", ""),
+                        "title": section.get("title", ""),
+                        "bullets": section.get("bullets", []),
+                    }
+                )
+            optimized = {
+                "name": resume_data.get("name", ""),
+                "title": resume_data.get("title", ""),
+                "email": resume_data.get("email", ""),
+                "phone": resume_data.get("phone", ""),
+                "location": resume_data.get("location", ""),
+                "summary": new_summary,
+                "sections": opt_sections,
+            }
+            return optimized, ops, ["OpenAI unavailable; used local keyword-based tailoring."]
+
+        warnings: list[str] = []
+
+        # Get ATS score before optimization
+        before_score = None
+        try:
+            if enhanced_ats_checker:
+                use_tfidf = bool(job_description and job_description.strip())
+                ats_result = enhanced_ats_checker.get_enhanced_ats_score(
+                    resume_payload.dict(),
+                    job_description=job_description,
+                    use_industry_standard=use_tfidf,
+                )
+                before_score = ats_result.get("score", None)
+        except Exception as e:
+            logger.warning(f"Failed to calculate before ATS score: {e}")
+
+        # Use OpenAI to generate optimized resume (with fallback)
+        try:
+            from app.core.dependencies import OPENAI_MODEL, OPENAI_MAX_TOKENS, keyword_extractor
+
+            # Extract keywords from job description to help with optimization
+            job_keywords_data = {}
+            try:
+                job_keywords_data = keyword_extractor.extract_keywords(job_description)
+                logger.info(f"Extracted {job_keywords_data.get('total_keywords', 0)} keywords from JD")
+            except Exception as e:
+                logger.warning(f"Failed to extract keywords: {e}")
+
+            # Build comprehensive keyword list for prompt (50-60 keywords)
+            all_jd_keywords = []
+            if job_keywords_data:
+                # Prioritize: technical → high_frequency → priority → general → soft_skills
+                all_jd_keywords.extend(job_keywords_data.get("technical_keywords", [])[:30])
+                high_freq = job_keywords_data.get("high_frequency_keywords", [])
+                if high_freq:
+                    all_jd_keywords.extend([kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in high_freq[:20]])
+                all_jd_keywords.extend(job_keywords_data.get("priority_keywords", [])[:15])
+                all_jd_keywords.extend(job_keywords_data.get("general_keywords", [])[:15])
+                all_jd_keywords.extend(job_keywords_data.get("soft_skills", [])[:10])
+
+            unique_keywords = list(dict.fromkeys([str(kw).lower().strip() for kw in all_jd_keywords if kw]))[:60]
+            keywords_text = ", ".join(unique_keywords) if unique_keywords else "None identified"
+            
+            # Get missing keywords for more targeted optimization
+            missing_keywords_text = ""
+            try:
+                resume_text = enhanced_ats_checker.extract_text_from_resume(resume_data) if enhanced_ats_checker else ""
+                resume_words = set(resume_text.lower().split())
+                missing_important = [kw for kw in unique_keywords[:30] if not any(kw in word or word in kw for word in resume_words)]
+                if missing_important:
+                    missing_keywords_text = f"\n\nMISSING CRITICAL KEYWORDS (must be incorporated): {', '.join(missing_important[:20])}"
+            except Exception as e:
+                logger.warning(f"Failed to identify missing keywords: {e}")
+
+            resume_text = f"Name: {resume_payload.name}\nTitle: {resume_payload.title}\n"
+            if resume_payload.email:
+                resume_text += f"Email: {resume_payload.email}\n"
+            if resume_payload.phone:
+                resume_text += f"Phone: {resume_payload.phone}\n"
+            if resume_payload.location:
+                resume_text += f"Location: {resume_payload.location}\n"
+            if resume_payload.summary:
+                resume_text += f"\nSummary:\n{resume_payload.summary}\n"
+
+            for section in resume_payload.sections:
+                resume_text += f"\n{section.title}:\n"
+                for bullet in section.bullets:
+                    resume_text += f"  • {bullet.text}\n"
+
+            prompt = f"""You are an expert resume writer specializing in ATS (Applicant Tracking System) optimization. Your goal is to MAXIMIZE the ATS compatibility score by strategically incorporating keywords from the job description. Target: Increase ATS score by 30-40 points.
+
+CRITICAL KEYWORDS TO INCLUDE (prioritize these in your optimization):
+{keywords_text}{missing_keywords_text}
+
+Tone: {tone}
+Maximum new bullets to add: {max_new_bullets}
+
+RESUME:
+{resume_text}
+
+JOB DESCRIPTION:
+{job_description}
+
+OPTIMIZATION STRATEGY (follow these steps to maximize ATS score - AIM FOR 30-40 POINT INCREASE):
+
+1. PROFESSIONAL SUMMARY:
+   - Rewrite to include 8-10 of the most important keywords from the job description (increased from 5-8)
+   - Match the job title and key responsibilities precisely
+   - Keep it concise (3-4 sentences) but keyword-dense
+   - Incorporate missing critical keywords from the list above
+
+2. WORK EXPERIENCE BULLETS (AGGRESSIVE REWRITING):
+   - For EACH existing bullet, rewrite it to naturally incorporate 4-5 relevant keywords (increased from 2-4)
+   - Use action verbs that match the JD (e.g., "deploy", "configure", "manage", "optimize", "implement", "integrate")
+   - Replace ALL generic terms with JD-specific terminology
+   - Prioritize bullets that can incorporate technical keywords (tools, technologies, methodologies)
+   - Add quantified achievements (numbers, percentages, metrics) where possible
+   - EXAMPLE: Instead of "Developed software applications", write "Developed scalable React-based web applications using TypeScript and Node.js, implementing RESTful APIs that improved system performance by 35% and reduced load times by 2.5 seconds"
+
+3. NEW BULLETS (add up to {max_new_bullets} - AGGRESSIVE ADDITION):
+   - Create new bullets that directly address JD requirements mentioned in "Key Responsibilities"
+   - Each new bullet MUST include 3-4 relevant keywords naturally (increased from 2-3)
+   - Place them in the most relevant work experience section
+   - Focus on skills/experiences mentioned in JD but missing from current resume
+   - Incorporate missing critical keywords - these are HIGH PRIORITY
+   - Each bullet should address specific JD requirements with relevant technologies/tools
+
+4. KEYWORDS INTEGRATION PRIORITY (MUST FOLLOW):
+   - Technical keywords (tools, technologies): HIGHEST PRIORITY - include in multiple bullets (aim for 3-4 mentions of key tech keywords)
+   - Missing critical keywords: MUST be incorporated - prioritize these in summary and work experience
+   - Skills and competencies: Include in summary AND work experience
+   - Action verbs from JD: Use throughout work experience (vary them)
+   - Soft skills: Include naturally in summary and select bullets
+
+5. QUANTIFIED ACHIEVEMENTS:
+   - Add metrics, numbers, percentages wherever possible
+   - Use specific data: "increased by 40%", "reduced costs by $50K", "managed team of 8"
+   - Quantify impact: "delivered 15 projects", "improved efficiency by 30%", "led 5-member team"
+
+6. AUTHENTICITY:
+   - Only add experiences/skills that are reasonable given the candidate's background
+   - Maintain truthfulness - do not fabricate experiences
+   - Focus on rewriting existing content with keywords and adding reasonable new bullets based on JD requirements
+
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "optimized_resume": {{
+    "name": "...",
+    "title": "...",
+    "email": "...",
+    "phone": "...",
+    "location": "...",
+    "summary": "...",
+    "sections": [
+      {{
+        "id": "...",
+        "title": "...",
+        "bullets": [
+          {{"id": "...", "text": "...", "params": {{}}}}
+        ]
+      }}
+    ]
+  }},
+  "change_list": [
+    {{
+      "op": "update_summary",
+      "next": "new summary text",
+      "prev": "old summary text"
+    }},
+    {{
+      "op": "update_bullet",
+      "sectionId": "...",
+      "bulletId": "...",
+      "nextText": "new bullet text",
+      "prevText": "old bullet text"
+    }},
+    {{
+      "op": "add_bullet_after",
+      "sectionId": "...",
+      "afterBulletId": "... or null",
+      "bullet": {{"id": "...", "text": "...", "params": {{}}}}
+    }},
+    {{
+      "op": "add_skill",
+      "keyword": "skill name"
+    }}
+  ]
+}}
+
+REQUIREMENTS:
+- Preserve all original section IDs and bullet IDs exactly
+- Only include changes that significantly improve keyword matching
+- Prioritize incorporating the critical keywords listed above
+- Make the resume more ATS-friendly while staying authentic
+- Focus on maximizing keyword density and relevance"""
+
+            headers = {
+                "Authorization": f"Bearer {openai_client['api_key']}",
+                "Content-Type": "application/json",
+            }
+            data = {
+                "model": OPENAI_MODEL,
+                "messages": [
+                    {"role": "system", "content": "You are a professional resume optimization expert. Always return valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.7,
+                "max_tokens": OPENAI_MAX_TOKENS,
+            }
+
+            response = openai_client["requests"].post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=45,
+            )
+
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"OpenAI API error: {response.status_code} - {response.text}",
+                )
+
+            result = response.json()
+            content = result["choices"][0]["message"]["content"].strip()
+
+            # Parse JSON from response (may have markdown code blocks)
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.startswith("```"):
+                content = content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+
+            ai_result = json.loads(content)
+
+            optimized_resume = ai_result.get("optimized_resume", resume_data)
+            change_list = ai_result.get("change_list", [])
+        except Exception as e:
+            logger.error(f"OpenAI tailoring failed, using fallback: {e}")
+            optimized_resume, change_list, fallback_warnings = fallback_generate()
+            warnings.extend(fallback_warnings)
+
+        # Get ATS score after optimization
+        after_score = None
+        try:
+            if enhanced_ats_checker:
+                optimized_payload = ResumePayload(
+                    name=optimized_resume.get("name", resume_payload.name),
+                    title=optimized_resume.get("title", resume_payload.title),
+                    email=optimized_resume.get("email", resume_payload.email),
+                    phone=optimized_resume.get("phone", resume_payload.phone),
+                    location=optimized_resume.get("location", resume_payload.location),
+                    summary=optimized_resume.get("summary", resume_payload.summary),
+                    sections=[
+                        Section(
+                            id=s.get("id", ""),
+                            title=s.get("title", ""),
+                            bullets=[
+                                BulletParam(
+                                    id=b.get("id", ""),
+                                    text=b.get("text", ""),
+                                    params=b.get("params", {}),
+                                )
+                                for b in s.get("bullets", [])
+                            ],
+                        )
+                        for s in optimized_resume.get("sections", [])
+                    ],
+                )
+                use_tfidf = bool(job_description and job_description.strip())
+                ats_result = enhanced_ats_checker.get_enhanced_ats_score(
+                    optimized_payload.dict(),
+                    job_description=job_description,
+                    use_industry_standard=use_tfidf,
+                )
+                after_score = ats_result.get("score", None)
+        except Exception as e:
+            logger.warning(f"Failed to calculate after ATS score: {e}")
+
+        return {
+            "success": True,
+            "optimized_resume_data": optimized_resume,
+            "change_list": change_list,
+            "ats_preview": {
+                "beforeScore": before_score,
+                "afterScore": after_score,
+                "score_change": (after_score - before_score) if (before_score is not None and after_score is not None) else None,
+            },
+            "warnings": warnings,
+        }
+
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse AI response as JSON: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to parse AI optimization response. Please try again.",
+        )
+    except Exception as e:
+        logger.error(f"Tailor resume error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to tailor resume: {str(e)}",
+        )
 

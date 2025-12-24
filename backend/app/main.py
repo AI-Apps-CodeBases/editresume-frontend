@@ -29,7 +29,6 @@ from app.api import (
     usage,
     user,
 )
-from app.api.resumes import router as resumes_router
 from app.api.job import create_match, get_match
 from app.core.db import get_db
 from app.core.config import settings
@@ -111,7 +110,6 @@ app.include_router(stripe.router)
 app.include_router(ai.router)
 app.include_router(user.router)
 app.include_router(resume.router)
-app.include_router(resumes_router)
 app.include_router(job.router)
 app.include_router(jobs.router)
 app.include_router(collaboration.router)

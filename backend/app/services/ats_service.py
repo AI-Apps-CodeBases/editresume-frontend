@@ -17,13 +17,19 @@ try:
         nltk.data.find("tokenizers/punkt")
     except LookupError:
         logger.warning("NLTK punkt not found, downloading... (should be pre-downloaded in Dockerfile)")
-        nltk.download("punkt", quiet=True)
+        try:
+            nltk.download("punkt", quiet=True)
+        except (FileExistsError, OSError) as e:
+            logger.warning(f"NLTK punkt download encountered error (may already exist): {e}")
 
     try:
         nltk.data.find("corpora/stopwords")
     except LookupError:
         logger.warning("NLTK stopwords not found, downloading... (should be pre-downloaded in Dockerfile)")
-        nltk.download("stopwords", quiet=True)
+        try:
+            nltk.download("stopwords", quiet=True)
+        except (FileExistsError, OSError) as e:
+            logger.warning(f"NLTK stopwords download encountered error (may already exist): {e}")
 
     NLTK_AVAILABLE = True
 except ImportError:

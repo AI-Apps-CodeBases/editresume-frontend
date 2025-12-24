@@ -1213,6 +1213,23 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                     Optimize for Job Description
                   </button>
                   <button
+                    onClick={async () => {
+                      if (!selectedResumeId) {
+                        await showAlert({
+                          title: 'Selection Required',
+                          message: 'Please select a resume to continue.',
+                          type: 'warning'
+                        })
+                        return
+                      }
+                      window.location.href = `/tailor-suggestions?resumeId=${selectedResumeId}&jdId=${job.id}`
+                    }}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                    disabled={!selectedResumeId}
+                  >
+                    Tailor Resume
+                  </button>
+                  <button
                     onClick={() => setShowUploadResumeModal(true)}
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700"
                   >

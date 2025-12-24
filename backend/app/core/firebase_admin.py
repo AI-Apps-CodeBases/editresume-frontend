@@ -14,6 +14,7 @@ from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials, firestore
 from firebase_admin import exceptions as firebase_exceptions
 from google.auth import exceptions as google_auth_exceptions
+from google.auth.transport import requests as google_auth_requests
 
 from app.core.config import settings
 from app.core.db import SessionLocal
@@ -173,20 +174,47 @@ def get_firestore_client() -> Optional[firestore.Client]:
 
 
 def verify_id_token(id_token: str) -> Optional[Dict[str, Any]]:
+    """Verify Firebase ID token with aggressive timeout to prevent blocking requests"""
     app = get_firebase_app()
     if not app:
-        logger.warning("verify_id_token called without configured Firebase app.")
+        logger.debug("verify_id_token called without configured Firebase app.")
         return None
+    
+    # Use timeout wrapper to prevent hanging on network issues - fail fast
+    result = [None]
+    exception = [None]
+    completed = [False]
+    
+    def verify_worker():
+        try:
+            result[0] = firebase_auth.verify_id_token(id_token, app=app)
+            completed[0] = True
+        except Exception as e:  # noqa: BLE001
+            exception[0] = e
+            completed[0] = True
+    
     try:
-        return firebase_auth.verify_id_token(id_token, app=app)
-    except firebase_exceptions.FirebaseError as exc:
-        logger.warning("Firebase ID token verification error: %s", exc)
-        return None
-    except ValueError as exc:
-        logger.warning("Firebase ID token value error: %s", exc)
-        return None
+        verify_thread = threading.Thread(target=verify_worker, daemon=True)
+        verify_thread.start()
+        verify_thread.join(timeout=2)  # 2 second timeout - fail fast
+        
+        if not completed[0]:
+            logger.debug("Firebase ID token verification timed out after 2 seconds - skipping auth")
+            return None
+        
+        if exception[0]:
+            # Don't log expected errors (invalid tokens, network issues) as warnings
+            if isinstance(exception[0], (google_auth_exceptions.TransportError, google_auth_exceptions.RefreshError)):
+                logger.debug("Firebase token verification network error (expected if offline): %s", type(exception[0]).__name__)
+            elif isinstance(exception[0], (firebase_exceptions.FirebaseError, ValueError)):
+                logger.debug("Firebase ID token verification failed: %s", type(exception[0]).__name__)
+            else:
+                logger.debug("Firebase ID token verification error: %s", type(exception[0]).__name__)
+            return None
+        
+        return result[0]
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to verify Firebase ID token: %s", exc)
+        logger.debug("Unexpected error in verify_id_token: %s", type(exc).__name__)
         return None
 
 
