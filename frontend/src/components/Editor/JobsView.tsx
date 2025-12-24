@@ -259,10 +259,9 @@ export default function JobsView({ onBack }: Props) {
   }
 
   const getATSScoreColor = (score?: number | null) => {
-    if (score === null || score === undefined) return { bg: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-200', ring: 'bg-gray-100' }
-    if (score >= 80) return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', ring: 'bg-green-500' }
-    if (score >= 60) return { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', ring: 'bg-yellow-500' }
-    return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', ring: 'bg-red-500' }
+    if (score === null || score === undefined) return { ring: 'text-gray-300', text: 'text-gray-600' }
+    if (score >= 80) return { ring: 'text-green-500', text: 'text-gray-900' }
+    return { ring: 'text-gray-300', text: 'text-gray-600' }
   }
 
   const handleDelete = async (jd: JobDescription) => {
@@ -344,30 +343,30 @@ export default function JobsView({ onBack }: Props) {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1000px]">
+                <table className="w-full min-w-[1000px] border-separate border-spacing-0">
                   <thead>
-                    <tr className="border-b border-border-subtle">
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
                         Importance
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
                         Job Title
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
                         ATS Score
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
                         Status
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
                         Date Saved
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
+                      <th className="px-4 py-4 text-right text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border-subtle bg-white">
+                  <tbody className="bg-white">
                     {savedJDs.map((jd) => {
                       const bestMatch = jd.best_resume_version
                       const scoreSnapshot =
@@ -384,7 +383,7 @@ export default function JobsView({ onBack }: Props) {
                           key={jd.id} 
                           className="hover:bg-gray-50/50 transition-colors group"
                         >
-                          <td className="px-4 py-5">
+                          <td className="px-4 py-6">
                             <div className="flex items-center">
                               <StarRating
                                 rating={jd.importance || 0}
@@ -423,7 +422,7 @@ export default function JobsView({ onBack }: Props) {
                               />
                             </div>
                           </td>
-                          <td className="px-4 py-5">
+                          <td className="px-4 py-6">
                             <button
                               onClick={() => setSelectedJobId(jd.id)}
                               className="text-left group-hover:text-blue-600 transition-colors"
@@ -438,39 +437,34 @@ export default function JobsView({ onBack }: Props) {
                               )}
                             </button>
                           </td>
-                          <td className="px-4 py-5">
+                          <td className="px-4 py-6">
                             {overallScore !== null ? (
                               <div className="flex items-center">
-                                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${scoreColors.border} ${scoreColors.bg}`}>
-                                  <div className="relative w-8 h-8 flex items-center justify-center">
-                                    <svg className="w-8 h-8 transform -rotate-90" viewBox="0 0 32 32">
-                                      <circle
-                                        className="text-gray-200"
-                                        stroke="currentColor"
-                                        strokeWidth="3"
-                                        fill="none"
-                                        cx="16"
-                                        cy="16"
-                                        r="14"
-                                      />
-                                      <circle
-                                        className={scoreColors.ring}
-                                        stroke="currentColor"
-                                        strokeWidth="3"
-                                        fill="none"
-                                        strokeLinecap="round"
-                                        strokeDasharray={`${overallScore}, 100`}
-                                        cx="16"
-                                        cy="16"
-                                        r="14"
-                                      />
-                                    </svg>
-                                    <span className={`absolute text-xs font-bold ${scoreColors.text}`}>
-                                      {Math.round(overallScore)}
-                                    </span>
-                                  </div>
-                                  <span className={`text-sm font-semibold ${scoreColors.text}`}>
-                                    {Math.round(overallScore)}%
+                                <div className="relative w-12 h-12 flex items-center justify-center">
+                                  <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                                    <circle
+                                      className="text-gray-200"
+                                      stroke="currentColor"
+                                      strokeWidth="3"
+                                      fill="none"
+                                      cx="18"
+                                      cy="18"
+                                      r="15"
+                                    />
+                                    <circle
+                                      className={scoreColors.ring}
+                                      stroke="currentColor"
+                                      strokeWidth="3"
+                                      fill="none"
+                                      strokeLinecap="round"
+                                      strokeDasharray={`${(overallScore / 100) * 94.2}, 94.2`}
+                                      cx="18"
+                                      cy="18"
+                                      r="15"
+                                    />
+                                  </svg>
+                                  <span className={`absolute text-sm font-bold ${scoreColors.text}`}>
+                                    {Math.round(overallScore)}
                                   </span>
                                 </div>
                               </div>
@@ -478,20 +472,20 @@ export default function JobsView({ onBack }: Props) {
                               <span className="text-xs text-text-muted">No match yet</span>
                             )}
                           </td>
-                          <td className="px-4 py-5">
+                          <td className="px-4 py-6">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(jd.status)}`}>
                               {getStatusIcon(jd.status)}
                               {getStatusLabel(jd.status)}
                             </span>
                           </td>
-                          <td className="px-4 py-5 text-sm text-text-muted">
+                          <td className="px-4 py-6 text-sm text-text-muted">
                             {jd.created_at ? new Date(jd.created_at).toLocaleDateString('en-US', { 
                               month: 'short', 
                               day: 'numeric',
                               year: 'numeric'
                             }) : '-'}
                           </td>
-                          <td className="px-4 py-5">
+                          <td className="px-4 py-6">
                             <div className="flex items-center justify-end gap-2">
                               {bestMatch?.resume_id && (
                                 <button
@@ -499,7 +493,7 @@ export default function JobsView({ onBack }: Props) {
                                     const versionQuery = bestMatch.resume_version_id ? `&resumeVersionId=${bestMatch.resume_version_id}` : ''
                                     window.location.href = `/editor?resumeId=${bestMatch.resume_id}${versionQuery}&jdId=${jd.id}`
                                   }}
-                                  className="button-primary text-xs px-4 py-2"
+                                  className="text-xs px-4 py-2 border border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition-all"
                                 >
                                   Optimize Resume
                                 </button>

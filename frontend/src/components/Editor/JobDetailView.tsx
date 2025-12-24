@@ -6,7 +6,7 @@ import config from '@/lib/config'
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import UploadResume from './UploadResume'
 import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
-import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, StarIcon, FireIcon, DiamondIcon, RocketIcon, TargetIcon, SparklesIcon, TrophyIcon, MailIcon, DocumentIcon, ChartIcon, BrainIcon } from '@/components/Icons'
+import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, StarIcon, FireIcon, DiamondIcon, RocketIcon, TargetIcon, SparklesIcon, TrophyIcon, MailIcon, DocumentIcon, ChartIcon, BrainIcon, FileTextIcon } from '@/components/Icons'
 import { BarChart3 } from 'lucide-react'
 import { StarRating } from '@/components/Shared/StarRating'
 
@@ -811,101 +811,127 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
       <div className="bg-white border-b shadow-sm sticky top-0 z-20">
-        <div className="w-full px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  {job.importance && job.importance > 0 && (
-                    <StarRating rating={job.importance} size="sm" />
-                  )}
-                  {job.title}
-                </h1>
-                <p className="text-gray-600 mt-1">
-                  {job.company} {job.location && `• ${job.location}`}
-                  {job.source && ` • Saved from ${job.source}`}
-                  {job.created_at && ` • ${new Date(job.created_at).toLocaleDateString()}`}
-                </p>
+        <div className="w-full px-6 py-5">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-3">
+                <button
+                  onClick={onBack}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                </button>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h1 className="text-3xl font-bold text-gray-900">
+                      {job.title}
+                    </h1>
+                    {job.max_salary && (
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-green-600">${job.max_salary.toLocaleString()}/yr</div>
+                        <div className="text-sm text-gray-500">Max Salary</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    {job.company && (
+                      <span className="text-base text-gray-700 font-medium">{job.company}</span>
+                    )}
+                    {job.location && (
+                      <>
+                        <span className="text-gray-400">•</span>
+                        <span className="text-base text-gray-600">{job.location}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-6 px-11 py-2.5 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</span>
+                  <select
+                    value={job.status || 'bookmarked'}
+                    onChange={(e) => updateJobField('status', e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md font-medium bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {STATUS_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="h-6 w-px bg-gray-300"></div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Importance</span>
+                  <StarRating
+                    rating={job.importance || 0}
+                    onRatingChange={(rating) => updateJobField('importance', rating)}
+                    interactive={true}
+                    size="sm"
+                  />
+                </div>
+                
+                <div className="h-6 w-px bg-gray-300"></div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Follow Up</span>
+                  <input
+                    type="date"
+                    value={job.follow_up_date ? new Date(job.follow_up_date).toISOString().split('T')[0] : ''}
+                    onChange={(e) => updateJobField('follow_up_date', e.target.value || null)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
             </div>
-            {job.max_salary && (
-              <div className="text-right">
-                <div className="text-2xl font-bold text-green-600">${job.max_salary.toLocaleString()}/yr</div>
-                <div className="text-sm text-gray-500">Max Salary</div>
-              </div>
-            )}
           </div>
-
-          <div className="flex items-center gap-4 mb-4">
-            <select
-              value={job.status || 'bookmarked'}
-              onChange={(e) => updateJobField('status', e.target.value)}
-              className="px-4 py-2 border rounded-lg font-semibold"
-            >
-              {STATUS_OPTIONS.map(opt => {
-                const IconComponent = opt.icon
+          
+          <div className="flex items-center justify-between border-b border-gray-200">
+            <div className="flex gap-1">
+              {[
+                { id: 'overview', label: 'Overview', icon: DocumentIcon },
+                { id: 'notes', label: 'Notes', icon: EditIcon },
+                { id: 'resume', label: 'Resume', icon: FileTextIcon },
+                { id: 'analysis', label: 'Analysis', icon: ChartIcon },
+                { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
+              ].map(tab => {
+                const IconComponent = tab.icon
                 return (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`inline-flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors relative ${
+                      activeTab === tab.id
+                        ? 'text-gray-900'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <IconComponent size={16} color="currentColor" />
+                    {tab.label}
+                    {activeTab === tab.id && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></span>
+                    )}
+                  </button>
                 )
               })}
-            </select>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Importance:</span>
-              <StarRating
-                rating={job.importance || 0}
-                onRatingChange={(rating) => updateJobField('importance', rating)}
-                interactive={true}
-                size="md"
-              />
             </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Follow Up:</span>
-              <input
-                type="date"
-                value={job.follow_up_date ? new Date(job.follow_up_date).toISOString().split('T')[0] : ''}
-                onChange={(e) => updateJobField('follow_up_date', e.target.value || null)}
-                className="px-3 py-2 border rounded-lg"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2 border-b">
-            {[
-              { id: 'overview', label: 'Overview', icon: DocumentIcon },
-              { id: 'notes', label: 'Notes', icon: EditIcon },
-              { id: 'resume', label: 'Resume', icon: DocumentIcon },
-              { id: 'analysis', label: 'Analysis', icon: ChartIcon },
-              { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
-            ].map(tab => {
-              const IconComponent = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`inline-flex items-center gap-2 px-4 py-2 font-semibold border-b-2 transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-primary-600 text-primary-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <IconComponent size={18} color={activeTab === tab.id ? '#0f62fe' : 'currentColor'} />
-                  {tab.label}
-                </button>
-              )
-            })}
+            {(job.source || job.created_at) && (
+              <div className="text-xs text-gray-400">
+                {job.source && `Saved from ${job.source}`}
+                {job.source && job.created_at && ' • '}
+                {job.created_at && new Date(job.created_at).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -946,99 +972,163 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Match Information</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Match Dashboard</h3>
                   {overallScore !== null ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="relative inline-flex h-24 w-24 items-center justify-center">
-                          <svg viewBox="0 0 36 36" className="h-24 w-24">
-                            <path
-                              className="text-gray-200"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                              fill="none"
-                              d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
-                            />
-                            {(() => {
-                              const ring = getScoreRing(overallScore)
-                              return (
-                                <path
-                                  className={ring.strokeClass}
-                                  strokeLinecap="round"
-                                  strokeWidth="4"
-                                  fill="none"
-                                  strokeDasharray={`${ring.safeScore}, 100`}
-                                  d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
-                                />
-                              )
-                            })()}
-                          </svg>
-                          <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className={`text-3xl font-bold ${getScoreColor(overallScore)}`}>
-                              {overallScore}%
-                            </span>
-                            <span className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    <>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className="relative w-20 h-20 mb-3">
+                            <svg viewBox="0 0 36 36" className="w-20 h-20 transform -rotate-90">
+                              <circle
+                                className="text-gray-200"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                fill="none"
+                                cx="18"
+                                cy="18"
+                                r="15"
+                              />
+                              {(() => {
+                                const ring = getScoreRing(overallScore)
+                                return (
+                                  <circle
+                                    className={ring.strokeClass.replace('stroke-', 'text-')}
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeWidth="3"
+                                    fill="none"
+                                    strokeDasharray={`${(overallScore / 100) * 94.2}, 94.2`}
+                                    cx="18"
+                                    cy="18"
+                                    r="15"
+                                  />
+                                )
+                              })()}
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className={`text-lg font-bold ${getScoreColor(overallScore)}`}>
+                                {overallScore}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
                               ATS Score
-                            </span>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Best ATS Snapshot
-                          </div>
-                          <p className="mt-2 text-sm font-semibold text-gray-700">
-                            {overallScore >= 80
-                              ? 'Excellent alignment'
-                              : overallScore >= 60
-                                ? 'Strong alignment'
-                                : overallScore >= 40
-                                  ? 'Fair alignment'
-                                  : 'Needs attention'}
-                          </p>
-                          {matchSummary && (
-                            <p className="mt-1 text-xs text-gray-500">{matchSummary}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Keyword Coverage
-                          </div>
-                          <div className="mt-2 text-xl font-semibold text-gray-900">
-                            {keywordCoverageSnapshot !== null
-                              ? `${Math.round(keywordCoverageSnapshot)}%`
-                              : bestMatch?.keyword_coverage !== undefined && bestMatch?.keyword_coverage !== null
-                                ? `${Math.round(bestMatch.keyword_coverage)}%`
-                                : '—'}
-                          </div>
-                          {(matchedKeywordsCount !== null || totalKeywordsCount !== null) && (
-                            <p className="mt-1 text-xs text-gray-500">
-                              {matchedKeywordsCount ?? '—'}/{totalKeywordsCount ?? '—'} JD keywords covered.
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {overallScore >= 80
+                                ? 'Excellent'
+                                : overallScore >= 60
+                                  ? 'Strong'
+                                  : overallScore >= 40
+                                    ? 'Fair'
+                                    : 'Needs Work'}
                             </p>
-                          )}
+                          </div>
                         </div>
 
-                        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-                            Estimated Keyword Fit
+                        <div className="flex flex-col items-center">
+                          <div className="relative w-20 h-20 mb-3">
+                            <svg viewBox="0 0 36 36" className="w-20 h-20 transform -rotate-90">
+                              <circle
+                                className="text-gray-200"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                fill="none"
+                                cx="18"
+                                cy="18"
+                                r="15"
+                              />
+                              {(() => {
+                                const coverage = keywordCoverageSnapshot !== null
+                                  ? keywordCoverageSnapshot
+                                  : bestMatch?.keyword_coverage !== undefined && bestMatch?.keyword_coverage !== null
+                                    ? bestMatch.keyword_coverage
+                                    : 0
+                                return (
+                                  <circle
+                                    className="text-blue-500"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeWidth="3"
+                                    fill="none"
+                                    strokeDasharray={`${(coverage / 100) * 94.2}, 94.2`}
+                                    cx="18"
+                                    cy="18"
+                                    r="15"
+                                  />
+                                )
+                              })()}
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-lg font-bold text-blue-600">
+                                {keywordCoverageSnapshot !== null
+                                  ? Math.round(keywordCoverageSnapshot)
+                                  : bestMatch?.keyword_coverage !== undefined && bestMatch?.keyword_coverage !== null
+                                    ? Math.round(bestMatch.keyword_coverage)
+                                    : '—'}%
+                              </span>
+                            </div>
                           </div>
-                          <div className="mt-2 text-xl font-semibold text-blue-700">
-                            {estimatedKeywordScore !== null ? `${estimatedKeywordScore}%` : '—'}
+                          <div className="text-center">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                              Keyword Coverage
+                            </div>
+                            {(matchedKeywordsCount !== null || totalKeywordsCount !== null) && (
+                              <p className="text-xs text-gray-600">
+                                {matchedKeywordsCount ?? '—'}/{totalKeywordsCount ?? '—'} keywords
+                              </p>
+                            )}
                           </div>
-                          <p className="mt-1 text-xs text-blue-700/70">
-                            Quick keyword scan saved from the match panel.
-                          </p>
+                        </div>
+
+                        <div className="flex flex-col items-center">
+                          <div className="relative w-20 h-20 mb-3">
+                            <svg viewBox="0 0 36 36" className="w-20 h-20 transform -rotate-90">
+                              <circle
+                                className="text-gray-200"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                fill="none"
+                                cx="18"
+                                cy="18"
+                                r="15"
+                              />
+                              {estimatedKeywordScore !== null && (
+                                <circle
+                                  className="text-purple-500"
+                                  stroke="currentColor"
+                                  strokeLinecap="round"
+                                  strokeWidth="3"
+                                  fill="none"
+                                  strokeDasharray={`${(estimatedKeywordScore / 100) * 94.2}, 94.2`}
+                                  cx="18"
+                                  cy="18"
+                                  r="15"
+                                />
+                              )}
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-lg font-bold text-purple-600">
+                                {estimatedKeywordScore !== null ? `${estimatedKeywordScore}%` : '—'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                              Keyword Fit
+                            </div>
+                            <p className="text-xs text-gray-600">Quick scan</p>
+                          </div>
                         </div>
                       </div>
 
                       {missingKeywordsSample.length > 0 && (
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <div className="mt-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
                             Next Keywords To Add
                           </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-2">
                             {missingKeywordsSample.slice(0, 5).map((keyword) => (
                               <span
                                 key={keyword}
@@ -1052,7 +1142,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                       )}
 
                       {bestMatch?.resume_name && (
-                        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                        <div className="mt-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
                           <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                             Matched Resume
                           </div>
@@ -1075,7 +1165,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                           )}
                         </div>
                       )}
-                    </div>
+                    </>
                   ) : (
                     <p className="text-gray-500">No matches yet. Analyze this job with a resume to see ATS scores.</p>
                   )}
@@ -1085,19 +1175,20 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               {(allTechnicalSkills.length > 0 || highlightedKeywords.length > 0 || job.content) && (
                 <div className="space-y-5">
                   {(allTechnicalSkills.length > 0 || highlightedKeywords.length > 0) && (
-                    <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border border-blue-100 rounded-xl p-5 shadow-sm">
-                      <div className="grid gap-5 md:grid-cols-2">
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">Keyword Analysis</h3>
+                      <div className="space-y-5">
                         {allTechnicalSkills.length > 0 && (
                           <div>
-                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2 flex items-center gap-2">
+                            <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                               <span className="text-base">⚙️</span>
-                              Technical Skills
+                              Hard Skills
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {allTechnicalSkills.map((skill) => (
                                 <span
                                   key={skill}
-                                  className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-green-500 to-green-600 text-white shadow-sm"
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
                                 >
                                   {formatKeywordDisplay(skill)}
                                 </span>
@@ -1106,17 +1197,45 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                           </div>
                         )}
 
+                        {(() => {
+                          const extracted = job.extracted_keywords
+                          const softSkills: string[] = []
+                          if (extracted && Array.isArray(extracted.soft_skills)) {
+                            softSkills.push(...extracted.soft_skills.map(sanitizeKeywordValue).filter(Boolean).map((s: string) => s.toLowerCase()))
+                          }
+                          const uniqueSoftSkills = Array.from(new Set(softSkills)).slice(0, 15)
+                          
+                          return uniqueSoftSkills.length > 0 ? (
+                            <div>
+                              <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                <span className="text-base">💬</span>
+                                Soft Skills
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {uniqueSoftSkills.map((skill) => (
+                                  <span
+                                    key={skill}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200"
+                                  >
+                                    {formatKeywordDisplay(skill)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null
+                        })()}
+
                         {highlightedKeywords.length > 0 && (
                           <div>
-                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2 flex items-center gap-2">
-                              <BarChart3 className="w-4 h-4 text-gray-600" />
-                              Top Keywords
+                            <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                              <span className="text-base">🛠️</span>
+                              Tools & Software
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {highlightedKeywords.map((keyword) => (
+                              {highlightedKeywords.slice(0, 20).map((keyword) => (
                                 <span
                                   key={keyword}
-                                  className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-sm"
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200"
                                 >
                                   {formatKeywordDisplay(keyword)}
                                 </span>
@@ -1164,64 +1283,91 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
           {activeTab === 'resume' && (
             <div className="space-y-6">
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-6">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Match This Job With a Resume</h3>
-                    <p className="text-sm text-gray-600 mt-1">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Match This Job With a Resume</h3>
+                    <p className="text-sm text-gray-600">
                       Choose one of your master resumes to open the editor with this job description loaded on the right.
                     </p>
                   </div>
                   {bestMatch && (
-                    <div className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                    <div className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-semibold">
                       Best ATS Score: {bestMatch.score}%
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="flex flex-col min-w-[220px]">
-                    <label className="text-sm font-semibold text-gray-600 mb-1">Select resume</label>
+                
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col">
+                    <label className="text-sm font-semibold text-gray-700 mb-2">Select Resume</label>
                     <select
                       value={selectedResumeId}
                       onChange={(e) => setSelectedResumeId(e.target.value ? Number(e.target.value) : '')}
                       disabled={loadingResumes || resumeOptions.length === 0}
-                      className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                      className="px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 bg-white font-medium"
                     >
                       <option value="">{loadingResumes ? 'Loading resumes...' : 'Select a resume'}</option>
-                      {resumeOptions.map((resume) => (
+                      {resumeOptions.map((resume, index) => (
                         <option key={resume.id} value={resume.id}>
-                          {resume.name}
+                          {resume.name}{index === 0 ? ' (Master Resume)' : ''}
                         </option>
                       ))}
                     </select>
+                    {resumeOptions.length > 0 && resumeOptions[0] && selectedResumeId === resumeOptions[0].id && (
+                      <span className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-semibold w-fit">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Master Resume
+                      </span>
+                    )}
                   </div>
-                  <button
-                    onClick={async () => {
-                      if (!selectedResumeId) {
-                        await showAlert({
-                          title: 'Selection Required',
-                          message: 'Please select a resume to continue.',
-                          type: 'warning'
-                        })
-                        return
-                      }
-                      window.location.href = `/editor?resumeId=${selectedResumeId}&jdId=${job.id}`
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
-                    disabled={!selectedResumeId}
-                  >
-                    Optimize for Job Description
-                  </button>
-                  <button
-                    onClick={() => setShowUploadResumeModal(true)}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700"
-                  >
-                    Upload Resume to Match
-                  </button>
+                  
+                  <div className="flex items-center justify-center gap-3 py-4 bg-gray-50 rounded-lg">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                        <DocumentIcon size={24} color="#0f62fe" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-600">Master Resume</span>
+                    </div>
+                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+                        <BriefcaseIcon size={24} color="#9333ea" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-600">Job-Specific Version</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={async () => {
+                        if (!selectedResumeId) {
+                          await showAlert({
+                            title: 'Selection Required',
+                            message: 'Please select a resume to continue.',
+                            type: 'warning'
+                          })
+                          return
+                        }
+                        window.location.href = `/editor?resumeId=${selectedResumeId}&jdId=${job.id}`
+                      }}
+                      className="flex-1 min-w-[200px] px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      disabled={!selectedResumeId}
+                    >
+                      Optimize for Job Description
+                    </button>
+                    <button
+                      onClick={() => setShowUploadResumeModal(true)}
+                      className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors"
+                    >
+                      Upload Resume to Match
+                    </button>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500">
-                  Tip: After uploading and refining the resume in the editor, click “Save Match” to store the new ATS score here.
-                </p>
               </div>
 
               <div className="space-y-4">
@@ -1353,8 +1499,25 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-12 bg-gray-50 rounded-xl text-gray-500">
-                    No saved matches yet. Select a resume above to start matching.
+                  <div className="text-center py-16 bg-white border-2 border-dashed border-gray-300 rounded-xl">
+                    <div className="flex justify-center mb-4">
+                      <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+                        <BriefcaseIcon size={40} color="#6b7280" />
+                      </div>
+                    </div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">No saved matches yet</h4>
+                    <p className="text-sm text-gray-600 mb-6">Select a resume above to create a job-specific version and see your ATS score.</p>
+                    <button
+                      onClick={() => {
+                        const firstResume = resumeOptions[0]
+                        if (firstResume) {
+                          setSelectedResumeId(firstResume.id)
+                        }
+                      }}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                      Start Matching
+                    </button>
                   </div>
                 )}
               </div>
@@ -1388,16 +1551,31 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
               {highFrequencyList.length > 0 && (
                 <div>
-                  <h4 className="text-md font-bold text-gray-900 mb-3">High Frequency Keywords</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {highFrequencyList.map(({ keyword, count }) => (
-                      <span
-                        key={keyword}
-                        className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
-                      >
-                        {keyword} ({count})
-                      </span>
-                    ))}
+                  <h4 className="text-md font-bold text-gray-900 mb-4">High Frequency Keywords</h4>
+                  <div className="space-y-2">
+                    {highFrequencyList
+                      .sort((a, b) => b.count - a.count)
+                      .slice(0, 20)
+                      .map(({ keyword, count }) => {
+                        const maxCount = Math.max(...highFrequencyList.map(item => item.count))
+                        const percentage = (count / maxCount) * 100
+                        return (
+                          <div key={keyword} className="flex items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium text-gray-900 truncate">{formatKeywordDisplay(keyword)}</span>
+                                <span className="text-xs text-gray-500 ml-2">{count}</span>
+                              </div>
+                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-blue-500 rounded-full transition-all"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                   </div>
                 </div>
               )}
@@ -1509,14 +1687,23 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               </div>
 
                 {/* Cover Letters List */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                   {!coverLetters || !Array.isArray(coverLetters) || coverLetters.length === 0 ? (
-                    <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300">
-                      <div className="flex justify-center mb-4">
-                        <EditIcon size={64} color="#0f62fe" className="opacity-60" />
+                    <div className="text-center py-20 bg-white border-2 border-dashed border-gray-300 rounded-xl">
+                      <div className="flex justify-center mb-6">
+                        <div className="w-24 h-24 rounded-full bg-blue-50 flex items-center justify-center">
+                          <MailIcon size={48} color="#0f62fe" />
+                        </div>
                       </div>
-                      <p className="text-gray-600 font-semibold text-lg mb-1">No cover letters saved yet</p>
-                      <p className="text-sm text-gray-500 mt-1">Click "Generate Cover Letter with AI" above to create your first cover letter</p>
+                      <h4 className="text-xl font-semibold text-gray-900 mb-2">No cover letters saved yet</h4>
+                      <p className="text-sm text-gray-600 mb-8">Generate your first cover letter using AI to get started.</p>
+                      <button
+                        onClick={handleOpenCoverLetterGenerator}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
+                      >
+                        <span>🤖</span>
+                        <span>Generate Cover Letter with AI</span>
+                      </button>
                   </div>
                 ) : (
                     coverLetters.map((letter, index) => {
@@ -1527,42 +1714,34 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                       <div 
                         key={`cover-letter-${letter.id}-${index}`}
                         onClick={() => handleSelectCoverLetter(letter)}
-                        className={`border-2 rounded-xl p-5 space-y-3 cursor-pointer transition-all bg-white ${
+                        className={`group border border-gray-200 rounded-lg p-4 cursor-pointer transition-all bg-white hover:border-gray-300 hover:shadow-sm ${
                           selectedCoverLetterId === letter.id 
-                            ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200' 
-                            : 'border-gray-300 hover:border-gray-400 hover:shadow-md'
+                            ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-200' 
+                            : ''
                         }`}
-                        style={{ 
-                          display: 'block', 
-                          visibility: 'visible', 
-                          opacity: 1, 
-                          minHeight: '150px',
-                          marginBottom: '16px',
-                          width: '100%',
-                          position: 'relative',
-                          zIndex: 1
-                        }}
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
                               <span className="font-semibold text-gray-900">{letter.title}</span>
                               <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">v{letter.version_number}</span>
                               {selectedCoverLetterId === letter.id && (
                                 <span className="px-2 py-0.5 bg-blue-500 text-white rounded text-xs font-semibold">Selected</span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-xs text-gray-500">
                               Updated {letter.updated_at ? new Date(letter.updated_at).toLocaleString() : letter.created_at ? new Date(letter.created_at).toLocaleString() : ''}
                             </div>
                           </div>
-                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => handleExportCoverLetter(letter, 'pdf')}
-                              className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 font-semibold"
+                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="Export as PDF"
                             >
-                              📄 PDF
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
                             </button>
                             <button
                               onClick={async () => {
@@ -1590,9 +1769,12 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                                   })
                                 }
                               }}
-                              className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
+                              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Copy to clipboard"
                             >
-                              Copy
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
                             </button>
                             <button
                               onClick={() => {
@@ -1600,9 +1782,12 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                                 setEditingLetterTitle(letter.title)
                                 setEditingLetterContent(letter.content)
                               }}
-                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
+                              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Edit cover letter"
                             >
-                              Edit
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
                             </button>
                             <button
                               onClick={async (e) => {
@@ -1619,10 +1804,12 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                                   handleDeleteCoverLetter(letter.id)
                                 }
                               }}
-                              className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600 font-semibold shadow-sm"
-                              title="Delete this cover letter"
+                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete cover letter"
                             >
-                              🗑️ Delete
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
                             </button>
                           </div>
                         </div>
