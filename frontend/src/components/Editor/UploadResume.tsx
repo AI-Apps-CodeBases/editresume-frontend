@@ -190,13 +190,13 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
 
   const dropZone = (
     <div 
-      className={`relative rounded-xl text-center transition-all duration-300 px-6 py-12 sm:px-8 sm:py-16 ${
+      className={`relative rounded-2xl border-2 border-dashed text-center transition-all duration-500 px-6 py-12 sm:px-8 sm:py-16 ${
         isDragging 
-          ? 'border-2 border-blue-500 bg-blue-50/50' 
+          ? 'border-primary-500 bg-gradient-to-br from-primary-50 via-purple-50 to-blue-50 scale-[1.01] shadow-2xl ring-4 ring-primary-200/50' 
           : isUploading
-          ? 'border border-blue-200 bg-blue-50/30'
-          : 'border border-dashed border-gray-300 bg-blue-50/50 hover:border-gray-400'
-      } ${variant === 'page' ? 'bg-blue-50/50' : 'bg-blue-50/50'}`}
+          ? 'border-primary-400 bg-gradient-to-br from-primary-50/80 to-purple-50/80'
+          : 'border-slate-300 hover:border-primary-400 hover:bg-gradient-to-br hover:from-slate-50 hover:to-primary-50/30 hover:shadow-xl'
+      } ${variant === 'page' ? 'bg-white/90 backdrop-blur-sm' : 'bg-white'}`}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -320,24 +320,27 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
           <label
             htmlFor="file-upload"
             onClick={handleLabelClick}
-            className={`inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`group relative inline-flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-primary-600 via-purple-600 to-blue-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-2xl transform hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none overflow-hidden ${
               isUploading || isScanning ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
+            {/* Shine effect on hover */}
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+            
             {isUploading ? (
               <>
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-5 w-5 text-white relative z-10" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span>Processing...</span>
+                <span className="relative z-10">Processing...</span>
               </>
             ) : (
               <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <svg className="w-5 h-5 group-hover:scale-110 transition-transform relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                <span>Choose File</span>
+                <span className="relative z-10">Choose File</span>
               </>
             )}
           </label>
@@ -368,15 +371,37 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
     </div>
   )
 
+  const featureList = (
+    <div className={`flex items-center justify-center gap-6 flex-wrap text-xs ${variant === 'page' ? 'text-white/80 pt-4' : 'text-slate-500 pt-4'}`}>
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-slate-200/50">
+        <span className={`${variant === 'page' ? 'text-primary-500' : 'text-primary-600'} font-bold`}>✓</span>
+        <span className="font-medium">PDF & DOCX</span>
+      </div>
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-slate-200/50">
+        <span className={`${variant === 'page' ? 'text-primary-500' : 'text-primary-600'} font-bold`}>✓</span>
+        <span className="font-medium">Auto-extract</span>
+      </div>
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-slate-200/50">
+        <span className={`${variant === 'page' ? 'text-primary-500' : 'text-primary-600'} font-bold`}>✓</span>
+        <span className="font-medium">AI-powered</span>
+      </div>
+    </div>
+  )
 
   if (variant === 'modal') {
-    return dropZone
+    return (
+      <div className="space-y-4">
+        {dropZone}
+        {featureList}
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
         {dropZone}
+        {featureList}
       </div>
     </div>
   )
