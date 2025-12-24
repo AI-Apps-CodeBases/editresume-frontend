@@ -36,7 +36,7 @@ export default function ModernLeftSidebar({
 }: ModernLeftSidebarProps) {
   const { user, isAuthenticated: authIsAuthenticated } = useAuth()
   const isAuthenticated = isAuthenticatedProp ?? authIsAuthenticated
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
 
   const handleCollapseToggle = () => {
     const newCollapsed = !collapsed

@@ -112,40 +112,33 @@ export default function TemplateDesignPage({
 
   return (
     <div className="fixed inset-0 z-[110] bg-gradient-to-br from-primary-50/20 to-white flex flex-col">
-      <div className="bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-4 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-2.5 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="px-4 py-2.5 text-sm font-semibold text-text-secondary bg-primary-50/50 border border-border-subtle rounded-lg hover:bg-primary-100 flex items-center gap-2 transition-all duration-200 shadow-sm hover:shadow-md"
+            className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-primary-50/50 rounded-lg flex items-center gap-2 transition-all duration-200"
           >
             <span className="text-lg">←</span>
             <span>Back to Editor</span>
           </button>
-          <div className="border-l border-gray-300 pl-4">
-            <h1 className="text-2xl font-bold text-gray-900">Templates & Design</h1>
-            <p className="text-sm text-gray-600 mt-1">Choose a template and customize your resume design</p>
+          <div className="border-l border-gray-200 pl-4">
+            <h1 className="text-lg font-semibold text-gray-900">Templates & Design</h1>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow button-primary"
+          className="px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow flex items-center gap-2 button-primary"
           style={{ background: 'var(--gradient-accent)' }}
         >
-          Done
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Done</span>
         </button>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="w-[40%] border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto relative">
-          <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-border-subtle px-4 py-3 z-10 shadow-sm">
-            <button
-              onClick={onClose}
-              className="w-full px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2 transition-colors shadow-sm"
-            >
-              <span className="text-lg">←</span>
-              <span>Back to Editor</span>
-            </button>
-          </div>
+        <div className="w-[40%] border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto">
           <TemplateCustomizer
             currentTemplateId={currentTemplate}
             config={config!}

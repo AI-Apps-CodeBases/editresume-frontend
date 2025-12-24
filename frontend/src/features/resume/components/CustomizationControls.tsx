@@ -125,9 +125,9 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
     <div className="space-y-4">
       <h4 className="text-sm font-semibold text-gray-900">Layout</h4>
       <div>
-        <label className="text-xs text-gray-600 mb-2 block">Columns</label>
-        <div className="grid grid-cols-3 gap-2">
-          {(['single', 'two-column', 'asymmetric'] as const).map((col) => (
+        <label className="text-xs text-gray-600 mb-2 block">Layout</label>
+        <div className="inline-flex bg-gray-100 rounded-lg p-1 border border-gray-200">
+          {(['single', 'two-column'] as const).map((col, index) => (
             <button
               key={col}
               onClick={() => {
@@ -137,13 +137,13 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
                 }
                 onUpdate(updates)
               }}
-              className={`px-3 py-2 text-xs rounded border ${
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-all ${
                 config.layout.columns === col
-                  ? 'border-purple-600 bg-purple-50'
-                  : 'border-gray-200'
-              }`}
+                  ? 'bg-white text-primary-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              } ${index === 0 ? '' : 'ml-1'}`}
             >
-              {col === 'single' ? '1 Column' : col === 'two-column' ? '2 Columns' : 'Asymmetric'}
+              {col === 'single' ? '1 Column' : '2 Columns'}
             </button>
           ))}
         </div>
@@ -309,15 +309,26 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
                 return (
                   <div
                     key={sectionId}
-                    className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200 hover:bg-gray-100"
+                    className="flex items-center gap-2 py-1.5 px-2 bg-gray-50 rounded border border-gray-200 hover:bg-gray-100 cursor-move"
                   >
-                    <div className="flex items-center gap-1 flex-1">
-                      <span className="text-xs text-gray-500 w-6">{index + 1}.</span>
-                      <span className="text-xs text-gray-700 flex-1">{sectionTitle}</span>
+                    <div className="flex items-center text-gray-400 cursor-grab active:cursor-grabbing">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <circle cx="9" cy="5" r="1.5"/>
+                        <circle cx="9" cy="12" r="1.5"/>
+                        <circle cx="9" cy="19" r="1.5"/>
+                        <circle cx="15" cy="5" r="1.5"/>
+                        <circle cx="15" cy="12" r="1.5"/>
+                        <circle cx="15" cy="19" r="1.5"/>
+                      </svg>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <span className="text-xs text-gray-500 w-5 flex-shrink-0">{index + 1}.</span>
+                      <span className="text-xs text-gray-700 truncate">{sectionTitle}</span>
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           if (index > 0) {
                             const newOrder = [...orderedIds]
                             const [moved] = newOrder.splice(index, 1)
@@ -326,17 +337,18 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
                           }
                         }}
                         disabled={index === 0}
-                        className={`px-2 py-1 text-xs rounded border ${
+                        className={`px-1.5 py-0.5 text-xs rounded ${
                           index === 0
-                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
                         }`}
                         title="Move up"
                       >
                         ↑
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           if (index < orderedIds.length - 1) {
                             const newOrder = [...orderedIds]
                             const [moved] = newOrder.splice(index, 1)
@@ -345,10 +357,10 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
                           }
                         }}
                         disabled={index === orderedIds.length - 1}
-                        className={`px-2 py-1 text-xs rounded border ${
+                        className={`px-1.5 py-0.5 text-xs rounded ${
                           index === orderedIds.length - 1
-                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
                         }`}
                         title="Move down"
                       >
@@ -360,7 +372,7 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
               })
             })()}
           </div>
-          <p className="mt-2 text-xs text-gray-500">Use ↑ ↓ to reorder sections</p>
+          <p className="mt-2 text-xs text-gray-500">Drag handles or use ↑ ↓ to reorder</p>
         </div>
       ) : null}
       
@@ -373,6 +385,23 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
               balanced: { sectionGap: 20, itemGap: 8, pageMargin: 24 },
               spacious: { sectionGap: 32, itemGap: 12, pageMargin: 32 },
             }
+            const spacingIcons = {
+              compact: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              ),
+              balanced: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                </svg>
+              ),
+              spacious: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 18h16" />
+                </svg>
+              ),
+            }
             return (
               <button
                 key={spacing}
@@ -380,13 +409,14 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
                   layout: { ...config.layout, spacing },
                   spacing: presetValues[spacing]
                 })}
-                className={`px-3 py-2 text-xs rounded border capitalize ${
+                className={`flex flex-col items-center gap-1 px-2 py-2 text-xs rounded border capitalize ${
                   config.layout.spacing === spacing
-                    ? 'border-purple-600 bg-purple-50'
-                    : 'border-gray-200'
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}
               >
-                {spacing}
+                {spacingIcons[spacing]}
+                <span>{spacing}</span>
               </button>
             )
           })}
@@ -413,9 +443,10 @@ function TypographyControls({ config, onUpdate }: Props) {
             })
           }
           className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+          style={{ fontFamily: config.typography.fontFamily.heading }}
         >
           {FONT_FAMILIES.map((font) => (
-            <option key={font.value} value={font.value}>
+            <option key={font.value} value={font.value} style={{ fontFamily: font.value }}>
               {font.label}
             </option>
           ))}
@@ -434,9 +465,10 @@ function TypographyControls({ config, onUpdate }: Props) {
             })
           }
           className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+          style={{ fontFamily: config.typography.fontFamily.body }}
         >
           {FONT_FAMILIES.map((font) => (
-            <option key={font.value} value={font.value}>
+            <option key={font.value} value={font.value} style={{ fontFamily: font.value }}>
               {font.label}
             </option>
           ))}

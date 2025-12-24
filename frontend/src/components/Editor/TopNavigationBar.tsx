@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
-import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap } from 'lucide-react'
+import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus } from 'lucide-react'
 
 interface TopNavigationBarProps {
   onNewResume?: () => void
@@ -21,6 +21,8 @@ interface TopNavigationBarProps {
   onShareResume?: () => void
   onMenuClick?: () => void
   onRightPanelClick?: () => void
+  focusMode?: boolean
+  onFocusModeToggle?: () => void
 }
 
 export default function TopNavigationBar({ 
@@ -38,6 +40,8 @@ export default function TopNavigationBar({
   onShareResume,
   onMenuClick,
   onRightPanelClick,
+  focusMode = false,
+  onFocusModeToggle,
 }: TopNavigationBarProps) {
   const { user } = useAuth()
   const [showActionsMenu, setShowActionsMenu] = useState(false)
@@ -73,6 +77,23 @@ export default function TopNavigationBar({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1 sm:gap-3 pr-3 sm:pr-6">
+          {/* Focus Mode Toggle */}
+          {onFocusModeToggle && (
+            <Tooltip text={focusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'} color="blue" position="bottom">
+              <button
+                onClick={onFocusModeToggle}
+                className={`p-2.5 rounded-lg transition-all duration-200 touch-target ${
+                  focusMode
+                    ? 'bg-primary-100 text-primary-700 hover:bg-primary-200'
+                    : 'text-text-muted hover:text-text-primary hover:bg-primary-50/50'
+                }`}
+                aria-label={focusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'}
+              >
+                <Focus className="w-5 h-5" />
+              </button>
+            </Tooltip>
+          )}
+
           {/* Actions Dropdown - Hidden on mobile */}
           <div className="hidden sm:block relative">
             <Tooltip text="Open actions menu (New Resume, Save, Upload, Export, etc.)" color="blue" position="bottom">

@@ -7,8 +7,8 @@ import Tooltip from '@/components/Shared/Tooltip'
 
 
 interface RightPanelProps {
-  activeTab?: 'live' | 'match' | 'comments'
-  onTabChange?: (tab: 'live' | 'match' | 'comments') => void
+  activeTab?: 'preview' | 'job-description'
+  onTabChange?: (tab: 'preview' | 'job-description') => void
   leftSidebarCollapsed?: boolean
   onResumeUpdate?: (updatedResume: any) => void
   onAIImprove?: (text: string, context?: string) => Promise<string>
@@ -36,7 +36,7 @@ interface RightPanelProps {
 }
 
 export default function RightPanel({ 
-  activeTab = 'live', 
+  activeTab = 'preview', 
   onTabChange,
   leftSidebarCollapsed = false,
   onResumeUpdate,
@@ -52,7 +52,26 @@ export default function RightPanel({
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isApplyingImprovement, setIsApplyingImprovement] = useState<string | null>(null)
   const [atsSuggestions, setAtsSuggestions] = useState<any[]>([])
+  const [jdKeywords, setJdKeywords] = useState<any>(null)
+  const [matchResult, setMatchResult] = useState<any>(null)
   const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedKeywords = localStorage.getItem('currentJDKeywords')
+        if (savedKeywords) {
+          setJdKeywords(JSON.parse(savedKeywords))
+        }
+        const savedMatchResult = localStorage.getItem('currentMatchResult')
+        if (savedMatchResult) {
+          setMatchResult(JSON.parse(savedMatchResult))
+        }
+      } catch (e) {
+        console.error('Failed to load keywords:', e)
+      }
+    }
+  }, [])
 
   // Calculate ATS score when resumeData changes
   const calculateATSScore = useCallback(async () => {
@@ -70,8 +89,8 @@ export default function RightPanel({
       let previewText = '';
       let previewExtractionSuccess = false;
       
-      // Only try to extract preview text if we're already on the 'live' tab
-      if (activeTab === 'live') {
+      // Only try to extract preview text if we're already on the 'preview' tab
+      if (activeTab === 'preview') {
         try {
           // Wait for preview container to be ready with retry mechanism
           const maxRetries = 3;
@@ -266,9 +285,8 @@ export default function RightPanel({
   }, [calculateATSScore])
 
   const tabs = [
-    { id: 'live' as const, label: 'Live', icon: '⚡' },
-    { id: 'match' as const, label: 'Match JD', icon: '🎯' },
-    { id: 'comments' as const, label: 'Comments', icon: '💬' },
+    { id: 'preview' as const, label: 'Preview', icon: '👁️' },
+    { id: 'job-description' as const, label: 'Job Description', icon: '📄' },
   ]
 
 
@@ -281,9 +299,8 @@ export default function RightPanel({
           <Tooltip 
             key={tab.id}
             text={
-              tab.id === 'live' ? 'Live preview of your resume' :
-              tab.id === 'match' ? 'Match your resume against job descriptions' :
-              'View and manage comments on your resume'
+              tab.id === 'preview' ? 'Live preview of your resume' :
+              'Match your resume against job descriptions'
             }
             color="blue"
             position="bottom"
@@ -305,44 +322,8 @@ export default function RightPanel({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-
-
-        {activeTab === 'comments' && (
-          <div className="p-4 h-full overflow-y-auto custom-scrollbar">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-text-primary">Comments</h3>
-                <Tooltip text="Add a new comment to collaborate on your resume" color="blue" position="bottom">
-                  <button className="px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-all duration-200 shadow-sm hover:shadow-md">
-                    + Add Comment
-                  </button>
-                </Tooltip>
-              </div>
-              <div className="text-center py-12 text-text-muted">
-                <div className="text-4xl mb-2">💬</div>
-                <p className="text-sm">No comments yet</p>
-                <p className="text-xs mt-1">Add comments to collaborate with your team</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'match' && resumeData && (
-          <div className="h-full flex flex-col">
-            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
-              <JobDescriptionMatcher
-                resumeData={resumeData}
-                onResumeUpdate={onResumeUpdate}
-                standalone={false}
-                initialJobDescription={deepLinkedJD || undefined}
-                currentJobDescriptionId={activeJobDescriptionId || undefined}
-              />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'live' && (
-          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-primary-50/20 to-transparent custom-scrollbar">
+        {activeTab === 'preview' && (
+          <div className="flex-1 overflow-y-auto bg-slate-50 custom-scrollbar">
             {resumeData && (resumeData.name || resumeData.sections?.length > 0) ? (
               <div className="flex flex-col h-full">
                 <div className="mb-3 sticky top-0 bg-white/95 backdrop-blur-md px-4 pt-3 pb-2 z-10 border-b border-border-subtle shadow-sm">
@@ -403,28 +384,38 @@ export default function RightPanel({
                   </div>
                   <p className="text-xs text-text-muted">Real-time CV preview</p>
                 </div>
-                <div className="flex-1 flex items-start justify-center p-3 overflow-y-auto custom-scrollbar">
-                  <PreviewPanel
-                    key={`preview-${template}-${JSON.stringify(resumeData?.sections?.map(s => s.id))}`}
-                    data={{
-                      ...resumeData,
-                      name: resumeData.name || '',
-                      title: resumeData.title || '',
-                      email: resumeData.email || '',
-                      phone: resumeData.phone || '',
-                      location: resumeData.location || '',
-                      summary: resumeData.summary || '',
-                      sections: (resumeData.sections || []).map(section => ({
-                        ...section,
-                        bullets: section.bullets || [],
-                      })),
-                      fieldsVisible: (resumeData as any).fieldsVisible || {},
-                    }}
-                    replacements={{}}
-                    template={template}
-                    templateConfig={templateConfig}
-                    constrained={true}
-                  />
+                <div className="flex-1 flex items-center justify-center py-8 px-4 overflow-y-auto custom-scrollbar">
+                  <div className="relative">
+                    <div className="absolute -left-8 top-0 bottom-0 flex items-center">
+                      <div className="text-xs font-mono text-slate-400 tracking-wider">PAGE 1</div>
+                    </div>
+                    <div className="bg-white rounded shadow-2xl">
+                      <PreviewPanel
+                        key={`preview-${template}-${JSON.stringify(resumeData?.sections?.map(s => s.id))}`}
+                        data={{
+                          ...resumeData,
+                          name: resumeData.name || '',
+                          title: resumeData.title || '',
+                          email: resumeData.email || '',
+                          phone: resumeData.phone || '',
+                          location: resumeData.location || '',
+                          summary: resumeData.summary || '',
+                          sections: (resumeData.sections || []).map(section => ({
+                            ...section,
+                            bullets: section.bullets || [],
+                          })),
+                          fieldsVisible: (resumeData as any).fieldsVisible || {},
+                        }}
+                        replacements={{}}
+                        template={template}
+                        templateConfig={templateConfig}
+                        constrained={true}
+                      />
+                    </div>
+                    <div className="absolute -right-8 top-0 bottom-0 flex items-center">
+                      <div className="text-xs font-mono text-slate-400 tracking-wider">PAGE 1</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -436,6 +427,20 @@ export default function RightPanel({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'job-description' && resumeData && (
+          <div className="h-full flex flex-col">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
+              <JobDescriptionMatcher
+                resumeData={resumeData}
+                onResumeUpdate={onResumeUpdate}
+                standalone={false}
+                initialJobDescription={deepLinkedJD || undefined}
+                currentJobDescriptionId={activeJobDescriptionId || undefined}
+              />
+            </div>
           </div>
         )}
       </div>

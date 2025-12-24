@@ -973,9 +973,11 @@ export default function VisualResumeEditor({
       const keywordText = text.substring(match.index, match.index + match.length);
       if (keywordText) {
         parts.push(
-          <span key={`kw-${idx}-${match.index}`} className="bg-green-200 text-green-900 underline font-semibold" title={`${match.keyword} (${match.count}x)`}>
-            {keywordText}
-          </span>
+          <Tooltip key={`kw-${idx}-${match.index}`} text={`${match.keyword} (${match.count}x) - Matches job description`} color="green" position="top">
+            <span className="border-b-2 border-dotted border-green-500 text-green-700 cursor-help" title={`${match.keyword} (${match.count}x)`}>
+              {keywordText}
+            </span>
+          </Tooltip>
         );
       }
       lastIndex = match.index + match.length;
@@ -1128,23 +1130,29 @@ export default function VisualResumeEditor({
       if (keywordText) {
         if (match.isOverused) {
           parts.push(
-            <mark
+            <Tooltip 
               key={`overused-${match.keyword}-${match.index}-${idx}`}
-              className="bg-red-300 text-red-900 font-semibold px-0.5 rounded border border-red-500"
-              title={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+              text={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+              color="red"
+              position="top"
             >
-              {keywordText}
-            </mark>
+              <span className="border-b-2 border-dotted border-red-500 text-red-700 cursor-help">
+                {keywordText}
+              </span>
+            </Tooltip>
           );
         } else {
           parts.push(
-            <span
+            <Tooltip 
               key={`kw-${idx}-${match.index}`}
-              className="bg-green-200 text-green-900 underline font-semibold"
-              title={`${match.keyword} (${match.count}x)`}
+              text={`${match.keyword} (${match.count}x) - Matches job description`}
+              color="green"
+              position="top"
             >
-              {keywordText}
-            </span>
+              <span className="border-b-2 border-dotted border-green-500 text-green-700 cursor-help">
+                {keywordText}
+              </span>
+            </Tooltip>
           );
         }
       }
@@ -1238,13 +1246,16 @@ export default function VisualResumeEditor({
       }
       // Add highlighted match in RED
       parts.push(
-        <mark
+        <Tooltip
           key={`overused-${match.keyword}-${match.index}-${idx}`}
-          className="bg-red-300 text-red-900 font-semibold px-0.5 rounded border border-red-500"
-          title={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+          text={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+          color="red"
+          position="top"
         >
-          {text.substring(match.index, match.index + match.length)}
-        </mark>
+          <span className="border-b-2 border-dotted border-red-500 text-red-700 cursor-help">
+            {text.substring(match.index, match.index + match.length)}
+          </span>
+        </Tooltip>
       );
       lastIndex = match.index + match.length;
     });
@@ -1341,7 +1352,7 @@ export default function VisualResumeEditor({
           const before = highlightedText.substring(0, index);
           const after = highlightedText.substring(index + matchText.length);
           highlightedText = before + 
-            `<mark class="bg-green-200 text-green-900 font-semibold underline" title="JD Keyword: ${escapedKeywordAttr}">${escapedMatch}</mark>` + 
+            `<span class="border-b-2 border-dotted border-green-500 text-green-700 cursor-help" title="JD Keyword: ${escapedKeywordAttr}">${escapedMatch}</span>` + 
             after;
         });
       } catch (e) {
@@ -4342,9 +4353,9 @@ function SortableCompanyGroup({
     <div
       ref={setNodeRef}
       style={style}
-      className={`surface-card rounded-xl p-3 transition-all duration-200 ${uncheckedBulletCount > 0 ? 'border-primary-300 bg-primary-50/40 border-2' : ''} ${headerBullet.params?.visible === false ? 'opacity-60 grayscale' : 'hover:shadow-glow hover:-translate-y-0.5'} ${isDragging ? 'border-blue-400 shadow-lg z-50' : ''}`}
+      className={`relative transition-all duration-200 pb-4 border-b border-gray-200 ${headerBullet.params?.visible === false ? 'opacity-60 grayscale' : ''} ${isDragging ? 'opacity-50 z-50' : ''} group`}
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3 flex-1">
           <div
             {...attributes}
@@ -4415,47 +4426,7 @@ function SortableCompanyGroup({
           />
           <div className="w-3 h-3 bg-black rounded-full flex-shrink-0"></div>
           <div className="flex-1">
-            {/* Line 1: Company Name / Location */}
-            <div className="flex items-center gap-2 mb-1">
-              <div
-                contentEditable
-                suppressContentEditableWarning
-                spellCheck={false}
-                data-editable-type="company-name"
-                data-section-id={section.id}
-                data-bullet-id={headerBullet.id}
-                onBlur={(e) => {
-                  const locationText = location || 'Location'
-                  const newText = `**${e.currentTarget.textContent || 'Company Name'} / ${locationText} / ${jobTitle} / ${dateRange}**`
-                  updateBullet(section.id, headerBullet.id, newText)
-                }}
-                className={`text-lg font-bold outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : 'text-text-primary'
-                  }`}
-              >
-                {companyName}
-              </div>
-              {location && (
-                <span className="text-gray-500">/</span>
-              )}
-              <div
-                contentEditable
-                suppressContentEditableWarning
-                spellCheck={false}
-                data-editable-type="location"
-                data-section-id={section.id}
-                data-bullet-id={headerBullet.id}
-                onBlur={(e) => {
-                  const newText = `**${companyName} / ${e.currentTarget.textContent || 'Location'} / ${jobTitle} / ${dateRange}**`
-                  updateBullet(section.id, headerBullet.id, newText)
-                }}
-                className={`text-sm text-text-secondary outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : ''
-                  }`}
-              >
-                {location || 'Location'}
-              </div>
-            </div>
-            {/* Line 2: Title (left) and Date Range (right) */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-1">
               <div
                 contentEditable
                 suppressContentEditableWarning
@@ -4468,7 +4439,7 @@ function SortableCompanyGroup({
                   const newText = `**${companyName} / ${locationText} / ${e.currentTarget.textContent || 'Job Title'} / ${dateRange}**`
                   updateBullet(section.id, headerBullet.id, newText)
                 }}
-                className={`text-sm font-medium outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : 'text-text-secondary'
+                className={`text-base font-semibold outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : 'text-text-primary'
                   }`}
               >
                 {jobTitle}
@@ -4485,16 +4456,56 @@ function SortableCompanyGroup({
                   const newText = `**${companyName} / ${locationText} / ${jobTitle} / ${e.currentTarget.textContent || 'Date Range'}**`
                   updateBullet(section.id, headerBullet.id, newText)
                 }}
-                className="text-sm text-text-muted outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded-lg transition-all duration-200 cursor-text"
+                className="text-sm text-text-muted outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded transition-all duration-200 cursor-text"
               >
                 {dateRange}
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                spellCheck={false}
+                data-editable-type="company-name"
+                data-section-id={section.id}
+                data-bullet-id={headerBullet.id}
+                onBlur={(e) => {
+                  const locationText = location || 'Location'
+                  const newText = `**${e.currentTarget.textContent || 'Company Name'} / ${locationText} / ${jobTitle} / ${dateRange}**`
+                  updateBullet(section.id, headerBullet.id, newText)
+                }}
+                className={`text-sm text-text-secondary outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : ''
+                  }`}
+              >
+                {companyName}
+              </div>
+              {location && (
+                <>
+                  <span className="text-gray-400">·</span>
+                  <div
+                    contentEditable
+                    suppressContentEditableWarning
+                    spellCheck={false}
+                    data-editable-type="location"
+                    data-section-id={section.id}
+                    data-bullet-id={headerBullet.id}
+                    onBlur={(e) => {
+                      const newText = `**${companyName} / ${e.currentTarget.textContent || 'Location'} / ${jobTitle} / ${dateRange}**`
+                      updateBullet(section.id, headerBullet.id, newText)
+                    }}
+                    className={`text-sm text-text-secondary outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 px-2 py-1 rounded transition-all duration-200 cursor-text ${headerBullet.params?.visible === false ? 'text-text-muted line-through' : ''
+                      }`}
+                  >
+                    {location || 'Location'}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Tooltip text="AI Assistant - Generate work experience content using AI" color="gray" position="top">
+        <div className="absolute top-0 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/95 backdrop-blur-sm rounded-lg p-1 shadow-sm border border-gray-200">
+          <Tooltip text="AI Assistant - Generate work experience content using AI" color="gray" position="left">
             <button
               onClick={() => {
                 setAiWorkExperienceContext({
@@ -4508,17 +4519,15 @@ function SortableCompanyGroup({
                 })
                 setShowAIWorkExperience(true)
               }}
-              className="px-3 py-1.5 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow flex items-center gap-1.5 button-primary"
-              style={{ background: 'var(--gradient-accent)' }}
+              className="p-1.5 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded transition-all duration-200"
             >
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
-              <span>AI Assistant</span>
             </button>
           </Tooltip>
 
-          <Tooltip text="Delete this company and all its bullet points" color="gray" position="top">
+          <Tooltip text="Delete this company and all its bullet points" color="gray" position="left">
             <button
               onClick={() => {
                 const companyBulletIds = companyBullets.map(b => b.id)
@@ -4530,19 +4539,18 @@ function SortableCompanyGroup({
                 )
                 onChange({ ...data, sections })
               }}
-              className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 text-xs transition-all duration-200 shadow-sm hover:shadow-md"
+              className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-all duration-200"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-              <span>Delete Company</span>
             </button>
           </Tooltip>
         </div>
       </div>
 
       {!isCompanyCollapsed && (
-        <div className="bg-primary-50/30 border border-border-subtle rounded-xl p-4 surface-card">
+        <div className="mt-3 pl-8">
           <div className="space-y-1.5">
             {companyBullets.filter(companyBullet => {
               const normalizedText = companyBullet.text?.trim() || ''
