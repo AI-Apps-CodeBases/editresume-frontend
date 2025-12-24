@@ -4495,33 +4495,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${shouldUseSingleColumnLayout ? 'lg:grid-cols-1' : 'xl:grid-cols-2'}`}>
         {/* Left Column: Job Description Input */}
         <div className="space-y-4">
-          {/* High-Frequency Keywords (Most Important for ATS) */}
-          {selectedJobMetadata?.high_frequency_keywords && selectedJobMetadata.high_frequency_keywords.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
-                <span>🔥</span> High-Frequency Keywords (ATS Priority)
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {selectedJobMetadata.high_frequency_keywords.map((item, idx) => (
-                  <span
-                    key={idx}
-                    className={`px-3 py-1 rounded-full text-xs font-medium text-white ${
-                      item.importance === 'high'
-                        ? 'bg-gradient-to-r from-red-500 to-red-600'
-                        : 'bg-gradient-to-r from-orange-500 to-orange-600'
-                    }`}
-                    title={`Frequency: ${item.frequency} times`}
-                  >
-                    {item.keyword} ({item.frequency})
-                  </span>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                These keywords appear most frequently in the JD. Include them in your resume to increase ATS score.
-              </p>
-            </div>
-          )}
-          
           {/* Analyze Button and Save Button */}
           <div className="space-y-2">
             {!matchResult && (
@@ -4692,32 +4665,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       </span>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* High-Frequency Keywords (Most Important for ATS) */}
-              {selectedJobMetadata?.high_frequency_keywords && (selectedJobMetadata?.high_frequency_keywords?.length ?? 0) > 0 && (
-                <div>
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
-                    <span>🔥</span> High-Frequency Keywords (ATS Priority)
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(selectedJobMetadata?.high_frequency_keywords || []).map((item, idx) => (
-                      <span
-                        key={idx}
-                        className={`px-3 py-1 rounded-full text-xs font-medium text-white ${item.importance === 'high'
-                          ? 'bg-gradient-to-r from-red-500 to-red-600'
-                          : 'bg-gradient-to-r from-orange-500 to-orange-600'
-                          }`}
-                        title={`Frequency: ${item.frequency} times`}
-                      >
-                        {item.keyword} ({item.frequency})
-                      </span>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    These keywords appear most frequently in the JD. Include them in your resume to increase ATS score.
-                  </p>
                 </div>
               )}
 
