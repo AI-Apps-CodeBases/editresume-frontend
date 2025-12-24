@@ -388,17 +388,29 @@ export default function VisualResumeEditor({
     // Initialize all sections as open by default
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('openSections');
-      if (saved) return new Set(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[];
+        const savedSet = new Set<string>(parsed);
+        // Ensure summary is in the set if it exists
+        if (data.summary) savedSet.add('summary');
+        return savedSet;
+      }
     }
-    return new Set();
+    // Default: all sections open (including summary if it exists)
+    const defaultSet = new Set<string>();
+    if (data.summary) defaultSet.add('summary');
+    return defaultSet;
   });
   const [openCompanyGroups, setOpenCompanyGroups] = useState<Set<string>>(() => {
     // Initialize all company groups as open by default
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('openCompanyGroups');
-      if (saved) return new Set(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[];
+        return new Set<string>(parsed);
+      }
     }
-    return new Set();
+    return new Set<string>();
   });
 
   // Update localStorage when openSections changes
@@ -417,26 +429,28 @@ export default function VisualResumeEditor({
 
   // Initialize sections as open when they're added
   useEffect(() => {
-    if (data.sections.length > 0) {
-      setOpenSections(prev => {
-        const updated = new Set(prev);
-        // Add all sections that aren't already in the set
-        data.sections.forEach(s => {
-          if (!updated.has(s.id)) {
-            updated.add(s.id);
-          }
-        });
-        // Remove sections that no longer exist
-        const existingIds = new Set(data.sections.map(s => s.id));
-        Array.from(updated).forEach(id => {
-          if (!existingIds.has(id)) {
-            updated.delete(id);
-          }
-        });
-        return updated;
+    setOpenSections(prev => {
+      const updated = new Set(prev);
+      // Add summary if it exists
+      if (data.summary && !updated.has('summary')) {
+        updated.add('summary');
+      }
+      // Add all sections that aren't already in the set
+      data.sections.forEach(s => {
+        if (!updated.has(s.id)) {
+          updated.add(s.id);
+        }
       });
-    }
-  }, [data.sections]);
+      // Remove sections that no longer exist (but keep summary)
+      const existingIds = new Set(data.sections.map(s => s.id));
+      Array.from(updated).forEach(id => {
+        if (id !== 'summary' && !existingIds.has(id)) {
+          updated.delete(id);
+        }
+      });
+      return updated;
+    });
+  }, [data.sections, data.summary]);
 
   // Load match result when AI Improve modal opens (for both new and existing bullets)
   useEffect(() => {
@@ -2888,6 +2902,7 @@ export default function VisualResumeEditor({
 
                     // Summary Section
                     if (sectionId === 'summary') {
+                      const isSummaryCollapsed = !openSections.has('summary')
                       return (
                         <SortableSectionCard
                           key="summary"
@@ -2895,6 +2910,18 @@ export default function VisualResumeEditor({
                           title="Professional Summary"
                           icon="📝"
                           isEnabled={(data as any).fieldsVisible?.summary !== false}
+                          isCollapsed={isSummaryCollapsed}
+                          onToggleCollapse={() => {
+                            setOpenSections(prev => {
+                              const updated = new Set(prev)
+                              if (updated.has('summary')) {
+                                updated.delete('summary')
+                              } else {
+                                updated.add('summary')
+                              }
+                              return updated
+                            })
+                          }}
                           onToggleVisibility={() => {
                             const currentFieldsVisible = (data as any).fieldsVisible || {}
                             const newFieldsVisible = {

@@ -385,11 +385,11 @@ export default function RightPanel({
                   <p className="text-xs text-text-muted">Real-time CV preview</p>
                 </div>
                 <div className="flex-1 flex items-center justify-center py-8 px-4 overflow-y-auto custom-scrollbar">
-                  <div className="relative">
+                  <div className="relative w-full">
                     <div className="absolute -left-8 top-0 bottom-0 flex items-center">
                       <div className="text-xs font-mono text-slate-400 tracking-wider">PAGE 1</div>
                     </div>
-                    <div className="bg-white rounded shadow-2xl">
+                    <div className="bg-white rounded shadow-2xl overflow-visible">
                       <PreviewPanel
                         key={`preview-${template}-${JSON.stringify(resumeData?.sections?.map(s => s.id))}`}
                         data={{

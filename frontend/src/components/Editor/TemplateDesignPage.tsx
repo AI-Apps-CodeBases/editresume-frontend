@@ -155,12 +155,13 @@ export default function TemplateDesignPage({
               <h2 className="text-lg font-semibold text-text-primary mb-2">Live Preview</h2>
               <p className="text-xs text-text-muted">See your changes in real-time</p>
             </div>
-            <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card">
+            <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card overflow-visible">
               <PreviewPanel
                 data={resumeData}
                 replacements={{}}
                 template={currentTemplate as any}
                 templateConfig={config}
+                constrained={false}
               />
             </div>
           </div>
