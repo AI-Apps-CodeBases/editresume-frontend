@@ -39,8 +39,8 @@ export const planFeatures: Record<PlanTier, PlanDefinition> = {
     features: {
       aiTools: true,  // Limited (5/session)
       atsEnhancements: false,  // Basic only (1/day)
-      collaboration: false,
-      jobAnalytics: false,
+      collaboration: false,  // Not ready yet
+      jobAnalytics: true,  // Free for one resume
       versionHistory: false,  // Limited (1 resume)
       shareLinks: true,
       multiResume: false,
@@ -53,7 +53,7 @@ export const planFeatures: Record<PlanTier, PlanDefinition> = {
     features: {
       aiTools: true,
       atsEnhancements: true,
-      collaboration: true,
+      collaboration: false,  // Not ready yet
       jobAnalytics: true,
       versionHistory: true,
       shareLinks: true,
@@ -63,11 +63,11 @@ export const planFeatures: Record<PlanTier, PlanDefinition> = {
   },
   premium: {
     label: 'Premium',
-    description: 'Full access to AI, collaboration, and analytics.',
+    description: 'Full access to AI and analytics.',
     features: {
       aiTools: true,
       atsEnhancements: true,
-      collaboration: true,
+      collaboration: false,  // Not ready yet
       jobAnalytics: true,
       versionHistory: true,
       shareLinks: true,

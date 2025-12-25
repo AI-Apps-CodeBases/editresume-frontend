@@ -85,10 +85,10 @@ export default function OnboardingPage() {
           <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-primary-100 to-purple-100 border border-primary-200/50">
             <span className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-700">Onboarding</span>
           </div>
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl 2xl:text-8xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-primary-700 to-purple-700 leading-tight">
+          <h1 className="text-3xl sm:text-3xl lg:text-4xl 2xl:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-primary-700 to-purple-700 leading-tight">
             How to Tailor Your Resume Based on the Jobs
           </h1>
-          <p className="max-w-3xl mx-auto text-xl sm:text-2xl text-slate-600 leading-relaxed">
+          <p className="max-w-3xl mx-auto text-base sm:text-lg text-slate-600 leading-relaxed">
             Follow these steps to tailor your resume to any job posting using our powerful AI-powered feature.
           </p>
         </div>
@@ -100,9 +100,9 @@ export default function OnboardingPage() {
                 <div className="flex items-center justify-center w-16 h-16 2xl:w-20 2xl:h-20 rounded-full bg-gradient-to-r from-primary-600 to-purple-600 text-white font-bold text-2xl 2xl:text-3xl shadow-lg">
                   {currentStepData.step}
                 </div>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl 2xl:text-6xl font-bold text-slate-900">{currentStepData.title}</h2>
+                <h2 className="text-xl sm:text-2xl lg:text-2xl 2xl:text-3xl font-bold text-slate-900">{currentStepData.title}</h2>
               </div>
-              <p className="text-lg sm:text-xl lg:text-2xl 2xl:text-3xl text-slate-600 leading-relaxed">{currentStepData.description}</p>
+              <p className="text-sm sm:text-base lg:text-lg 2xl:text-xl text-slate-600 leading-relaxed">{currentStepData.description}</p>
             </div>
             
             <div className="flex-1 relative order-1 lg:order-2 w-full">

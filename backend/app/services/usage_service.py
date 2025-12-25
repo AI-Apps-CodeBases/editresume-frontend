@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 # Feature types for AI usage tracking
 FEATURE_TYPES = {
     "improvement": "AI improvement suggestions",
-    "grammar": "Grammar checking",
     "ats": "ATS scoring",
     "ats_enhanced": "Enhanced ATS scoring",
     "cover_letter": "Cover letter generation",
@@ -31,29 +30,25 @@ USAGE_LIMITS = {
     "guest": {
         "exports": {"monthly": 1},
         "ai_improvements": {"session": 3},
-        "grammar_checks": {"daily": 0},  # No AI for guests
-        "ats_scores": {"daily": 0},
+        "ats_scores": {"daily": float("inf")},  # ATS scoring is always free
         "cover_letters": {"monthly": 0},
     },
     "free": {
         "exports": {"monthly": 3},
         "ai_improvements": {"session": 5},
-        "grammar_checks": {"daily": 10},
-        "ats_scores": {"daily": 1},
+        "ats_scores": {"daily": float("inf")},  # ATS scoring is always free
         "cover_letters": {"monthly": 1},
     },
     "trial": {
         # Trial users get premium limits
         "exports": {"monthly": float("inf")},
         "ai_improvements": {"session": float("inf")},
-        "grammar_checks": {"daily": float("inf")},
         "ats_scores": {"daily": float("inf")},
         "cover_letters": {"monthly": float("inf")},
     },
     "premium": {
         "exports": {"monthly": float("inf")},
         "ai_improvements": {"session": float("inf")},
-        "grammar_checks": {"daily": float("inf")},
         "ats_scores": {"daily": float("inf")},
         "cover_letters": {"monthly": float("inf")},
     },
@@ -218,6 +213,10 @@ def check_usage_limit(
     Returns:
         Tuple of (allowed: bool, info: dict with usage stats and limit info)
     """
+    # ATS scoring is always free and unlimited
+    if feature_type in ("ats", "ats_enhanced"):
+        return True, {"allowed": True, "reason": "ats_always_free"}
+    
     if not is_premium_mode_enabled():
         # Premium mode disabled - allow all features
         return True, {"allowed": True, "reason": "premium_mode_disabled"}
@@ -227,7 +226,6 @@ def check_usage_limit(
     # Map feature types to limit keys
     limit_key_map = {
         "improvement": "ai_improvements",
-        "grammar": "grammar_checks",
         "ats": "ats_scores",
         "ats_enhanced": "ats_scores",
         "cover_letter": "cover_letters",
@@ -369,7 +367,6 @@ def get_usage_stats(
     for feature_type in FEATURE_TYPES.keys():
         limit_key_map = {
             "improvement": "ai_improvements",
-            "grammar": "grammar_checks",
             "ats": "ats_scores",
             "ats_enhanced": "ats_scores",
             "cover_letter": "cover_letters",

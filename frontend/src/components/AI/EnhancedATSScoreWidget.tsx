@@ -85,18 +85,7 @@ export default function EnhancedATSScoreWidget({
   const [previousScore, setPreviousScore] = useState<number | null>(null)
 
   const analyzeResume = async () => {
-    // Check usage limit first
-    const availability = checkFeatureAvailability('ats_enhanced')
-    if (!availability.allowed) {
-      setUpgradePromptData({
-        currentUsage: availability.currentUsage,
-        limit: availability.limit,
-        period: availability.period,
-      })
-      setShowUpgradePrompt(true)
-      return
-    }
-
+    // ATS scoring is always free - no usage limit check needed
     setIsAnalyzing(true)
     try {
       // Clean resume data - remove fieldsVisible and ensure params are compatible

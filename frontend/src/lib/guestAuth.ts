@@ -2,14 +2,13 @@
 
 import { isPremiumModeEnabled } from './usageLimits'
 
-export type GuestAction = 'exportResume' | 'saveResume' | 'saveJobDescription' | 'aiImprovement' | 'aiGrammar' | 'aiATS' | 'aiCoverLetter'
+export type GuestAction = 'exportResume' | 'saveResume' | 'saveJobDescription' | 'aiImprovement' | 'aiATS' | 'aiCoverLetter'
 
 const ACTION_LIMITS: Record<GuestAction, number> = {
   exportResume: 1,
   saveResume: 1,
   saveJobDescription: 1,
   aiImprovement: 3,
-  aiGrammar: 0,
   aiATS: 0,
   aiCoverLetter: 0,
 }
@@ -49,12 +48,11 @@ export const shouldPromptAuthentication = (action: GuestAction, isAuthenticated:
   return false
 }
 
-export const trackGuestAIUsage = (featureType: 'improvement' | 'grammar' | 'ats' | 'cover_letter'): void => {
+export const trackGuestAIUsage = (featureType: 'improvement' | 'ats' | 'cover_letter'): void => {
   if (!isBrowser() || !isPremiumModeEnabled()) return
   
   const actionMap: Record<string, GuestAction> = {
     improvement: 'aiImprovement',
-    grammar: 'aiGrammar',
     ats: 'aiATS',
     cover_letter: 'aiCoverLetter',
   }

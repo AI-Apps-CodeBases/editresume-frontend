@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
-import CollaborationPanel from './CollaborationPanel'
 import { Briefcase, FileText, Users, Bot, Sparkles, Target, BarChart3, Mail, FileEdit, TrendingUp } from 'lucide-react'
 
 async function fetchWithRetry<T>(
@@ -48,7 +47,6 @@ interface Props {
   onOpenCoverLetter?: () => void
   onShowMatchView?: () => void
   onShowAnalysisView?: () => void
-  onOpenGrammarPanel?: () => void
   onOpenJobMatchAnalytics?: () => void
   previewMode?: 'live' | 'match' | 'analysis'
 }
@@ -68,12 +66,11 @@ export default function LeftSidebar({
   onOpenCoverLetter,
   onShowMatchView,
   onShowAnalysisView,
-  onOpenGrammarPanel,
   onOpenJobMatchAnalytics,
   previewMode
 }: Props) {
   const { user, isAuthenticated } = useAuth()
-  const [activeSection, setActiveSection] = useState<'jobs' | 'resumes' | 'collaboration' | null>(null)
+  const [activeSection, setActiveSection] = useState<'jobs' | 'resumes' | null>(null)
   const [savedJDs, setSavedJDs] = useState<Array<{
     id: number
     title: string
@@ -159,13 +156,6 @@ export default function LeftSidebar({
       description: 'Master resumes',
       requiresAuth: true
     },
-    {
-      id: 'collaboration',
-      title: 'Collaboration',
-      icon: Users,
-      description: 'Real-time collaboration',
-      requiresAuth: false
-    }
   ]
 
   const aiShortcuts: Array<{
@@ -229,16 +219,6 @@ export default function LeftSidebar({
     })
   }
 
-  if (onOpenGrammarPanel) {
-    aiShortcuts.push({
-      id: 'grammar',
-      title: 'Grammar & Style Review',
-      icon: FileEdit,
-      description: 'Polish writing with AI-powered grammar checks',
-      onClick: onOpenGrammarPanel
-    })
-  }
-
   if (onOpenJobMatchAnalytics) {
     aiShortcuts.push({
       id: 'job-analytics',
@@ -261,7 +241,7 @@ export default function LeftSidebar({
     if (activeSection === itemId) {
       setActiveSection(null)
     } else {
-      setActiveSection(itemId as 'jobs' | 'resumes' | 'collaboration')
+      setActiveSection(itemId as 'jobs' | 'resumes' | null)
     }
   }
 
@@ -401,18 +381,6 @@ export default function LeftSidebar({
               </div>
             )}
 
-            {activeSection === 'collaboration' && (
-              <div className="space-y-3">
-                <CollaborationPanel
-                  isConnected={isConnected}
-                  activeUsers={activeUsers}
-                  roomId={roomId || null}
-                  onCreateRoom={onCreateRoom || (() => {})}
-                  onJoinRoom={onJoinRoom || (() => {})}
-                  onLeaveRoom={onLeaveRoom || (() => {})}
-                />
-              </div>
-            )}
           </div>
         )}
       </div>

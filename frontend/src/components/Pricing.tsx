@@ -39,8 +39,8 @@ export default function Pricing() {
                 'All professional templates',
                 '3 PDF/DOCX exports per month',
                 '5 AI improvements per session',
-                '10 grammar checks per day',
-                '1 ATS score per day',
+                'Unlimited ATS scores (always free)',
+                'Job match analytics (1 resume)',
                 '1 cover letter per month'
               ].map((feature, index) => (
                 <li key={index} className="flex items-start gap-2">
@@ -147,7 +147,6 @@ export default function Pricing() {
                 'Unlimited PDF/DOCX exports',
                 'All premium templates',
                 'Unlimited AI improvements',
-                'Unlimited grammar checks',
                 'Unlimited ATS scoring',
                 'Unlimited cover letters',
                 'Job match analytics'

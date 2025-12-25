@@ -3,19 +3,17 @@ import { useState, useEffect } from 'react'
 import { useSettings } from '@/contexts/SettingsContext'
 
 interface Settings {
-  grammarCheck: boolean
-  inlineGrammarCheck: boolean
   aiImprovements: boolean
-  styleAnalysis: boolean
-  passiveVoiceDetection: boolean
-  weakVerbDetection: boolean
-  readabilityAnalysis: boolean
   autoSave: boolean
   emailNotifications: boolean
   marketingEmails: boolean
   darkMode: boolean
   showHints: boolean
   advancedFeatures: boolean
+  atsScoreNotifications: boolean
+  coverLetterAutoGenerate: boolean
+  jobMatchAlerts: boolean
+  defaultExportFormat: 'pdf' | 'docx'
 }
 
 interface Props {
@@ -33,8 +31,8 @@ export default function SettingsPanel({ user, onDeleteAccount, onLogout }: Props
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
-  const handleUpdateSetting = (key: keyof Settings, value: boolean) => {
-    updateSetting(key, value)
+  const handleUpdateSetting = (key: keyof Settings, value: boolean | 'pdf' | 'docx') => {
+    updateSetting(key, value as boolean)
     
     // Show save status
     setIsSaving(true)
@@ -109,8 +107,12 @@ export default function SettingsPanel({ user, onDeleteAccount, onLogout }: Props
       <label className="relative inline-flex items-center cursor-pointer">
         <input
           type="checkbox"
-          checked={settings[key]}
-          onChange={(e) => handleUpdateSetting(key, e.target.checked)}
+          checked={typeof settings[key] === 'boolean' ? settings[key] as boolean : false}
+          onChange={(e) => {
+            if (typeof settings[key] === 'boolean') {
+              handleUpdateSetting(key, e.target.checked)
+            }
+          }}
           disabled={premium && !user?.isPremium}
           className="sr-only peer"
         />
@@ -136,49 +138,6 @@ export default function SettingsPanel({ user, onDeleteAccount, onLogout }: Props
         </div>
       </div>
 
-      {/* Grammar & Style Features */}
-      <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
-        <div className="flex items-center gap-2 mb-4">
-          <h3 className="text-lg font-bold text-gray-900">📝 Grammar & Style Features</h3>
-          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
-            New
-          </span>
-        </div>
-        <div className="space-y-3">
-          <SettingToggle
-            key="grammarCheck"
-            label="Grammar Checking"
-            description="Enable comprehensive grammar checking using LanguageTool"
-          />
-          <SettingToggle
-            key="inlineGrammarCheck"
-            label="Inline Grammar Highlights"
-            description="Show grammar issues directly in the editor with clickable suggestions"
-          />
-          <SettingToggle
-            key="styleAnalysis"
-            label="Style Analysis"
-            description="Analyze writing style, readability, and strength scores"
-            premium={true}
-          />
-          <SettingToggle
-            key="passiveVoiceDetection"
-            label="Passive Voice Detection"
-            description="Identify and suggest improvements for passive voice usage"
-          />
-          <SettingToggle
-            key="weakVerbDetection"
-            label="Weak Verb Detection"
-            description="Find weak verbs and suggest stronger alternatives"
-          />
-          <SettingToggle
-            key="readabilityAnalysis"
-            label="Readability Analysis"
-            description="Calculate Flesch-Kincaid scores and provide readability suggestions"
-          />
-        </div>
-      </div>
-
       {/* AI Features */}
       <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
         <div className="flex items-center gap-2 mb-4">
@@ -199,6 +158,28 @@ export default function SettingsPanel({ user, onDeleteAccount, onLogout }: Props
             label="Advanced AI Features"
             description="Access to advanced AI capabilities like content generation"
             premium={true}
+          />
+          <SettingToggle
+            key="coverLetterAutoGenerate"
+            label="Auto-generate Cover Letters"
+            description="Automatically generate cover letter suggestions when matching jobs"
+          />
+        </div>
+      </div>
+
+      {/* ATS & Job Matching */}
+      <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">📊 ATS & Job Matching</h3>
+        <div className="space-y-3">
+          <SettingToggle
+            key="atsScoreNotifications"
+            label="ATS Score Notifications"
+            description="Get notified when your ATS score improves or changes"
+          />
+          <SettingToggle
+            key="jobMatchAlerts"
+            label="Job Match Alerts"
+            description="Receive alerts when new job matches are found for your resume"
           />
         </div>
       </div>
@@ -222,6 +203,30 @@ export default function SettingsPanel({ user, onDeleteAccount, onLogout }: Props
             label="Dark Mode"
             description="Use dark theme for the editor interface"
           />
+          <div className="p-4 bg-white rounded-lg border border-gray-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Default Export Format
+            </label>
+            <select
+              value={settings.defaultExportFormat}
+              onChange={(e) => {
+                const newValue = e.target.value as 'pdf' | 'docx'
+                updateSetting('defaultExportFormat', newValue)
+                setIsSaving(true)
+                setSaveStatus('saving')
+                setTimeout(() => {
+                  setIsSaving(false)
+                  setSaveStatus('saved')
+                  setTimeout(() => setSaveStatus('idle'), 2000)
+                }, 500)
+              }}
+              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:outline-none"
+            >
+              <option value="pdf">PDF</option>
+              <option value="docx">DOCX (Word)</option>
+            </select>
+            <p className="text-xs text-gray-600 mt-1">Choose your preferred export format</p>
+          </div>
         </div>
       </div>
 
@@ -332,20 +337,20 @@ export default function SettingsPanel({ user, onDeleteAccount, onLogout }: Props
         <h3 className="text-lg font-bold text-blue-900 mb-4">ℹ️ Feature Status</h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-            <span>Grammar Check: {settings.grammarCheck ? 'Enabled' : 'Disabled'}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${settings.inlineGrammarCheck ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-            <span>Inline Grammar: {settings.inlineGrammarCheck ? 'Enabled' : 'Disabled'}</span>
-          </div>
-          <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${settings.aiImprovements ? 'bg-green-500' : 'bg-gray-400'}`}></span>
             <span>AI Improvements: {settings.aiImprovements ? 'Enabled' : 'Disabled'}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${settings.styleAnalysis ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-            <span>Style Analysis: {settings.styleAnalysis ? 'Enabled' : 'Disabled'}</span>
+            <span className={`w-2 h-2 rounded-full ${settings.atsScoreNotifications ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+            <span>ATS Notifications: {settings.atsScoreNotifications ? 'Enabled' : 'Disabled'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${settings.jobMatchAlerts ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+            <span>Job Match Alerts: {settings.jobMatchAlerts ? 'Enabled' : 'Disabled'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${settings.autoSave ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+            <span>Auto-save: {settings.autoSave ? 'Enabled' : 'Disabled'}</span>
           </div>
         </div>
       </div>

@@ -1,7 +1,6 @@
 'use client'
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import config from '@/lib/config';
-import InlineGrammarChecker from '@/components/AI/InlineGrammarChecker'
 import LeftSidebar from './LeftSidebar'
 import AIWorkExperience from '@/components/AI/AIWorkExperience'
 import AISectionAssistant from '@/components/AI/AISectionAssistant'
@@ -2636,23 +2635,7 @@ export default function VisualResumeEditor({
     }
   }
 
-  const handleGrammarSuggestion = (sectionId: string, bulletId: string, newText: string) => {
-    if (sectionId === 'summary') {
-      onChange({ ...data, summary: newText })
-    } else {
-      const sections = data.sections.map(s =>
-        s.id === sectionId
-          ? {
-            ...s,
-            bullets: s.bullets.map(b =>
-              b.id === bulletId ? { ...b, text: newText } : b
-            )
-          }
-          : s
-      )
-      onChange({ ...data, sections })
-    }
-  };
+;
 
   return (
     <div className="flex bg-gray-50 min-h-screen editor-layout">
