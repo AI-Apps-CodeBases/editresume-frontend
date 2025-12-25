@@ -2,43 +2,39 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 
 interface Settings {
-  grammarCheck: boolean
-  inlineGrammarCheck: boolean
   aiImprovements: boolean
-  styleAnalysis: boolean
-  passiveVoiceDetection: boolean
-  weakVerbDetection: boolean
-  readabilityAnalysis: boolean
   autoSave: boolean
   emailNotifications: boolean
   marketingEmails: boolean
   darkMode: boolean
   showHints: boolean
   advancedFeatures: boolean
+  atsScoreNotifications: boolean
+  coverLetterAutoGenerate: boolean
+  jobMatchAlerts: boolean
+  defaultExportFormat: 'pdf' | 'docx'
 }
 
 interface SettingsContextType {
   settings: Settings
-  updateSetting: (key: keyof Settings, value: boolean) => void
+  updateSetting: (key: keyof Settings, value: boolean | 'pdf' | 'docx') => void
   resetSettings: () => void
   exportSettings: () => void
   importSettings: (settings: Partial<Settings>) => void
 }
 
 const defaultSettings: Settings = {
-  grammarCheck: true,
-  inlineGrammarCheck: true,
   aiImprovements: true,
-  styleAnalysis: true,
-  passiveVoiceDetection: true,
-  weakVerbDetection: true,
-  readabilityAnalysis: true,
   autoSave: true,
   emailNotifications: true,
   marketingEmails: false,
   darkMode: false,
   showHints: true,
-  advancedFeatures: false
+  advancedFeatures: false,
+  atsScoreNotifications: true,
+  coverLetterAutoGenerate: false,
+  jobMatchAlerts: true,
+  defaultExportFormat: 'pdf'
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
@@ -59,7 +55,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const updateSetting = (key: keyof Settings, value: boolean) => {
+  const updateSetting = (key: keyof Settings, value: boolean | 'pdf' | 'docx') => {
     const newSettings = { ...settings, [key]: value }
     setSettings(newSettings)
     localStorage.setItem('userSettings', JSON.stringify(newSettings))

@@ -45,7 +45,6 @@ export default function TopNavigationBar({
 }: TopNavigationBarProps) {
   const { user } = useAuth()
   const [showActionsMenu, setShowActionsMenu] = useState(false)
-  
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-md border-b border-border-subtle shadow-[0_4px_20px_rgba(15,23,42,0.08)]">
@@ -198,6 +197,19 @@ export default function TopNavigationBar({
                         <span className="font-medium">{isExporting ? 'Exporting Resume...' : 'Export Resume PDF'}</span>
                       </button>
                     </Tooltip>
+                    <Tooltip text="Export your resume as a DOCX file" color="gray" position="right">
+                      <button
+                        onClick={() => {
+                          setShowActionsMenu(false)
+                          onExport('docx')
+                        }}
+                        disabled={!hasResumeName || isExporting}
+                        className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
+                      >
+                        <FileText className="w-4 h-4 text-primary-600" />
+                        <span className="font-medium">{isExporting ? 'Exporting Resume...' : 'Export Resume DOCX'}</span>
+                      </button>
+                    </Tooltip>
                     <Tooltip text="Export your cover letter as a PDF file" color="gray" position="right">
                       <button
                         onClick={() => {
@@ -230,8 +242,6 @@ export default function TopNavigationBar({
               </button>
             </Tooltip>
           )}
-
-
         </div>
       </div>
     </div>

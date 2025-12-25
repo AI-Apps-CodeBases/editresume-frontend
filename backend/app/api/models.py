@@ -119,11 +119,6 @@ class ExtractSentencesPayload(BaseModel):
     job_description: str
 
 
-class GrammarCheckPayload(BaseModel):
-    text: str
-    check_type: str = "all"  # "grammar", "style", "all"
-
-
 class WorkExperienceRequest(BaseModel):
     currentCompany: Optional[str] = None
     currentJobTitle: Optional[str] = None

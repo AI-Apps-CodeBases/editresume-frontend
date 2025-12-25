@@ -4,7 +4,6 @@ export type PlanTier = 'guest' | 'free' | 'trial' | 'premium'
 
 export type FeatureType = 
   | 'improvement'
-  | 'grammar'
   | 'ats'
   | 'ats_enhanced'
   | 'cover_letter'
@@ -22,7 +21,6 @@ export interface UsageLimit {
 export interface PlanLimits {
   exports: UsageLimit
   ai_improvements: UsageLimit
-  grammar_checks: UsageLimit
   ats_scores: UsageLimit
   cover_letters: UsageLimit
 }
@@ -31,28 +29,24 @@ export const USAGE_LIMITS: Record<PlanTier, PlanLimits> = {
   guest: {
     exports: { monthly: 1 },
     ai_improvements: { session: 3 },
-    grammar_checks: { daily: 0 },
-    ats_scores: { daily: 0 },
+    ats_scores: { daily: null },
     cover_letters: { monthly: 0 },
   },
   free: {
     exports: { monthly: 3 },
     ai_improvements: { session: 5 },
-    grammar_checks: { daily: 10 },
-    ats_scores: { daily: 1 },
+    ats_scores: { daily: null },
     cover_letters: { monthly: 1 },
   },
   trial: {
     exports: { monthly: null },
     ai_improvements: { session: null },
-    grammar_checks: { daily: null },
     ats_scores: { daily: null },
     cover_letters: { monthly: null },
   },
   premium: {
     exports: { monthly: null },
     ai_improvements: { session: null },
-    grammar_checks: { daily: null },
     ats_scores: { daily: null },
     cover_letters: { monthly: null },
   },
@@ -72,6 +66,11 @@ export function checkFeatureLimit(
   currentUsage: number,
   period: 'monthly' | 'daily' | 'session'
 ): { allowed: boolean; limit: number | null; remaining: number | null } {
+  // ATS scoring is always free and unlimited
+  if (featureType === 'ats' || featureType === 'ats_enhanced') {
+    return { allowed: true, limit: null, remaining: null }
+  }
+  
   const limits = getUsageLimits(planTier)
   
   let limitKey: keyof PlanLimits
@@ -81,13 +80,6 @@ export function checkFeatureLimit(
     case 'section_assistant':
     case 'job_matching':
       limitKey = 'ai_improvements'
-      break
-    case 'grammar':
-      limitKey = 'grammar_checks'
-      break
-    case 'ats':
-    case 'ats_enhanced':
-      limitKey = 'ats_scores'
       break
     case 'cover_letter':
       limitKey = 'cover_letters'
@@ -124,8 +116,6 @@ export function getFeatureLimitKey(featureType: FeatureType): keyof PlanLimits {
     case 'section_assistant':
     case 'job_matching':
       return 'ai_improvements'
-    case 'grammar':
-      return 'grammar_checks'
     case 'ats':
     case 'ats_enhanced':
       return 'ats_scores'

@@ -32,7 +32,6 @@ export default function UpgradePrompt({
 
   const featureLabels: Record<FeatureType, string> = {
     improvement: 'AI Improvements',
-    grammar: 'Grammar Checks',
     ats: 'ATS Scoring',
     ats_enhanced: 'Enhanced ATS Scoring',
     cover_letter: 'Cover Letter Generation',
