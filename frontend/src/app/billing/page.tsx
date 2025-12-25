@@ -186,8 +186,8 @@ function BillingContent() {
         body: JSON.stringify({
           successUrl: returnUrl,
           cancelUrl: returnUrl,
-          priceId: period === 'annual' ? 'price_annual' : undefined,
-          planType: planType
+          planType: planType,
+          period: period
         })
       })
 
