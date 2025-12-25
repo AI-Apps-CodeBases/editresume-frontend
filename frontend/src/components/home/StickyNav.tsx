@@ -37,28 +37,46 @@ export default function StickyNav() {
 
         <div className="hidden md:flex items-center gap-8">
           <Link
-            href="#features"
-            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            Features
-          </Link>
-          <Link
-            href="/editor?view=templates"
-            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            Templates
-          </Link>
-          <Link
             href="/extension"
             className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             Job Saver
           </Link>
           <Link
+            href="/onboarding"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Onboarding
+          </Link>
+          <Link
             href="#pricing"
             className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             Pricing
+          </Link>
+          <Link
+            href="/tutorial"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Tutorial
+          </Link>
+          <Link
+            href="/contact"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Contact
+          </Link>
+          <Link
+            href="/terms"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Terms
+          </Link>
+          <Link
+            href="/privacy"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Privacy
           </Link>
         </div>
 

@@ -1,7 +1,6 @@
 import HeroSection from '@/components/home/HeroSection'
 import StickyNav from '@/components/home/StickyNav'
 import CompanyLogoBar from '@/components/home/CompanyLogoBar'
-import BentoFeatureGrid from '@/components/home/BentoFeatureGrid'
 import Pricing from '@/components/Pricing'
 import StepsSection from '@/components/home/StepsSection'
 import TestimonialsSection from '@/components/home/TestimonialsSection'
@@ -13,7 +12,6 @@ export default function Page() {
       <StickyNav />
       <HeroSection />
       <CompanyLogoBar />
-      <BentoFeatureGrid />
       <VideoTutorialSection />
       <Pricing />
       <StepsSection />

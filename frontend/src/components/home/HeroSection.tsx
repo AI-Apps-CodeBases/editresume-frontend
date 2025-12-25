@@ -91,6 +91,18 @@ export default function HeroSection() {
                 >
                   Import Resume
                 </Link>
+
+                <Link
+                  href="https://chromewebstore.google.com/detail/editresume-job-saver/aecnknpdmopjemcdadfnlpoeldnehljp?utm_source=ext_app_menu"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 border-2 border-border-subtle text-text-primary rounded-xl font-semibold text-lg hover:border-border-strong hover:bg-slate-50 transition-all duration-200"
+                >
+                  Install Job Saver Extension
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </Link>
               </motion.div>
 
               <motion.p
