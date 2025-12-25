@@ -416,10 +416,28 @@ const EditorPageContent = () => {
     // Check if this is an upload - if so, don't load from localStorage
     const resumeUploadParam = searchParams.get('resumeUpload')
     const uploadToken = searchParams.get('uploadToken')
+    const jdIdParam = searchParams.get('jdId')
+    
+    // Clear JD data if no jdId in URL (unless it's an upload with jdId)
+    if (typeof window !== 'undefined' && !jdIdParam && resumeUploadParam !== '1') {
+      localStorage.removeItem('deepLinkedJD')
+      localStorage.removeItem('activeJobDescriptionId')
+      localStorage.removeItem('extractedKeywords')
+      setDeepLinkedJD(null)
+      setActiveJobDescriptionId(null)
+    }
     
     if (resumeUploadParam === '1' && uploadToken) {
       // This is an upload - don't load from localStorage, let the upload handler do it
       console.log('📤 Upload detected, skipping localStorage load')
+      // Clear JD unless jdId is explicitly in URL
+      if (!jdIdParam && typeof window !== 'undefined') {
+        localStorage.removeItem('deepLinkedJD')
+        localStorage.removeItem('activeJobDescriptionId')
+        localStorage.removeItem('extractedKeywords')
+        setDeepLinkedJD(null)
+        setActiveJobDescriptionId(null)
+      }
       return
     }
     
@@ -619,43 +637,66 @@ const EditorPageContent = () => {
   }, [previewMode])
 
   // Deep link: ?jdId=123 to load JD and switch to match mode
+  // Only initialize from localStorage if jdId query param exists
   const [deepLinkedJD, setDeepLinkedJD] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('deepLinkedJD');
-      return saved || null;
+      const jdIdParam = new URLSearchParams(window.location.search).get('jdId');
+      // Only load from localStorage if jdId is in URL
+      if (jdIdParam) {
+        const saved = localStorage.getItem('deepLinkedJD');
+        return saved || null;
+      }
+      // Clear JD if no jdId in URL
+      localStorage.removeItem('deepLinkedJD');
+      return null;
     }
     return null;
   })
   const [activeJobDescriptionId, setActiveJobDescriptionId] = useState<number | null>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('activeJobDescriptionId');
-      return saved ? parseInt(saved) : null;
+      const jdIdParam = new URLSearchParams(window.location.search).get('jdId');
+      // Only load from localStorage if jdId is in URL
+      if (jdIdParam) {
+        const saved = localStorage.getItem('activeJobDescriptionId');
+        return saved ? parseInt(saved) : null;
+      }
+      // Clear JD ID if no jdId in URL
+      localStorage.removeItem('activeJobDescriptionId');
+      return null;
     }
     return null;
   })
   
+  // Only save JD to localStorage if jdId is in URL
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      if (activeJobDescriptionId !== null) {
-        localStorage.setItem('activeJobDescriptionId', activeJobDescriptionId.toString());
-      }
-      if (deepLinkedJD) {
-        localStorage.setItem('deepLinkedJD', deepLinkedJD);
+      const jdIdParam = searchParams.get('jdId')
+      if (jdIdParam) {
+        if (activeJobDescriptionId !== null) {
+          localStorage.setItem('activeJobDescriptionId', activeJobDescriptionId.toString());
+        }
+        if (deepLinkedJD) {
+          localStorage.setItem('deepLinkedJD', deepLinkedJD);
+        }
       }
     }
-  }, [activeJobDescriptionId, deepLinkedJD]);
+  }, [activeJobDescriptionId, deepLinkedJD, searchParams]);
   
-  // Load JD when switching back to match mode if we have a saved ID
+  // Load JD when switching back to match mode if we have a saved ID and jdId is in URL
   useEffect(() => {
-    if (previewMode === 'match' && activeJobDescriptionId && !deepLinkedJD) {
+    const jdIdParam = searchParams.get('jdId')
+    if (previewMode === 'match' && activeJobDescriptionId && !deepLinkedJD && jdIdParam) {
       fetch(`${config.apiBase}/api/job-descriptions/${activeJobDescriptionId}`)
         .then(res => {
           if (res.status === 404) {
             // Job description not found - clear stale ID
             if (typeof window !== 'undefined') {
               localStorage.removeItem('activeJobDescriptionId');
+              localStorage.removeItem('deepLinkedJD');
+              localStorage.removeItem('extractedKeywords');
             }
             setActiveJobDescriptionId(null);
+            setDeepLinkedJD(null);
             return null;
           }
           return res.ok ? res.json() : null;
@@ -667,8 +708,22 @@ const EditorPageContent = () => {
         })
         .catch(() => {})
     }
-  }, [previewMode, activeJobDescriptionId, deepLinkedJD]);
+  }, [previewMode, activeJobDescriptionId, deepLinkedJD, searchParams]);
   
+  // Clear JD when jdId is removed from URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const jdIdParam = searchParams.get('jdId')
+    if (!jdIdParam) {
+      // No jdId in URL - clear JD data
+      localStorage.removeItem('deepLinkedJD')
+      localStorage.removeItem('activeJobDescriptionId')
+      localStorage.removeItem('extractedKeywords')
+      setDeepLinkedJD(null)
+      setActiveJobDescriptionId(null)
+    }
+  }, [searchParams])
+
   useEffect(() => {
     const id = searchParams.get('jdId')
     if (id) {
@@ -702,11 +757,14 @@ const EditorPageContent = () => {
             // Job not found - clear the ID from URL and localStorage
             if (typeof window !== 'undefined') {
               localStorage.removeItem('activeJobDescriptionId');
+              localStorage.removeItem('deepLinkedJD');
+              localStorage.removeItem('extractedKeywords');
               const newUrl = new URL(window.location.href);
               newUrl.searchParams.delete('jdId');
               window.history.replaceState({}, '', newUrl.toString());
             }
             setActiveJobDescriptionId(null);
+            setDeepLinkedJD(null);
           }
         } catch (error) {
           // Silently handle errors
@@ -731,6 +789,7 @@ const EditorPageContent = () => {
      if (typeof window === 'undefined') return
      const resumeUploadParam = searchParams.get('resumeUpload')
      const uploadToken = searchParams.get('uploadToken')
+     const jdIdParam = searchParams.get('jdId')
      if (resumeUploadParam === '1') {
        console.log('📤 Processing upload - clearing cached data')
        setCurrentResumeId(null)
@@ -747,6 +806,15 @@ const EditorPageContent = () => {
            'twoColumnLeftWidth'
          ]
          keysToRemove.forEach(key => localStorage.removeItem(key))
+         
+         // Clear JD data unless jdId is explicitly in URL
+         if (!jdIdParam) {
+           localStorage.removeItem('deepLinkedJD')
+           localStorage.removeItem('activeJobDescriptionId')
+           localStorage.removeItem('extractedKeywords')
+           setDeepLinkedJD(null)
+           setActiveJobDescriptionId(null)
+         }
          
          // Clear ALL old sessionStorage upload entries (except current one)
          Object.keys(window.sessionStorage).forEach(key => {
@@ -922,6 +990,14 @@ const EditorPageContent = () => {
     // Check if user wants to create a new resume from scratch
     const isNewResume = searchParams.get('new') === 'true'
     if (isNewResume) {
+      // Clear JD data when creating new resume
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('deepLinkedJD')
+        localStorage.removeItem('activeJobDescriptionId')
+        localStorage.removeItem('extractedKeywords')
+        setDeepLinkedJD(null)
+        setActiveJobDescriptionId(null)
+      }
       // Create empty resume data and skip wizard
       const emptyResumeData = {
         name: '',
@@ -2147,9 +2223,12 @@ const EditorPageContent = () => {
 
   // Handler for New Resume button
   const handleNewResume = () => {
-    // Clear any cached resume data
+    // Clear any cached resume data and JD data
     if (typeof window !== 'undefined') {
       localStorage.removeItem('resumeData')
+      localStorage.removeItem('deepLinkedJD')
+      localStorage.removeItem('activeJobDescriptionId')
+      localStorage.removeItem('extractedKeywords')
       // Navigate to the new resume flow
       router.push('/editor?new=true')
     }

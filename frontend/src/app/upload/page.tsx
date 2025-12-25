@@ -48,7 +48,10 @@ export default function UploadPage() {
             'resumeHistory',
             'twoColumnLeft',
             'twoColumnRight',
-            'twoColumnLeftWidth'
+            'twoColumnLeftWidth',
+            'deepLinkedJD',
+            'activeJobDescriptionId',
+            'extractedKeywords'
           ]
           keysToRemove.forEach(key => window.localStorage.removeItem(key))
           
