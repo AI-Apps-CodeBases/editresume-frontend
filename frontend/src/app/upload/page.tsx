@@ -53,7 +53,8 @@ export default function UploadPage() {
             'activeJobDescriptionId',
             'extractedKeywords',
             'currentJDKeywords',
-            'currentMatchResult'
+            'currentMatchResult',
+            'resumeSectionOrder'
           ]
           keysToRemove.forEach(key => window.localStorage.removeItem(key))
           

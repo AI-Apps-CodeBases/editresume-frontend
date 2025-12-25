@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities'
 
 import { SortableContactFieldItem } from '@/features/resume/components/SortableContactFieldItem'
 import type { Bullet, CustomField, ResumeData, Section } from '@/features/resume/types'
+import { sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
 
 const normalizeId = (id: string | number | null | undefined) =>
   id === null || id === undefined ? '' : id.toString()
@@ -598,29 +599,69 @@ export default function VisualResumeEditor({
   const [sectionOrder, setSectionOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('resumeSectionOrder');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        } catch (e) {
+          console.warn('Failed to parse saved section order', e);
+        }
+      }
     }
-    // Default order: Title, Contact, Summary, then dynamic sections
-    return ['title', 'contact', 'summary', ...(data.sections || []).map(s => s.id)];
+    // Default order: Title, Contact, Summary, then dynamic sections in sorted order
+    const sortedSections = sortSectionsByDefaultOrder(data.sections || []);
+    return ['title', 'contact', 'summary', ...sortedSections.map(s => s.id)];
   });
 
   // Update section order when sections change
   useEffect(() => {
-    const currentSectionIds = new Set(sectionOrder);
-    const newSectionIds = new Set(['title', 'contact', 'summary', ...(data.sections || []).map(s => s.id)]);
+    // Check if there's a saved custom order
+    const hasCustomOrder = typeof window !== 'undefined' && 
+      localStorage.getItem('resumeSectionOrder') !== null;
+    
+    if (!hasCustomOrder) {
+      // No custom order - use sorted order
+      const sortedSections = sortSectionsByDefaultOrder(data.sections || []);
+      const sortedSectionIds = sortedSections.map(s => s.id);
+      const newOrder = ['title', 'contact', 'summary', ...sortedSectionIds];
+      
+      // Only update if order actually changed
+      setSectionOrder(prev => {
+        const currentDynamic = prev.filter(id => 
+          id !== 'title' && id !== 'contact' && id !== 'summary'
+        );
+        const expectedDynamic = sortedSectionIds;
+        
+        if (JSON.stringify(currentDynamic) !== JSON.stringify(expectedDynamic)) {
+          return newOrder;
+        }
+        return prev;
+      });
+    } else {
+      // User has custom order - just add/remove sections
+      setSectionOrder(prev => {
+        const currentSectionIds = new Set(prev);
+        const newSectionIds = new Set(['title', 'contact', 'summary', ...(data.sections || []).map(s => s.id)]);
 
-    // Add new sections to the end
-    const newSections = (data.sections || []).filter(s => !currentSectionIds.has(s.id));
-    if (newSections.length > 0) {
-      setSectionOrder(prev => [...prev, ...newSections.map(s => s.id)]);
-    }
+        // Add new sections to the end
+        const newSections = (data.sections || []).filter(s => !currentSectionIds.has(s.id));
+        let updated = prev;
+        if (newSections.length > 0) {
+          updated = [...prev, ...newSections.map(s => s.id)];
+        }
 
-    // Remove deleted sections
-    const removedSections = Array.from(currentSectionIds).filter(id =>
-      id !== 'title' && id !== 'contact' && id !== 'summary' && !newSectionIds.has(id)
-    );
-    if (removedSections.length > 0) {
-      setSectionOrder(prev => prev.filter(id => !removedSections.includes(id)));
+        // Remove deleted sections
+        const removedSections = Array.from(currentSectionIds).filter(id =>
+          id !== 'title' && id !== 'contact' && id !== 'summary' && !newSectionIds.has(id)
+        );
+        if (removedSections.length > 0) {
+          updated = updated.filter(id => !removedSections.includes(id));
+        }
+        
+        return updated;
+      });
     }
   }, [data.sections]);
 

@@ -856,10 +856,11 @@ const EditorPageContent = () => {
                  // Set the uploaded resume data - this replaces any existing data
                  setResumeData(cleanedResume)
                  
-                 // Force clear localStorage and save fresh data
-                 localStorage.removeItem('resumeData')
-                 localStorage.setItem('resumeData', JSON.stringify(cleanedResume))
-                 console.log('✅ Uploaded resume loaded successfully')
+                // Force clear localStorage and save fresh data
+                localStorage.removeItem('resumeData')
+                localStorage.removeItem('resumeSectionOrder') // Clear old section order to use sorted order
+                localStorage.setItem('resumeData', JSON.stringify(cleanedResume))
+                console.log('✅ Uploaded resume loaded successfully')
                }
                if (parsed?.template) {
                  setSelectedTemplate(parsed.template)
