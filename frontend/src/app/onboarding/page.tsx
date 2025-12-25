@@ -86,7 +86,7 @@ export default function OnboardingPage() {
             <span className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-700">Onboarding</span>
           </div>
           <h1 className="text-5xl sm:text-6xl lg:text-7xl 2xl:text-8xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-primary-700 to-purple-700 leading-tight">
-            How to Use Tailor Resume
+            How to Tailor Your Resume Based on the Jobs
           </h1>
           <p className="max-w-3xl mx-auto text-xl sm:text-2xl text-slate-600 leading-relaxed">
             Follow these steps to tailor your resume to any job posting using our powerful AI-powered feature.
@@ -122,49 +122,67 @@ export default function OnboardingPage() {
           </div>
 
           <div className="mt-12 flex items-center justify-between">
-            <button
-              onClick={prevStep}
-              disabled={currentStep === 0}
-              className="flex items-center gap-3 px-8 py-4 2xl:px-10 2xl:py-5 rounded-xl bg-white border border-slate-300 text-slate-700 font-semibold text-lg 2xl:text-xl hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+            <Tooltip 
+              text={currentStep === 0 ? "You're on the first step" : `Go back to step ${currentStep}: ${steps[currentStep - 1].title}`}
+              position="top"
+              color="gray"
             >
-              <svg className="w-6 h-6 2xl:w-7 2xl:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Previous
-            </button>
+              <button
+                onClick={prevStep}
+                disabled={currentStep === 0}
+                className="flex items-center gap-3 px-8 py-4 2xl:px-10 2xl:py-5 rounded-xl bg-white border border-slate-300 text-slate-700 font-semibold text-lg 2xl:text-xl hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+              >
+                <svg className="w-6 h-6 2xl:w-7 2xl:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+              </button>
+            </Tooltip>
 
             <div className="flex items-center gap-3">
-              {steps.map((_, index) => (
-                <button
+              {steps.map((step, index) => (
+                <Tooltip
                   key={index}
-                  onClick={() => goToStep(index)}
-                  className={`w-4 h-4 2xl:w-5 2xl:h-5 rounded-full transition-all ${
-                    index === currentStep
-                      ? 'bg-gradient-to-r from-primary-600 to-purple-600 w-10 2xl:w-12'
-                      : 'bg-slate-300 hover:bg-slate-400'
-                  }`}
-                  aria-label={`Go to step ${index + 1}`}
-                />
+                  text={`Go to step ${index + 1}: ${step.title}`}
+                  position="top"
+                  color="gray"
+                >
+                  <button
+                    onClick={() => goToStep(index)}
+                    className={`w-4 h-4 2xl:w-5 2xl:h-5 rounded-full transition-all ${
+                      index === currentStep
+                        ? 'bg-gradient-to-r from-primary-600 to-purple-600 w-10 2xl:w-12'
+                        : 'bg-slate-300 hover:bg-slate-400'
+                    }`}
+                    aria-label={`Go to step ${index + 1}`}
+                  />
+                </Tooltip>
               ))}
             </div>
 
-            <button
-              onClick={nextStep}
-              disabled={currentStep === steps.length - 1}
-              className="flex items-center gap-3 px-8 py-4 2xl:px-10 2xl:py-5 rounded-xl bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold text-lg 2xl:text-xl hover:from-primary-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+            <Tooltip
+              text={currentStep === steps.length - 1 ? "You're on the last step" : `Continue to step ${currentStep + 2}: ${steps[currentStep + 1].title}`}
+              position="top"
+              color="gray"
             >
-              Next
-              <svg className="w-6 h-6 2xl:w-7 2xl:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+              <button
+                onClick={nextStep}
+                disabled={currentStep === steps.length - 1}
+                className="flex items-center gap-3 px-8 py-4 2xl:px-10 2xl:py-5 rounded-xl bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold text-lg 2xl:text-xl hover:from-primary-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+              >
+                Next
+                <svg className="w-6 h-6 2xl:w-7 2xl:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </Tooltip>
           </div>
         </div>
 
         <div className="sticky bottom-8 z-10 mt-12">
           <div className="flex justify-center">
             <Tooltip 
-              text="Upload your existing resume or create a new one to get started with tailoring your resume to job postings"
+              text="Upload your existing resume or create a new one to start tailoring your resume to job postings with AI-powered features"
               position="top"
               color="gray"
             >
