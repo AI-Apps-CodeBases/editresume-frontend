@@ -62,7 +62,7 @@ export default function HeroSection() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.4 }}
-                className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6"
+                className="flex flex-row items-center gap-4 mb-4"
               >
                 <button
                   onClick={() => launchEditor('new')}
@@ -91,7 +91,14 @@ export default function HeroSection() {
                 >
                   Import Resume
                 </Link>
+              </motion.div>
 
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.45 }}
+                className="mb-6"
+              >
                 <Link
                   href="https://chromewebstore.google.com/detail/editresume-job-saver/aecnknpdmopjemcdadfnlpoeldnehljp?utm_source=ext_app_menu"
                   target="_blank"
