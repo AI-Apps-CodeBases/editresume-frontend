@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 
 interface Video {
   id: string
@@ -27,7 +28,13 @@ export default function VideoTutorialSection() {
   return (
     <section className="pt-0 sm:pt-2 lg:pt-16 pb-20 sm:pb-24 lg:pb-28 bg-white -mt-8 sm:-mt-12">
       <div className="container-padding mx-auto max-w-7xl">
-        <div className="text-center mb-12">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-12"
+        >
           <span className="badge-gradient">VIDEO TUTORIALS</span>
           <h2 className="mt-4 text-3xl font-bold text-text-primary sm:text-4xl">
             Learn how to tailor your resume
@@ -35,9 +42,15 @@ export default function VideoTutorialSection() {
           <p className="mt-4 text-lg text-text-muted max-w-2xl mx-auto">
             Watch quick tutorials to master EditResume and create job-ready resumes
           </p>
-        </div>
+        </motion.div>
 
-        <div className="flex justify-center mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="flex justify-center mb-6"
+        >
           <Link
             href="/tutorial"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
@@ -45,9 +58,15 @@ export default function VideoTutorialSection() {
             <span>📚</span>
             <span>More Tutorial Videos</span>
           </Link>
-        </div>
+        </motion.div>
 
-        <div className="max-w-5xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="max-w-5xl mx-auto"
+        >
           {videos.map((video) => (
             <div
               key={video.id}
@@ -94,7 +113,7 @@ export default function VideoTutorialSection() {
               </div>
             </div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   )

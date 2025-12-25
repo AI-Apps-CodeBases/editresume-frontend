@@ -10,7 +10,7 @@ export default function Pricing() {
   const isFreeUser = !user?.isPremium && !user?.trialActive
 
   return (
-    <section className="py-24 bg-gradient-to-b from-white to-gray-50">
+    <section id="pricing" className="py-24 bg-gradient-to-b from-white to-gray-50">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="text-center mb-16">
           <h2 className="text-base font-semibold text-primary mb-2 tracking-wider">PRICING</h2>

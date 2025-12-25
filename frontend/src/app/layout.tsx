@@ -8,9 +8,9 @@ import Footer from '@/components/layout/Footer'
 import FeedbackWidget from '@/components/Feedback/FeedbackWidget'
 import ExtensionAuthHandler from '@/components/extension/ExtensionAuthHandler'
 import { Analytics } from '@vercel/analytics/react'
-import { Plus_Jakarta_Sans } from 'next/font/google'
+import { Inter } from 'next/font/google'
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-sans',
@@ -54,7 +54,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <AuthProvider>
           <SettingsProvider>
             <ModalProvider>

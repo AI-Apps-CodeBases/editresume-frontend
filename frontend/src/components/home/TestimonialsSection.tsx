@@ -1,3 +1,7 @@
+'use client'
+
+import { motion } from 'framer-motion'
+
 const testimonials = [
   {
     quote:
@@ -23,7 +27,13 @@ export default function TestimonialsSection() {
   return (
     <section className="section-spacing bg-white">
       <div className="container-padding mx-auto max-w-7xl">
-        <div className="flex flex-col items-center text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="flex flex-col items-center text-center"
+        >
           <span className="badge">WHAT PEOPLE ARE SAYING</span>
           <h2 className="mt-6 text-3xl font-semibold text-text-primary sm:text-4xl">
             Rated highly by job seekers building resumes that get callbacks.
@@ -32,12 +42,16 @@ export default function TestimonialsSection() {
             Millions of job seekers trust editresume.io to create professional, ATS-friendly resumes. Every feature is
             tuned with recruiting experts so you can focus on the next offer.
           </p>
-        </div>
+        </motion.div>
 
         <div className="mt-16 grid gap-6 md:grid-cols-3">
-          {testimonials.map((testimonial) => (
-            <figure
+          {testimonials.map((testimonial, index) => (
+            <motion.figure
               key={testimonial.name}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="flex h-full flex-col gap-6 rounded-3xl border border-border-subtle bg-[#f8fbff] p-8 text-left shadow-[0_18px_32px_rgba(15,23,42,0.05)]"
             >
               <blockquote className="text-base leading-relaxed text-text-muted">“{testimonial.quote}”</blockquote>
@@ -45,7 +59,7 @@ export default function TestimonialsSection() {
                 <div className="font-semibold text-text-primary">{testimonial.name}</div>
                 <div>{testimonial.role}</div>
               </figcaption>
-            </figure>
+            </motion.figure>
           ))}
         </div>
       </div>
