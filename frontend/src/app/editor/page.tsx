@@ -1532,6 +1532,9 @@ const EditorPageContent = () => {
               }))
             }))
             
+            // Sort sections by default order before saving
+            const sortedSectionsForSave = sortSectionsByDefaultOrder(cleanedSectionsForSave)
+            
             const saveResumeRes = await fetch(`${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1543,7 +1546,7 @@ const EditorPageContent = () => {
                 location: resumeData.location,
                 summary: resumeData.summary,
                 template: selectedTemplate,
-                sections: cleanedSectionsForSave
+                sections: sortedSectionsForSave
               })
             });
             
@@ -1764,6 +1767,9 @@ const EditorPageContent = () => {
         })),
       }))
 
+      // Sort sections by default order before saving
+      const sortedSections = sortSectionsByDefaultOrder(cleanedSections)
+
       const response = await fetch(
         `${config.apiBase}/api/resume/save?user_email=${encodeURIComponent(user.email)}`,
         {
@@ -1777,7 +1783,7 @@ const EditorPageContent = () => {
             phone: resumeData.phone || '',
             location: resumeData.location || '',
             summary: resumeData.summary || '',
-            sections: cleanedSections,
+            sections: sortedSections,
             template: selectedTemplate,
           }),
         }

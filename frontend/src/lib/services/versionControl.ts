@@ -1,5 +1,6 @@
 // Version Control Service for Frontend
 import config from '../config';
+import { sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication';
 
 export interface ResumeVersion {
   id: number;
@@ -120,6 +121,9 @@ class VersionControlService {
       }))
       .filter((section: any) => section.title.trim() !== '');
 
+    // Sort sections by default order before saving
+    const sortedSections = sortSectionsByDefaultOrder(sections)
+
     const payload = {
       name: resumeData.personalInfo.name.trim(),
       title: title.trim() || 'Professional',
@@ -127,7 +131,7 @@ class VersionControlService {
       phone: resumeData.personalInfo?.phone || '',
       location: resumeData.personalInfo?.location || '',
       summary: resumeData.summary || '',
-      sections: sections,
+      sections: sortedSections,
       template: resumeData.template || 'tech'
     };
 
