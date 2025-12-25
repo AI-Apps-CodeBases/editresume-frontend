@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useCallback, useState, useRef } from 'react'
 import UploadResume from '@/components/Editor/UploadResume'
 import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
-import { deduplicateSections } from '@/utils/sectionDeduplication'
+import { deduplicateSections, sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
 import { Brain, Sparkles, Search, AlertTriangle, Rocket } from 'lucide-react'
 
 const quickActions = [
@@ -22,6 +22,7 @@ export default function UploadPage() {
       // Use professional deduplication utility
       const sections = Array.isArray(data?.sections) ? data.sections : []
       const deduplicatedSections = deduplicateSections(sections)
+      const sortedSections = sortSectionsByDefaultOrder(deduplicatedSections)
       
       const normalizedResume = {
         name: data?.name || '',
@@ -30,7 +31,7 @@ export default function UploadPage() {
         phone: data?.phone || '',
         location: data?.location || '',
         summary: data?.summary || '',
-        sections: deduplicatedSections,
+        sections: sortedSections,
       }
 
       if (typeof window !== 'undefined') {

@@ -8,7 +8,7 @@ import { useModal } from '@/contexts/ModalContext'
 import { useUsageTracking } from '@/hooks/useUsageTracking'
 import { getOrCreateGuestSessionId } from '@/lib/guestAuth'
 import UpgradePrompt from '@/components/Shared/UpgradePrompt'
-import { deduplicateSections } from '@/utils/sectionDeduplication'
+import { deduplicateSections, sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GlobalReplacements from '@/components/AI/GlobalReplacements'
 import TemplateSelector from '@/components/Resume/TemplateSelector'
@@ -58,7 +58,8 @@ const mapTemplateId = (oldId: string): string => {
 
 const normalizeSectionsForState = (sections: any[]) => {
   const deduplicated = deduplicateSections(sections)
-  return deduplicated.map(section => ({
+  const sorted = sortSectionsByDefaultOrder(deduplicated)
+  return sorted.map(section => ({
     id: section.id,
     title: section.title,
     bullets: section.bullets.map(bullet => ({
