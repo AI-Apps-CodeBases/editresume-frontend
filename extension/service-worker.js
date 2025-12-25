@@ -331,6 +331,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true
   }
 
+  if (msg.type === 'SIDE_PANEL_CLOSED') {
+    // Path will be restored on next icon click via onClicked handler
+    sendResponse({ ok: true })
+    return true
+  }
+
   if (msg.type === 'GET_FIREBASE_TOKEN') {
     const isSilent = Boolean(msg.silent)
     
@@ -449,5 +455,77 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     setTimeout(() => handleExtensionAuthTab(tabId), 2000)
   } catch (err) {
     // Ignore invalid URLs
+  }
+})
+
+// Initialize extension mode on startup
+async function initializeExtensionMode() {
+  const { extensionMode } = await chrome.storage.sync.get({ extensionMode: 'sidepanel' })
+  
+  if (extensionMode === 'sidepanel') {
+    await chrome.action.setPopup({ popup: '' })
+    try {
+      await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+      await chrome.sidePanel.setOptions({
+        path: 'sidepanel.html'
+      })
+    } catch (err) {
+      console.error('Error setting side panel options:', err)
+    }
+  } else {
+    await chrome.action.setPopup({ popup: 'popup.html' })
+    try {
+      await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
+    } catch (err) {
+      console.error('Error setting side panel behavior:', err)
+    }
+  }
+}
+
+initializeExtensionMode()
+
+// Listen for storage changes to update mode
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName === 'sync' && changes.extensionMode) {
+    const newMode = changes.extensionMode.newValue || 'sidepanel'
+    if (newMode === 'sidepanel') {
+      await chrome.action.setPopup({ popup: '' })
+      try {
+        await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+        await chrome.sidePanel.setOptions({
+          path: 'sidepanel.html'
+        })
+      } catch (err) {
+        console.error('Error setting side panel options:', err)
+      }
+    } else {
+      await chrome.action.setPopup({ popup: 'popup.html' })
+      try {
+        await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
+      } catch (err) {
+        console.error('Error disabling side panel behavior:', err)
+      }
+    }
+  }
+})
+
+// Handle extension icon click for side panel mode (restore path if needed)
+chrome.action.onClicked.addListener(async (tab) => {
+  const { extensionMode } = await chrome.storage.sync.get({ extensionMode: 'sidepanel' })
+  
+  if (extensionMode === 'sidepanel') {
+    try {
+      const window = await chrome.windows.get(tab.windowId)
+      if (window) {
+        // Restore the path in case it was removed by exit button
+        await chrome.sidePanel.setOptions({
+          windowId: window.id,
+          path: 'sidepanel.html'
+        })
+        // openPanelOnActionClick should handle opening, but this ensures path is set
+      }
+    } catch (err) {
+      console.error('Error restoring side panel path:', err)
+    }
   }
 })
