@@ -33,6 +33,7 @@ interface RightPanelProps {
   templateConfig?: any
   deepLinkedJD?: string | null
   activeJobDescriptionId?: number | null
+  onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
 }
 
 export default function RightPanel({ 
@@ -45,7 +46,8 @@ export default function RightPanel({
   template = 'clean',
   templateConfig,
   deepLinkedJD,
-  activeJobDescriptionId
+  activeJobDescriptionId,
+  onViewChange
 }: RightPanelProps) {
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [aiImprovements, setAiImprovements] = useState<number>(0)
@@ -439,6 +441,7 @@ export default function RightPanel({
                 standalone={false}
                 initialJobDescription={deepLinkedJD || undefined}
                 currentJobDescriptionId={activeJobDescriptionId || undefined}
+                onViewChange={onViewChange}
               />
             </div>
           </div>

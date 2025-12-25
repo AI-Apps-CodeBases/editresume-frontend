@@ -227,6 +227,7 @@ export default function ModernEditorLayout({
                 templateConfig={templateConfig}
                 deepLinkedJD={deepLinkedJD}
                 activeJobDescriptionId={activeJobDescriptionId}
+                onViewChange={onViewChange}
               />
             </div>
             
@@ -260,6 +261,7 @@ export default function ModernEditorLayout({
                         templateConfig={templateConfig}
                         deepLinkedJD={deepLinkedJD}
                         activeJobDescriptionId={activeJobDescriptionId}
+                        onViewChange={onViewChange}
                       />
                     </div>
                   </div>
