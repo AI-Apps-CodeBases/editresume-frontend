@@ -66,6 +66,15 @@
 - Use typed contracts (TypeScript types, Zod schemas)
 - Keep domain logic separate from UI concerns
 
+## Design sysyesms
+Design System: Use a minimalist, modern SaaS aesthetic. 
+- Spacing: Use consistent 4px/8px (8, 16, 24, 32) spacing. 
+- Typography: Sans-serif fonts only (Inter, Geist, or Arial). 
+- Visual Noise: Reduce heavy borders and solid background colors. 
+- Interactivity: Secondary actions (Delete, AI Assistant) should be hidden until hover.
+- Feedback: Use subtle underlines for keyword matching instead of solid red/green blocks.
+
+
 
 
 

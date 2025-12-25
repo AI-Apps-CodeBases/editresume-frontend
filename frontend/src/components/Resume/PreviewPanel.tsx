@@ -75,15 +75,20 @@ export default function PreviewPanel({
       /* A4 Page dimensions: 210mm x 297mm (8.27in x 11.69in) */
       .a4-page-view {
         width: 8.27in;
-        min-height: 11.69in;
+        height: 11.69in;
         background: white;
         margin: 0 auto 20px auto;
-        padding: 0.1cm;
+        padding: 0.5cm;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         position: relative;
         page-break-after: always;
         box-sizing: border-box;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
       }
+      
       
       .a4-page-view .preview-resume-container {
         width: 100%;
@@ -134,41 +139,6 @@ export default function PreviewPanel({
         word-wrap: break-word;
       }
       
-      /* Page break indicator line at A4 page height (11.69in) - only show on pages that aren't the last */
-      .a4-page-view:not(:last-child)::after {
-        content: "";
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: repeating-linear-gradient(
-          to right,
-          #ef4444 0px,
-          #ef4444 15px,
-          transparent 15px,
-          transparent 30px
-        );
-        z-index: 10;
-        pointer-events: none;
-      }
-      
-      /* Page break label - only show on pages that aren't the last */
-      .a4-page-view:not(:last-child)::before {
-        content: "Page Break";
-        position: absolute;
-        bottom: 0.2cm;
-        right: 0.3cm;
-        font-size: 9px;
-        color: #ef4444;
-        background: white;
-        padding: 2px 8px;
-        border-radius: 3px;
-        border: 1px solid #ef4444;
-        z-index: 11;
-        font-weight: 600;
-        pointer-events: none;
-      }
       
       /* Container for all pages */
       .a4-pages-container {
@@ -197,6 +167,23 @@ export default function PreviewPanel({
         min-height: auto;
         transform: scale(1);
         transform-origin: top center;
+      }
+      
+      /* Ensure page break indicators are visible in constrained mode */
+      .a4-pages-container.constrained .a4-page-view:not(:last-child)::after {
+        display: block !important;
+      }
+      
+      .a4-pages-container.constrained .a4-page-view:not(:last-child)::before {
+        display: block !important;
+      }
+      
+      .a4-pages-container.constrained .page-break-marker {
+        display: block !important;
+      }
+      
+      .a4-pages-container.constrained .page-break-label {
+        display: block !important;
       }
       
       /* Scale down content in very narrow containers */
@@ -316,8 +303,32 @@ export default function PreviewPanel({
   const [rightSectionIds, setRightSectionIds] = useState<string[]>([])
   const [leftWidth, setLeftWidth] = useState(50)
   const contentRef = useRef<HTMLDivElement>(null)
+  const measureRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
+  const [contentHeight, setContentHeight] = useState(0)
   const SUMMARY_ID = '__summary__'
+  
+  // A4 page height in pixels (11.69in = ~1123px at 96dpi)
+  const A4_PAGE_HEIGHT_IN = 11.69
+  const A4_PAGE_HEIGHT_PX = A4_PAGE_HEIGHT_IN * 96
+  
+  // Measure content height and calculate page count
+  useEffect(() => {
+    const measure = () => {
+      if (measureRef.current) {
+        const height = measureRef.current.scrollHeight
+        setContentHeight(height)
+        // Account for padding (0.5cm top + 0.5cm bottom = ~38px)
+        const usableHeight = A4_PAGE_HEIGHT_PX - 76
+        const pages = Math.max(1, Math.ceil(height / usableHeight))
+        setPageCount(pages)
+      }
+    }
+    
+    // Measure after a short delay to ensure content is rendered
+    const timeoutId = setTimeout(measure, 100)
+    return () => clearTimeout(timeoutId)
+  }, [data, templateConfig, template, replacements])
 
   // Live-only PreviewPanel; page-level controls handle mode
 
@@ -549,25 +560,72 @@ export default function PreviewPanel({
     const TemplateComponent = templateEntry.Component
     const config = templateConfig as TemplateConfig
     
+    // Render pages for new template system
+    const renderTemplatePages = () => {
+      const paddingPx = pageMargin * 0.5 * 2
+      const usableHeight = A4_PAGE_HEIGHT_PX - paddingPx
+      
+      return Array.from({ length: pageCount }, (_, pageIndex) => {
+        const offsetY = -pageIndex * usableHeight
+        
+        return (
+          <div 
+            key={`page-${pageIndex + 1}`}
+            className="a4-page-view"
+            style={{ 
+              position: 'relative',
+              overflow: 'hidden',
+              padding: `${pageMargin * 0.5}px`
+            }}
+          >
+            <div className="page-number">Page {pageIndex + 1}</div>
+            <div
+              style={{
+                transform: `translateY(${offsetY}px)`,
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                padding: `${pageMargin * 0.5}px`,
+                width: '100%'
+              }}
+            >
+              <Suspense fallback={<div className="p-4 text-center text-gray-400">Loading template...</div>}>
+                <TemplateComponent
+                  data={data}
+                  config={config}
+                  replacements={replacements}
+                />
+              </Suspense>
+            </div>
+          </div>
+        )
+      })
+    }
+    
     return (
       <div className={`a4-pages-container${constrained ? ' constrained' : ''}`}>
+        {/* Hidden measurement container */}
         <div 
-          className="a4-page-view" 
+          ref={measureRef}
           style={{ 
-            position: 'relative', 
-            minHeight: 'auto',
-            padding: `${pageMargin * 0.5}px`
+            position: 'absolute', 
+            visibility: 'hidden', 
+            width: '8.27in',
+            padding: `${pageMargin * 0.5}px`,
+            pointerEvents: 'none',
+            top: 0,
+            left: '-9999px'
           }}
         >
-          <div className="page-number">Page 1</div>
-          <Suspense fallback={<div className="p-4 text-center text-gray-400">Loading template...</div>}>
-            <TemplateComponent
-              data={data}
-              config={config}
-              replacements={replacements}
-            />
-          </Suspense>
+          <TemplateComponent
+            data={data}
+            config={config}
+            replacements={replacements}
+          />
         </div>
+        {/* Render actual pages */}
+        {renderTemplatePages()}
       </div>
     )
   }
@@ -1201,36 +1259,60 @@ export default function PreviewPanel({
     </div>
   )
   
+  // Render content split across multiple A4 pages
+  const renderPages = () => {
+    const usableHeight = A4_PAGE_HEIGHT_PX - 76 // Account for padding
+    
+    return Array.from({ length: pageCount }, (_, pageIndex) => {
+      const offsetY = -pageIndex * usableHeight
+      
+      return (
+        <div 
+          key={`page-${pageIndex + 1}`}
+          className="a4-page-view"
+          style={{ 
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <div className="page-number">Page {pageIndex + 1}</div>
+          <div
+            style={{
+              transform: `translateY(${offsetY}px)`,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              padding: '0.5cm',
+              width: '100%'
+            }}
+          >
+            {renderContent()}
+          </div>
+        </div>
+      )
+    })
+  }
+  
   return (
     <div className={`a4-pages-container${constrained ? ' constrained' : ''}`}>
-      <div className="a4-page-view" style={{ position: 'relative', minHeight: 'auto' }}>
-        <div className="page-number">Page 1</div>
+      {/* Hidden measurement container */}
+      <div 
+        ref={measureRef}
+        style={{ 
+          position: 'absolute', 
+          visibility: 'hidden', 
+          width: '8.27in',
+          padding: '0.5cm',
+          pointerEvents: 'none',
+          top: 0,
+          left: '-9999px'
+        }}
+      >
         {renderContent()}
-        {/* Add page break markers dynamically */}
-        {Array.from({ length: pageCount - 1 }, (_, index) => {
-          const pageBreakPosition = (index + 1) * 11.69 // Position in inches
-          return (
-            <React.Fragment key={`break-${index}`}>
-              <div 
-                className="page-break-marker"
-                style={{ 
-                  top: `${pageBreakPosition}in`,
-                  position: 'absolute'
-                }}
-              />
-              <div 
-                className="page-break-label"
-                style={{ 
-                  top: `calc(${pageBreakPosition}in - 18px)`,
-                  position: 'absolute'
-                }}
-              >
-                Page {index + 2} Start
-              </div>
-            </React.Fragment>
-          )
-        })}
       </div>
+      {/* Render actual pages */}
+      {renderPages()}
     </div>
   )
 }

@@ -96,14 +96,15 @@ export default function ModernEditorLayout({
   onTemplatesClick,
   onShareResume,
 }: ModernEditorLayoutProps) {
-  const [activeRightTab, setActiveRightTab] = useState<'live' | 'match' | 'comments'>('live')
-  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
+  const [activeRightTab, setActiveRightTab] = useState<'preview' | 'job-description'>('preview')
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(true)
   const [showLeftDrawer, setShowLeftDrawer] = useState(false)
   const [showRightDrawer, setShowRightDrawer] = useState(false)
+  const [focusMode, setFocusMode] = useState(false)
 
   useEffect(() => {
-    if (deepLinkedJD && activeRightTab !== 'match') {
-      setActiveRightTab('match')
+    if (deepLinkedJD && activeRightTab !== 'job-description') {
+      setActiveRightTab('job-description')
     }
   }, [deepLinkedJD])
 
@@ -147,6 +148,8 @@ export default function ModernEditorLayout({
         onShareResume={onShareResume}
         onMenuClick={() => setShowLeftDrawer(true)}
         onRightPanelClick={() => setShowRightDrawer(true)}
+        focusMode={focusMode}
+        onFocusModeToggle={() => setFocusMode(!focusMode)}
       />
 
       <div className="flex flex-1 overflow-hidden mt-14">
@@ -165,7 +168,14 @@ export default function ModernEditorLayout({
           onCloseDrawer={() => setShowLeftDrawer(false)}
         />
 
-        <div className={`flex-1 lg:flex-[55] overflow-hidden transition-all duration-300 h-full ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
+        <div className={`flex-1 overflow-hidden transition-all duration-300 ease-in-out h-full ${
+          focusMode 
+            ? 'flex justify-center' 
+            : 'lg:flex-[55]'
+        } ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
+          <div className={`w-full h-full transition-all duration-300 ease-in-out ${
+            focusMode ? 'max-w-[700px]' : ''
+          }`}>
           {currentView === 'editor' ? (
             <div className="h-full overflow-y-auto bg-gradient-to-b from-primary-50/20 to-transparent pb-20 lg:pb-0">
               <VisualResumeEditor
@@ -196,11 +206,16 @@ export default function ModernEditorLayout({
               <ResumesView onBack={() => onViewChange?.('editor')} />
             </div>
           ) : null}
+          </div>
         </div>
 
         {currentView === 'editor' && (
           <>
-            <div className="hidden lg:block lg:flex-[45] overflow-hidden h-full">
+            <div className={`hidden lg:block overflow-hidden h-full transition-all duration-300 ease-in-out ${
+              focusMode 
+                ? 'w-0 opacity-0 pointer-events-none overflow-hidden' 
+                : 'lg:flex-[45] opacity-100'
+            }`}>
               <RightPanel 
                 activeTab={activeRightTab} 
                 onTabChange={setActiveRightTab}

@@ -239,67 +239,64 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
-      <div className={`bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200 transition-all ${parsedMetadata ? 'px-6 py-4' : ''}`}>
-        <h2 className={`font-semibold text-gray-900 transition-all ${parsedMetadata ? 'text-lg' : 'text-base'}`}>Job Description Analysis</h2>
-        <p className={`text-gray-600 mt-1 transition-all ${parsedMetadata ? 'text-sm' : 'text-xs'}`}>Scan job posting URLs or paste job description text to extract keywords</p>
+    <div className="bg-white rounded-[28px] border border-border-subtle shadow-card mb-6 overflow-hidden">
+      <div className="px-6 py-5 border-b border-border-subtle">
+        <h2 className="font-semibold text-lg text-gray-900">Job Description Analysis</h2>
+        <p className="text-sm text-gray-600 mt-1">Scan job posting URLs or paste job description text to extract keywords</p>
       </div>
       
       <div className={`grid grid-cols-1 lg:grid-cols-2 transition-all ${parsedMetadata ? 'min-h-[500px]' : 'min-h-[200px]'}`}>
-        {/* Left Panel - Parse Job Description */}
-        <div className={`border-r border-gray-200 transition-all ${parsedMetadata ? 'p-6' : 'p-4'}`}>
-          <div className={`flex items-center gap-2 transition-all ${parsedMetadata ? 'mb-4' : 'mb-3'}`}>
-            <div className={`bg-blue-100 rounded-lg flex items-center justify-center transition-all ${parsedMetadata ? 'w-8 h-8' : 'w-6 h-6'}`}>
-              <span className={`text-blue-600 font-semibold transition-all ${parsedMetadata ? 'text-sm' : 'text-xs'}`}>1</span>
+        <div className={`border-r border-border-subtle transition-all ${parsedMetadata ? 'p-6' : 'p-6'}`}>
+          <div className="flex items-center gap-2 mb-6">
+            <div className="bg-blue-100 rounded-lg flex items-center justify-center w-8 h-8">
+              <span className="text-blue-600 font-semibold text-sm">1</span>
             </div>
-            <h3 className={`font-semibold text-gray-900 transition-all ${parsedMetadata ? 'text-base' : 'text-sm'}`}>Input Job Description</h3>
+            <h3 className="font-semibold text-base text-gray-900">Input Job Description</h3>
           </div>
 
-          {/* Mode Toggle */}
-          <div className="mb-4 flex gap-2 border-b border-gray-200">
-            <button
-              type="button"
-              onClick={() => {
-                setInputMode('url')
-                setError(null)
-                setParsedMetadata(null)
-                setJobDescription('')
-                setScrapedKeywords(null)
-              }}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                inputMode === 'url'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              🔗 Scan URL
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setInputMode('text')
-                setError(null)
-                setParsedMetadata(null)
-                setJobDescription('')
-                setScrapedKeywords(null)
-              }}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                inputMode === 'text'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              📋 Paste Text
-            </button>
-          </div>
-          
-          <div className={`space-y-4 transition-all ${parsedMetadata ? '' : 'space-y-3'}`}>
-            {inputMode === 'url' ? (
-              <>
-                <div>
-                  <label className={`block font-medium text-gray-700 mb-2 transition-all ${parsedMetadata ? 'text-sm' : 'text-xs'}`}>
-                    Job Posting URL
-                  </label>
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-full max-w-md">
+              <div className="inline-flex bg-gray-100 rounded-lg p-1 w-full">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode('url')
+                    setError(null)
+                    setParsedMetadata(null)
+                    setJobDescription('')
+                    setScrapedKeywords(null)
+                  }}
+                  className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
+                    inputMode === 'url'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Scan URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode('text')
+                    setError(null)
+                    setParsedMetadata(null)
+                    setJobDescription('')
+                    setScrapedKeywords(null)
+                  }}
+                  className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
+                    inputMode === 'text'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Paste Text
+                </button>
+              </div>
+            </div>
+            
+            <div className="w-full max-w-md space-y-4">
+              {inputMode === 'url' ? (
+                <>
                   <input
                     type="url"
                     value={jobUrl}
@@ -311,24 +308,19 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
                       setError(null)
                     }}
                     placeholder="https://www.linkedin.com/jobs/view/..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                   />
-                </div>
 
-                <button
-                  onClick={handleParse}
-                  disabled={!jobUrl.trim() || isParsing}
-                  className={`w-full bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all ${parsedMetadata ? 'px-4 py-2.5' : 'px-3 py-2 text-sm'}`}
-                >
-                  {isParsing ? 'Scanning URL...' : 'Scan URL'}
-                </button>
-              </>
-            ) : (
-              <>
-                <div>
-                  <label className={`block font-medium text-gray-700 mb-2 transition-all ${parsedMetadata ? 'text-sm' : 'text-xs'}`}>
-                    Job Description Text
-                  </label>
+                  <button
+                    onClick={handleParse}
+                    disabled={!jobUrl.trim() || isParsing}
+                    className="w-full bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all px-4 py-2.5 text-sm"
+                  >
+                    {isParsing ? 'Scanning URL...' : 'Scan URL'}
+                  </button>
+                </>
+              ) : (
+                <>
                   <textarea
                     value={jobDescriptionText}
                     onChange={(e) => {
@@ -340,25 +332,25 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
                     }}
                     placeholder="Paste the full job description here..."
                     rows={parsedMetadata ? 12 : 8}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm resize-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm resize-none"
                   />
-                </div>
 
-                <button
-                  onClick={handleParse}
-                  disabled={!jobDescriptionText.trim() || isParsing}
-                  className={`w-full bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all ${parsedMetadata ? 'px-4 py-2.5' : 'px-3 py-2 text-sm'}`}
-                >
-                  {isParsing ? 'Parsing...' : 'Parse Job Description'}
-                </button>
-              </>
-            )}
+                  <button
+                    onClick={handleParse}
+                    disabled={!jobDescriptionText.trim() || isParsing}
+                    className="w-full bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all px-4 py-2.5 text-sm"
+                  >
+                    {isParsing ? 'Parsing...' : 'Parse Job Description'}
+                  </button>
+                </>
+              )}
 
-            {!isAuthenticated && (
-              <p className="text-xs text-gray-500 text-center">
-                Please sign in to save job descriptions
-              </p>
-            )}
+              {!isAuthenticated && (
+                <p className="text-xs text-gray-500 text-center">
+                  Please sign in to save job descriptions
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

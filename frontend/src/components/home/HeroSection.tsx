@@ -29,7 +29,7 @@ export default function HeroSection() {
         <div className="absolute -left-24 top-14 h-72 w-72 rounded-full bg-primary-100 blur-[140px]" />
         <div className="absolute -right-16 top-1/3 h-80 w-80 rounded-full bg-primary-200 blur-[160px]" />
       </div>
-      <div className="container-padding mx-auto max-w-7xl py-12 sm:py-16 lg:py-20">
+      <div className="container-padding mx-auto max-w-7xl pt-24 pb-0 sm:pt-28 sm:pb-2 lg:py-20">
         <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-16">
           <div className="relative z-10">
             <span className="badge-gradient">AI RESUME BUILDER</span>
