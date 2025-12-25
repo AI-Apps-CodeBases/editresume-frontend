@@ -34,6 +34,12 @@ export default function HeroSection() {
           Terms
         </Link>
         <Link 
+          href="/privacy" 
+          className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-white/95 backdrop-blur-md border border-border-subtle rounded-lg shadow-[0_4px_12px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.12)] transition-all duration-200"
+        >
+          Privacy
+        </Link>
+        <Link 
           href="/contact" 
           className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-white/95 backdrop-blur-md border border-border-subtle rounded-lg shadow-[0_4px_12px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.12)] transition-all duration-200"
         >
@@ -67,6 +73,9 @@ export default function HeroSection() {
                   create a new resume
                 </Link>
               </Tooltip>
+              <Link href="/onboarding" className="button-secondary text-sm">
+                onboarding
+              </Link>
             </div>
             <div className="mt-6">
               <a
