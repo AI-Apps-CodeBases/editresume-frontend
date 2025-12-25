@@ -24,6 +24,28 @@ export default function HeroSection() {
           />
         </Link>
       </div>
+
+      {/* Navigation Links */}
+      <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
+        <Link 
+          href="/terms" 
+          className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-white/95 backdrop-blur-md border border-border-subtle rounded-lg shadow-[0_4px_12px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.12)] transition-all duration-200"
+        >
+          Terms
+        </Link>
+        <Link 
+          href="/privacy" 
+          className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-white/95 backdrop-blur-md border border-border-subtle rounded-lg shadow-[0_4px_12px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.12)] transition-all duration-200"
+        >
+          Privacy
+        </Link>
+        <Link 
+          href="/contact" 
+          className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-white/95 backdrop-blur-md border border-border-subtle rounded-lg shadow-[0_4px_12px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.12)] transition-all duration-200"
+        >
+          Contact
+        </Link>
+      </div>
       
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -left-24 top-14 h-72 w-72 rounded-full bg-primary-100 blur-[140px]" />
@@ -51,6 +73,9 @@ export default function HeroSection() {
                   create a new resume
                 </Link>
               </Tooltip>
+              <Link href="/onboarding" className="button-secondary text-sm">
+                onboarding
+              </Link>
             </div>
             <div className="mt-6">
               <a
