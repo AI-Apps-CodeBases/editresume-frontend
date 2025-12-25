@@ -9,6 +9,7 @@ import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, StarIcon, FireIcon, DiamondIcon, RocketIcon, TargetIcon, SparklesIcon, TrophyIcon, MailIcon, DocumentIcon, ChartIcon, BrainIcon, FileTextIcon } from '@/components/Icons'
 import { BarChart3 } from 'lucide-react'
 import { StarRating } from '@/components/Shared/StarRating'
+import { deduplicateSections, sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
 
 interface JobResumeSummary {
   id: number
@@ -593,22 +594,12 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
        return
      }
  
-     // Deduplicate sections by title (case-insensitive) - keep first occurrence
+     // Use professional deduplication utility
      const sections = Array.isArray(data?.sections) ? data.sections : []
-     const seenTitles = new Map<string, number>() // Map to track first occurrence index
-     const deduplicatedSections = sections.filter((section: any, index: number) => {
-       if (!section || !section.title) return false
-       const titleLower = section.title.toLowerCase().trim()
-       if (seenTitles.has(titleLower)) {
-         const firstIndex = seenTitles.get(titleLower)!
-         console.warn(`⚠️ Removing duplicate section "${section.title}" during upload (job match) - keeping first occurrence at index ${firstIndex}`)
-         return false
-       }
-       seenTitles.set(titleLower, index)
-       return true
-     })
+     const deduplicatedSections = deduplicateSections(sections)
+     const sortedSections = sortSectionsByDefaultOrder(deduplicatedSections)
      
-     console.log(`📋 Deduplicated sections during upload (job match): ${sections.length} → ${deduplicatedSections.length}`)
+     console.log(`📋 Deduplicated and sorted sections during upload (job match): ${sections.length} → ${deduplicatedSections.length} → ${sortedSections.length}`)
  
      const normalizedResume = {
        name: data?.name || '',
@@ -617,7 +608,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
        phone: data?.phone || '',
        location: data?.location || '',
        summary: data?.summary || '',
-       sections: deduplicatedSections
+       sections: sortedSections
      }
  
      if (typeof window !== 'undefined') {

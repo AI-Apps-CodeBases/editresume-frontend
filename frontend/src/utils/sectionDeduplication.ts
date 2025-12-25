@@ -173,3 +173,88 @@ export function deduplicateSections(sections: Section[]): Section[] {
   return Array.from(sectionMap.values())
 }
 
+const DEFAULT_SECTION_ORDER = [
+  'title section',
+  'title',
+  'contact information',
+  'contact',
+  'professional summary',
+  'summary',
+  'work experience',
+  'skills',
+  'certifications',
+  'education'
+]
+
+function getSectionOrderIndex(title: string): number {
+  const titleLower = title.toLowerCase().trim()
+  const normalized = normalizeSectionTitle(title)
+  
+  // Handle title section (must be first)
+  if (titleLower.includes('title section') || (titleLower.includes('title') && titleLower.includes('section'))) {
+    return 0
+  }
+  
+  // Handle title (second)
+  if (titleLower.includes('title') && !titleLower.includes('section')) {
+    return 1
+  }
+  
+  // Handle contact information (third)
+  if (titleLower.includes('contact information') || (titleLower.includes('contact') && titleLower.includes('information'))) {
+    return 2
+  }
+  
+  // Handle contact (fourth)
+  if (titleLower.includes('contact')) {
+    return 3
+  }
+  
+  // Handle professional summary (fifth)
+  if (titleLower.includes('professional summary') || (titleLower.includes('professional') && titleLower.includes('summary'))) {
+    return 4
+  }
+  
+  // Handle summary (sixth)
+  if (normalized === 'summary' || titleLower.includes('summary')) {
+    return 5
+  }
+  
+  // Handle work experience using normalized title (seventh)
+  if (normalized === 'work experience') {
+    return 6
+  }
+  
+  // Handle skills using normalized title (eighth)
+  if (normalized === 'skills') {
+    return 7
+  }
+  
+  // Handle certifications using normalized title (ninth)
+  if (normalized === 'certifications') {
+    return 8
+  }
+  
+  // Handle education using normalized title (tenth)
+  if (normalized === 'education') {
+    return 9
+  }
+  
+  // All other sections go after
+  return DEFAULT_SECTION_ORDER.length
+}
+
+export function sortSectionsByDefaultOrder(sections: Section[]): Section[] {
+  if (!Array.isArray(sections) || sections.length === 0) {
+    return []
+  }
+  
+  const sorted = [...sections].sort((a, b) => {
+    const indexA = getSectionOrderIndex(a.title)
+    const indexB = getSectionOrderIndex(b.title)
+    return indexA - indexB
+  })
+  
+  return sorted
+}
+
