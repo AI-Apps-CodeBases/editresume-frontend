@@ -423,6 +423,8 @@ const EditorPageContent = () => {
       localStorage.removeItem('deepLinkedJD')
       localStorage.removeItem('activeJobDescriptionId')
       localStorage.removeItem('extractedKeywords')
+      localStorage.removeItem('currentJDKeywords')
+      localStorage.removeItem('currentMatchResult')
       setDeepLinkedJD(null)
       setActiveJobDescriptionId(null)
     }
@@ -435,6 +437,8 @@ const EditorPageContent = () => {
         localStorage.removeItem('deepLinkedJD')
         localStorage.removeItem('activeJobDescriptionId')
         localStorage.removeItem('extractedKeywords')
+        localStorage.removeItem('currentJDKeywords')
+        localStorage.removeItem('currentMatchResult')
         setDeepLinkedJD(null)
         setActiveJobDescriptionId(null)
       }
@@ -648,6 +652,8 @@ const EditorPageContent = () => {
       }
       // Clear JD if no jdId in URL
       localStorage.removeItem('deepLinkedJD');
+      localStorage.removeItem('currentJDKeywords');
+      localStorage.removeItem('currentMatchResult');
       return null;
     }
     return null;
@@ -662,6 +668,8 @@ const EditorPageContent = () => {
       }
       // Clear JD ID if no jdId in URL
       localStorage.removeItem('activeJobDescriptionId');
+      localStorage.removeItem('currentJDKeywords');
+      localStorage.removeItem('currentMatchResult');
       return null;
     }
     return null;
@@ -719,6 +727,8 @@ const EditorPageContent = () => {
       localStorage.removeItem('deepLinkedJD')
       localStorage.removeItem('activeJobDescriptionId')
       localStorage.removeItem('extractedKeywords')
+      localStorage.removeItem('currentJDKeywords')
+      localStorage.removeItem('currentMatchResult')
       setDeepLinkedJD(null)
       setActiveJobDescriptionId(null)
     }
@@ -812,6 +822,8 @@ const EditorPageContent = () => {
            localStorage.removeItem('deepLinkedJD')
            localStorage.removeItem('activeJobDescriptionId')
            localStorage.removeItem('extractedKeywords')
+           localStorage.removeItem('currentJDKeywords')
+           localStorage.removeItem('currentMatchResult')
            setDeepLinkedJD(null)
            setActiveJobDescriptionId(null)
          }
@@ -995,6 +1007,8 @@ const EditorPageContent = () => {
         localStorage.removeItem('deepLinkedJD')
         localStorage.removeItem('activeJobDescriptionId')
         localStorage.removeItem('extractedKeywords')
+        localStorage.removeItem('currentJDKeywords')
+        localStorage.removeItem('currentMatchResult')
         setDeepLinkedJD(null)
         setActiveJobDescriptionId(null)
       }
@@ -2229,6 +2243,8 @@ const EditorPageContent = () => {
       localStorage.removeItem('deepLinkedJD')
       localStorage.removeItem('activeJobDescriptionId')
       localStorage.removeItem('extractedKeywords')
+      localStorage.removeItem('currentJDKeywords')
+      localStorage.removeItem('currentMatchResult')
       // Navigate to the new resume flow
       router.push('/editor?new=true')
     }

@@ -51,7 +51,9 @@ export default function UploadPage() {
             'twoColumnLeftWidth',
             'deepLinkedJD',
             'activeJobDescriptionId',
-            'extractedKeywords'
+            'extractedKeywords',
+            'currentJDKeywords',
+            'currentMatchResult'
           ]
           keysToRemove.forEach(key => window.localStorage.removeItem(key))
           

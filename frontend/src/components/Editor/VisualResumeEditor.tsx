@@ -253,17 +253,29 @@ export default function VisualResumeEditor({
   const [matchResult, setMatchResult] = useState<any>(null);
 
   // Load jdKeywords and matchResult from localStorage on mount
+  // Only load if there's a JD selected (deepLinkedJD or activeJobDescriptionId exists)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        // Load jdKeywords
+        // Check if there's a JD selected - only load keywords if JD exists
+        const deepLinkedJD = localStorage.getItem('deepLinkedJD');
+        const activeJobDescriptionId = localStorage.getItem('activeJobDescriptionId');
+        
+        if (!deepLinkedJD && !activeJobDescriptionId) {
+          // No JD selected - clear keywords state
+          setJdKeywords(null);
+          setMatchResult(null);
+          return;
+        }
+        
+        // Load jdKeywords only if JD exists
         const savedKeywords = localStorage.getItem('currentJDKeywords');
         if (savedKeywords) {
           const parsed = JSON.parse(savedKeywords);
           setJdKeywords(parsed);
         }
         
-        // Load matchResult
+        // Load matchResult only if JD exists
         const savedMatchResult = localStorage.getItem('currentMatchResult');
         if (savedMatchResult) {
           const parsed = JSON.parse(savedMatchResult);
@@ -764,22 +776,10 @@ export default function VisualResumeEditor({
     return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
   }, []);
 
-  // Load JD keywords from localStorage
+  // Clean any HTML from resume data on mount (for old data compatibility)
+  // This prevents hydration errors from old data that might have HTML stored
+  // Only run once on initial mount, not on every data change
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('currentJDKeywords');
-        if (stored) {
-          setJdKeywords(JSON.parse(stored));
-        }
-      } catch (e) {
-        console.error('Failed to load JD keywords:', e);
-      }
-    }
-
-    // Clean any HTML from resume data on mount (for old data compatibility)
-    // This prevents hydration errors from old data that might have HTML stored
-    // Only run once on initial mount, not on every data change
     if (!hasCleanedDataRef.current && data.summary && (data.summary.includes('<') || data.summary.includes('&'))) {
       const cleanedSummary = cleanTextContent(data.summary);
       if (cleanedSummary !== data.summary) {
@@ -794,9 +794,31 @@ export default function VisualResumeEditor({
     // Listen for storage changes (when match is done)
     const handleStorageChange = () => {
       try {
+        // Check if JD still exists - only load keywords if JD exists
+        const deepLinkedJD = localStorage.getItem('deepLinkedJD');
+        const activeJobDescriptionId = localStorage.getItem('activeJobDescriptionId');
+        
+        if (!deepLinkedJD && !activeJobDescriptionId) {
+          // No JD selected - clear keywords
+          setJdKeywords(null);
+          setMatchResult(null);
+          return;
+        }
+        
         const stored = localStorage.getItem('currentJDKeywords');
         if (stored) {
           setJdKeywords(JSON.parse(stored));
+        } else {
+          // Keywords cleared - clear state
+          setJdKeywords(null);
+        }
+        
+        const storedMatchResult = localStorage.getItem('currentMatchResult');
+        if (storedMatchResult) {
+          setMatchResult(JSON.parse(storedMatchResult));
+        } else {
+          // Match result cleared - clear state
+          setMatchResult(null);
         }
       } catch (e) {
         console.error('Failed to load JD keywords:', e);
