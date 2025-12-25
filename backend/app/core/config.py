@@ -50,6 +50,7 @@ class Settings(BaseSettings):
         default=None, env="STRIPE_WEBHOOK_SECRET"
     )
     stripe_price_id: Optional[str] = Field(default=None, env="STRIPE_PRICE_ID")
+    stripe_trial_price_id: Optional[str] = Field(default=None, env="STRIPE_TRIAL_PRICE_ID")
     stripe_success_url: Optional[str] = Field(default=None, env="STRIPE_SUCCESS_URL")
     stripe_cancel_url: Optional[str] = Field(default=None, env="STRIPE_CANCEL_URL")
     stripe_portal_return_url: Optional[str] = Field(

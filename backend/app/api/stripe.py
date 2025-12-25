@@ -28,6 +28,12 @@ class CheckoutSessionRequest(BaseModel):
     cancelUrl: Optional[str] = Field(
         default=None, description="Override the default cancel URL"
     )
+    priceId: Optional[str] = Field(
+        default=None, description="Stripe price ID (overrides default and planType)"
+    )
+    planType: Optional[str] = Field(
+        default=None, description="Plan type: 'trial' or 'premium' (uses corresponding price ID)"
+    )
 
 
 class CheckoutSessionResponse(BaseModel):
@@ -86,7 +92,16 @@ async def create_checkout_session(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Stripe is not configured.",
         )
-    if not settings.stripe_price_id:
+    
+    # Determine price ID: explicit priceId > planType-based > default
+    if payload.priceId:
+        price_id = payload.priceId
+    elif payload.planType == 'trial':
+        price_id = settings.stripe_trial_price_id or settings.stripe_price_id
+    else:
+        price_id = settings.stripe_price_id
+    
+    if not price_id:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Stripe price ID missing.",
@@ -110,7 +125,7 @@ async def create_checkout_session(
             mode="subscription",
             line_items=[
                 {
-                    "price": settings.stripe_price_id,
+                    "price": price_id,
                     "quantity": 1,
                 }
             ],

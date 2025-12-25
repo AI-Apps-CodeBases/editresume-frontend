@@ -163,7 +163,7 @@ function BillingContent() {
     setStartingTrial(false)
   }
 
-  const handleCheckout = async (period: 'monthly' | 'annual' = 'monthly') => {
+  const handleCheckout = async (period: 'monthly' | 'annual' = 'monthly', planType: 'trial' | 'premium' = 'premium') => {
     if (checkoutLoading) return
     const currentUser = auth.currentUser
     if (!currentUser) {
@@ -186,7 +186,8 @@ function BillingContent() {
         body: JSON.stringify({
           successUrl: returnUrl,
           cancelUrl: returnUrl,
-          priceId: period === 'annual' ? 'price_annual' : undefined // You'll need to set up annual price in Stripe
+          priceId: period === 'annual' ? 'price_annual' : undefined,
+          planType: planType
         })
       })
 
@@ -473,7 +474,7 @@ function BillingContent() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleCheckout(billingPeriod)}
+                      onClick={() => handleCheckout(billingPeriod, 'premium')}
                       disabled={checkoutLoading}
                       className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                     >
@@ -482,7 +483,7 @@ function BillingContent() {
                   )
                 ) : plan.id === 'trial' ? (
                   <button
-                    onClick={() => handleCheckout('monthly')}
+                    onClick={() => handleCheckout('monthly', 'trial')}
                     disabled={checkoutLoading}
                     className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                   >
