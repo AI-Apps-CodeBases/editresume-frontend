@@ -9,6 +9,7 @@ interface AlertOptions {
   message: string
   type?: 'success' | 'error' | 'info' | 'warning'
   icon?: string
+  onUpgrade?: () => void
 }
 
 interface ConfirmOptions {
@@ -95,6 +96,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         message={alertState.message}
         type={alertState.type}
         icon={alertState.icon}
+        onUpgrade={alertState.onUpgrade}
       />
       <ConfirmModal
         isOpen={confirmState.isOpen}

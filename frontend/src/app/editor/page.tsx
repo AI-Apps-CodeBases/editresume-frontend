@@ -1333,8 +1333,11 @@ const EditorPageContent = () => {
       console.log('Premium mode - access denied')
       await showAlert({
         type: 'info',
-        message: '⭐ Premium feature! Upgrade to export resumes.',
-        title: 'Premium Feature'
+        message: 'This is a premium feature. Upgrade to export your resume in PDF or DOCX format.',
+        title: 'Premium Feature',
+        onUpgrade: () => {
+          router.push('/profile')
+        }
       })
       return
     }
