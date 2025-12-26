@@ -10,7 +10,7 @@ export default function Pricing() {
   const isFreeUser = !user?.isPremium && !user?.trialActive
 
   return (
-    <section className="py-24 bg-gradient-to-b from-white to-gray-50">
+    <section id="pricing" className="py-24 bg-gradient-to-b from-white to-gray-50">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="text-center mb-16">
           <h2 className="text-base font-semibold text-primary mb-2 tracking-wider">PRICING</h2>
@@ -39,8 +39,8 @@ export default function Pricing() {
                 'All professional templates',
                 '3 PDF/DOCX exports per month',
                 '5 AI improvements per session',
-                '10 grammar checks per day',
-                '1 ATS score per day',
+                'Unlimited ATS scores (always free)',
+                'Job match analytics (1 resume)',
                 '1 cover letter per month'
               ].map((feature, index) => (
                 <li key={index} className="flex items-start gap-2">
@@ -147,7 +147,6 @@ export default function Pricing() {
                 'Unlimited PDF/DOCX exports',
                 'All premium templates',
                 'Unlimited AI improvements',
-                'Unlimited grammar checks',
                 'Unlimited ATS scoring',
                 'Unlimited cover letters',
                 'Job match analytics'

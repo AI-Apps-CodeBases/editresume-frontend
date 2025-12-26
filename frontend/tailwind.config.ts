@@ -74,8 +74,8 @@ export default {
         'navy-glow': 'radial-gradient(circle at top, rgba(15,98,254,0.18), transparent 55%)',
       },
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', ...defaultTheme.fontFamily.sans],
-        display: ['"Plus Jakarta Sans"', ...defaultTheme.fontFamily.sans],
+        sans: ['Inter', 'var(--font-sans)', ...defaultTheme.fontFamily.sans],
+        display: ['Inter', 'var(--font-sans)', ...defaultTheme.fontFamily.sans],
       },
       borderRadius: {
         '2xl': '1.25rem',

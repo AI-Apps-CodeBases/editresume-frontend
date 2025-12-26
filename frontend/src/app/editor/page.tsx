@@ -19,7 +19,6 @@ import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 import EnhancedATSScoreWidget from '@/components/AI/EnhancedATSScoreWidget'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
 import AIImprovementWidget from '@/components/AI/AIImprovementWidget'
-import GrammarStylePanel from '@/components/AI/GrammarStylePanel'
 import VersionControlPanel from '@/components/Resume/VersionControlPanel'
 import VersionComparisonModal from '@/components/Resume/VersionComparisonModal'
 import ExportAnalyticsDashboard from '@/components/Resume/ExportAnalyticsDashboard'
@@ -113,9 +112,7 @@ const EditorPageContent = () => {
   const [showTemplateDesignPage, setShowTemplateDesignPage] = useState(false)
   const [templateConfig, setTemplateConfig] = useState<TemplateConfig | undefined>(undefined)
   const [currentResumeId, setCurrentResumeId] = useState<number | null>(null)
-  const [grammarEnabled, setGrammarEnabled] = useState(false)
   const [commentsEnabled, setCommentsEnabled] = useState(false)
-  const [showGrammarPanel, setShowGrammarPanel] = useState(false)
   const [showCommentsPanel, setShowCommentsPanel] = useState(false)
   const [comparisonVersions, setComparisonVersions] = useState<{ version1Id: number; version2Id: number } | null>(null)
   const [roomId, setRoomId] = useState<string | null>(null)
@@ -1336,8 +1333,11 @@ const EditorPageContent = () => {
       console.log('Premium mode - access denied')
       await showAlert({
         type: 'info',
-        message: '⭐ Premium feature! Upgrade to export resumes.',
-        title: 'Premium Feature'
+        message: 'This is a premium feature. Upgrade to export your resume in PDF or DOCX format.',
+        title: 'Premium Feature',
+        onUpgrade: () => {
+          router.push('/profile')
+        }
       })
       return
     }

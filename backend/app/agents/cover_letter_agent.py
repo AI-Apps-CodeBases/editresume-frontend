@@ -68,6 +68,99 @@ class CoverLetterAgent:
 
         return result
 
+    def _build_full_letter_from_structure(
+        self, parsed_content: dict, company_name: str, position_title: str
+    ) -> str:
+        """Build full letter from structured JSON response."""
+        parts = []
+        
+        # Title
+        title = f"{position_title} at {company_name}"
+        parts.append(title)
+        parts.append("")
+        
+        # Date
+        date = parsed_content.get("date", "")
+        if date:
+            parts.append(date)
+            parts.append("")
+        
+        # Sender contact info (name and email only, no phone)
+        sender_contact = parsed_content.get("sender_contact", {})
+        if isinstance(sender_contact, dict):
+            sender_parts = []
+            if sender_contact.get("name"):
+                sender_parts.append(sender_contact["name"])
+            if sender_contact.get("email"):
+                sender_parts.append(sender_contact["email"])
+            # Skip phone number - not needed
+            if sender_contact.get("location"):
+                sender_parts.append(sender_contact["location"])
+            if sender_parts:
+                parts.append("\n".join(sender_parts))
+                parts.append("")
+        elif isinstance(sender_contact, str) and sender_contact.strip():
+            # Filter out phone numbers from string format
+            contact_lines = sender_contact.strip().split("\n")
+            filtered_lines = [
+                line for line in contact_lines
+                if not (line.strip() and any(char.isdigit() and len(line.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")) >= 10 for char in line) and "@" not in line)
+            ]
+            if filtered_lines:
+                parts.append("\n".join(filtered_lines))
+                parts.append("")
+        
+        # Recipient info
+        recipient_info = parsed_content.get("recipient_info", "")
+        if recipient_info:
+            parts.append(recipient_info)
+            parts.append("")
+        
+        # Salutation
+        salutation = parsed_content.get("salutation", "Dear Hiring Manager,")
+        parts.append(salutation)
+        parts.append("")
+        
+        # Opening paragraph
+        opening = parsed_content.get("opening_paragraph") or parsed_content.get("opening", "")
+        if opening:
+            parts.append(opening.strip())
+            parts.append("")
+        
+        # Body paragraphs
+        body_paragraphs = parsed_content.get("body_paragraphs", [])
+        if isinstance(body_paragraphs, list) and len(body_paragraphs) > 0:
+            for para in body_paragraphs:
+                if para and para.strip():
+                    parts.append(para.strip())
+                    parts.append("")
+        else:
+            # Fallback to old body field
+            body = parsed_content.get("body", "")
+            if body:
+                parts.append(body.strip())
+                parts.append("")
+        
+        # Closing paragraph
+        closing_para = parsed_content.get("closing_paragraph") or parsed_content.get("closing", "")
+        if closing_para:
+            parts.append(closing_para.strip())
+            parts.append("")
+        
+        # Closing
+        closing = parsed_content.get("closing", "Sincerely,")
+        parts.append(closing)
+        parts.append("")
+        
+        # Signature
+        signature = parsed_content.get("signature_line", "")
+        if signature:
+            parts.append(signature)
+        
+        full_letter = "\n".join(parts)
+        full_letter = re.sub(r"\n{3,}", "\n\n", full_letter)
+        return full_letter.strip()
+
     def _ensure_title_and_formatting(
         self, full_letter: str, company_name: str, position_title: str
     ) -> str:
@@ -75,11 +168,12 @@ class CoverLetterAgent:
         if not full_letter:
             return full_letter
 
-        title = f"Cover Letter for {company_name} for {position_title}"
+        title = f"{position_title} at {company_name}"
 
         cleaned_letter = self._sanitize_cover_letter(full_letter, company_name, position_title)
 
-        if not cleaned_letter.startswith(title):
+        # Check if letter already has a title, if not add it
+        if not cleaned_letter.startswith(title) and not cleaned_letter.startswith("Cover Letter"):
             cleaned_letter = f"{title}\n\n{cleaned_letter}"
 
         cleaned_letter = re.sub(r"\n{3,}", "\n\n", cleaned_letter)
@@ -123,7 +217,7 @@ class CoverLetterAgent:
             data = {
                 "model": self.openai_client["model"],
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 1000,
+                "max_tokens": 2000,
                 "temperature": 0.7,
             }
 
@@ -152,32 +246,67 @@ class CoverLetterAgent:
                     "full_letter": cover_letter_content,
                 }
 
-            # Sanitize all fields to remove placeholders
-            if "opening" in parsed_content:
-                parsed_content["opening"] = self._sanitize_cover_letter(
-                    parsed_content["opening"], company_name, position_title
+            # Check if we have the new structured format
+            has_new_structure = any(
+                key in parsed_content
+                for key in [
+                    "date",
+                    "sender_contact",
+                    "recipient_info",
+                    "salutation",
+                    "opening_paragraph",
+                    "body_paragraphs",
+                    "closing_paragraph",
+                    "signature_line",
+                ]
+            )
+
+            if has_new_structure:
+                # Build full_letter from new structure
+                parsed_content["full_letter"] = self._build_full_letter_from_structure(
+                    parsed_content, company_name, position_title
                 )
-            if "body" in parsed_content:
-                parsed_content["body"] = self._sanitize_cover_letter(
-                    parsed_content["body"], company_name, position_title
-                )
-            if "closing" in parsed_content:
-                parsed_content["closing"] = self._sanitize_cover_letter(
-                    parsed_content["closing"], company_name, position_title
-                )
-            if "full_letter" in parsed_content:
-                parsed_content["full_letter"] = self._ensure_title_and_formatting(
-                    parsed_content["full_letter"], company_name, position_title
-                )
+                
+                # Also populate old fields for backward compatibility
+                if "opening_paragraph" in parsed_content:
+                    parsed_content["opening"] = parsed_content["opening_paragraph"]
+                if "body_paragraphs" in parsed_content:
+                    body_paragraphs = parsed_content["body_paragraphs"]
+                    if isinstance(body_paragraphs, list):
+                        parsed_content["body"] = "\n\n".join(body_paragraphs)
+                    else:
+                        parsed_content["body"] = str(body_paragraphs)
+                if "closing_paragraph" in parsed_content:
+                    parsed_content["closing"] = parsed_content["closing_paragraph"]
             else:
-                # Rebuild full_letter if missing
-                opening = parsed_content.get("opening", "")
-                body = parsed_content.get("body", "")
-                closing = parsed_content.get("closing", "")
-                full_letter = f"{opening}\n\n{body}\n\n{closing}".strip()
-                parsed_content["full_letter"] = self._ensure_title_and_formatting(
-                    full_letter, company_name, position_title
-                )
+                # Handle old format - sanitize fields
+                if "opening" in parsed_content:
+                    parsed_content["opening"] = self._sanitize_cover_letter(
+                        parsed_content["opening"], company_name, position_title
+                    )
+                if "body" in parsed_content:
+                    parsed_content["body"] = self._sanitize_cover_letter(
+                        parsed_content["body"], company_name, position_title
+                    )
+                if "closing" in parsed_content:
+                    parsed_content["closing"] = self._sanitize_cover_letter(
+                        parsed_content["closing"], company_name, position_title
+                    )
+                
+                # Build or sanitize full_letter
+                if "full_letter" in parsed_content:
+                    parsed_content["full_letter"] = self._ensure_title_and_formatting(
+                        parsed_content["full_letter"], company_name, position_title
+                    )
+                else:
+                    # Rebuild full_letter from old structure
+                    opening = parsed_content.get("opening", "")
+                    body = parsed_content.get("body", "")
+                    closing = parsed_content.get("closing", "")
+                    full_letter = f"{opening}\n\n{body}\n\n{closing}".strip()
+                    parsed_content["full_letter"] = self._ensure_title_and_formatting(
+                        full_letter, company_name, position_title
+                    )
 
             return {
                 "success": True,

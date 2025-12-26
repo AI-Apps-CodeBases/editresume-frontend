@@ -61,7 +61,13 @@ export default function TemplateDesignPage({
   const handleConfigUpdate = (updates: Partial<TemplateConfig>) => {
     // Deep merge the updates with existing config
     const newConfig: TemplateConfig = {
-      layout: { ...localConfig!.layout, ...(updates.layout || {}) },
+      layout: { 
+        ...localConfig!.layout, 
+        ...(updates.layout || {}),
+        // Preserve twoColumnLeft and twoColumnRight if they exist
+        twoColumnLeft: updates.layout?.twoColumnLeft ?? localConfig!.layout.twoColumnLeft,
+        twoColumnRight: updates.layout?.twoColumnRight ?? localConfig!.layout.twoColumnRight,
+      },
       typography: {
         ...localConfig!.typography,
         ...(updates.typography || {}),

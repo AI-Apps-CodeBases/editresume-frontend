@@ -13,7 +13,6 @@ from app.core.openai_client import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MAX_TOKE
 from app.services.ai_improvement_engine import AIResumeImprovementEngine
 from app.services.ats_service import ATSChecker
 from app.services.enhanced_ats_service import EnhancedATSChecker
-from app.services.grammar_service import GrammarStyleChecker
 from app.services.keyword_service import KeywordExtractor
 
 logger = logging.getLogger(__name__)
@@ -23,7 +22,6 @@ try:
     from app.agents.ats_scoring_agent import ATSScoringAgent
     from app.agents.content_generation_agent import ContentGenerationAgent
     from app.agents.cover_letter_agent import CoverLetterAgent
-    from app.agents.grammar_agent import GrammarAgent
     from app.agents.improvement_agent import ImprovementAgent
     from app.agents.job_matching_agent import JobMatchingAgent
     logger.debug("All agent imports successful")
@@ -32,7 +30,6 @@ except ImportError as e:
     ATSScoringAgent = None
     ContentGenerationAgent = None
     CoverLetterAgent = None
-    GrammarAgent = None
     ImprovementAgent = None
     JobMatchingAgent = None
 else:
@@ -69,16 +66,14 @@ except Exception as e:
     logger.warning(f"AI Improvement Engine not available: {e}")
     ai_improvement_engine = None
 
-# Initialize keyword extractor and grammar checker
+# Initialize keyword extractor
 keyword_extractor = KeywordExtractor()
-grammar_checker = GrammarStyleChecker()
 
 # Initialize AI agents
 ats_scoring_agent: Optional[ATSScoringAgent] = None
 cover_letter_agent: Optional[CoverLetterAgent] = None
 content_generation_agent: Optional[ContentGenerationAgent] = None
 improvement_agent: Optional[ImprovementAgent] = None
-grammar_agent: Optional[GrammarAgent] = None
 job_matching_agent: Optional[JobMatchingAgent] = None
 
 try:
@@ -109,13 +104,6 @@ try:
 except Exception as e:
     logger.warning(f"Improvement agent not available: {e}")
     improvement_agent = None
-
-try:
-    grammar_agent = GrammarAgent()
-    logger.info("Grammar agent initialized successfully")
-except Exception as e:
-    logger.warning(f"Grammar agent not available: {e}")
-    grammar_agent = None
 
 try:
     if JobMatchingAgent is None:

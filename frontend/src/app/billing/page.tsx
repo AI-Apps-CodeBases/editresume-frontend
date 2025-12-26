@@ -42,8 +42,8 @@ const plans: Plan[] = [
       'Visual resume editor',
       '3 PDF/DOCX exports per month',
       '5 AI improvements per session',
-      '10 grammar checks per day',
-      '1 ATS score per day',
+      'Unlimited ATS scores (always free)',
+      'Job match analytics (1 resume)',
       '1 cover letter per month'
     ]
   },
@@ -71,7 +71,6 @@ const plans: Plan[] = [
       'Unlimited PDF/DOCX exports',
       'All premium templates',
       'Unlimited AI improvements',
-      'Unlimited grammar checks',
       'Unlimited ATS scoring',
       'Unlimited cover letters',
       'Job match analytics & insights',
@@ -163,7 +162,7 @@ function BillingContent() {
     setStartingTrial(false)
   }
 
-  const handleCheckout = async (period: 'monthly' | 'annual' = 'monthly') => {
+  const handleCheckout = async (period: 'monthly' | 'annual' = 'monthly', planType: 'trial' | 'premium' = 'premium') => {
     if (checkoutLoading) return
     const currentUser = auth.currentUser
     if (!currentUser) {
@@ -186,7 +185,8 @@ function BillingContent() {
         body: JSON.stringify({
           successUrl: returnUrl,
           cancelUrl: returnUrl,
-          priceId: period === 'annual' ? 'price_annual' : undefined // You'll need to set up annual price in Stripe
+          planType: planType,
+          period: period
         })
       })
 
@@ -361,40 +361,14 @@ function BillingContent() {
                 )}
               </div>
             )}
-            {usageStats.features.grammar && (
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Grammar Checks</span>
-                  <span className="text-sm text-gray-600">
-                    {usageStats.features.grammar.current_usage} / {usageStats.features.grammar.limit ?? '∞'}
-                  </span>
-                </div>
-                {usageStats.features.grammar.limit && (
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-primary-600 h-2 rounded-full transition-all"
-                      style={{ width: `${Math.min(100, (usageStats.features.grammar.current_usage / usageStats.features.grammar.limit) * 100)}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
             {usageStats.features.ats && (
               <div className="p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">ATS Scores</span>
-                  <span className="text-sm text-gray-600">
-                    {usageStats.features.ats.current_usage} / {usageStats.features.ats.limit ?? '∞'}
+                  <span className="text-sm text-gray-600 font-semibold text-green-600">
+                    Always Free - Unlimited
                   </span>
                 </div>
-                {usageStats.features.ats.limit && (
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-primary-600 h-2 rounded-full transition-all"
-                      style={{ width: `${Math.min(100, (usageStats.features.ats.current_usage / usageStats.features.ats.limit) * 100)}%` }}
-                    />
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -473,7 +447,7 @@ function BillingContent() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleCheckout(billingPeriod)}
+                      onClick={() => handleCheckout(billingPeriod, 'premium')}
                       disabled={checkoutLoading}
                       className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                     >
@@ -482,7 +456,7 @@ function BillingContent() {
                   )
                 ) : plan.id === 'trial' ? (
                   <button
-                    onClick={() => handleCheckout('monthly')}
+                    onClick={() => handleCheckout('monthly', 'trial')}
                     disabled={checkoutLoading}
                     className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                   >

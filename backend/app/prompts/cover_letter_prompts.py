@@ -1,6 +1,7 @@
 """Cover letter generation prompts."""
 
 from __future__ import annotations
+from datetime import datetime
 
 
 def get_cover_letter_prompt(
@@ -33,14 +34,16 @@ def get_cover_letter_prompt(
     else:
         jd_context = f"Job Description:\n{job_description[:2000]}"
     
-    return f"""Generate a professional cover letter for this job application.
+    current_date = datetime.now().strftime("%B %d, %Y")
+    
+    return f"""Generate a professional, well-formatted cover letter for this job application.
 
 Job Details:
 - Company: {company_name}
 - Position: {position_title}
 {jd_context}
 
-Candidate Information:
+Candidate Information (extract contact details from this):
 {resume_text[:2000]}
 
 CRITICAL REQUIREMENTS:
@@ -51,24 +54,53 @@ CRITICAL REQUIREMENTS:
 - Write everything in plain, complete sentences with actual names and details
 - Use ONLY the actual company name "{company_name}" and position title "{position_title}" - no placeholders
 - Use {tone} tone: {tone_instruction}
-- Write a compelling cover letter that connects the candidate's experience to the job requirements
-- Include specific examples from the candidate's background that match job requirements
-- Address key requirements from the job description with concrete examples
-- Reference specific details from the job description naturally in the text
-- Keep it professional and engaging
-- Length: 3-4 paragraphs (approximately 250-350 words)
-- Start with a strong opening that shows enthusiasm and mentions the specific position at {company_name}
-- Use action verbs and quantifiable achievements where possible
-- End with a clear call to action
-- Avoid generic phrases - be specific to this role and company
-- Format paragraphs with double line breaks (\\n\\n) between paragraphs for proper spacing
+- Current date: {current_date}
+
+CONTENT QUALITY REQUIREMENTS:
+- Use STAR method (Situation, Task, Action, Result) when describing achievements
+- Reference specific job requirements by name/description from the job description
+- Include quantifiable achievements with numbers, percentages, or metrics
+- Avoid generic phrases like "I am writing to apply" - use more compelling openings
+- Create an opening that shows knowledge of the company/role or enthusiasm for specific aspects
+- Connect candidate's specific experience to job requirements with concrete examples
+- Use active voice and strong action verbs (e.g., "Led", "Designed", "Implemented", "Achieved")
+- Be specific - mention tools, technologies, methodologies relevant to the role
+- Length: 3-4 body paragraphs (approximately 250-350 words total)
+
+STRUCTURE REQUIREMENTS:
+- Format as a professional business letter with proper sections
+- Date at the top (use current date: {current_date})
+- Extract sender contact info from candidate information - REQUIRED: name and email (phone number is NOT needed, skip it)
+- Sender contact should include: candidate's name and email address only
+- Recipient/company info: Use company name "{company_name}" (you may add "Hiring Manager" or "Hiring Team" if specific name not available)
+- Professional salutation: "Dear Hiring Manager," or "Dear {company_name} Hiring Team,"
+- Opening paragraph (1-2 sentences): Strong hook showing enthusiasm and mentioning the specific position
+- Body paragraphs (2-3 paragraphs): 
+  * Paragraph 1: Highlight most relevant experience/achievements matching job requirements
+  * Paragraph 2: Provide specific examples using STAR method, reference job requirements
+  * Paragraph 3 (optional): Additional relevant skills or achievements
+- Closing paragraph (1-2 sentences): Express enthusiasm and next steps with clear call to action
+- Professional closing: "Sincerely," followed by signature line with candidate's name
+- Use double line breaks (\\n\\n) between paragraphs, single line breaks (\\n) within structured sections
+
+STRONG OPENING EXAMPLES (adapt to this role):
+- "I am excited to apply for the {position_title} position at {company_name}, particularly drawn to [specific aspect from job description]."
+- "With [X] years of experience in [relevant field], I am thrilled to submit my application for the {position_title} role at {company_name}."
+- "Your posting for {position_title} at {company_name} immediately caught my attention, as it aligns perfectly with my expertise in [specific skill/area]."
+
 {custom_context}
 
-Structure the response as JSON with these fields:
-- opening: Opening paragraph (1-2 sentences) - mention the specific position "{position_title}" at "{company_name}" (use actual names, not variables)
-- body: Main body paragraphs (2-3 paragraphs) - highlight relevant experience and achievements, reference specific job requirements. Format with double line breaks between paragraphs.
-- closing: Closing paragraph (1-2 sentences) - express enthusiasm and next steps
-- full_letter: MUST start with the title "Cover Letter for {company_name} for {position_title}" followed by a blank line (\\n\\n), then the complete formatted letter with proper paragraph spacing (double line breaks between paragraphs). NO VARIABLES, NO PLACEHOLDERS - use actual company name "{company_name}" and position "{position_title}"
+Structure the response as JSON with these EXACT fields:
+- date: "{current_date}" (current date)
+- sender_contact: Object with name and email extracted from candidate information (REQUIRED - always include name and email if available in candidate info, do NOT include phone number, location is optional)
+- recipient_info: "{company_name} Hiring Manager" or "{company_name} Hiring Team"
+- salutation: "Dear Hiring Manager," or "Dear {company_name} Hiring Team,"
+- opening_paragraph: Strong opening paragraph (1-2 sentences) mentioning position and showing enthusiasm
+- body_paragraphs: Array of 2-3 body paragraphs, each as a separate string, with specific examples and achievements
+- closing_paragraph: Closing paragraph (1-2 sentences) with call to action
+- closing: "Sincerely," (professional closing)
+- signature_line: Candidate's name extracted from resume text
+- full_letter: Complete formatted letter starting with date, then sender contact (if available), recipient info, salutation, opening, body paragraphs (double line breaks between), closing paragraph, closing, and signature. Title at the top should be "{position_title} at {company_name}" NOT "Cover Letter for...". Format with proper line breaks: date\\n\\nsender info\\n\\nrecipient\\n\\nsalutation\\n\\nparagraphs\\n\\nclosing\\n\\nsignature
 
 Return ONLY valid JSON, no markdown formatting."""
 

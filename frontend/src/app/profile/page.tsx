@@ -2,6 +2,7 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/contexts/ModalContext'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import SettingsPanel from '@/components/SettingsPanel'
 import config from '@/lib/config'
@@ -11,6 +12,7 @@ import { ResumeAutomationFlow } from '@/features/resume-automation/components/Re
 import { StatsPanel } from '@/components/home/StatsPanel'
 import { DocumentIcon, DownloadIcon, ClockIcon, FolderIcon, DiamondIcon, EditIcon } from '@/components/Icons'
 import { useLinkedIn } from '@/hooks/useLinkedIn'
+import { useTrial } from '@/hooks/useTrial'
 
 interface ResumeHistory {
   id: string
@@ -45,6 +47,7 @@ function ProfilePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { connectLinkedIn, checkStatus, status: linkedInStatus, loading: linkedInLoading } = useLinkedIn()
+  const { isTrialActive } = useTrial()
   const [resumeHistory, setResumeHistory] = useState<ResumeHistory[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'resumes' | 'billing' | 'settings'>('overview')
@@ -242,7 +245,7 @@ function ProfilePageContent() {
     }
   }
 
-  const handleStartCheckout = useCallback(async () => {
+  const handleStartCheckout = useCallback(async (period: 'monthly' | 'annual' = 'monthly', planType: 'trial' | 'premium' = 'premium') => {
     if (!isAuthenticated || checkoutLoading) return
 
     const currentUser = auth.currentUser
@@ -271,7 +274,8 @@ function ProfilePageContent() {
         body: JSON.stringify({
           successUrl,
           cancelUrl,
-          priceId: billingPeriod === 'annual' ? 'price_annual' : undefined
+          planType: planType,
+          period: period
         })
       })
 
@@ -296,7 +300,7 @@ function ProfilePageContent() {
     } finally {
       setCheckoutLoading(false)
     }
-  }, [apiBase, checkoutLoading, isAuthenticated, billingPeriod])
+  }, [apiBase, checkoutLoading, isAuthenticated, showAlert])
 
   if (loading) {
     return (
@@ -358,7 +362,7 @@ function ProfilePageContent() {
             <div className="flex flex-wrap gap-3">
               {!isPremiumMember && process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true' && (
                 <button
-                  onClick={handleStartCheckout}
+                  onClick={() => handleStartCheckout('monthly', 'premium')}
                   disabled={checkoutLoading || subscriptionLoading}
                   className="button-primary text-xs disabled:cursor-not-allowed disabled:opacity-70"
                 >
@@ -622,39 +626,214 @@ function ProfilePageContent() {
 
             {activeTab === 'billing' && (
               <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-text-primary">Billing & Subscription</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-text-primary">Billing & Subscription</h2>
+                  <Link
+                    href="/billing"
+                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                  >
+                    View Full Billing Page →
+                  </Link>
+                </div>
 
                 {subscriptionLoading ? (
-                    <div className="rounded-xl border-2 border-primary-200 bg-primary-50/50 py-10 text-center text-primary-700 shadow-sm">
+                  <div className="rounded-xl border-2 border-primary-200 bg-primary-50/50 py-10 text-center text-primary-700 shadow-sm">
                     Checking subscription status…
                   </div>
-                ) : isPremiumMember ? (
+                ) : (
                   <>
-                    <div className="bg-gradient-to-br from-primary-50/50 to-purple-50/50 rounded-xl p-6 border-2 border-primary-200 shadow-sm surface-card">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="text-xl font-bold text-primary-900 mb-2">Premium Plan</h3>
-                          <p className="text-primary-700">Unlimited exports and premium templates</p>
-                          <div className="mt-4 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold text-primary-900">$9.99</span>
-                            <span className="text-lg font-normal text-primary-700">/month</span>
-                            <span className="text-sm text-primary-600 ml-2">or $79/year</span>
+                    {isPremiumMember && (
+                      <div className="bg-gradient-to-br from-primary-50/50 to-purple-50/50 rounded-xl p-6 border-2 border-primary-200 shadow-sm surface-card mb-6">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-primary-900 mb-2">Premium Plan Active</h3>
+                            <p className="text-primary-700">Unlimited exports and premium templates</p>
+                            <div className="mt-3 text-sm text-primary-800">
+                              Status: <span className="font-semibold capitalize">{subscriptionStatus || 'active'}</span>
+                              {nextBillingDate && (
+                                <span className="ml-2">
+                                  • Renews on <span className="font-semibold">{nextBillingDate}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-3 text-sm text-primary-800">
-                            Status: <span className="font-semibold capitalize">{subscriptionStatus || 'active'}</span>
-                            {nextBillingDate && (
-                              <span className="ml-2">
-                                • Renews on <span className="font-semibold">{nextBillingDate}</span>
-                              </span>
-                            )}
-                          </div>
+                          <span className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-semibold">Active</span>
                         </div>
-                        <span className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-semibold">Active</span>
+                      </div>
+                    )}
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {/* Free Plan */}
+                      <div className={`relative overflow-hidden rounded-2xl border border-border-subtle bg-white p-4 shadow-[0_10px_20px_rgba(15,23,42,0.03)] transition hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_14px_24px_rgba(15,23,42,0.04)] ${
+                        !isPremiumMember && !isTrialActive ? 'ring-2 ring-primary-200' : ''
+                      }`}>
+                        <h2 className="text-lg font-semibold text-text-primary">Free Plan</h2>
+                        <p className="mt-1 text-xs text-text-muted">Great for getting started with structured resumes</p>
+                        <div className="mt-3 flex items-baseline gap-1">
+                          <span className="text-2xl font-semibold text-text-primary">$0</span>
+                          <span className="text-xs text-text-muted">forever</span>
+                        </div>
+                        <ul className="mt-3 space-y-1.5 text-xs text-text-muted">
+                          {[
+                            'Visual resume editor',
+                            '3 PDF/DOCX exports per month',
+                            '5 AI improvements per session',
+                            'Unlimited ATS scores (always free)',
+                            'Job match analytics (1 resume)',
+                            '1 cover letter per month'
+                          ].map((feature) => (
+                            <li key={feature} className="flex items-center gap-1.5">
+                              <span className="text-primary-600 text-xs">●</span>
+                              <span className="text-text-muted">{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-4">
+                          {!isPremiumMember && !isTrialActive ? (
+                            <span className="text-[10px] uppercase tracking-wider text-primary-600">Current plan</span>
+                          ) : (
+                            <div className="rounded-lg border border-border-subtle bg-primary-50/60 px-3 py-2 text-xs text-text-muted">
+                              Always available
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Trial Plan */}
+                      <div className={`relative overflow-hidden rounded-2xl border border-border-subtle bg-white p-4 shadow-[0_10px_20px_rgba(15,23,42,0.03)] transition hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_14px_24px_rgba(15,23,42,0.04)] ring-2 ring-primary-200 ${
+                        isTrialActive ? 'ring-primary-400' : ''
+                      }`}>
+                        <div className="absolute right-2.5 top-2.5 rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-700">
+                          Best Value
+                        </div>
+                        <h2 className="text-lg font-semibold text-text-primary">Trial Plan</h2>
+                        <p className="mt-1 text-xs text-text-muted">Try all premium features for 14 days</p>
+                        <div className="mt-3 flex items-baseline gap-1">
+                          <span className="text-2xl font-semibold text-text-primary">$6.99</span>
+                          <span className="text-xs text-text-muted">for 2 weeks</span>
+                        </div>
+                        <ul className="mt-3 space-y-1.5 text-xs text-text-muted">
+                          {[
+                            'All Premium features',
+                            'Unlimited everything',
+                            'Full access for 14 days',
+                            'Perfect to try everything'
+                          ].map((feature) => (
+                            <li key={feature} className="flex items-center gap-1.5">
+                              <span className="text-primary-600 text-xs">●</span>
+                              <span className="text-text-muted">{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-4 flex flex-col gap-2">
+                          {isTrialActive ? (
+                            <>
+                              <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700 font-medium text-center">
+                                Trial Active
+                              </div>
+                              <span className="text-[10px] uppercase tracking-wider text-primary-600 text-center">Current plan</span>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleStartCheckout('monthly', 'trial')}
+                              disabled={checkoutLoading || subscriptionLoading || isPremiumMember}
+                              className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {checkoutLoading ? 'Starting checkout…' : 'Start Trial ($6.99)'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Premium Plan */}
+                      <div className={`relative overflow-hidden rounded-2xl border border-border-subtle bg-white p-4 shadow-[0_10px_20px_rgba(15,23,42,0.03)] transition hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_14px_24px_rgba(15,23,42,0.04)] ${
+                        isPremiumMember && !isTrialActive ? 'ring-2 ring-primary-200' : ''
+                      }`}>
+                        <h2 className="text-lg font-semibold text-text-primary">Premium</h2>
+                        <p className="mt-1 text-xs text-text-muted">Unlock all resume exports, premium templates, and job tools</p>
+                        <div className="mt-2 flex gap-1.5">
+                          <button
+                            onClick={() => setBillingPeriod('monthly')}
+                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                              billingPeriod === 'monthly'
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            Monthly
+                          </button>
+                          <button
+                            onClick={() => setBillingPeriod('annual')}
+                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                              billingPeriod === 'annual'
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            Annual
+                          </button>
+                        </div>
+                        <div className="mt-3 flex items-baseline gap-1">
+                          <span className="text-2xl font-semibold text-text-primary">
+                            {billingPeriod === 'annual' ? '$79' : '$9.99'}
+                          </span>
+                          <span className="text-xs text-text-muted">
+                            {billingPeriod === 'annual' ? 'per year' : 'per month'}
+                          </span>
+                          {billingPeriod === 'annual' && (
+                            <span className="text-[10px] text-green-600 font-medium">Save $40</span>
+                          )}
+                        </div>
+                        <ul className="mt-3 space-y-1.5 text-xs text-text-muted">
+                          {[
+                            'Unlimited PDF/DOCX exports',
+                            'All premium templates',
+                            'Unlimited AI improvements',
+                            'Unlimited ATS scoring',
+                            'Unlimited cover letters',
+                            'Job match analytics & insights',
+                            'Version history & comparisons',
+                            'Priority support'
+                          ].map((feature) => (
+                            <li key={feature} className="flex items-center gap-1.5">
+                              <span className="text-primary-600 text-xs">●</span>
+                              <span className="text-text-muted">{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-4 flex flex-col gap-2">
+                          {isPremiumMember && !isTrialActive ? (
+                            <>
+                              <button
+                                onClick={async () => {
+                                  await showAlert({
+                                    type: 'info',
+                                    message: 'To manage or cancel your subscription, please visit the full billing page or contact support@editresume.io.',
+                                    title: 'Manage Subscription'
+                                  })
+                                  router.push('/billing')
+                                }}
+                                className="button-secondary justify-center text-xs py-2"
+                              >
+                                Manage subscription
+                              </button>
+                              <span className="text-[10px] uppercase tracking-wider text-primary-600 text-center">Current plan</span>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleStartCheckout(billingPeriod, 'premium')}
+                              disabled={checkoutLoading || subscriptionLoading}
+                              className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {checkoutLoading ? 'Starting checkout…' : `Upgrade (${billingPeriod === 'annual' ? '$79/yr' : '$9.99/mo'})`}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     {paymentHistory.length > 0 && (
-                      <div>
+                      <div className="mt-8">
                         <h3 className="text-lg font-bold text-text-primary mb-4">Payment History</h3>
                         <div className="space-y-2">
                           {paymentHistory.map((payment) => (
@@ -681,112 +860,9 @@ function ProfilePageContent() {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold"
-                      onClick={async () => {
-                        await showAlert({
-                          type: 'info',
-                          message: 'To manage or cancel your subscription, please contact support@editresume.io.',
-                          title: 'Manage Subscription'
-                        })
-                      }}
-                    >
-                      Manage Subscription
-                    </button>
+                    <ResumeAutomationFlow />
                   </>
-                ) : (
-                  <div className="text-center py-12 bg-gradient-to-br from-primary-50/50 to-purple-50/50 rounded-xl border-2 border-primary-200 shadow-sm surface-card">
-                    <div className="flex justify-center mb-4">
-                      <DiamondIcon size={64} color="#0f62fe" />
-                    </div>
-                    <h3 className="text-2xl font-bold text-text-primary mb-2">Upgrade to Premium</h3>
-                    <p className="text-text-secondary mb-4 max-w-md mx-auto">
-                      Get unlimited access to all features and advanced tools
-                    </p>
-                    
-                    {/* Billing Period Toggle */}
-                    <div className="flex justify-center gap-2 mb-6">
-                      <button
-                        onClick={() => setBillingPeriod('monthly')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          billingPeriod === 'monthly'
-                            ? 'text-white shadow-sm hover:shadow-md'
-                            : 'bg-primary-50/50 text-text-secondary hover:bg-primary-100 border border-border-subtle'
-                        }`}
-                        style={billingPeriod === 'monthly' ? { background: 'var(--gradient-accent)' } : {}}
-                      >
-                        Monthly
-                      </button>
-                      <button
-                        onClick={() => setBillingPeriod('annual')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          billingPeriod === 'annual'
-                            ? 'text-white shadow-sm hover:shadow-md'
-                            : 'bg-primary-50/50 text-text-secondary hover:bg-primary-100 border border-border-subtle'
-                        }`}
-                        style={billingPeriod === 'annual' ? { background: 'var(--gradient-accent)' } : {}}
-                      >
-                        Annual
-                      </button>
-                    </div>
-
-                    <div className="mb-6 text-center">
-                      <div className="text-4xl font-bold text-text-primary">
-                        {billingPeriod === 'annual' ? '$79' : '$9.99'}
-                      </div>
-                      <div className="text-text-secondary mt-1">
-                        {billingPeriod === 'annual' ? 'per year' : 'per month'}
-                        {billingPeriod === 'annual' && (
-                          <span className="text-green-600 text-sm font-medium ml-2">Save $40</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <ul className="text-left max-w-md mx-auto mb-8 space-y-2">
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Unlimited PDF/DOCX exports
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> All premium templates
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Unlimited AI improvements
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Unlimited grammar checks
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Unlimited ATS scoring
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Unlimited cover letters
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Job match analytics & insights
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Version history & comparisons
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Collaboration & comments
-                      </li>
-                      <li className="flex items-center gap-2 text-text-secondary">
-                        <span className="text-green-500">✓</span> Priority support
-                      </li>
-                    </ul>
-                    <button
-                      onClick={handleStartCheckout}
-                      disabled={checkoutLoading || subscriptionLoading}
-                      className="px-8 py-4 text-white rounded-xl font-bold text-lg hover:shadow-glow transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed button-primary"
-                      style={{ background: 'var(--gradient-accent)' }}
-                    >
-                      {checkoutLoading ? 'Redirecting…' : `Upgrade to Premium (${billingPeriod === 'annual' ? '$79/year' : '$9.99/month'})`}
-                    </button>
-                  </div>
                 )}
-
-                <ResumeAutomationFlow />
               </div>
             )}
 

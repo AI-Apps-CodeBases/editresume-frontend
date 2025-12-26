@@ -19,7 +19,6 @@ from app.api.models import (
     ExtractSentencesPayload,
     GenerateBulletPointsPayload,
     GenerateSummaryPayload,
-    GrammarCheckPayload,
     ImproveBulletPayload,
     JobDescriptionMatchPayload,
     ResumePayload,
@@ -35,7 +34,6 @@ from app.core.dependencies import (
     content_generation_agent,
     cover_letter_agent,
     enhanced_ats_checker,
-    grammar_agent,
     improvement_agent,
     job_matching_agent,
     keyword_extractor,
@@ -110,7 +108,6 @@ async def health_check():
         "content_generation_agent": content_generation_agent is not None,
         "cover_letter_agent": cover_letter_agent is not None,
         "improvement_agent": improvement_agent is not None,
-        "grammar_agent": grammar_agent is not None,
     }
 
 
@@ -212,19 +209,15 @@ async def get_enhanced_ats_score(
     try:
         logger.info("Processing enhanced ATS score request")
 
-        # Check usage limit
-        allowed, usage_info = await check_and_record_ai_usage(
-            request, db, "ats_enhanced", session_id
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "Usage limit exceeded",
-                    "message": "You've reached your limit for enhanced ATS scoring. Upgrade to premium for unlimited access.",
-                    "usage_info": usage_info,
-                },
-            )
+        # ATS scoring is always free - no usage limit check needed
+        # Still record usage for analytics but don't block
+        try:
+            user = get_user_from_request(request, db)
+            user_id = user.id if user else None
+            from app.services.usage_service import record_ai_usage
+            record_ai_usage(user_id, "ats_enhanced", session_id, db)
+        except Exception as e:
+            logger.warning(f"Failed to record ATS usage: {e}")
 
         # Check if enhanced ATS checker is available
         if not enhanced_ats_checker:
@@ -585,8 +578,17 @@ async def generate_cover_letter(
                 },
             )
 
-        # Convert resume data to text for context
-        resume_text = f"{payload.resume_data.name} — {payload.resume_data.title}\n\n"
+        # Convert resume data to text for context (include contact info for cover letter)
+        # Name and email are required, phone is not needed
+        resume_text = f"{payload.resume_data.name}\n"
+        if payload.resume_data.title:
+            resume_text += f"{payload.resume_data.title}\n"
+        if payload.resume_data.email:
+            resume_text += f"{payload.resume_data.email}\n"
+        # Skip phone number - not needed for cover letter
+        if payload.resume_data.location:
+            resume_text += f"{payload.resume_data.location}\n"
+        resume_text += "\n"
         if payload.resume_data.summary:
             resume_text += payload.resume_data.summary + "\n\n"
 
@@ -619,117 +621,6 @@ async def generate_cover_letter(
     except Exception as e:
         logger.error(f"Cover letter generation error: {str(e)}")
         error_message = "Failed to generate cover letter: " + str(e)
-        raise HTTPException(status_code=500, detail=error_message)
-
-
-# Grammar and Style Checking
-@router.post("/grammar_check")
-async def check_grammar_style(
-    payload: GrammarCheckPayload,
-    request: Request,
-    db: Session = Depends(get_db),
-    session_id: Optional[str] = None,
-):
-    """Check grammar and style of text"""
-    try:
-        text = payload.text.strip()
-        if not text:
-            return {"success": False, "error": "No text provided for checking"}
-
-        # Check usage limit
-        allowed, usage_info = await check_and_record_ai_usage(
-            request, db, "grammar", session_id
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "Usage limit exceeded",
-                    "message": "You've reached your limit for grammar checks. Upgrade to premium for unlimited access.",
-                    "usage_info": usage_info,
-                },
-            )
-
-        logger.info(f"Grammar/style check requested for {len(text)} characters")
-
-        # Use grammar agent for basic checks
-        basic_result = grammar_agent.check_grammar_style(text, payload.check_type)
-
-        # Format grammar issues (grammar_checker returns objects)
-        from app.core.dependencies import grammar_checker
-
-        formatted_grammar_issues = []
-        if payload.check_type in ["grammar", "all"]:
-            grammar_issues = grammar_checker.check_grammar(text)
-            for issue in grammar_issues:
-                formatted_grammar_issues.append(
-                    {
-                        "message": issue.message,
-                        "replacements": issue.replacements,
-                        "offset": issue.offset,
-                        "length": issue.length,
-                        "rule_id": issue.rule_id,
-                        "category": issue.category,
-                        "severity": issue.severity,
-                    }
-                )
-
-        # Format style issues
-        formatted_style_issues = []
-        if payload.check_type in ["style", "all"]:
-            passive_issues = grammar_checker.check_passive_voice(text)
-            weak_verb_issues = grammar_checker.check_weak_verbs(text)
-            readability_score, readability_issues = grammar_checker.check_readability(
-                text
-            )
-            strength_score, strength_issues = grammar_checker.check_action_verbs(text)
-            improvement_suggestions = grammar_checker.get_improvement_suggestions(text)
-            style_score = grammar_checker.calculate_style_score(text)
-
-            all_style_issues = (
-                passive_issues + weak_verb_issues + readability_issues + strength_issues
-            )
-            for issue in all_style_issues:
-                formatted_style_issues.append(
-                    {
-                        "type": issue.type,
-                        "message": issue.message,
-                        "suggestion": issue.suggestion,
-                        "severity": issue.severity,
-                        "score_impact": issue.score_impact,
-                    }
-                )
-        else:
-            improvement_suggestions = []
-            style_score = None
-
-        response = {
-            "success": True,
-            "text_length": len(text),
-            "grammar_issues": formatted_grammar_issues,
-            "style_issues": formatted_style_issues,
-            "improvement_suggestions": improvement_suggestions,
-        }
-
-        if style_score:
-            response.update(
-                {
-                    "style_score": {
-                        "overall_score": style_score.overall_score,
-                        "grammar_score": style_score.grammar_score,
-                        "readability_score": style_score.readability_score,
-                        "strength_score": style_score.strength_score,
-                        "issues_count": style_score.issues_count,
-                        "suggestions": style_score.suggestions,
-                    }
-                }
-            )
-
-        return response
-
-    except Exception as e:
-        logger.error(f"Grammar/style check error: {str(e)}")
-        error_message = "Failed to check grammar and style: " + str(e)
         raise HTTPException(status_code=500, detail=error_message)
 
 

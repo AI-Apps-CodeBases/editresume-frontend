@@ -67,13 +67,6 @@ export default function ModernLeftSidebar({
       requiresAuth: true,
     },
     {
-      id: 'collaboration',
-      title: 'Collaboration',
-      icon: Users,
-      description: 'Real-time collab',
-      requiresAuth: false,
-    },
-    {
       id: 'templates',
       title: 'Templates',
       icon: Palette,
