@@ -6,6 +6,8 @@ export const TemplateConfigSchema = z.object({
     sectionOrder: z.array(z.string()),
     spacing: z.enum(['compact', 'balanced', 'spacious']),
     columnWidth: z.number().min(20).max(80).optional(), // Percentage for left column (20-80%)
+    twoColumnLeft: z.array(z.string()).optional(), // Section IDs for left column
+    twoColumnRight: z.array(z.string()).optional(), // Section IDs for right column
   }),
   typography: z.object({
     fontFamily: z.object({
