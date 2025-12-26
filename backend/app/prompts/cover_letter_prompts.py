@@ -70,7 +70,8 @@ CONTENT QUALITY REQUIREMENTS:
 STRUCTURE REQUIREMENTS:
 - Format as a professional business letter with proper sections
 - Date at the top (use current date: {current_date})
-- Extract sender contact info from candidate information (name, email, phone, location if available)
+- Extract sender contact info from candidate information - REQUIRED: name and email (phone number is NOT needed, skip it)
+- Sender contact should include: candidate's name and email address only
 - Recipient/company info: Use company name "{company_name}" (you may add "Hiring Manager" or "Hiring Team" if specific name not available)
 - Professional salutation: "Dear Hiring Manager," or "Dear {company_name} Hiring Team,"
 - Opening paragraph (1-2 sentences): Strong hook showing enthusiasm and mentioning the specific position
@@ -91,7 +92,7 @@ STRONG OPENING EXAMPLES (adapt to this role):
 
 Structure the response as JSON with these EXACT fields:
 - date: "{current_date}" (current date)
-- sender_contact: Object with name, email, phone, location extracted from candidate information (use empty string if not available)
+- sender_contact: Object with name and email extracted from candidate information (REQUIRED - always include name and email if available in candidate info, do NOT include phone number, location is optional)
 - recipient_info: "{company_name} Hiring Manager" or "{company_name} Hiring Team"
 - salutation: "Dear Hiring Manager," or "Dear {company_name} Hiring Team,"
 - opening_paragraph: Strong opening paragraph (1-2 sentences) mentioning position and showing enthusiasm

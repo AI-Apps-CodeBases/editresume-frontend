@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useModal } from '@/contexts/ModalContext'
+import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import { FileEdit, Bot, Sparkles, Save, FileText } from 'lucide-react'
 interface ResumeData {
@@ -67,6 +68,7 @@ export default function CoverLetterGenerator({
   onSaveSuccess
 }: Props) {
   const { showAlert, showConfirm } = useModal()
+  const { user } = useAuth()
   const [companyName, setCompanyName] = useState(initialCompanyName)
   const [positionTitle, setPositionTitle] = useState(initialPositionTitle)
   const [jobDescription, setJobDescription] = useState(initialJobDescription)
@@ -162,9 +164,9 @@ export default function CoverLetterGenerator({
         body: JSON.stringify({
           job_description: jobDescription,
           resume_data: {
-            name: resumeData.name || '',
+            name: resumeData.name || user?.name || '',
             title: resumeData.title || '',
-            email: resumeData.email || '',
+            email: resumeData.email || user?.email || '',
             phone: resumeData.phone || '',
             location: resumeData.location || '',
             summary: resumeData.summary || '',

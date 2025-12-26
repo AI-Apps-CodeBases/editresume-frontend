@@ -85,7 +85,7 @@ class CoverLetterAgent:
             parts.append(date)
             parts.append("")
         
-        # Sender contact info
+        # Sender contact info (name and email only, no phone)
         sender_contact = parsed_content.get("sender_contact", {})
         if isinstance(sender_contact, dict):
             sender_parts = []
@@ -93,16 +93,22 @@ class CoverLetterAgent:
                 sender_parts.append(sender_contact["name"])
             if sender_contact.get("email"):
                 sender_parts.append(sender_contact["email"])
-            if sender_contact.get("phone"):
-                sender_parts.append(sender_contact["phone"])
+            # Skip phone number - not needed
             if sender_contact.get("location"):
                 sender_parts.append(sender_contact["location"])
             if sender_parts:
                 parts.append("\n".join(sender_parts))
                 parts.append("")
         elif isinstance(sender_contact, str) and sender_contact.strip():
-            parts.append(sender_contact.strip())
-            parts.append("")
+            # Filter out phone numbers from string format
+            contact_lines = sender_contact.strip().split("\n")
+            filtered_lines = [
+                line for line in contact_lines
+                if not (line.strip() and any(char.isdigit() and len(line.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")) >= 10 for char in line) and "@" not in line)
+            ]
+            if filtered_lines:
+                parts.append("\n".join(filtered_lines))
+                parts.append("")
         
         # Recipient info
         recipient_info = parsed_content.get("recipient_info", "")
