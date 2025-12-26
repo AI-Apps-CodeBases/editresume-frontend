@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useModal } from '@/contexts/ModalContext'
+import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import { FileEdit, Bot, Sparkles, Save, FileText } from 'lucide-react'
 interface ResumeData {
@@ -24,9 +25,24 @@ interface ResumeData {
 }
 
 interface CoverLetterData {
-  opening: string
-  body: string
-  closing: string
+  date?: string
+  sender_contact?: {
+    name?: string
+    email?: string
+    phone?: string
+    location?: string
+  }
+  recipient_info?: string
+  salutation?: string
+  opening_paragraph?: string
+  body_paragraphs?: string[]
+  closing_paragraph?: string
+  closing_greeting?: string
+  signature_line?: string
+  // Backward compatibility fields
+  opening?: string
+  body?: string
+  closing?: string
   full_letter: string
 }
 
@@ -52,6 +68,7 @@ export default function CoverLetterGenerator({
   onSaveSuccess
 }: Props) {
   const { showAlert, showConfirm } = useModal()
+  const { user } = useAuth()
   const [companyName, setCompanyName] = useState(initialCompanyName)
   const [positionTitle, setPositionTitle] = useState(initialPositionTitle)
   const [jobDescription, setJobDescription] = useState(initialJobDescription)
@@ -147,9 +164,9 @@ export default function CoverLetterGenerator({
         body: JSON.stringify({
           job_description: jobDescription,
           resume_data: {
-            name: resumeData.name || '',
+            name: resumeData.name || user?.name || '',
             title: resumeData.title || '',
-            email: resumeData.email || '',
+            email: resumeData.email || user?.email || '',
             phone: resumeData.phone || '',
             location: resumeData.location || '',
             summary: resumeData.summary || '',
@@ -213,42 +230,78 @@ export default function CoverLetterGenerator({
           let cleaned = field
             .replace(/^```(?:json)?\s*\n?/gm, '')
             .replace(/\n?```\s*$/gm, '')
-            .replace(/^\{[\s\S]*?"(?:opening|body|closing|full_letter)":/gm, '')
-            .replace(/^\s*["']/g, '')
-            .replace(/["']\s*$/g, '')
-          
-          // Remove JSON markers like "opening", "body", "closing" if they appear in text
-          cleaned = cleaned
-            .replace(/["']opening["']\s*:\s*/gi, '')
-            .replace(/["']body["']\s*:\s*/gi, '')
-            .replace(/["']closing["']\s*:\s*/gi, '')
-            .replace(/["']full_letter["']\s*:\s*/gi, '')
-            .replace(/\{[\s\S]*?\}/g, '')
-            .replace(/\s+/g, ' ')
             .trim()
           
           return cleaned
         }
 
-        // Ensure all required fields exist
-        const cleaned = {
-          opening: cleanField(coverLetterData.opening || ''),
+        const cleanStringArray = (arr: any): string[] => {
+          if (!Array.isArray(arr)) return []
+          return arr.map(item => cleanField(item)).filter(item => item.length > 0)
+        }
+
+        // Preserve new structure fields if present
+        // Determine if we have new structure (with closing_paragraph) or old structure
+        const hasNewStructure = !!(coverLetterData.closing_paragraph || coverLetterData.body_paragraphs || coverLetterData.date)
+        
+        // For new structure: closing is the greeting ("Sincerely,"), closing_paragraph is the paragraph text
+        // For old structure: closing is the closing paragraph text
+        let closingGreeting = ''
+        let closingPara = ''
+        
+        if (hasNewStructure) {
+          // New structure: closing is greeting, closing_paragraph is paragraph
+          closingGreeting = cleanField(coverLetterData.closing_greeting || coverLetterData.closing || 'Sincerely,')
+          closingPara = cleanField(coverLetterData.closing_paragraph || '')
+          // For backward compat, use closing_paragraph as closing
+          closingPara = closingPara || (coverLetterData.closing && !coverLetterData.closing.match(/^(Sincerely|Best regards|Yours sincerely),?$/i) ? cleanField(coverLetterData.closing) : '')
+        } else {
+          // Old structure: closing is the paragraph text
+          closingPara = cleanField(coverLetterData.closing || '')
+          closingGreeting = 'Sincerely,'
+        }
+        
+        const cleaned: CoverLetterData = {
+          date: cleanField(coverLetterData.date || ''),
+          sender_contact: coverLetterData.sender_contact || undefined,
+          recipient_info: cleanField(coverLetterData.recipient_info || ''),
+          salutation: cleanField(coverLetterData.salutation || ''),
+          opening_paragraph: cleanField(coverLetterData.opening_paragraph || ''),
+          body_paragraphs: cleanStringArray(coverLetterData.body_paragraphs || []),
+          closing_paragraph: closingPara,
+          closing_greeting: closingGreeting,
+          signature_line: cleanField(coverLetterData.signature_line || ''),
+          // Backward compatibility
+          opening: cleanField(coverLetterData.opening || coverLetterData.opening_paragraph || ''),
           body: cleanField(coverLetterData.body || ''),
-          closing: cleanField(coverLetterData.closing || ''),
+          closing: closingPara, // For backward compat, this is the closing paragraph
           full_letter: cleanField(coverLetterData.full_letter || '')
         }
 
-        // If full_letter is empty or contains JSON artifacts, rebuild it
-        if (!cleaned.full_letter || (cleaned.full_letter.includes('{') && cleaned.full_letter.includes('"opening"')) || cleaned.full_letter.toLowerCase().includes('"body"') || cleaned.full_letter.toLowerCase().includes('"closing"')) {
-          cleaned.full_letter = `${cleaned.opening}\n\n${cleaned.body}\n\n${cleaned.closing}`.trim()
+        // If full_letter is empty or contains JSON artifacts, use it as-is or rebuild from new structure
+        if (!cleaned.full_letter || cleaned.full_letter.length < 20) {
+          // Try to rebuild from new structure first
+          if (cleaned.opening_paragraph || cleaned.body_paragraphs?.length || cleaned.closing_paragraph) {
+            const parts: string[] = []
+            if (cleaned.date) parts.push(cleaned.date)
+            if (cleaned.salutation) parts.push(cleaned.salutation)
+            if (cleaned.opening_paragraph) parts.push(cleaned.opening_paragraph)
+            if (cleaned.body_paragraphs?.length) {
+              parts.push(...cleaned.body_paragraphs)
+            }
+            if (cleaned.closing_paragraph) parts.push(cleaned.closing_paragraph)
+            if (cleaned.closing_greeting) parts.push(cleaned.closing_greeting)
+            if (cleaned.signature_line) parts.push(cleaned.signature_line)
+            cleaned.full_letter = parts.join('\n\n')
+          } else {
+            // Fallback to old structure
+            cleaned.full_letter = `${cleaned.opening || ''}\n\n${cleaned.body || ''}\n\n${cleaned.closing || ''}`.trim()
+          }
         }
 
-        // Final cleanup of full_letter to remove any remaining artifacts
+        // Final cleanup of full_letter
         cleaned.full_letter = cleaned.full_letter
-          .replace(/["']opening["']\s*:\s*/gi, '')
-          .replace(/["']body["']\s*:\s*/gi, '')
-          .replace(/["']closing["']\s*:\s*/gi, '')
-          .replace(/\{[^}]*\}/g, '')
+          .replace(/\{[\s\S]*?\}/g, '')
           .replace(/\s{3,}/g, '\n\n')
           .trim()
 
@@ -256,7 +309,7 @@ export default function CoverLetterGenerator({
       }
 
       // Validate that we have valid content
-      if (!coverLetterData || (!coverLetterData.opening && !coverLetterData.body && !coverLetterData.full_letter)) {
+      if (!coverLetterData || !coverLetterData.full_letter || coverLetterData.full_letter.length < 20) {
         throw new Error('Invalid cover letter response format')
       }
 
@@ -280,13 +333,18 @@ export default function CoverLetterGenerator({
     let content = ''
     switch (paragraphType) {
       case 'opening':
-        content = coverLetter.opening
+        content = coverLetter.opening_paragraph || coverLetter.opening || ''
         break
       case 'body':
-        content = coverLetter.body
+        if (coverLetter.body_paragraphs && coverLetter.body_paragraphs.length > 0) {
+          content = coverLetter.body_paragraphs.join('\n\n')
+        } else {
+          content = coverLetter.body || ''
+        }
         break
       case 'closing':
-        content = coverLetter.closing
+        // Return closing paragraph if available, otherwise try closing field (backward compat)
+        content = coverLetter.closing_paragraph || coverLetter.closing || ''
         break
     }
     
@@ -298,24 +356,76 @@ export default function CoverLetterGenerator({
     if (!coverLetter || !editingParagraph) return
     
     const updatedCoverLetter = { ...coverLetter }
-    updatedCoverLetter[editingParagraph as keyof CoverLetterData] = editedContent
     
-    // Rebuild full letter with title
-    const title = `Cover Letter for ${companyName} for ${positionTitle}`
-    const letterContent = `${updatedCoverLetter.opening}\n\n${updatedCoverLetter.body}\n\n${updatedCoverLetter.closing}`
-    
-    // Check if full_letter already has the title, if not add it
-    if (!updatedCoverLetter.full_letter || !updatedCoverLetter.full_letter.startsWith(title)) {
-      updatedCoverLetter.full_letter = `${title}\n\n${letterContent}`
-    } else {
-      // Replace content after title
-      const titleIndex = updatedCoverLetter.full_letter.indexOf('\n\n')
-      if (titleIndex > 0) {
-        updatedCoverLetter.full_letter = `${updatedCoverLetter.full_letter.substring(0, titleIndex)}\n\n${letterContent}`
+    // Update the appropriate field
+    if (editingParagraph === 'opening') {
+      updatedCoverLetter.opening = editedContent
+      updatedCoverLetter.opening_paragraph = editedContent
+    } else if (editingParagraph === 'body') {
+      updatedCoverLetter.body = editedContent
+      // Split into paragraphs if needed
+      updatedCoverLetter.body_paragraphs = editedContent.split('\n\n').filter(p => p.trim())
+    } else if (editingParagraph === 'closing') {
+      updatedCoverLetter.closing = editedContent
+      // If it looks like a greeting (short, ends with comma), store as both
+      if (editedContent.length < 50 && editedContent.trim().endsWith(',')) {
+        updatedCoverLetter.closing_greeting = editedContent
       } else {
-        updatedCoverLetter.full_letter = `${title}\n\n${letterContent}`
+        updatedCoverLetter.closing_paragraph = editedContent
       }
     }
+    
+    // Rebuild full letter from structure
+    const title = `${positionTitle} at ${companyName}`
+    const parts: string[] = [title, '']
+    
+    if (updatedCoverLetter.date) {
+      parts.push(updatedCoverLetter.date, '')
+    }
+    
+    if (updatedCoverLetter.sender_contact) {
+      const contactParts: string[] = []
+      if (updatedCoverLetter.sender_contact.name) contactParts.push(updatedCoverLetter.sender_contact.name)
+      if (updatedCoverLetter.sender_contact.email) contactParts.push(updatedCoverLetter.sender_contact.email)
+      if (updatedCoverLetter.sender_contact.phone) contactParts.push(updatedCoverLetter.sender_contact.phone)
+      if (updatedCoverLetter.sender_contact.location) contactParts.push(updatedCoverLetter.sender_contact.location)
+      if (contactParts.length > 0) {
+        parts.push(contactParts.join('\n'), '')
+      }
+    }
+    
+    if (updatedCoverLetter.recipient_info) {
+      parts.push(updatedCoverLetter.recipient_info, '')
+    }
+    
+    if (updatedCoverLetter.salutation) {
+      parts.push(updatedCoverLetter.salutation, '')
+    }
+    
+    if (updatedCoverLetter.opening_paragraph || updatedCoverLetter.opening) {
+      parts.push((updatedCoverLetter.opening_paragraph || updatedCoverLetter.opening)!, '')
+    }
+    
+    if (updatedCoverLetter.body_paragraphs && updatedCoverLetter.body_paragraphs.length > 0) {
+      parts.push(...updatedCoverLetter.body_paragraphs.map(() => '').flatMap((_, i) => [updatedCoverLetter.body_paragraphs![i], '']).slice(0, -1))
+    } else if (updatedCoverLetter.body) {
+      parts.push(updatedCoverLetter.body, '')
+    }
+    
+    if (updatedCoverLetter.closing_paragraph || updatedCoverLetter.closing) {
+      const closingPara = updatedCoverLetter.closing_paragraph || updatedCoverLetter.closing
+      if (closingPara && !closingPara.match(/^(Sincerely|Best regards|Yours sincerely),?$/i)) {
+        parts.push(closingPara, '')
+      }
+    }
+    
+    parts.push(updatedCoverLetter.closing_greeting || updatedCoverLetter.closing || 'Sincerely,', '')
+    
+    if (updatedCoverLetter.signature_line) {
+      parts.push(updatedCoverLetter.signature_line)
+    }
+    
+    updatedCoverLetter.full_letter = parts.join('\n').replace(/\n{3,}/g, '\n\n').trim()
     
     setCoverLetter(updatedCoverLetter)
     onCoverLetterChange?.(updatedCoverLetter.full_letter)
@@ -344,16 +454,11 @@ export default function CoverLetterGenerator({
 
     // Ensure we have valid content to save and clean it
     let contentToSave = coverLetter.full_letter || 
-      `${coverLetter.opening || ''}\n\n${coverLetter.body || ''}\n\n${coverLetter.closing || ''}`.trim()
+      `${coverLetter.opening_paragraph || coverLetter.opening || ''}\n\n${coverLetter.body_paragraphs?.join('\n\n') || coverLetter.body || ''}\n\n${coverLetter.closing_paragraph || coverLetter.closing || ''}`.trim()
 
     // Final cleanup to remove any JSON/body markers
     contentToSave = contentToSave
-      .replace(/["']opening["']\s*:\s*/gi, '')
-      .replace(/["']body["']\s*:\s*/gi, '')
-      .replace(/["']closing["']\s*:\s*/gi, '')
-      .replace(/["']full_letter["']\s*:\s*/gi, '')
       .replace(/\{[^}]*\}/g, '')
-      .replace(/\b(body|opening|closing)\s*[:=]\s*/gi, '')
       .replace(/\s{3,}/g, '\n\n')
       .trim()
 
@@ -368,8 +473,10 @@ export default function CoverLetterGenerator({
 
     setIsSaving(true)
     try {
-      // Create a proper title: "Company_name - Cover Letter"
-      const coverLetterTitle = companyName 
+      // Create a proper title: "Position Title at Company Name"
+      const coverLetterTitle = companyName && positionTitle
+        ? `${positionTitle} at ${companyName}`
+        : companyName
         ? `${companyName} - Cover Letter`
         : 'Cover Letter'
 
@@ -442,7 +549,7 @@ export default function CoverLetterGenerator({
 
     // Ensure we have valid content to export
     const contentToExport = coverLetter.full_letter || 
-      `${coverLetter.opening || ''}\n\n${coverLetter.body || ''}\n\n${coverLetter.closing || ''}`.trim()
+      `${coverLetter.opening_paragraph || coverLetter.opening || ''}\n\n${coverLetter.body_paragraphs?.join('\n\n') || coverLetter.body || ''}\n\n${coverLetter.closing_paragraph || coverLetter.closing || ''}`.trim()
 
     if (!contentToExport || contentToExport.length < 10) {
       await showAlert({
@@ -722,8 +829,8 @@ export default function CoverLetterGenerator({
                 <div className="flex-1 overflow-y-auto pr-2">
                   {showFullLetter ? (
                     <div className="border border-gray-200 rounded-lg p-6 bg-white">
-                      <div className="text-gray-800 leading-relaxed whitespace-pre-line font-sans">
-                        {coverLetter.full_letter || `${coverLetter.opening}\n\n${coverLetter.body}\n\n${coverLetter.closing}`}
+                      <div className="text-gray-800 leading-relaxed whitespace-pre-line font-sans" style={{ fontFamily: 'serif', lineHeight: '1.6' }}>
+                        {coverLetter.full_letter || `${coverLetter.opening || ''}\n\n${coverLetter.body || ''}\n\n${coverLetter.closing || ''}`}
                       </div>
                     </div>
                   ) : (
@@ -739,7 +846,7 @@ export default function CoverLetterGenerator({
                             ✏️ Edit
                           </button>
                         </div>
-                        <p className="text-gray-800 leading-relaxed">{coverLetter.opening}</p>
+                        <p className="text-gray-800 leading-relaxed">{coverLetter.opening_paragraph || coverLetter.opening || ''}</p>
                       </div>
 
                       {/* Body Paragraphs */}
@@ -753,7 +860,11 @@ export default function CoverLetterGenerator({
                             ✏️ Edit
                           </button>
                         </div>
-                        <div className="text-gray-800 leading-relaxed whitespace-pre-line">{coverLetter.body}</div>
+                        <div className="text-gray-800 leading-relaxed whitespace-pre-line">
+                          {coverLetter.body_paragraphs && coverLetter.body_paragraphs.length > 0
+                            ? coverLetter.body_paragraphs.join('\n\n')
+                            : coverLetter.body || ''}
+                        </div>
                       </div>
 
                       {/* Closing Paragraph */}
@@ -767,7 +878,7 @@ export default function CoverLetterGenerator({
                             ✏️ Edit
                           </button>
                         </div>
-                        <p className="text-gray-800 leading-relaxed">{coverLetter.closing}</p>
+                        <p className="text-gray-800 leading-relaxed">{coverLetter.closing_paragraph || coverLetter.closing || ''}</p>
                       </div>
                     </div>
                   )}
