@@ -53,11 +53,17 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
 
   useEffect(() => {
     if (typeof window !== 'undefined' && sections) {
-      const savedLeft = localStorage.getItem('twoColumnLeft')
-      const savedRight = localStorage.getItem('twoColumnRight')
+      // First try to get from config (persisted across templates)
+      let leftIds: string[] = config.layout.twoColumnLeft || []
+      let rightIds: string[] = config.layout.twoColumnRight || []
       
-      let leftIds: string[] = savedLeft ? JSON.parse(savedLeft) : []
-      let rightIds: string[] = savedRight ? JSON.parse(savedRight) : []
+      // Fallback to localStorage if config doesn't have it
+      if (leftIds.length === 0 && rightIds.length === 0) {
+        const savedLeft = localStorage.getItem('twoColumnLeft')
+        const savedRight = localStorage.getItem('twoColumnRight')
+        leftIds = savedLeft ? JSON.parse(savedLeft) : []
+        rightIds = savedRight ? JSON.parse(savedRight) : []
+      }
       
       // If no configuration exists, use default distribution
       if (leftIds.length === 0 && rightIds.length === 0) {
@@ -99,7 +105,7 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
       setLeftSectionIds(leftIds)
       setRightSectionIds(rightIds)
     }
-  }, [sections, hasSummary])
+  }, [sections, hasSummary, config.layout.twoColumnLeft, config.layout.twoColumnRight])
 
   const handleMoveSection = (sectionId: string, targetColumn: 'left' | 'right') => {
     const newLeftIds = targetColumn === 'left' 
@@ -113,9 +119,20 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
     setLeftSectionIds(newLeftIds)
     setRightSectionIds(newRightIds)
     
+    // Save to localStorage for backward compatibility
     localStorage.setItem('twoColumnLeft', JSON.stringify(newLeftIds))
     localStorage.setItem('twoColumnRight', JSON.stringify(newRightIds))
     
+    // Update config (persists across templates)
+    onUpdate({
+      layout: {
+        ...config.layout,
+        twoColumnLeft: newLeftIds,
+        twoColumnRight: newRightIds,
+      }
+    })
+    
+    // Also call the callback if provided
     if (onSectionDistributionChange) {
       onSectionDistributionChange(newLeftIds, newRightIds)
     }

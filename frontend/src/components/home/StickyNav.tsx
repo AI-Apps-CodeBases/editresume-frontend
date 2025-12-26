@@ -3,9 +3,12 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function StickyNav() {
   const [isScrolled, setIsScrolled] = useState(false)
+  const { user, isAuthenticated, logout } = useAuth()
+  const [showUserMenu, setShowUserMenu] = useState(false)
 
   useEffect(() => {
     const handleScroll = () => {
@@ -14,6 +17,19 @@ export default function StickyNav() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-user-menu]')) {
+        setShowUserMenu(false)
+      }
+    }
+    if (showUserMenu) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [showUserMenu])
 
   return (
     <header
@@ -81,18 +97,54 @@ export default function StickyNav() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/auth/login"
-            className="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/auth/signup"
-            className="button-primary text-sm"
-          >
-            Get Started
-          </Link>
+          {isAuthenticated ? (
+            <div className="relative" data-user-menu>
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors rounded-lg hover:bg-primary-50/50"
+              >
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 shadow-sm" style={{ background: 'var(--gradient-accent)' }}>
+                  {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <span className="hidden sm:inline">{user?.name || user?.email || 'Account'}</span>
+              </button>
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-[0_12px_40px_rgba(15,23,42,0.12)] border border-border-subtle py-2 z-50 backdrop-blur-sm">
+                  <Link
+                    href="/profile"
+                    onClick={() => setShowUserMenu(false)}
+                    className="block px-4 py-2 text-sm text-text-secondary hover:bg-primary-50/50 transition-colors"
+                  >
+                    Profile
+                  </Link>
+                  <button
+                    onClick={async () => {
+                      await logout()
+                      setShowUserMenu(false)
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <Link
+                href="/auth/login"
+                className="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/auth/signup"
+                className="button-primary text-sm"
+              >
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
       </nav>
     </header>

@@ -90,6 +90,16 @@ export function TemplateCustomizer({
               onUpdate={onConfigUpdate}
               sections={resumeData?.sections}
               hasSummary={!!resumeData?.summary}
+              onSectionDistributionChange={(leftIds, rightIds) => {
+                // Save section distribution to config for persistence across templates
+                onConfigUpdate({
+                  layout: {
+                    ...config.layout,
+                    twoColumnLeft: leftIds,
+                    twoColumnRight: rightIds,
+                  }
+                })
+              }}
             />
           </div>
         )}
