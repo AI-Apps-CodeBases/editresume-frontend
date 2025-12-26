@@ -578,8 +578,17 @@ async def generate_cover_letter(
                 },
             )
 
-        # Convert resume data to text for context
-        resume_text = f"{payload.resume_data.name} — {payload.resume_data.title}\n\n"
+        # Convert resume data to text for context (include contact info for cover letter)
+        resume_text = f"{payload.resume_data.name}\n"
+        if payload.resume_data.title:
+            resume_text += f"{payload.resume_data.title}\n"
+        if payload.resume_data.email:
+            resume_text += f"{payload.resume_data.email}\n"
+        if payload.resume_data.phone:
+            resume_text += f"{payload.resume_data.phone}\n"
+        if payload.resume_data.location:
+            resume_text += f"{payload.resume_data.location}\n"
+        resume_text += "\n"
         if payload.resume_data.summary:
             resume_text += payload.resume_data.summary + "\n\n"
 

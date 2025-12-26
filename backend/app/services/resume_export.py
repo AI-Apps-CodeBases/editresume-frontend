@@ -252,37 +252,93 @@ async def export_pdf(
             # Replace placeholders with actual values
             cover_letter_content = replace_cover_letter_placeholders(payload.cover_letter, payload)
             
-            # Convert to proper paragraphs instead of just <br> tags
-            paragraphs = []
-            for para in cover_letter_content.split('\n\n'):
-                para = para.strip()
-                if para:
-                    # Replace single newlines within paragraph with spaces, then wrap in <p>
-                    para = para.replace('\n', ' ').strip()
-                    # Clean up multiple spaces
-                    para = re.sub(r' +', ' ', para)
-                    if para:
-                        paragraphs.append(f'<p>{para}</p>')
+            # Parse cover letter structure
+            lines = cover_letter_content.split('\n')
             
-            cover_letter_body = '\n                    '.join(paragraphs) if paragraphs else ''
-            
-            # For cover letter only exports, show title with company name and position title
-            if is_cover_letter_only:
-                title_parts = []
-                if payload.company_name:
-                    title_parts.append(payload.company_name)
-                if payload.position_title:
-                    title_parts.append(payload.position_title)
-                cover_letter_title = ' - '.join(title_parts) if title_parts else "Cover Letter"
-                title_html = f'<h1 class="cover-letter-title">{cover_letter_title}</h1>' if cover_letter_title else ''
+            # Extract title (first non-empty line, or construct from company/position)
+            title = ""
+            if payload.company_name and payload.position_title:
+                title = f"{payload.position_title} at {payload.company_name}"
+            elif payload.company_name:
+                title = f"{payload.company_name} - Cover Letter"
             else:
-                cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
-                title_html = f'<h2>{cover_letter_title}</h2>'
+                # Try to extract from content
+                for line in lines[:3]:
+                    if line.strip() and len(line.strip()) < 100:
+                        title = line.strip()
+                        break
+                if not title:
+                    title = "Cover Letter"
+            
+            # Build structured letter HTML
+            letter_parts = []
+            
+            # Title
+            letter_parts.append(f'<h1 class="cover-letter-title" style="font-size: 24px; font-weight: bold; margin-bottom: 24px; text-align: center;">{title}</h1>')
+            
+            # Parse content sections
+            current_section = []
+            in_body = False
+            
+            for i, line in enumerate(lines):
+                line = line.strip()
+                if not line:
+                    if current_section:
+                        section_text = ' '.join(current_section)
+                        if section_text:
+                            # Check if it's a date
+                            if i < 5 and any(month in section_text for month in ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']):
+                                letter_parts.append(f'<p style="margin-bottom: 8px; font-size: {body_size}px;">{section_text}</p>')
+                            # Check if it's a salutation
+                            elif section_text.startswith('Dear'):
+                                letter_parts.append(f'<p style="margin-bottom: 12px; font-size: {body_size}px;">{section_text}</p>')
+                            # Check if it's a closing
+                            elif section_text in ['Sincerely,', 'Best regards,', 'Yours sincerely,']:
+                                letter_parts.append(f'<p style="margin-top: 24px; margin-bottom: 8px; font-size: {body_size}px;">{section_text}</p>')
+                            # Check if it's signature (typically after closing)
+                            elif i > len(lines) - 3:
+                                letter_parts.append(f'<p style="margin-bottom: 8px; font-size: {body_size}px;">{section_text}</p>')
+                            # Body paragraph
+                            else:
+                                letter_parts.append(f'<p style="margin-bottom: 12px; font-size: {body_size}px; line-height: 1.6; text-align: justify;">{section_text}</p>')
+                        current_section = []
+                    continue
+                
+                # Check for title (skip if it's the title line)
+                if line == title:
+                    continue
+                
+                # Check for contact info patterns
+                if '@' in line or any(char.isdigit() and len(line.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')) >= 10 for char in line):
+                    letter_parts.append(f'<p style="margin-bottom: 4px; font-size: {body_size - 1}px;">{line}</p>')
+                    continue
+                
+                current_section.append(line)
+            
+            # Handle remaining section
+            if current_section:
+                section_text = ' '.join(current_section)
+                if section_text:
+                    letter_parts.append(f'<p style="margin-bottom: 12px; font-size: {body_size}px; line-height: 1.6; text-align: justify;">{section_text}</p>')
+            
+            # Fallback: if no structured parsing worked, use original method
+            if len(letter_parts) <= 1:  # Only title
+                paragraphs = []
+                for para in cover_letter_content.split('\n\n'):
+                    para = para.strip()
+                    if para:
+                        para = para.replace('\n', ' ').strip()
+                        para = re.sub(r' +', ' ', para)
+                        if para:
+                            paragraphs.append(f'<p style="margin-bottom: 12px; font-size: {body_size}px; line-height: 1.6; text-align: justify;">{para}</p>')
+                letter_parts.extend(paragraphs)
+            
+            cover_letter_body = '\n                '.join(letter_parts[1:]) if len(letter_parts) > 1 else ''
             
             cover_letter_html = f"""
-            <div class="cover-letter-section">
-                {title_html}
-                <div class="cover-letter-content">
+            <div class="cover-letter-section" style="font-family: {font_family}; max-width: 800px; margin: 0 auto; padding: 40px;">
+                {letter_parts[0] if letter_parts else ''}
+                <div class="cover-letter-content" style="margin-top: 20px;">
                     {cover_letter_body}
                 </div>
             </div>
@@ -1118,49 +1174,94 @@ async def export_docx(
             # Replace placeholders with actual values
             cover_letter_content = replace_cover_letter_placeholders(payload.cover_letter, payload)
             
-            # For cover letter only exports, show title with company name and position title
-            if is_cover_letter_only:
-                title_parts = []
-                if payload.company_name:
-                    title_parts.append(payload.company_name)
-                if payload.position_title:
-                    title_parts.append(payload.position_title)
-                cover_letter_title = ' - '.join(title_parts) if title_parts else "Cover Letter"
-                
-                if cover_letter_title:
-                    cover_letter_heading = doc.add_paragraph()
-                    cover_letter_heading_run = cover_letter_heading.add_run(cover_letter_title)
-                    cover_letter_heading_run.font.size = Pt(18)
-                    cover_letter_heading_run.font.bold = True
-                    cover_letter_heading_run.font.name = font_family_heading
-                    cover_letter_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    doc.add_paragraph()
+            # Determine title
+            if payload.company_name and payload.position_title:
+                cover_letter_title = f"{payload.position_title} at {payload.company_name}"
+            elif payload.company_name:
+                cover_letter_title = f"{payload.company_name} - Cover Letter"
             else:
-                # Use company name for title if provided, otherwise "Cover Letter"
-                cover_letter_title = payload.company_name if payload.company_name else "Cover Letter"
+                cover_letter_title = "Cover Letter"
+            
+            # Add title
+            if cover_letter_title:
                 cover_letter_heading = doc.add_paragraph()
                 cover_letter_heading_run = cover_letter_heading.add_run(cover_letter_title)
-                cover_letter_heading_run.font.size = Pt(14)
+                cover_letter_heading_run.font.size = Pt(18 if is_cover_letter_only else 14)
                 cover_letter_heading_run.font.bold = True
                 cover_letter_heading_run.font.name = font_family_heading
+                cover_letter_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER if is_cover_letter_only else WD_ALIGN_PARAGRAPH.LEFT
                 doc.add_paragraph()
-
-            # Format cover letter content with proper paragraphs
-            # Split by double newlines to get paragraphs
-            paragraphs = cover_letter_content.split('\n\n')
-            for para in paragraphs:
-                para = para.strip()
-                if para:
-                    # Replace single newlines within paragraph with spaces
-                    para = para.replace('\n', ' ').strip()
-                    # Clean up multiple spaces
-                    para = re.sub(r' +', ' ', para)
-                    if para:
-                        cover_letter_para = doc.add_paragraph(para)
-                        cover_letter_para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
-                        cover_letter_para.runs[0].font.name = font_family_body
-                        cover_letter_para.paragraph_format.space_after = Pt(12 if is_cover_letter_only else 8)
-                        cover_letter_para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            
+            # Parse and format cover letter content
+            lines = cover_letter_content.split('\n')
+            current_paragraph = []
+            
+            for i, line in enumerate(lines):
+                line = line.strip()
+                
+                # Skip title if it matches
+                if line == cover_letter_title:
+                    continue
+                
+                # Empty line indicates paragraph break
+                if not line:
+                    if current_paragraph:
+                        para_text = ' '.join(current_paragraph)
+                        para_text = re.sub(r' +', ' ', para_text)
+                        if para_text:
+                            # Check for special formatting
+                            para = doc.add_paragraph(para_text)
+                            
+                            # Date formatting (smaller, no spacing before)
+                            if i < 5 and any(month in para_text for month in ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']):
+                                para.runs[0].font.size = Pt(11)
+                                para.paragraph_format.space_before = Pt(0)
+                                para.paragraph_format.space_after = Pt(6)
+                            # Salutation formatting
+                            elif para_text.startswith('Dear'):
+                                para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
+                                para.paragraph_format.space_before = Pt(0)
+                                para.paragraph_format.space_after = Pt(12)
+                            # Closing formatting
+                            elif para_text in ['Sincerely,', 'Best regards,', 'Yours sincerely,']:
+                                para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
+                                para.paragraph_format.space_before = Pt(24)
+                                para.paragraph_format.space_after = Pt(6)
+                            # Signature formatting (usually last line)
+                            elif i > len(lines) - 3 and len(current_paragraph) == 1:
+                                para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
+                                para.paragraph_format.space_before = Pt(0)
+                                para.paragraph_format.space_after = Pt(6)
+                            # Contact info formatting
+                            elif '@' in para_text or any(char.isdigit() and len(para_text.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')) >= 10 for char in para_text):
+                                para.runs[0].font.size = Pt(10)
+                                para.paragraph_format.space_before = Pt(0)
+                                para.paragraph_format.space_after = Pt(4)
+                            # Body paragraph formatting
+                            else:
+                                para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
+                                para.runs[0].font.name = font_family_body
+                                para.paragraph_format.space_after = Pt(12 if is_cover_letter_only else 8)
+                                para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                                para.paragraph_format.line_spacing = 1.15
+                            
+                            para.runs[0].font.name = font_family_body
+                        current_paragraph = []
+                    continue
+                
+                current_paragraph.append(line)
+            
+            # Handle remaining paragraph
+            if current_paragraph:
+                para_text = ' '.join(current_paragraph)
+                para_text = re.sub(r' +', ' ', para_text)
+                if para_text and para_text != cover_letter_title:
+                    para = doc.add_paragraph(para_text)
+                    para.runs[0].font.size = Pt(12 if is_cover_letter_only else 11)
+                    para.runs[0].font.name = font_family_body
+                    para.paragraph_format.space_after = Pt(12 if is_cover_letter_only else 8)
+                    para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                    para.paragraph_format.line_spacing = 1.15
 
             doc.add_paragraph()  # Add spacing
 
