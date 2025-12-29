@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useState } from 'react'
 import Tooltip from '@/components/Shared/Tooltip'
+import BackButton from '@/components/Shared/BackButton'
 
 const steps = [
   {
@@ -81,6 +82,9 @@ export default function OnboardingPage() {
       </div>
 
       <main className="relative mx-auto flex w-full max-w-[1536px] 2xl:max-w-[1920px] flex-col gap-16 px-6 py-16 sm:px-8 lg:px-12 lg:py-24">
+        <div className="mb-6">
+          <BackButton />
+        </div>
         <div className="text-center space-y-8">
           <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-primary-100 to-purple-100 border border-primary-200/50">
             <span className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-700">Onboarding</span>

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import BackButton from '@/components/Shared/BackButton'
 
 export default function TutorialPage() {
   const [isMounted, setIsMounted] = useState(false)
@@ -18,6 +19,9 @@ export default function TutorialPage() {
       </div>
 
       <main className="relative mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
+        <div className="mb-6">
+          <BackButton />
+        </div>
         <div className="relative">
           <div className="absolute -inset-1 bg-gradient-to-r from-primary-200/20 via-purple-200/20 to-blue-200/20 rounded-3xl blur-xl"></div>
           <div className="relative rounded-3xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-8 lg:p-12 shadow-xl">
