@@ -11,8 +11,6 @@ interface Props {
 
 export default function JobDescriptionParser({ onSaveSuccess }: Props) {
   const { user, isAuthenticated } = useAuth()
-  const [inputMode, setInputMode] = useState<'url' | 'text'>('url')
-  const [jobUrl, setJobUrl] = useState('')
   const [jobDescriptionText, setJobDescriptionText] = useState('')
   const [jobDescription, setJobDescription] = useState('')
   const [isParsing, setIsParsing] = useState(false)
@@ -20,74 +18,6 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
   const [parsedMetadata, setParsedMetadata] = useState<JobMetadata | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [scrapedKeywords, setScrapedKeywords] = useState<any>(null)
-
-  const handleParseFromUrl = async () => {
-    if (!jobUrl.trim()) {
-      setError('Please enter a job posting URL')
-      return
-    }
-
-    setIsParsing(true)
-    setError(null)
-    setJobDescription('')
-    setParsedMetadata(null)
-    setScrapedKeywords(null)
-
-    try {
-      const headers = await getAuthHeadersAsync()
-      headers['Content-Type'] = 'application/json'
-
-      const response = await fetch(`${config.apiBase}/api/ai/scrape_job_url`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ url: jobUrl.trim() }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { detail: errorText || `HTTP ${response.status}` }
-        }
-        throw new Error(errorData.detail || `Failed to scrape URL (HTTP ${response.status})`)
-      }
-
-      const result = await response.json()
-      
-      if (result.success && result.job_description) {
-        setJobDescription(result.job_description)
-        setScrapedKeywords(result)
-        
-        const metadata = deriveJobMetadataFromText(result.job_description) || {}
-        
-        if (result.title) {
-          metadata.title = result.title
-        }
-        if (result.company) {
-          metadata.company = result.company
-        }
-        if (result.work_type) {
-          metadata.jobType = result.work_type
-        }
-        
-        if (result.technical_keywords || result.general_keywords) {
-          metadata.skills = result.technical_keywords || metadata.skills || []
-          metadata.keywords = result.general_keywords || metadata.keywords || []
-          metadata.soft_skills = result.soft_skills || metadata.soft_skills || []
-        }
-        
-        setParsedMetadata(metadata)
-      } else {
-        throw new Error('Failed to extract job description from URL')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scrape job description from URL')
-    } finally {
-      setIsParsing(false)
-    }
-  }
 
   const handleParseFromText = async () => {
     if (!jobDescriptionText.trim()) {
@@ -153,11 +83,7 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
   }
 
   const handleParse = () => {
-    if (inputMode === 'url') {
-      handleParseFromUrl()
-    } else {
-      handleParseFromText()
-    }
+    handleParseFromText()
   }
 
   const handleSave = async () => {
@@ -181,7 +107,7 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
         title: metadata?.title || 'Untitled Role',
         company: metadata?.company || null,
         content: jobDescription,
-        url: jobUrl.trim() || null,
+        url: null,
         skills: scrapedKeywords?.technical_keywords || metadata?.skills || [],
         extracted_keywords: {
           technical_keywords: scrapedKeywords?.technical_keywords || metadata?.skills || [],
@@ -221,7 +147,6 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
         }))
       }
 
-      setJobUrl('')
       setJobDescriptionText('')
       setJobDescription('')
       setParsedMetadata(null)
@@ -242,7 +167,7 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
     <div className="bg-white rounded-[28px] border border-border-subtle shadow-card mb-6 overflow-hidden">
       <div className="px-6 py-5 border-b border-border-subtle">
         <h2 className="font-semibold text-lg text-gray-900">Job Description Analysis</h2>
-        <p className="text-sm text-gray-600 mt-1">Scan job posting URLs or paste job description text to extract keywords</p>
+        <p className="text-sm text-gray-600 mt-1">Paste job description text to extract keywords</p>
       </div>
       
       <div className={`grid grid-cols-1 lg:grid-cols-2 transition-all ${parsedMetadata ? 'min-h-[500px]' : 'min-h-[200px]'}`}>
@@ -255,95 +180,28 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
           </div>
 
           <div className="flex flex-col items-center space-y-4">
-            <div className="w-full max-w-md">
-              <div className="inline-flex bg-gray-100 rounded-lg p-1 w-full">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInputMode('url')
-                    setError(null)
-                    setParsedMetadata(null)
-                    setJobDescription('')
-                    setScrapedKeywords(null)
-                  }}
-                  className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
-                    inputMode === 'url'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Scan URL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInputMode('text')
-                    setError(null)
-                    setParsedMetadata(null)
-                    setJobDescription('')
-                    setScrapedKeywords(null)
-                  }}
-                  className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
-                    inputMode === 'text'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Paste Text
-                </button>
-              </div>
-            </div>
-            
             <div className="w-full max-w-md space-y-4">
-              {inputMode === 'url' ? (
-                <>
-                  <input
-                    type="url"
-                    value={jobUrl}
-                    onChange={(e) => {
-                      setJobUrl(e.target.value)
-                      setParsedMetadata(null)
-                      setJobDescription('')
-                      setScrapedKeywords(null)
-                      setError(null)
-                    }}
-                    placeholder="https://www.linkedin.com/jobs/view/..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                  />
+              <textarea
+                value={jobDescriptionText}
+                onChange={(e) => {
+                  setJobDescriptionText(e.target.value)
+                  setParsedMetadata(null)
+                  setJobDescription('')
+                  setScrapedKeywords(null)
+                  setError(null)
+                }}
+                placeholder="Paste the full job description here..."
+                rows={parsedMetadata ? 12 : 8}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm resize-none"
+              />
 
-                  <button
-                    onClick={handleParse}
-                    disabled={!jobUrl.trim() || isParsing}
-                    className="w-full bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all px-4 py-2.5 text-sm"
-                  >
-                    {isParsing ? 'Scanning URL...' : 'Scan URL'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <textarea
-                    value={jobDescriptionText}
-                    onChange={(e) => {
-                      setJobDescriptionText(e.target.value)
-                      setParsedMetadata(null)
-                      setJobDescription('')
-                      setScrapedKeywords(null)
-                      setError(null)
-                    }}
-                    placeholder="Paste the full job description here..."
-                    rows={parsedMetadata ? 12 : 8}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm resize-none"
-                  />
-
-                  <button
-                    onClick={handleParse}
-                    disabled={!jobDescriptionText.trim() || isParsing}
-                    className="w-full bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all px-4 py-2.5 text-sm"
-                  >
-                    {isParsing ? 'Parsing...' : 'Parse Job Description'}
-                  </button>
-                </>
-              )}
+              <button
+                onClick={handleParse}
+                disabled={!jobDescriptionText.trim() || isParsing}
+                className="w-full bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all px-4 py-2.5 text-sm"
+              >
+                {isParsing ? 'Parsing...' : 'Parse Job Description'}
+              </button>
 
               {!isAuthenticated && (
                 <p className="text-xs text-gray-500 text-center">
@@ -457,7 +315,7 @@ export default function JobDescriptionParser({ onSaveSuccess }: Props) {
                 <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-2">
                   <span className="text-lg">🔍</span>
                 </div>
-                <p className="text-xs">Scan a URL or paste text to see extracted keywords</p>
+                <p className="text-xs">Paste text to see extracted keywords</p>
               </div>
             </div>
           )}
