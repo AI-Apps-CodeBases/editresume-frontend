@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import BackButton from '@/components/Shared/BackButton'
 
 const PUBLIC_BASE_URL = 'https://staging.editresume.io'
 const TERMS_URL = `${PUBLIC_BASE_URL}/terms`
@@ -20,6 +21,9 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 export default function TermsPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className="mb-6">
+        <BackButton />
+      </div>
       <div className="mb-10 space-y-4">
         <p className="text-sm uppercase tracking-wide text-primary-600">Terms of Service</p>
         <h1 className="text-4xl font-bold text-text-primary">

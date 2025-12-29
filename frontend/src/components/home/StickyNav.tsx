@@ -65,7 +65,7 @@ export default function StickyNav() {
             Onboarding
           </Link>
           <Link
-            href="#pricing"
+            href="/#pricing"
             className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             Pricing

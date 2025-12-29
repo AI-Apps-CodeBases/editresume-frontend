@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { ModalProvider } from '@/contexts/ModalContext'
+import StickyNav from '@/components/home/StickyNav'
 import Footer from '@/components/layout/Footer'
 import FeedbackWidget from '@/components/Feedback/FeedbackWidget'
 import ExtensionAuthHandler from '@/components/extension/ExtensionAuthHandler'
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SettingsProvider>
             <ModalProvider>
               <div className="flex min-h-screen flex-col">
+                <StickyNav />
                 <main className="flex-1">{children}</main>
                 <Footer />
               </div>
