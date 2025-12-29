@@ -1,19 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import Image from 'next/image'
 
 const companies = [
-  { name: 'Google', logo: 'G' },
-  { name: 'Microsoft', logo: 'M' },
-  { name: 'Apple', logo: 'A' },
-  { name: 'Amazon', logo: 'A' },
-  { name: 'Meta', logo: 'M' },
-  { name: 'Netflix', logo: 'N' },
-  { name: 'Tesla', logo: 'T' },
-  { name: 'Salesforce', logo: 'S' },
-  { name: 'Adobe', logo: 'A' },
-  { name: 'Spotify', logo: 'S' },
+  { name: 'Google', domain: 'google.com' },
+  { name: 'Microsoft', domain: 'microsoft.com' },
+  { name: 'Apple', domain: 'apple.com' },
+  { name: 'Amazon', domain: 'amazon.com' },
+  { name: 'Meta', domain: 'meta.com' },
+  { name: 'Netflix', domain: 'netflix.com' },
+  { name: 'Tesla', domain: 'tesla.com' },
+  { name: 'Salesforce', domain: 'salesforce.com' },
+  { name: 'Adobe', domain: 'adobe.com' },
+  { name: 'Spotify', domain: 'spotify.com' },
 ]
+
+function getLogoUrl(domain: string): string {
+  const token = process.env.NEXT_PUBLIC_LOGO_DEV_TOKEN || ''
+  const size = 48
+  return `https://img.logo.dev/${domain}?token=${token}&size=${size}`
+}
 
 export default function CompanyLogoBar() {
   return (
@@ -26,16 +32,24 @@ export default function CompanyLogoBar() {
           {[...companies, ...companies].map((company, idx) => (
             <div
               key={`${company.name}-${idx}`}
-              className="flex-shrink-0 flex items-center justify-center min-w-[150px]"
+              className="flex-shrink-0 flex items-center justify-center gap-3 min-w-[180px]"
             >
-              <div className="text-2xl font-bold text-text-muted/40 grayscale hover:grayscale-0 hover:text-text-primary transition-all duration-300">
+              <div className="relative h-12 w-12 flex-shrink-0">
+                <Image
+                  src={getLogoUrl(company.domain)}
+                  alt={`${company.name} logo`}
+                  fill
+                  className="object-contain opacity-60 hover:opacity-100 transition-opacity duration-300"
+                  sizes="48px"
+                />
+              </div>
+              <div className="text-2xl font-bold text-text-muted/40 hover:text-text-primary transition-all duration-300">
                 {company.name}
               </div>
             </div>
           ))}
         </div>
       </div>
-
     </section>
   )
 }
