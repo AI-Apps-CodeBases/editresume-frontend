@@ -1,9 +1,22 @@
-import HeroSection from '@/components/home/HeroSection'
+import dynamic from 'next/dynamic'
 import CompanyLogoBar from '@/components/home/CompanyLogoBar'
 import Pricing from '@/components/Pricing'
-import StepsSection from '@/components/home/StepsSection'
-import TestimonialsSection from '@/components/home/TestimonialsSection'
-import VideoTutorialSection from '@/components/home/VideoTutorialSection'
+
+const HeroSection = dynamic(() => import('@/components/home/HeroSection'), {
+  ssr: false,
+})
+
+const VideoTutorialSection = dynamic(() => import('@/components/home/VideoTutorialSection'), {
+  ssr: false,
+})
+
+const StepsSection = dynamic(() => import('@/components/home/StepsSection'), {
+  ssr: false,
+})
+
+const TestimonialsSection = dynamic(() => import('@/components/home/TestimonialsSection'), {
+  ssr: false,
+})
 
 export default function Page() {
   return (

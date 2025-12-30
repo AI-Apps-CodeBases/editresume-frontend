@@ -1,6 +1,7 @@
 import '../styles/globals.css'
 import type { Metadata, Viewport } from 'next'
 import { Suspense } from 'react'
+import dynamic from 'next/dynamic'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { ModalProvider } from '@/contexts/ModalContext'
@@ -8,8 +9,11 @@ import StickyNav from '@/components/home/StickyNav'
 import Footer from '@/components/layout/Footer'
 import FeedbackWidget from '@/components/Feedback/FeedbackWidget'
 import ExtensionAuthHandler from '@/components/extension/ExtensionAuthHandler'
-import { Analytics } from '@vercel/analytics/react'
 import { Inter } from 'next/font/google'
+
+const Analytics = dynamic(() => import('@vercel/analytics/react').then(mod => ({ default: mod.Analytics })), {
+  ssr: false,
+})
 
 const inter = Inter({
   subsets: ['latin'],
