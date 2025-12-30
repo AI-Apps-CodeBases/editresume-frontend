@@ -29,6 +29,7 @@ import ResumesView from '@/components/Resume/ResumesView'
 import NewResumeWizard from '@/components/Editor/NewResumeWizard'
 import TemplateDesignPage from '@/components/Editor/TemplateDesignPage'
 import { useCollaboration } from '@/hooks/useCollaboration'
+import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { versionControlService } from '@/lib/services/versionControl'
 import { shouldPromptAuthentication } from '@/lib/guestAuth'
 import { getAuthHeadersAsync } from '@/lib/auth'
@@ -206,6 +207,10 @@ const EditorPageContent = () => {
   const lastQueryParamsRef = useRef<{ resumeIdParam?: string | null; resumeVersionIdParam?: string | null }>({})
   const exportMenuRef = useRef<HTMLDivElement | null>(null)
   const fullscreenExportMenuRef = useRef<HTMLDivElement | null>(null)
+  const skipHistoryRef = useRef(false)
+  const historyDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  
+  const undoRedo = useUndoRedo(resumeData)
 
   useEffect(() => {
     const handleDocumentClick = (event: MouseEvent) => {
@@ -316,8 +321,13 @@ const EditorPageContent = () => {
 
         if (cancelled) return
 
+        skipHistoryRef.current = true
         setResumeData(normalizedResume)
+        undoRedo.setState(normalizedResume, true)
         setPreviewKey((prev) => prev + 1)
+        setTimeout(() => {
+          skipHistoryRef.current = false
+        }, 0)
         setReplacements({})
         setShowWizard(false)
         if (resumeId) {
@@ -450,7 +460,12 @@ const EditorPageContent = () => {
           const parsed = JSON.parse(saved)
           if (parsed && (parsed.name || parsed.sections?.length > 0)) {
             console.log('📂 Loading resume from localStorage on mount:', parsed)
+            skipHistoryRef.current = true
             setResumeData(parsed)
+            undoRedo.setState(parsed, true)
+            setTimeout(() => {
+              skipHistoryRef.current = false
+            }, 0)
             // Check URL params for wizard forcing
             const urlParams = new URLSearchParams(window.location.search)
             const forceWizard = urlParams.get('upload') === 'true' || urlParams.get('new') === 'true'
@@ -792,6 +807,49 @@ const EditorPageContent = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+      const ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey
+      
+      // Check if user is typing in an input/textarea to avoid conflicts
+      const activeElement = document.activeElement
+      const isHTMLElement = activeElement instanceof HTMLElement
+      const isInputFocused = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        (isHTMLElement && activeElement.isContentEditable)
+      )
+      
+      // Only handle shortcuts when not typing in inputs (except for contentEditable which we want to handle)
+      if (isInputFocused && activeElement?.tagName !== 'DIV' && !(isHTMLElement && activeElement.isContentEditable)) {
+        return
+      }
+      
+      // Undo: Ctrl+Z (or Cmd+Z on Mac)
+      if (ctrlOrCmd && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        if (undoRedo.canUndo) {
+          undoRedo.undo()
+        }
+        return
+      }
+      
+      // Redo: Ctrl+Y or Ctrl+Shift+Z (or Cmd+Shift+Z on Mac)
+      if (ctrlOrCmd && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        if (undoRedo.canRedo) {
+          undoRedo.redo()
+        }
+        return
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [undoRedo])
+
   useEffect(() => {
      if (typeof window === 'undefined') return
      const resumeUploadParam = searchParams.get('resumeUpload')
@@ -847,11 +905,16 @@ const EditorPageContent = () => {
                    sections: normalizedSections
                  }
                  
-                 console.log(`📋 Final sections after deduplication: ${sections.length} → ${normalizedSections.length}`)
-                 console.log('📝 Uploaded resume sections:', normalizedSections.map(s => ({ title: s.title, bullets: s.bullets.length })))
-                 
-                 // Set the uploaded resume data - this replaces any existing data
-                 setResumeData(cleanedResume)
+                console.log(`📋 Final sections after deduplication: ${sections.length} → ${normalizedSections.length}`)
+                console.log('📝 Uploaded resume sections:', normalizedSections.map(s => ({ title: s.title, bullets: s.bullets.length })))
+                
+                // Set the uploaded resume data - this replaces any existing data
+                skipHistoryRef.current = true
+                setResumeData(cleanedResume)
+                undoRedo.setState(cleanedResume, true)
+                setTimeout(() => {
+                  skipHistoryRef.current = false
+                }, 0)
                  
                 // Force clear localStorage and save fresh data
                 localStorage.removeItem('resumeData')
@@ -918,7 +981,12 @@ const EditorPageContent = () => {
       sections: normalizeSectionsForState(data.sections || [])
     }
     
+    skipHistoryRef.current = true
     setResumeData(newResumeData)
+    undoRedo.setState(newResumeData, true)
+    setTimeout(() => {
+      skipHistoryRef.current = false
+    }, 0)
     setCurrentResumeId(generateResumeId())
     
     // Immediately save to localStorage
@@ -1043,7 +1111,12 @@ const EditorPageContent = () => {
         template: 'tech',
         layoutConfig: {}
       }
+      skipHistoryRef.current = true
       setResumeData(emptyResumeData)
+      undoRedo.setState(emptyResumeData, true)
+      setTimeout(() => {
+        skipHistoryRef.current = false
+      }, 0)
       setShowWizard(false)
       return
     }
@@ -1072,7 +1145,12 @@ const EditorPageContent = () => {
           }
           // Always update to ensure we have the latest from localStorage
           // This ensures resume persists when navigating back from profile
+          skipHistoryRef.current = true
           setResumeData(cleanedData)
+          undoRedo.setState(cleanedData, true)
+          setTimeout(() => {
+            skipHistoryRef.current = false
+          }, 0)
           setShowWizard(false)
           return
         }
@@ -1084,6 +1162,26 @@ const EditorPageContent = () => {
     // Wizard removed - always show editor directly
     setShowWizard(false)
   }, [searchParams, userName, isAuthenticated]) // Intentionally exclude resumeData to avoid loops
+
+  // Sync resumeData with undo/redo current state
+  const lastUndoRedoStateRef = useRef<string>('')
+  useEffect(() => {
+    const currentState = undoRedo.currentState
+    const currentStateStr = JSON.stringify(currentState)
+    const resumeDataStr = JSON.stringify(resumeData)
+    
+    if (currentStateStr !== lastUndoRedoStateRef.current && 
+        currentStateStr !== resumeDataStr &&
+        !skipHistoryRef.current) {
+      lastUndoRedoStateRef.current = currentStateStr
+      skipHistoryRef.current = true
+      setResumeData(currentState)
+      setPreviewKey(prev => prev + 1)
+      setTimeout(() => {
+        skipHistoryRef.current = false
+      }, 0)
+    }
+  }, [undoRedo.currentState])
 
   // Save resume data to localStorage whenever it changes (with debouncing)
   useEffect(() => {
@@ -1156,7 +1254,12 @@ const EditorPageContent = () => {
           ...data,
           sections: normalizeSectionsForState(data.sections || [])
         }
+        skipHistoryRef.current = true
         setResumeData(cleanedData)
+        undoRedo.setState(cleanedData, true)
+        setTimeout(() => {
+          skipHistoryRef.current = false
+        }, 0)
       })
     }
     
@@ -1196,6 +1299,21 @@ const EditorPageContent = () => {
     }
     
     console.log('Setting new resume data...')
+    
+    // Clear redo stack when new changes are made
+    if (!skipHistoryRef.current) {
+      undoRedo.clearRedoStack()
+      
+      // Debounce history saves to avoid saving on every keystroke
+      if (historyDebounceRef.current) {
+        clearTimeout(historyDebounceRef.current)
+      }
+      
+      historyDebounceRef.current = setTimeout(() => {
+        undoRedo.pushState(cleanedData)
+      }, 300)
+    }
+    
     setResumeData(cleanedData)
     setPreviewKey(prev => prev + 1) // Force preview re-render
     
@@ -1205,7 +1323,7 @@ const EditorPageContent = () => {
     }
     
     console.log('handleResumeDataChange completed')
-  }, [roomId, collaboration, resumeData])
+  }, [roomId, collaboration, undoRedo])
 
   const handleCreateRoom = async () => {
     try {
@@ -1841,8 +1959,13 @@ const EditorPageContent = () => {
       summary: versionData.summary || '',
       sections: versionData.sections || []
     }
+    skipHistoryRef.current = true
     setResumeData(newResumeData)
+    undoRedo.setState(newResumeData, true)
     setPreviewKey(prev => prev + 1)
+    setTimeout(() => {
+      skipHistoryRef.current = false
+    }, 0)
   }
 
   const handleVersionSave = (changeSummary: string) => {
