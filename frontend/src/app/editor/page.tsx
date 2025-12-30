@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense, useRef, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import config from '@/lib/config'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -14,20 +15,47 @@ import GlobalReplacements from '@/components/AI/GlobalReplacements'
 import TemplateSelector from '@/components/Resume/TemplateSelector'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
 import ModernEditorLayout from '@/components/Editor/ModernEditorLayout'
-import AIWizard from '@/components/AI/AIWizard'
-import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 import EnhancedATSScoreWidget from '@/components/AI/EnhancedATSScoreWidget'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
 import AIImprovementWidget from '@/components/AI/AIImprovementWidget'
-import VersionControlPanel from '@/components/Resume/VersionControlPanel'
-import VersionComparisonModal from '@/components/Resume/VersionComparisonModal'
-import ExportAnalyticsDashboard from '@/components/Resume/ExportAnalyticsDashboard'
-import JobMatchAnalyticsDashboard from '@/components/AI/JobMatchAnalyticsDashboard'
-import ShareResumeModal from '@/components/Resume/ShareResumeModal'
 import JobsView from '@/components/Editor/JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
-import NewResumeWizard from '@/components/Editor/NewResumeWizard'
-import TemplateDesignPage from '@/components/Editor/TemplateDesignPage'
+
+const AIWizard = dynamic(() => import('@/components/AI/AIWizard'), {
+  ssr: false,
+})
+
+const CoverLetterGenerator = dynamic(() => import('@/components/AI/CoverLetterGenerator'), {
+  ssr: false,
+})
+
+const VersionControlPanel = dynamic(() => import('@/components/Resume/VersionControlPanel'), {
+  ssr: false,
+})
+
+const VersionComparisonModal = dynamic(() => import('@/components/Resume/VersionComparisonModal'), {
+  ssr: false,
+})
+
+const ExportAnalyticsDashboard = dynamic(() => import('@/components/Resume/ExportAnalyticsDashboard'), {
+  ssr: false,
+})
+
+const JobMatchAnalyticsDashboard = dynamic(() => import('@/components/AI/JobMatchAnalyticsDashboard'), {
+  ssr: false,
+})
+
+const ShareResumeModal = dynamic(() => import('@/components/Resume/ShareResumeModal'), {
+  ssr: false,
+})
+
+const NewResumeWizard = dynamic(() => import('@/components/Editor/NewResumeWizard'), {
+  ssr: false,
+})
+
+const TemplateDesignPage = dynamic(() => import('@/components/Editor/TemplateDesignPage'), {
+  ssr: false,
+})
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { versionControlService } from '@/lib/services/versionControl'

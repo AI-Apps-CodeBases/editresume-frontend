@@ -1,17 +1,34 @@
 'use client'
 
+import { Suspense } from 'react'
+import dynamic from 'next/dynamic'
 import { Users, Award, UserPlus, Wallet, Receipt } from 'lucide-react'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { MetricCard } from '@/components/dashboard/MetricCard'
-import { SalesChart } from '@/components/dashboard/SalesChart'
-import { SubscriberChart } from '@/components/dashboard/SubscriberChart'
-import { UserOverviewChart } from '@/components/dashboard/UserOverviewChart'
 import { LatestUsersTable } from '@/components/dashboard/LatestUsersTable'
 import { TopPerformerList } from '@/components/dashboard/TopPerformerList'
-import { TopCountriesMap } from '@/components/dashboard/TopCountriesMap'
-import { GeneratedContentChart } from '@/components/dashboard/GeneratedContentChart'
 import { FeedbackTable } from '@/components/dashboard/FeedbackTable'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+
+const SalesChart = dynamic(() => import('@/components/dashboard/SalesChart').then(mod => ({ default: mod.SalesChart })), {
+  ssr: false,
+})
+
+const SubscriberChart = dynamic(() => import('@/components/dashboard/SubscriberChart').then(mod => ({ default: mod.SubscriberChart })), {
+  ssr: false,
+})
+
+const UserOverviewChart = dynamic(() => import('@/components/dashboard/UserOverviewChart').then(mod => ({ default: mod.UserOverviewChart })), {
+  ssr: false,
+})
+
+const TopCountriesMap = dynamic(() => import('@/components/dashboard/TopCountriesMap').then(mod => ({ default: mod.TopCountriesMap })), {
+  ssr: false,
+})
+
+const GeneratedContentChart = dynamic(() => import('@/components/dashboard/GeneratedContentChart').then(mod => ({ default: mod.GeneratedContentChart })), {
+  ssr: false,
+})
 
 export default function DashboardPage() {
     const {
@@ -120,21 +137,27 @@ export default function DashboardPage() {
                 {/* Charts Row 1 - Sales Statistic wider (2 cols), others 1 col each */}
                 <div className="grid grid-cols-4 gap-6">
                     <div className="col-span-2">
-                        <SalesChart 
-                            data={salesData} 
-                            totalIncome={stats.totalIncome}
-                            incomeChange={stats.incomeChange}
-                        />
+                        <Suspense fallback={<div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 animate-pulse h-64" />}>
+                            <SalesChart 
+                                data={salesData} 
+                                totalIncome={stats.totalIncome}
+                                incomeChange={stats.incomeChange}
+                            />
+                        </Suspense>
                     </div>
                     <div className="col-span-1">
-                        <SubscriberChart 
-                            data={subscriberData}
-                            totalSubscriptions={stats.totalSubscriptions || 0}
-                            subscriptionsChange={stats.subscriptionsChange || 0}
-                        />
+                        <Suspense fallback={<div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 animate-pulse h-64" />}>
+                            <SubscriberChart 
+                                data={subscriberData}
+                                totalSubscriptions={stats.totalSubscriptions || 0}
+                                subscriptionsChange={stats.subscriptionsChange || 0}
+                            />
+                        </Suspense>
                     </div>
                     <div className="col-span-1">
-                        <UserOverviewChart data={userOverview} />
+                        <Suspense fallback={<div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 animate-pulse h-64" />}>
+                            <UserOverviewChart data={userOverview} />
+                        </Suspense>
                     </div>
                 </div>
 
@@ -153,8 +176,12 @@ export default function DashboardPage() {
 
                 {/* Charts Row 3 */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <TopCountriesMap data={topCountries} />
-                    <GeneratedContentChart data={contentGenData} />
+                    <Suspense fallback={<div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 animate-pulse h-64" />}>
+                        <TopCountriesMap data={topCountries} />
+                    </Suspense>
+                    <Suspense fallback={<div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 animate-pulse h-64" />}>
+                        <GeneratedContentChart data={contentGenData} />
+                    </Suspense>
                 </div>
 
                 {/* Feedback Section */}
