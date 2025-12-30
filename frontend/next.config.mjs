@@ -62,6 +62,7 @@ const nextConfig = {
       exclude: ['error', 'warn'],
     } : false,
   },
+  productionBrowserSourceMaps: false,
   async headers() {
     return [
       {

@@ -1,21 +1,19 @@
 import dynamic from 'next/dynamic'
+import { Suspense } from 'react'
+import HeroSection from '@/components/home/HeroSection'
 import CompanyLogoBar from '@/components/home/CompanyLogoBar'
 import Pricing from '@/components/Pricing'
 
-const HeroSection = dynamic(() => import('@/components/home/HeroSection'), {
-  ssr: false,
-})
-
 const VideoTutorialSection = dynamic(() => import('@/components/home/VideoTutorialSection'), {
-  ssr: false,
+  loading: () => <div className="h-64" />,
 })
 
 const StepsSection = dynamic(() => import('@/components/home/StepsSection'), {
-  ssr: false,
+  loading: () => <div className="h-96 bg-[#f4f7ff]" />,
 })
 
 const TestimonialsSection = dynamic(() => import('@/components/home/TestimonialsSection'), {
-  ssr: false,
+  loading: () => <div className="h-64" />,
 })
 
 export default function Page() {
@@ -23,10 +21,16 @@ export default function Page() {
     <div className="flex flex-col">
       <HeroSection />
       <CompanyLogoBar />
-      <VideoTutorialSection />
+      <Suspense fallback={<div className="h-64" />}>
+        <VideoTutorialSection />
+      </Suspense>
       <Pricing />
-      <StepsSection />
-      <TestimonialsSection />
+      <Suspense fallback={<div className="h-96 bg-[#f4f7ff]" />}>
+        <StepsSection />
+      </Suspense>
+      <Suspense fallback={<div className="h-64" />}>
+        <TestimonialsSection />
+      </Suspense>
     </div>
   )
 }
