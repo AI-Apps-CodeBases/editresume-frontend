@@ -3478,11 +3478,163 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         }));
       }
 
-      // Show success notification immediately - use the accurate title that was saved
+      // Create resume version match if resume data is available
+      // Save even without ATS score - we want to preserve the tailored resume version
+      let resumeVersionMatchCreated = false;
+      if (savedJobId && isAuthenticated && user?.email && resumeData) {
+        try {
+          console.log('Creating resume version match for job:', savedJobId);
+          
+          // Get resume ID and version ID from localStorage or resumeData
+          const resumeIdFromStorage = typeof window !== 'undefined' ? localStorage.getItem('currentResumeId') : null;
+          const resumeVersionIdFromStorage = typeof window !== 'undefined' ? localStorage.getItem('currentResumeVersionId') : null;
+          
+          const resumeId = resumeData?.id || (resumeIdFromStorage ? parseInt(resumeIdFromStorage) : null);
+          const resumeVersionId = resumeVersionIdFromStorage ? parseInt(resumeVersionIdFromStorage) : null;
+          
+          // Get match result data (may be null if analysis hasn't been run)
+          const atsScore = currentATSScore !== null ? currentATSScore : (matchResult?.match_analysis?.similarity_score || null);
+          const matchedKeywords = matchResult?.match_analysis?.matching_keywords || [];
+          const missingKeywords = matchResult?.match_analysis?.missing_keywords || [];
+          // Calculate keyword coverage from match count and total keywords
+          const matchCount = matchResult?.match_analysis?.match_count || 0;
+          const totalKeywords = matchResult?.match_analysis?.total_job_keywords || 0;
+          const keywordCoverage = totalKeywords > 0 ? (matchCount / totalKeywords) * 100 : null;
+          
+          // Create match if we have resume data (even without ATS score - save the tailored version)
+          const matchPayload: any = {
+            jobDescriptionId: savedJobId,
+            user_email: user.email,
+          };
+          
+          // Include ATS score if available
+          if (atsScore !== null) {
+            matchPayload.ats_score = Math.round(atsScore);
+          } else {
+            // Set to 0 if no score available - backend will handle it
+            matchPayload.ats_score = 0;
+          }
+          
+          // Include resume ID if available
+          if (resumeId) {
+            matchPayload.resumeId = resumeId;
+            console.log('Using resume ID:', resumeId);
+          }
+          
+          // Include resume name and title (required if no resumeId)
+          const resumeName = resumeData.name || 'Untitled Resume';
+          const resumeTitle = resumeData.title || '';
+          if (!resumeId) {
+            matchPayload.resume_name = resumeName;
+            matchPayload.resume_title = resumeTitle;
+            console.log('Using resume name:', resumeName);
+          }
+          
+          if (resumeVersionId) {
+            matchPayload.resume_version_id = resumeVersionId;
+            console.log('Using resume version ID:', resumeVersionId);
+          }
+          
+          if (matchedKeywords.length > 0) {
+            matchPayload.matched_keywords = matchedKeywords;
+          }
+          
+          if (missingKeywords.length > 0) {
+            matchPayload.missing_keywords = missingKeywords;
+          }
+          
+          if (keywordCoverage !== null) {
+            matchPayload.keyword_coverage = keywordCoverage;
+          }
+          
+          // Always include resume snapshot so backend can create version if needed
+          matchPayload.resume_snapshot = {
+            personalInfo: {
+              name: resumeData.name || '',
+              title: resumeData.title || '',
+              email: resumeData.email || '',
+              phone: resumeData.phone || '',
+              location: resumeData.location || '',
+            },
+            summary: resumeData.summary || '',
+            sections: resumeData.sections || [],
+          };
+          
+          console.log('Sending match payload:', { 
+            jobDescriptionId: matchPayload.jobDescriptionId,
+            resumeId: matchPayload.resumeId,
+            resume_version_id: matchPayload.resume_version_id,
+            ats_score: matchPayload.ats_score 
+          });
+          
+          // Call match endpoint to create JobResumeVersion
+          const matchResponse = await fetch(`${apiBase}/api/matches`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(matchPayload)
+          });
+          
+          if (matchResponse.ok) {
+            const matchResultData = await matchResponse.json();
+            console.log('Resume version match created successfully:', matchResultData);
+            resumeVersionMatchCreated = true;
+            
+            // Dispatch event to trigger refresh of job details
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('resumeVersionSaved', {
+                detail: { 
+                  jobId: savedJobId,
+                  matchId: matchResultData.job_resume_version_id || matchResultData.id
+                }
+              }));
+            }
+          } else {
+            const errorText = await matchResponse.text();
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              errorData = { detail: errorText || `HTTP ${matchResponse.status}` };
+            }
+            
+            console.error('Failed to create resume version match:', {
+              status: matchResponse.status,
+              error: errorData
+            });
+            
+            // Show user-friendly error (non-blocking - job was saved successfully)
+            await showAlert({
+              type: 'warning',
+              title: 'Resume Version Not Saved',
+              message: `Job saved successfully, but failed to save resume version: ${errorData.detail || 'Unknown error'}. You can manually match this resume later.`
+            });
+          }
+        } catch (matchError) {
+          console.error('Error creating resume version match:', matchError);
+          const errorMessage = matchError instanceof Error ? matchError.message : 'Unknown error';
+          
+          // Show user-friendly error (non-blocking)
+          await showAlert({
+            type: 'warning',
+            title: 'Resume Version Not Saved',
+            message: `Job saved successfully, but failed to save resume version: ${errorMessage}. You can manually match this resume later.`
+          });
+        }
+      } else {
+        console.log('Skipping resume version match creation:', {
+          hasSavedJobId: !!savedJobId,
+          isAuthenticated,
+          hasUserEmail: !!user?.email,
+          hasResumeData: !!resumeData
+        });
+      }
+
+      // Show success notification - include resume version save status
       const jobTitle = accurateTitle;
       const companyName = jdMetadata.company ? ` - ${jdMetadata.company}` : '';
       const atsScore = currentATSScore !== null ? currentATSScore : (matchResult?.match_analysis?.similarity_score || null);
       const scoreText = atsScore ? ` (ATS: ${Math.round(atsScore)}%)` : '';
+      const versionText = resumeVersionMatchCreated ? ' • Resume version saved' : '';
 
       const notification = document.createElement('div');
       notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
@@ -3491,7 +3643,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           <div class="text-2xl">✅</div>
           <div>
             <div class="font-bold text-lg">Job Saved!</div>
-            <div class="text-sm mt-1">${jobTitle}${companyName}${scoreText}</div>
+            <div class="text-sm mt-1">${jobTitle}${companyName}${scoreText}${versionText}</div>
           </div>
           <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
         </div>
@@ -3499,7 +3651,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       document.body.appendChild(notification);
       setTimeout(() => notification.remove(), 5000);
 
-      return result.id || currentJobDescriptionId || null;
+      return savedJobId || null;
 
     } catch (error) {
       console.error('Failed to save job description:', error);

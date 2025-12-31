@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 from sqlalchemy import or_, text
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.core.dependencies import keyword_extractor
 from app.models import JobDescription, JobCoverLetter, JobResumeVersion, User, Resume, ResumeVersion
@@ -478,27 +478,30 @@ def list_user_job_descriptions(
                 logger.warning("No user_email provided - Firebase auth may have failed. Returning jobs with user_id IS NULL only.")
                 q = q.filter(JobDescription.user_id.is_(None))
             items = (
-                q.options(selectinload(JobDescription.resume_versions))
-                .order_by(JobDescription.created_at.desc())
+                q.order_by(JobDescription.created_at.desc())
                 .limit(100)
                 .all()
             )
             logger.info(f"Found {len(items)} job descriptions for user_email: {user_email}")
             
-            # Use the already-loaded resume_versions from selectinload instead of querying again
+            # Load resume_versions separately to avoid potential N+1 or timeout issues
             resume_links_map: Dict[int, List[JobResumeVersion]] = {}
-            for it in items:
-                if hasattr(it, 'resume_versions') and it.resume_versions:
-                    # Sort by updated_at and ats_score as needed
-                    sorted_versions = sorted(
-                        it.resume_versions,
-                        key=lambda v: (
-                            v.updated_at if v.updated_at else datetime.min,
-                            v.ats_score if v.ats_score else 0
-                        ),
-                        reverse=True
+            job_ids = [it.id for it in items if getattr(it, "id", None)]
+            if job_ids:
+                try:
+                    resume_links = (
+                        db.query(JobResumeVersion)
+                        .filter(JobResumeVersion.job_description_id.in_(job_ids))
+                        .order_by(
+                            JobResumeVersion.updated_at.desc().nullslast(),
+                            JobResumeVersion.ats_score.desc().nullslast(),
+                        )
+                        .all()
                     )
-                    resume_links_map[it.id] = sorted_versions
+                    for link in resume_links:
+                        resume_links_map.setdefault(link.job_description_id, []).append(link)
+                except Exception as e:
+                    logger.warning(f"Failed to load resume links for jobs: {e}", exc_info=True)
         else:
             # Columns don't exist - use raw SQL query
             sql = """
@@ -829,6 +832,46 @@ def get_job_description_detail(
     except Exception as e:
         logger.warning(f"Failed to load cover letters for job {jd_id}: {e}")
 
+    # Load resume versions for this job
+    resume_versions_payload: List[Dict[str, Any]] = []
+    best_link_payload: Optional[Dict[str, Any]] = None
+    try:
+        resume_links = (
+            db.query(JobResumeVersion)
+            .filter(JobResumeVersion.job_description_id == jd_id)
+            .order_by(
+                JobResumeVersion.updated_at.desc().nullslast(),
+                JobResumeVersion.ats_score.desc().nullslast(),
+            )
+            .all()
+        )
+        
+        for link in resume_links:
+            link_payload = {
+                "id": link.id,
+                "score": link.ats_score or 0,
+                "resume_id": link.resume_id,
+                "resume_name": link.resume_name,
+                "resume_version_id": link.resume_version_id,
+                "resume_version_label": link.resume_version_label,
+                "keyword_coverage": link.keyword_coverage,
+                "matched_keywords": link.matched_keywords or [],
+                "missing_keywords": link.missing_keywords or [],
+                "created_at": (
+                    link.created_at.isoformat() if link.created_at else None
+                ),
+                "updated_at": (
+                    link.updated_at.isoformat() if link.updated_at else None
+                ),
+            }
+            resume_versions_payload.append(link_payload)
+            if not best_link_payload or (link_payload["score"] or 0) > (
+                best_link_payload["score"] or 0
+            ):
+                best_link_payload = link_payload
+    except Exception as e:
+        logger.warning(f"Failed to load resume versions for job {jd_id}: {e}")
+
     return {
         "id": jd.id,
         "title": jd.title or "",
@@ -852,5 +895,7 @@ def get_job_description_detail(
         "importance": getattr(jd, "importance", 0),
         "notes": getattr(jd, "notes", None),
         "cover_letters": cover_letters,
+        "best_resume_version": best_link_payload,
+        "resume_versions": resume_versions_payload,
     }
 

@@ -92,7 +92,24 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const { showAlert, showConfirm } = useModal()
   const [job, setJob] = useState<JobDescription | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'notes' | 'resume' | 'analysis' | 'coverLetters'>('overview')
+  
+  // Persist activeTab in localStorage to prevent reverting on remount
+  const [activeTab, setActiveTab] = useState<'overview' | 'notes' | 'resume' | 'analysis' | 'coverLetters'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`jobDetailTab_${jobId}`)
+      if (saved && ['overview', 'notes', 'resume', 'analysis', 'coverLetters'].includes(saved)) {
+        return saved as 'overview' | 'notes' | 'resume' | 'analysis' | 'coverLetters'
+      }
+    }
+    return 'overview'
+  })
+  
+  // Save activeTab to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`jobDetailTab_${jobId}`, activeTab)
+    }
+  }, [activeTab, jobId])
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [resumeOptions, setResumeOptions] = useState<Array<{ id: number; name: string }>>([])
@@ -107,19 +124,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<any>(null)
   const [selectedCoverLetterId, setSelectedCoverLetterId] = useState<number | null>(null)
 
-  useEffect(() => {
-    if (jobId && isAuthenticated && user?.email) {
-      fetchJobDetails()
-    }
-  }, [jobId, isAuthenticated, user?.email])
-
-  useEffect(() => {
-    if (isAuthenticated && user?.email) {
-      fetchResumes()
-    }
-  }, [isAuthenticated, user?.email])
-
-  const fetchJobDetails = async () => {
+  const fetchJobDetails = useCallback(async () => {
     if (!user?.email) return
     
     setLoading(true)
@@ -129,6 +134,11 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       })
       if (res.ok) {
         const data = await res.json()
+        console.log('Job details fetched:', { 
+          id: data.id, 
+          resume_versions_count: data.resume_versions?.length || 0,
+          resume_versions: data.resume_versions 
+        })
         setJob(data)
         
         if (data.notes) {
@@ -168,7 +178,54 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [jobId, user?.email, selectedResumeId])
+
+  useEffect(() => {
+    if (jobId && isAuthenticated && user?.email) {
+      fetchJobDetails()
+    }
+  }, [jobId, isAuthenticated, user?.email, fetchJobDetails])
+
+  useEffect(() => {
+    if (isAuthenticated && user?.email) {
+      fetchResumes()
+    }
+  }, [isAuthenticated, user?.email])
+
+  // Listen for resume version save events and refresh job details
+  useEffect(() => {
+    const handleResumeVersionSaved = (event: CustomEvent) => {
+      const eventJobId = event.detail?.jobId
+      if (eventJobId && eventJobId === jobId) {
+        console.log('Resume version saved event received, refreshing job details...')
+        // Refresh job details to show the new resume version
+        fetchJobDetails()
+        // If onUpdate callback exists, call it to refresh parent component
+        if (onUpdate) {
+          onUpdate()
+        }
+      }
+    }
+
+    // Also listen for general jobSaved events
+    const handleJobSaved = () => {
+      console.log('Job saved event received, refreshing job details...')
+      fetchJobDetails()
+      if (onUpdate) {
+        onUpdate()
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resumeVersionSaved', handleResumeVersionSaved as EventListener)
+      window.addEventListener('jobSaved', handleJobSaved)
+      
+      return () => {
+        window.removeEventListener('resumeVersionSaved', handleResumeVersionSaved as EventListener)
+        window.removeEventListener('jobSaved', handleJobSaved)
+      }
+    }
+  }, [jobId, onUpdate, fetchJobDetails])
 
   const fetchResumes = async () => {
     if (!user?.email) return
@@ -888,7 +945,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               {[
                 { id: 'overview', label: 'Overview', icon: DocumentIcon },
                 { id: 'notes', label: 'Notes', icon: EditIcon },
-                { id: 'resume', label: 'Resume', icon: FileTextIcon },
+                { id: 'resume', label: 'Resume Versions', icon: FileTextIcon },
                 { id: 'analysis', label: 'Analysis', icon: ChartIcon },
                 { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
               ].map(tab => {

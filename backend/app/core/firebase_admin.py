@@ -47,9 +47,9 @@ def _load_service_account_info() -> Optional[Dict[str, Any]]:
     return None
 
 
-def _initialize_firebase_with_timeout(cred, options, timeout: int = 30) -> Optional[firebase_admin.App]:
+def _initialize_firebase_with_timeout(cred, options, timeout: int = 10) -> Optional[firebase_admin.App]:
     """Initialize Firebase with timeout to prevent hanging on network issues.
-    Increased to 30s for Docker environments with slow network connections."""
+    Reduced to 10s to fail fast and avoid blocking API requests."""
     result = [None]
     exception = [None]
 
@@ -67,13 +67,14 @@ def _initialize_firebase_with_timeout(cred, options, timeout: int = 30) -> Optio
         logger.warning(
             "Firebase initialization timed out after %d seconds. "
             "This may indicate network connectivity issues to oauth2.googleapis.com. "
-            "Firebase features will be unavailable.",
+            "Firebase features will be unavailable. API will continue to work without Firebase.",
             timeout
         )
         return None
 
     if exception[0]:
-        raise exception[0]
+        logger.warning(f"Firebase initialization failed: {exception[0]}. API will continue to work without Firebase.")
+        return None
 
     return result[0]
 
@@ -129,8 +130,8 @@ def get_firebase_app() -> Optional[firebase_admin.App]:
         if settings.firebase_project_id:
             options["projectId"] = settings.firebase_project_id
 
-        # Use timeout wrapper to prevent hanging (increased to 30s for Docker/slow networks)
-        app = _initialize_firebase_with_timeout(cred, options, timeout=30)
+        # Use timeout wrapper to prevent hanging (reduced to 10s to fail fast)
+        app = _initialize_firebase_with_timeout(cred, options, timeout=10)
         if app:
             logger.info("Firebase Admin SDK initialized successfully")
             return app

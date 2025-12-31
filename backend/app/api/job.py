@@ -417,6 +417,43 @@ def create_match(payload: MatchCreate, db: Session):
         if not jd:
             raise HTTPException(status_code=404, detail="Job description not found")
 
+        # If resume exists and resume_snapshot is provided, create a new version with tailored data
+        # This ensures tailored resumes are saved as new versions (v1, v2, etc.)
+        if resume and payload.resume_snapshot and resume.user_id:
+            try:
+                from app.services.version_control_service import VersionControlService
+                version_service = VersionControlService(db)
+                resume_data = {
+                    "personalInfo": payload.resume_snapshot.get(
+                        "personalInfo",
+                        {
+                            "name": resume.name,
+                            "title": resume.title or "",
+                            "email": resume.email or "",
+                            "phone": resume.phone or "",
+                            "location": resume.location or "",
+                        },
+                    ),
+                    "summary": payload.resume_snapshot.get("summary", resume.summary or ""),
+                    "sections": payload.resume_snapshot.get("sections", []),
+                }
+                version = version_service.create_version(
+                    user_id=resume.user_id,
+                    resume_id=resume.id,
+                    resume_data=resume_data,
+                    change_summary=f"Tailored for job: {jd.title or 'Job'}",
+                    is_auto_save=False,
+                )
+                resolved_resume_version_id = version.id
+                resolved_resume_version_obj = version
+                resolved_resume_version_label = f"v{version.version_number}"
+                logger.info(
+                    f"create_match: Created new tailored version {version.id} (v{version.version_number}) for resume {resume.id}"
+                )
+            except Exception as e:
+                logger.warning(f"create_match: Failed to create tailored version: {e}")
+                # Fall back to existing version logic below
+
         # Update JD with metadata if provided
         if payload.jd_metadata:
             metadata = payload.jd_metadata
@@ -472,7 +509,10 @@ def create_match(payload: MatchCreate, db: Session):
 
         # Get resume text from version or resume data
         resume_text = ""
-        if payload.resume_version_id:
+        # If we just created a new version, use it
+        if resolved_resume_version_obj:
+            resume_text = _resume_to_text(resolved_resume_version_obj.resume_data)
+        elif payload.resume_version_id:
             rv = (
                 db.query(ResumeVersion)
                 .filter(ResumeVersion.id == payload.resume_version_id)
