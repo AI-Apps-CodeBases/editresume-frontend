@@ -3347,10 +3347,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   }, [selectedJobMetadata, currentJDInfo, initialJobDescription]);
 
   const handleSaveJobDescription = async (): Promise<number | null> => {
-    console.log('🚀 handleSaveJobDescription called');
-    
     if (!jobDescription || !jobDescription.trim()) {
-      console.log('❌ No job description to save');
       await showAlert({
         type: 'warning',
         message: 'Please enter a job description to save.',
@@ -3360,7 +3357,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     }
 
     if (!isAuthenticated || !user?.email) {
-      console.log('❌ Not authenticated');
       const requireAuth = shouldPromptAuthentication('saveJobDescription', isAuthenticated)
       if (requireAuth) {
         await showAlert({
@@ -3372,8 +3368,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
       return saveGuestJobDescriptionLocally();
     }
-    
-    console.log('✅ Authenticated, proceeding with save');
 
     // Extract accurate title from JD if not already analyzed
     // This ensures we always use the title extracted from the JD, even if user saves without analyzing first
@@ -3458,75 +3452,17 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
 
       const result = await response.json();
-      console.log('✅ Job description saved successfully:', result);
+      console.log('Job description saved successfully:', result);
 
+      // Update currentJobDescriptionId if it was a new save or if we got a different ID back
       const savedJobId = result.id || currentJobDescriptionId;
       if (savedJobId && savedJobId !== currentJobDescriptionId && onSelectJobDescriptionId) {
         onSelectJobDescriptionId(savedJobId);
       }
 
+      // Store the job ID in localStorage for persistence
       if (typeof window !== 'undefined' && savedJobId) {
         localStorage.setItem('activeJobDescriptionId', savedJobId.toString());
-      }
-
-      // Save the tailored resume and create match session (if resume data exists)
-      console.log('🔍 Checking resume save conditions:', {
-        hasResumeData: !!resumeData,
-        resumeDataType: resumeData ? typeof resumeData : 'undefined',
-        savedJobId,
-        hasUpdatedResumeData: !!updatedResumeData,
-        resumeDataKeys: resumeData ? Object.keys(resumeData).slice(0, 10) : []
-      });
-
-      let resumeSaveResult = null;
-      if (resumeData && savedJobId) {
-        try {
-          const companyName = jdMetadata.company || currentJDInfo?.company || selectedJobMetadata?.company || '';
-          const autoResumeName = companyName 
-            ? `${companyName} - ${accurateTitle}`
-            : accurateTitle;
-          
-          // Use updatedResumeData if available (most recent tailored version), otherwise use resumeData
-          const currentResumeData = updatedResumeData || resumeData;
-          
-          console.log('💾 Attempting to save resume with job description:', {
-            savedJobId,
-            autoResumeName,
-            hasResumeData: !!currentResumeData,
-            hasUpdatedResumeData: !!updatedResumeData,
-            resumeDataKeys: currentResumeData ? Object.keys(currentResumeData) : []
-          });
-          
-          resumeSaveResult = await handleSaveResumeWithName({
-            nameOverride: autoResumeName,
-            resumeOverride: currentResumeData,
-            jobDescriptionIdOverride: savedJobId,
-            suppressModalReset: true
-          });
-          
-          if (resumeSaveResult?.resumeId) {
-            console.log('✅ Resume saved with job description:', {
-              resumeId: resumeSaveResult.resumeId,
-              versionId: resumeSaveResult.versionId,
-              jobId: savedJobId
-            });
-          } else {
-            console.warn('⚠️ Resume save returned null result');
-          }
-        } catch (resumeError) {
-          console.error('❌ Failed to save resume with job description:', resumeError);
-          await showAlert({
-            type: 'warning',
-            message: `Job saved successfully, but failed to save resume version: ${resumeError instanceof Error ? resumeError.message : 'Unknown error'}`,
-            title: 'Partial Success'
-          });
-        }
-      } else {
-        console.warn('⚠️ Skipping resume save - missing data:', {
-          hasResumeData: !!resumeData,
-          hasSavedJobId: !!savedJobId,
-          resumeDataType: resumeData ? typeof resumeData : 'undefined'
-        });
       }
 
       // Restore button state
@@ -3538,16 +3474,15 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       // Dispatch custom event to refresh jobs list everywhere
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('jobSaved', {
-          detail: { jobId: savedJobId }
+          detail: { jobId: result.id || currentJobDescriptionId }
         }));
       }
 
-      // Show success notification
+      // Show success notification immediately - use the accurate title that was saved
       const jobTitle = accurateTitle;
       const companyName = jdMetadata.company ? ` - ${jdMetadata.company}` : '';
       const atsScore = currentATSScore !== null ? currentATSScore : (matchResult?.match_analysis?.similarity_score || null);
       const scoreText = atsScore ? ` (ATS: ${Math.round(atsScore)}%)` : '';
-      const resumeSavedText = resumeSaveResult?.resumeId ? ' • Resume version saved' : '';
 
       const notification = document.createElement('div');
       notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
@@ -3555,8 +3490,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         <div class="flex items-center gap-3">
           <div class="text-2xl">✅</div>
           <div>
-            <div class="font-bold text-lg">Saved to Jobs!</div>
-            <div class="text-sm mt-1">${jobTitle}${companyName}${scoreText}${resumeSavedText}</div>
+            <div class="font-bold text-lg">Job Saved!</div>
+            <div class="text-sm mt-1">${jobTitle}${companyName}${scoreText}</div>
           </div>
           <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
         </div>
@@ -3564,7 +3499,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       document.body.appendChild(notification);
       setTimeout(() => notification.remove(), 5000);
 
-      return savedJobId || null;
+      return result.id || currentJobDescriptionId || null;
 
     } catch (error) {
       console.error('Failed to save job description:', error);
