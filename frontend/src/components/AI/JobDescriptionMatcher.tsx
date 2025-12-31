@@ -3475,6 +3475,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           // Use updatedResumeData if available (most recent tailored version), otherwise use resumeData
           const currentResumeData = updatedResumeData || resumeData;
           
+          console.log('💾 Attempting to save resume with job description:', {
+            savedJobId,
+            autoResumeName,
+            hasResumeData: !!currentResumeData,
+            hasUpdatedResumeData: !!updatedResumeData,
+            resumeDataKeys: currentResumeData ? Object.keys(currentResumeData) : []
+          });
+          
           resumeSaveResult = await handleSaveResumeWithName({
             nameOverride: autoResumeName,
             resumeOverride: currentResumeData,
@@ -3483,15 +3491,28 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           });
           
           if (resumeSaveResult?.resumeId) {
-            console.log('Resume saved with job description:', {
+            console.log('✅ Resume saved with job description:', {
               resumeId: resumeSaveResult.resumeId,
               versionId: resumeSaveResult.versionId,
               jobId: savedJobId
             });
+          } else {
+            console.warn('⚠️ Resume save returned null result');
           }
         } catch (resumeError) {
-          console.warn('Job saved but resume save failed:', resumeError);
+          console.error('❌ Failed to save resume with job description:', resumeError);
+          await showAlert({
+            type: 'warning',
+            message: `Job saved successfully, but failed to save resume version: ${resumeError instanceof Error ? resumeError.message : 'Unknown error'}`,
+            title: 'Partial Success'
+          });
         }
+      } else {
+        console.warn('⚠️ Skipping resume save - missing data:', {
+          hasResumeData: !!resumeData,
+          hasSavedJobId: !!savedJobId,
+          resumeDataType: resumeData ? typeof resumeData : 'undefined'
+        });
       }
 
       // Restore button state
