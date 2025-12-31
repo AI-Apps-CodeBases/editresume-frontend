@@ -38,10 +38,14 @@ services:
       STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL}
       STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL}
       ADDITIONAL_CORS_ORIGINS: ${ADDITIONAL_CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      # Set DISABLE_FIREBASE=true to disable Firebase initialization (useful for local dev with network issues)
+      DISABLE_FIREBASE: ${DISABLE_FIREBASE:-false}
     # DNS configuration to fix Google OAuth2 connection timeout
     dns:
       - 8.8.8.8
       - 8.8.4.4
+      # Set DISABLE_FIREBASE=true to disable Firebase initialization (useful for local dev with network issues)
+      # DISABLE_FIREBASE: "false"
     depends_on:
       - db
     ports:
@@ -57,6 +61,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_BASE=http://localhost:8000
       - NEXT_PUBLIC_PREMIUM_MODE=${NEXT_PUBLIC_PREMIUM_MODE:-false}
+      - NEXT_PUBLIC_LOGO_DEV_TOKEN=${NEXT_PUBLIC_LOGO_DEV_TOKEN}
       - NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
       - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
       - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}

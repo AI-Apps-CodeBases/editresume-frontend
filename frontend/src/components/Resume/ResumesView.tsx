@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config'
 import { FileTextIcon, LockIcon } from '@/components/Icons'
+import AuthModal from '@/components/Shared/Auth/AuthModal'
 
 interface Resume {
   id: number
@@ -40,6 +41,8 @@ export default function ResumesView({ onBack }: Props) {
   const [loading, setLoading] = useState(true)
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null)
   const dropdownRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
 
   const fetchSavedResumes = useCallback(async () => {
     if (!isAuthenticated || !user?.email) return
@@ -64,6 +67,13 @@ export default function ResumesView({ onBack }: Props) {
     }
   }, [isAuthenticated, user?.email, fetchSavedResumes])
 
+  useEffect(() => {
+    if (isAuthenticated && authModalOpen) {
+      setAuthModalOpen(false)
+      fetchSavedResumes()
+    }
+  }, [isAuthenticated, authModalOpen, fetchSavedResumes])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -83,21 +93,48 @@ export default function ResumesView({ onBack }: Props) {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="flex justify-center mb-4">
-            <LockIcon size={64} color="#0f62fe" className="opacity-80" />
+      <>
+        <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
+            <div className="flex justify-center mb-4">
+              <LockIcon size={64} color="#0f62fe" className="opacity-80" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Sign In Required</h2>
+            <p className="text-gray-600 mb-6">Please sign in to view your saved resumes.</p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  setAuthMode('login')
+                  setAuthModalOpen(true)
+                }}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => {
+                  setAuthMode('signup')
+                  setAuthModalOpen(true)
+                }}
+                className="px-6 py-3 bg-white text-blue-600 border-2 border-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+              >
+                Sign Up
+              </button>
+              <button
+                onClick={onBack}
+                className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+              >
+                Go Back
+              </button>
+            </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Sign In Required</h2>
-          <p className="text-gray-600 mb-6">Please sign in to view your saved resumes.</p>
-          <button
-            onClick={onBack}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-          >
-            Go Back
-          </button>
         </div>
-      </div>
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          mode={authMode}
+        />
+      </>
     )
   }
 

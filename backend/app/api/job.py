@@ -232,6 +232,60 @@ async def update_cover_letter_endpoint(
     return update_cover_letter(jd_id, letter_id, payload.dict(exclude_unset=True), db)
 
 
+@router.delete("/{jd_id}/resume-versions/{version_id}")
+async def delete_job_resume_version(
+    jd_id: int,
+    version_id: int,
+    request: Request,
+    user_email: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Delete a job resume version match"""
+    try:
+        email = get_user_email_from_request(request, user_email)
+        if not email:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        jd, _ = safe_get_job_description(jd_id, db)
+        if not jd:
+            raise HTTPException(status_code=404, detail="Job description not found")
+
+        if jd.user_id and jd.user_id != user.id:
+            raise HTTPException(
+                status_code=403, detail="Not authorized to delete this match"
+            )
+
+        job_resume_version = (
+            db.query(JobResumeVersion)
+            .filter(
+                JobResumeVersion.id == version_id,
+                JobResumeVersion.job_description_id == jd_id
+            )
+            .first()
+        )
+
+        if not job_resume_version:
+            raise HTTPException(status_code=404, detail="Resume version match not found")
+
+        db.delete(job_resume_version)
+        db.commit()
+
+        logger.info(f"Deleted job resume version {version_id} for job {jd_id}")
+        return {"success": True, "message": "Resume version match deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting job resume version: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail="Failed to delete resume version match"
+        )
+
+
 @router.delete("/{jd_id}/cover-letters/{letter_id}")
 async def delete_cover_letter_endpoint(
     jd_id: int, letter_id: int, db: Session = Depends(get_db)
@@ -417,6 +471,43 @@ def create_match(payload: MatchCreate, db: Session):
         if not jd:
             raise HTTPException(status_code=404, detail="Job description not found")
 
+        # If resume exists and resume_snapshot is provided, create a new version with tailored data
+        # This ensures tailored resumes are saved as new versions (v1, v2, etc.)
+        if resume and payload.resume_snapshot and resume.user_id:
+            try:
+                from app.services.version_control_service import VersionControlService
+                version_service = VersionControlService(db)
+                resume_data = {
+                    "personalInfo": payload.resume_snapshot.get(
+                        "personalInfo",
+                        {
+                            "name": resume.name,
+                            "title": resume.title or "",
+                            "email": resume.email or "",
+                            "phone": resume.phone or "",
+                            "location": resume.location or "",
+                        },
+                    ),
+                    "summary": payload.resume_snapshot.get("summary", resume.summary or ""),
+                    "sections": payload.resume_snapshot.get("sections", []),
+                }
+                version = version_service.create_version(
+                    user_id=resume.user_id,
+                    resume_id=resume.id,
+                    resume_data=resume_data,
+                    change_summary=f"Tailored for job: {jd.title or 'Job'}",
+                    is_auto_save=False,
+                )
+                resolved_resume_version_id = version.id
+                resolved_resume_version_obj = version
+                resolved_resume_version_label = f"v{version.version_number}"
+                logger.info(
+                    f"create_match: Created new tailored version {version.id} (v{version.version_number}) for resume {resume.id}"
+                )
+            except Exception as e:
+                logger.warning(f"create_match: Failed to create tailored version: {e}")
+                # Fall back to existing version logic below
+
         # Update JD with metadata if provided
         if payload.jd_metadata:
             metadata = payload.jd_metadata
@@ -472,7 +563,10 @@ def create_match(payload: MatchCreate, db: Session):
 
         # Get resume text from version or resume data
         resume_text = ""
-        if payload.resume_version_id:
+        # If we just created a new version, use it
+        if resolved_resume_version_obj:
+            resume_text = _resume_to_text(resolved_resume_version_obj.resume_data)
+        elif payload.resume_version_id:
             rv = (
                 db.query(ResumeVersion)
                 .filter(ResumeVersion.id == payload.resume_version_id)
