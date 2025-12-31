@@ -60,6 +60,7 @@ class ExportPayload(BaseModel):
     template: Optional[str] = "tech"
     templateConfig: Optional[Dict[str, Any]] = None  # Full template configuration
     design: Optional[Dict[str, Any]] = None  # Legacy design object
+    fieldsVisible: Optional[Dict[str, bool]] = None  # CRITICAL: Controls visibility of fields (name, title, summary, etc.)
     two_column_left: Optional[List[str]] = []
     two_column_right: Optional[List[str]] = []
     two_column_left_width: Optional[int] = 50

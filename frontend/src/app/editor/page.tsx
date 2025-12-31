@@ -1547,14 +1547,16 @@ const EditorPageContent = () => {
         url.searchParams.set('session_id', sessionId)
       }
       
-      // Clean sections data - remove boolean visible flags from params for API compatibility
+      // Preserve sections data with visibility flags for proper filtering in export
+      // CRITICAL: Do not remove params.visible or section.params.visible - backend needs these to filter content
       const cleanedSections = resumeData.sections.map((section: any) => ({
         id: section.id,
         title: section.title,
+        params: section.params || {}, // Preserve section params including visible flag
         bullets: section.bullets.map((bullet: any) => ({
           id: bullet.id,
           text: bullet.text,
-          params: {} // Remove visible flag from params for API compatibility
+          params: bullet.params || {} // Preserve bullet params including visible flag
         }))
       }))
       
@@ -1615,6 +1617,7 @@ const EditorPageContent = () => {
             text: configToSend?.design?.colors?.text || '#000000'
           }
         },
+        fieldsVisible: (resumeData as any).fieldsVisible || {}, // CRITICAL: Preserve fieldsVisible for filtering fields in export
         two_column_left: localStorage.getItem('twoColumnLeft') ? JSON.parse(localStorage.getItem('twoColumnLeft')!) : [],
         two_column_right: localStorage.getItem('twoColumnRight') ? JSON.parse(localStorage.getItem('twoColumnRight')!) : [],
         two_column_left_width: columnWidth,
@@ -1668,14 +1671,16 @@ const EditorPageContent = () => {
           
           try {
             // Save resume and get version
-            // Clean sections data - remove boolean visible flags from params for API compatibility
+            // Preserve sections data with visibility flags for proper filtering
+            // CRITICAL: Do not remove params.visible - backend needs these to filter content
             const cleanedSectionsForSave = resumeData.sections.map((section: any) => ({
               id: section.id,
               title: section.title,
+              params: section.params || {}, // Preserve section params including visible flag
               bullets: section.bullets.map((bullet: any) => ({
                 id: bullet.id,
                 text: bullet.text,
-                params: {} // Remove visible flag from params for API compatibility
+                params: bullet.params || {} // Preserve bullet params including visible flag
               }))
             }))
             

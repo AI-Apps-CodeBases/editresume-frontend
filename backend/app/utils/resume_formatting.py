@@ -86,12 +86,19 @@ def format_bold_text(text: str) -> str:
 
 
 def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dict[str, str]) -> str:
-    """Format work experience bullets with proper company headers and tasks"""
+    """Format work experience bullets with proper company headers and tasks
+    CRITICAL: Filters out bullets with params.visible === False to respect user visibility settings
+    """
     html_parts = []
     current_company = None
     current_list_items = []
+    current_header_visible = True
 
     for bullet in bullets:
+        # CRITICAL: Filter out bullets with visible === false
+        if bullet.params and bullet.params.get("visible") is False:
+            continue
+        
         if not bullet.text.strip():
             continue
 
@@ -99,6 +106,12 @@ def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dic
 
         # Check if this is a company header (starts with **)
         if bullet_text.startswith("**") and "**" in bullet_text[2:]:
+            # CRITICAL: Check if header is visible - hide header and all its bullets if not visible
+            is_header_visible = not (bullet.params and bullet.params.get("visible") is False)
+            current_header_visible = is_header_visible
+            
+            if not is_header_visible:
+                continue
             # If we have accumulated list items, wrap them in <ul> and add to html_parts
             if current_list_items:
                 html_parts.append("<ul>")
@@ -136,6 +149,10 @@ def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dic
             )
             current_company = company_name
         else:
+            # CRITICAL: Only add bullets if their header is visible
+            if not current_header_visible:
+                continue
+            
             # Regular task bullet - remove leading bullet markers first
             bullet_text = bullet_text.lstrip('•').lstrip('-').lstrip('*').lstrip()
             if bullet_text.startswith('• '):
@@ -176,7 +193,15 @@ def format_work_experience_bullets(bullets: List[BulletParam], replacements: Dic
 
 
 def format_regular_bullets(bullets: List[BulletParam], replacements: Dict[str, str], section_title: str = "") -> str:
-    """Format regular section bullets"""
+    """Format regular section bullets
+    CRITICAL: Filters out bullets with params.visible === False to respect user visibility settings
+    """
+    # CRITICAL: Filter out bullets with visible === false
+    visible_bullets = [
+        bullet for bullet in bullets
+        if not (bullet.params and bullet.params.get("visible") is False)
+    ]
+    
     # Check if this is a skills section
     section_lower = section_title.lower()
     is_skill_section = (
@@ -191,7 +216,7 @@ def format_regular_bullets(bullets: List[BulletParam], replacements: Dict[str, s
     if is_skill_section:
         # Skills section - render as comma-separated, no bullets
         skill_items = []
-        for bullet in bullets:
+        for bullet in visible_bullets:
             if bullet.text.strip():
                 bullet_text = apply_replacements(bullet.text, replacements)
                 # Convert ** to <strong> first, then remove bullet markers
@@ -203,7 +228,7 @@ def format_regular_bullets(bullets: List[BulletParam], replacements: Dict[str, s
     
     # Regular section with bullets
     html_parts = []
-    for bullet in bullets:
+    for bullet in visible_bullets:
         if bullet.text.strip():
             bullet_text = apply_replacements(bullet.text, replacements)
             

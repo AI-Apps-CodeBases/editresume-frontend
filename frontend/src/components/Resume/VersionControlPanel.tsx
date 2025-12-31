@@ -241,7 +241,8 @@ export default function VersionControlPanel({
                     <button
                       onClick={async () => {
                         try {
-                          const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                          let apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                          apiBase = apiBase.replace(/\/$/, '')
                           // Always require authentication for exports (for marketing/email collection)
                           if (!isAuthenticated || !user?.email) {
                             alert('Please sign in to export resumes')

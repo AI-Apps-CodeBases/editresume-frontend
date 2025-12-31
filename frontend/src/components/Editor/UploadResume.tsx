@@ -94,7 +94,8 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
     setIsScanning(false)
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE || config.apiBase
+      let baseUrl = process.env.NEXT_PUBLIC_API_BASE || config.apiBase
+      baseUrl = baseUrl.replace(/\/$/, '')
       const uploadUrl = `${baseUrl}/api/resume/upload`
       console.log('Upload URL:', uploadUrl)
 
@@ -159,7 +160,8 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
       console.error('Error stack:', err instanceof Error ? err.stack : undefined)
       console.error('Full error:', err)
       
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE || config.apiBase
+      let baseUrl = process.env.NEXT_PUBLIC_API_BASE || config.apiBase
+      baseUrl = baseUrl.replace(/\/$/, '')
       
       if (err instanceof Error && err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
         setError(`Cannot connect to backend at ${baseUrl}. Please ensure the backend server is running on the correct port.`)

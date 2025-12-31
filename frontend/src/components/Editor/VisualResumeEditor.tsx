@@ -3008,7 +3008,7 @@ export default function VisualResumeEditor({
                                 }}
                                 className={`text-sm leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 transition-all duration-200 cursor-text border border-border-subtle relative z-10 ${
                                   ((jdKeywords?.matching?.length ?? 0) > 0 || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim()
-                                    ? 'text-transparent group-focus-within:text-gray-700 group-hover:text-gray-700'
+                                    ? 'text-transparent group-focus-within:text-gray-700'
                                     : 'text-gray-700'
                                 }`}
                                 style={{ position: 'relative', zIndex: 10 }}
@@ -3020,7 +3020,7 @@ export default function VisualResumeEditor({
                                 const hasMatch = summaryMatches.matchedKeywords.length > 0;
                                 return (
                                   <div
-                                    className="text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity text-gray-800 px-3 py-2"
+                                    className="text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity text-gray-800 px-3 py-2"
                                     data-highlight-overlay="true"
                                     style={{ 
                                       position: 'absolute',
@@ -3402,7 +3402,7 @@ export default function VisualResumeEditor({
                                               }}
                                               className={`outline-none cursor-text relative z-10 ${
                                                 (hasKeywordMatch || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && bullet.params?.visible !== false
-                                                  ? 'text-transparent group-focus-within:text-green-800 group-hover:text-green-800'
+                                                  ? 'text-transparent group-focus-within:text-green-800'
                                                   : ''
                                               }`}
                                               style={{ position: 'relative', zIndex: 10 }}
@@ -3412,7 +3412,7 @@ export default function VisualResumeEditor({
                                             </span>
                                             {((hasKeywordMatch && skillMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && bullet.params?.visible !== false && (
                                               <span
-                                                className="absolute inset-0 pointer-events-none z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity"
+                                                className="absolute inset-0 pointer-events-none z-0 group-focus-within:opacity-0 transition-opacity"
                                                 style={{ 
                                                   position: 'absolute',
                                                   top: 0,
@@ -3545,14 +3545,14 @@ export default function VisualResumeEditor({
                                               const text = e.currentTarget.textContent || '';
                                               updateBullet(section.id, bullet.id, text);
                                             }}
-                                            className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary group-hover:text-text-secondary' : 'text-text-secondary'}`}
+                                            className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text relative z-10 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
                                             style={{ position: 'relative', zIndex: 10 }}
                                           >
                                             {(bullet.text || '').replace(/^•\s*/, '')}
                                           </div>
                                           {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                                             <div
-                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                              className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                 }`}
                                               data-highlight-overlay="true"
                                               style={{ 
@@ -4722,14 +4722,14 @@ function SortableCompanyGroup({
                           const text = e.currentTarget.textContent || '';
                           updateBullet(section.id, companyBullet.id, text);
                         }}
-                        className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary group-hover:text-text-secondary' : 'text-text-secondary'}`}
+                        className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text relative z-10 ${companyBullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
                         style={{ position: 'relative', zIndex: 10 }}
                       >
                         {(companyBullet.text || '').replace(/^•\s*/, '')}
                       </div>
                       {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                         <div
-                          className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 group-hover:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                          className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                             }`}
                           data-highlight-overlay="true"
                           style={{

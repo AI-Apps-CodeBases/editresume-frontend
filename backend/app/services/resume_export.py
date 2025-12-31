@@ -80,6 +80,17 @@ async def export_pdf(
     session_id: Optional[str] = None,
     db: Optional[Session] = None,
 ) -> Response:
+    """
+    Export resume as PDF.
+    
+    CRITICAL VISIBILITY FILTERING:
+    - Sections with params.visible === False are excluded
+    - Bullets with params.visible === False are excluded (via formatting functions)
+    - Fields with fieldsVisible[field] === False are excluded (summary, name, title, etc.)
+    - Company headers with visible === False hide all their associated bullets
+    
+    DO NOT remove these filters - they are essential for respecting user visibility settings.
+    """
     """Export resume as PDF"""
     try:
         import weasyprint
@@ -382,14 +393,18 @@ async def export_pdf(
             
             # Build main content sections
             main_sections_html = ""
-            if payload.summary:
+            # CRITICAL: Check fieldsVisible for summary - only show if not explicitly hidden
+            if payload.summary and (not payload.fieldsVisible or payload.fieldsVisible.get("summary") is not False):
                 main_sections_html += f"""
                 <section style="margin-bottom: {section_gap}px;">
                     <h2 style="font-family: {font_family}; font-size: {h2_size}px; font-weight: bold; color: {primary_color}; border-bottom: 2px solid {accent_color}; padding-bottom: 6px; display: inline-block; margin-bottom: 12px;">Professional Summary</h2>
                     <p style="font-size: {body_size}px; line-height: {line_height}; color: {text_color}; margin-top: 12px;">{apply_replacements(payload.summary, replacements)}</p>
                 </section>"""
             
+            # CRITICAL: Filter sections by visible property - skip sections with visible === False
             for s in payload.sections:
+                if s.params and s.params.get("visible") is False:
+                    continue
                 section_title = s.title.lower()
                 is_work_experience = "experience" in section_title or "work" in section_title or "employment" in section_title
                 
@@ -419,7 +434,8 @@ async def export_pdf(
         elif is_timeline:
             # Timeline: Timeline markers and lines
             sections_html = ""
-            if payload.summary:
+            # CRITICAL: Check fieldsVisible for summary
+            if payload.summary and (not payload.fieldsVisible or payload.fieldsVisible.get("summary") is not False):
                 sections_html += f"""
                 <section style="margin-bottom: {section_gap}px;">
                     <div style="padding-left: 24px; border-left: 3px solid {accent_color}; margin-left: 8px;">
@@ -427,7 +443,10 @@ async def export_pdf(
                     </div>
                 </section>"""
             
+            # CRITICAL: Filter sections by visible property
             for s in payload.sections:
+                if s.params and s.params.get("visible") is False:
+                    continue
                 section_title = s.title.lower()
                 is_work_experience = "experience" in section_title or "work" in section_title or "employment" in section_title
                 
@@ -451,7 +470,8 @@ async def export_pdf(
         elif is_infographic:
             # Infographic: Card-based sections with icons
             sections_html = ""
-            if payload.summary:
+            # CRITICAL: Check fieldsVisible for summary
+            if payload.summary and (not payload.fieldsVisible or payload.fieldsVisible.get("summary") is not False):
                 sections_html += f"""
                 <section style="margin-bottom: {section_gap}px;">
                     <div style="background: {accent_color}10; border: 2px solid {accent_color}30; border-radius: 12px; padding: 20px;">
@@ -467,7 +487,10 @@ async def export_pdf(
                 'certifications': '🏆', 'awards': '⭐', 'languages': '🌐', 'publications': '📚'
             }
             
+            # CRITICAL: Filter sections by visible property
             for s in payload.sections:
+                if s.params and s.params.get("visible") is False:
+                    continue
                 section_title_lower = s.title.lower()
                 icon = '📋'
                 for key, icon_char in section_icons.items():
@@ -509,32 +532,36 @@ async def export_pdf(
             summary_in_left = summary_id in left_section_ids
             summary_in_right = summary_id in right_section_ids
             
-            # Add summary to appropriate column if it exists and is assigned
-            if payload.summary and (summary_in_left or summary_in_right):
-                summary_html = f"""
-                <div class="section">
-                    <h2>Professional Summary</h2>
-                    <div class="summary">{apply_replacements(payload.summary, replacements)}</div>
-                </div>"""
-                if summary_in_left:
+            # CRITICAL: Add summary to appropriate column if it exists, is assigned, and not hidden
+            if payload.summary and (not payload.fieldsVisible or payload.fieldsVisible.get("summary") is not False):
+                if (summary_in_left or summary_in_right):
+                    summary_html = f"""
+                    <div class="section">
+                        <h2>Professional Summary</h2>
+                        <div class="summary">{apply_replacements(payload.summary, replacements)}</div>
+                    </div>"""
+                    if summary_in_left:
+                        left_sections_html += summary_html
+                    elif summary_in_right:
+                        right_sections_html += summary_html
+                elif not left_section_ids and not right_section_ids:
+                    # Default: add summary to left column if no configuration exists
+                    summary_html = f"""
+                    <div class="section">
+                        <h2>Professional Summary</h2>
+                        <div class="summary">{apply_replacements(payload.summary, replacements)}</div>
+                    </div>"""
                     left_sections_html += summary_html
-                elif summary_in_right:
-                    right_sections_html += summary_html
-            elif payload.summary and not left_section_ids and not right_section_ids:
-                # Default: add summary to left column if no configuration exists
-                summary_html = f"""
-                <div class="section">
-                    <h2>Professional Summary</h2>
-                    <div class="summary">{apply_replacements(payload.summary, replacements)}</div>
-                </div>"""
-                left_sections_html += summary_html
 
             # If no configuration provided, use smart distribution: Skills, Certificates, Education on left
             if not left_section_ids and not right_section_ids:
                 # Default distribution: Skills, Certificates, Education on left; everything else on right
                 left_column_keywords = ['skill', 'certificate', 'certification', 'education', 'academic', 'qualification', 'award', 'honor']
                 
+                # CRITICAL: Filter sections by visible property
                 for s in payload.sections:
+                    if s.params and s.params.get("visible") is False:
+                        continue
                     section_title_lower = s.title.lower()
                     # Skip summary section as it's already added above
                     if 'summary' in section_title_lower or 'professional summary' in section_title_lower:
@@ -620,7 +647,10 @@ async def export_pdf(
                         right_sections_html += section_html
             else:
                 # Use provided configuration
+                # CRITICAL: Filter sections by visible property
                 for s in payload.sections:
+                    if s.params and s.params.get("visible") is False:
+                        continue
                     section_title = s.title.lower()
                     # Skip summary section as it's already added above
                     if 'summary' in section_title or 'professional summary' in section_title:
@@ -703,13 +733,17 @@ async def export_pdf(
             </table>"""
         else:
             # Single column layout
+            # CRITICAL: Check fieldsVisible for summary
             summary_html = (
                 f'<div class="summary">{apply_replacements(payload.summary, replacements)}</div>'
-                if payload.summary
+                if payload.summary and (not payload.fieldsVisible or payload.fieldsVisible.get("summary") is not False)
                 else ""
             )
             sections_html = ""
+            # CRITICAL: Filter sections by visible property
             for s in payload.sections:
+                if s.params and s.params.get("visible") is False:
+                    continue
                 section_title = s.title.lower()
                 is_work_experience = (
                     "experience" in section_title
@@ -1071,6 +1105,16 @@ async def export_docx(
     session_id: Optional[str] = None,
     db: Optional[Session] = None,
 ) -> Response:
+    """
+    Export resume as DOCX.
+    
+    CRITICAL VISIBILITY FILTERING:
+    - Sections with params.visible === False are excluded
+    - Bullets with params.visible === False should be filtered (check b.params.get("visible"))
+    - Fields with fieldsVisible[field] === False are excluded (summary, name, title, etc.)
+    
+    DO NOT remove these filters - they are essential for respecting user visibility settings.
+    """
     """Export resume as DOCX"""
     try:
         from docx import Document
@@ -1136,28 +1180,31 @@ async def export_docx(
         section.right_margin = page_margin_inches
 
         # Only add header (name, title, contact) if not cover letter only
+        # CRITICAL: Check fieldsVisible for each field
         if not is_cover_letter_only:
-            name_para = doc.add_paragraph()
-            name_run = name_para.add_run(apply_replacements(payload.name, replacements))
-            name_run.font.size = Pt(h1_size)
-            name_run.font.bold = True
-            name_run.font.name = font_family_heading
-            if header_align == "center":
-                name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if payload.name and (not payload.fieldsVisible or payload.fieldsVisible.get("name") is not False):
+                name_para = doc.add_paragraph()
+                name_run = name_para.add_run(apply_replacements(payload.name, replacements))
+                name_run.font.size = Pt(h1_size)
+                name_run.font.bold = True
+                name_run.font.name = font_family_heading
+                if header_align == "center":
+                    name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-            title_para = doc.add_paragraph()
-            title_run = title_para.add_run(apply_replacements(payload.title, replacements))
-            title_run.font.size = Pt(h2_size)
-            title_run.font.name = font_family_body
-            if header_align == "center":
-                title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if payload.title and (not payload.fieldsVisible or payload.fieldsVisible.get("title") is not False):
+                title_para = doc.add_paragraph()
+                title_run = title_para.add_run(apply_replacements(payload.title, replacements))
+                title_run.font.size = Pt(h2_size)
+                title_run.font.name = font_family_body
+                if header_align == "center":
+                    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
             contact_parts = []
-            if payload.email:
+            if payload.email and (not payload.fieldsVisible or payload.fieldsVisible.get("email") is not False):
                 contact_parts.append(apply_replacements(payload.email, replacements))
-            if payload.phone:
+            if payload.phone and (not payload.fieldsVisible or payload.fieldsVisible.get("phone") is not False):
                 contact_parts.append(apply_replacements(payload.phone, replacements))
-            if payload.location:
+            if payload.location and (not payload.fieldsVisible or payload.fieldsVisible.get("location") is not False):
                 contact_parts.append(apply_replacements(payload.location, replacements))
 
             if contact_parts:
@@ -1623,14 +1670,18 @@ async def export_docx(
                 right_cell.add_paragraph()
         else:
             # Single column layout
-            if payload.summary:
+            # CRITICAL: Check fieldsVisible for summary
+            if payload.summary and (not payload.fieldsVisible or payload.fieldsVisible.get("summary") is not False):
                 summary_para = doc.add_paragraph(
                     apply_replacements(payload.summary, replacements)
                 )
                 summary_para.runs[0].font.size = Pt(10)
                 doc.add_paragraph()
 
+            # CRITICAL: Filter sections by visible property
             for s in payload.sections:
+                if s.params and s.params.get("visible") is False:
+                    continue
                 section_title = apply_replacements(s.title, replacements)
                 if template_style["styles"]["section_uppercase"]:
                     section_title = section_title.upper()

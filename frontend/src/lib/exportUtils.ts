@@ -665,7 +665,8 @@ export async function capturePreviewHTML(): Promise<string> {
 export async function exportPreviewAsPDF(filename: string = 'resume.pdf', apiBase?: string): Promise<void> {
   try {
     const html = await capturePreviewHTML()
-    const baseUrl = apiBase || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+    let baseUrl = apiBase || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+    baseUrl = baseUrl.replace(/\/$/, '')
     
     const response = await fetch(`${baseUrl}/api/resume/export/html-to-pdf`, {
       method: 'POST',

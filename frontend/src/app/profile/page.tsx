@@ -184,7 +184,8 @@ function ProfilePageContent() {
     
     setResumesLoading(true)
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+      let apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+      apiBase = apiBase.replace(/\/$/, '')
       const resumesRes = await fetch(`${apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
       if (resumesRes.ok) {
         const resumesData = await resumesRes.json()
