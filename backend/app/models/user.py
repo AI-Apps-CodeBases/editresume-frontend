@@ -19,6 +19,7 @@ class User(Base):
     password = Column(String, nullable=False)
     is_premium = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    premium_purchased_at = Column(DateTime, nullable=True, index=True)
     trial_started_at = Column(DateTime, nullable=True, index=True)
     linkedin_token = Column(Text, nullable=True)
     linkedin_profile_url = Column(String, nullable=True)

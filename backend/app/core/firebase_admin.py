@@ -6,6 +6,7 @@ import logging
 import secrets
 import threading
 import time
+from datetime import datetime
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
@@ -219,6 +220,27 @@ def sync_user_profile(uid: str, profile: Dict[str, Any]) -> None:
         logger.error("Unexpected error syncing Firestore profile for %s: %s", uid, exc)
 
 
+def _update_user_premium_purchase(email: str, is_premium: bool, premium_purchased_at: Optional[datetime]) -> None:
+    session = SessionLocal()
+    try:
+        user = session.query(User).filter(User.email == email).first()
+        if user:
+            updated = False
+            if user.is_premium != is_premium:
+                user.is_premium = is_premium
+                updated = True
+            if is_premium and premium_purchased_at and not user.premium_purchased_at:
+                user.premium_purchased_at = premium_purchased_at
+                updated = True
+            if updated:
+                session.commit()
+    except Exception as exc:  # noqa: BLE001
+        session.rollback()
+        logger.warning("Failed to update premium purchase for %s: %s", email, exc)
+    finally:
+        session.close()
+
+
 def _sync_relational_user_profile(profile: Dict[str, Any]) -> None:
     email = (profile.get("email") or "").strip()
     if not email:
@@ -270,6 +292,17 @@ def update_user_subscription(uid: str, subscription_data: Dict[str, Any]) -> Non
     }
     try:
         doc_ref.set(payload, merge=True)
+        
+        premium_purchased_at = subscription_data.get("premiumPurchasedAt")
+        is_premium = subscription_data.get("isPremium", False)
+        
+        if premium_purchased_at or is_premium:
+            user_doc = doc_ref.get()
+            if user_doc.exists:
+                user_data = user_doc.to_dict()
+                email = user_data.get("email")
+                if email:
+                    _update_user_premium_purchase(email, is_premium, premium_purchased_at)
     except firebase_exceptions.FirebaseError as exc:
         logger.error("Failed to update subscription for %s: %s", uid, exc)
     except Exception as exc:  # noqa: BLE001
