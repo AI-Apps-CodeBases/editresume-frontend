@@ -124,6 +124,48 @@ def migrate_schema() -> None:
             )
             conn.commit()
 
+        # Add premium_purchased_at column to users table if it doesn't exist
+        result = conn.execute(
+            text(
+                """
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'users' 
+                AND column_name = 'premium_purchased_at'
+                """
+            )
+        )
+        if result.fetchone() is None:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN premium_purchased_at TIMESTAMP NULL")
+            )
+            conn.commit()
+            
+            # Create index if it doesn't exist
+            index_result = conn.execute(
+                text("""
+                    SELECT indexname 
+                    FROM pg_indexes 
+                    WHERE tablename = 'users' 
+                    AND indexname = 'idx_users_premium_purchased_at'
+                """)
+            )
+            if index_result.fetchone() is None:
+                conn.execute(
+                    text("CREATE INDEX idx_users_premium_purchased_at ON users(premium_purchased_at)")
+                )
+                conn.commit()
+            
+            # Set premium_purchased_at = created_at for existing premium users
+            conn.execute(
+                text("""
+                    UPDATE users 
+                    SET premium_purchased_at = created_at 
+                    WHERE is_premium = true AND premium_purchased_at IS NULL
+                """)
+            )
+            conn.commit()
+
         # Check if match_sessions.user_id exists, add it if not
         result = conn.execute(
             text(
