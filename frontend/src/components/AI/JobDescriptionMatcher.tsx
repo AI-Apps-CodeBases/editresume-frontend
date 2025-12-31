@@ -3472,8 +3472,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             ? `${companyName} - ${accurateTitle}`
             : accurateTitle;
           
+          // Use updatedResumeData if available (most recent tailored version), otherwise use resumeData
+          const currentResumeData = updatedResumeData || resumeData;
+          
           resumeSaveResult = await handleSaveResumeWithName({
             nameOverride: autoResumeName,
+            resumeOverride: currentResumeData,
             jobDescriptionIdOverride: savedJobId,
             suppressModalReset: true
           });

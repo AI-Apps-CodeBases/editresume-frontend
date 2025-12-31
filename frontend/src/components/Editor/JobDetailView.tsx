@@ -107,19 +107,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<any>(null)
   const [selectedCoverLetterId, setSelectedCoverLetterId] = useState<number | null>(null)
 
-  useEffect(() => {
-    if (jobId && isAuthenticated && user?.email) {
-      fetchJobDetails()
-    }
-  }, [jobId, isAuthenticated, user?.email])
-
-  useEffect(() => {
-    if (isAuthenticated && user?.email) {
-      fetchResumes()
-    }
-  }, [isAuthenticated, user?.email])
-
-  const fetchJobDetails = async () => {
+  const fetchJobDetails = useCallback(async () => {
     if (!user?.email) return
     
     setLoading(true)
@@ -168,7 +156,36 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [jobId, user?.email])
+
+  useEffect(() => {
+    if (jobId && isAuthenticated && user?.email) {
+      fetchJobDetails()
+    }
+  }, [jobId, isAuthenticated, user?.email, fetchJobDetails])
+
+  useEffect(() => {
+    if (isAuthenticated && user?.email) {
+      fetchResumes()
+    }
+  }, [isAuthenticated, user?.email])
+
+  // Listen for jobSaved event to refresh job details
+  useEffect(() => {
+    const handleJobSaved = (event: CustomEvent) => {
+      const savedJobId = event.detail?.jobId
+      if (savedJobId && savedJobId === jobId) {
+        fetchJobDetails()
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('jobSaved', handleJobSaved as EventListener)
+      return () => {
+        window.removeEventListener('jobSaved', handleJobSaved as EventListener)
+      }
+    }
+  }, [jobId, fetchJobDetails])
 
   const fetchResumes = async () => {
     if (!user?.email) return
