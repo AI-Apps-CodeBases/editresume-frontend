@@ -6,8 +6,7 @@ import config from '@/lib/config'
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import UploadResume from './UploadResume'
 import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
-import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, StarIcon, FireIcon, DiamondIcon, RocketIcon, TargetIcon, SparklesIcon, TrophyIcon, MailIcon, DocumentIcon, ChartIcon, BrainIcon, FileTextIcon } from '@/components/Icons'
-import { BarChart3 } from 'lucide-react'
+import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, MailIcon, DocumentIcon, ChartIcon, FileTextIcon } from '@/components/Icons'
 import { StarRating } from '@/components/Shared/StarRating'
 import { deduplicateSections, sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
 
@@ -92,7 +91,24 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const { showAlert, showConfirm } = useModal()
   const [job, setJob] = useState<JobDescription | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'notes' | 'resume' | 'analysis' | 'coverLetters'>('overview')
+  
+  // Persist activeTab in localStorage to prevent reverting on remount
+  const [activeTab, setActiveTab] = useState<'overview' | 'notes' | 'resume' | 'analysis' | 'coverLetters'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`jobDetailTab_${jobId}`)
+      if (saved && ['overview', 'notes', 'resume', 'analysis', 'coverLetters'].includes(saved)) {
+        return saved as 'overview' | 'notes' | 'resume' | 'analysis' | 'coverLetters'
+      }
+    }
+    return 'overview'
+  })
+  
+  // Save activeTab to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`jobDetailTab_${jobId}`, activeTab)
+    }
+  }, [activeTab, jobId])
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [resumeOptions, setResumeOptions] = useState<Array<{ id: number; name: string }>>([])
@@ -107,19 +123,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<any>(null)
   const [selectedCoverLetterId, setSelectedCoverLetterId] = useState<number | null>(null)
 
-  useEffect(() => {
-    if (jobId && isAuthenticated && user?.email) {
-      fetchJobDetails()
-    }
-  }, [jobId, isAuthenticated, user?.email])
-
-  useEffect(() => {
-    if (isAuthenticated && user?.email) {
-      fetchResumes()
-    }
-  }, [isAuthenticated, user?.email])
-
-  const fetchJobDetails = async () => {
+  const fetchJobDetails = useCallback(async () => {
     if (!user?.email) return
     
     setLoading(true)
@@ -168,7 +172,49 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [jobId, user?.email, selectedResumeId])
+
+  useEffect(() => {
+    if (jobId && isAuthenticated && user?.email) {
+      fetchJobDetails()
+    }
+  }, [jobId, isAuthenticated, user?.email, fetchJobDetails])
+
+  useEffect(() => {
+    if (isAuthenticated && user?.email) {
+      fetchResumes()
+    }
+  }, [isAuthenticated, user?.email])
+
+  // Listen for resume version save events and refresh job details
+  useEffect(() => {
+    const handleResumeVersionSaved = (event: CustomEvent) => {
+      const eventJobId = event.detail?.jobId
+      if (eventJobId && eventJobId === jobId) {
+        fetchJobDetails()
+        if (onUpdate) {
+          onUpdate()
+        }
+      }
+    }
+
+    const handleJobSaved = () => {
+      fetchJobDetails()
+      if (onUpdate) {
+        onUpdate()
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resumeVersionSaved', handleResumeVersionSaved as EventListener)
+      window.addEventListener('jobSaved', handleJobSaved)
+      
+      return () => {
+        window.removeEventListener('resumeVersionSaved', handleResumeVersionSaved as EventListener)
+        window.removeEventListener('jobSaved', handleJobSaved)
+      }
+    }
+  }, [jobId, onUpdate, fetchJobDetails])
 
   const fetchResumes = async () => {
     if (!user?.email) return
@@ -317,7 +363,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       })
       if (res.ok) {
         const updated = await res.json()
-        console.log('Cover letter updated:', updated)
         
         // Update state directly to avoid race condition
         setCoverLetters((prev) => prev.map((cl) => (cl.id === updated.id ? updated : cl)))
@@ -356,7 +401,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         timeout: 15000,
       })
       if (res.ok) {
-        console.log('Cover letter deleted successfully:', letterId)
         
         // Update state directly to avoid race condition
         setCoverLetters((prev) => prev.filter((cl) => cl.id !== letterId))
@@ -599,7 +643,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
      const deduplicatedSections = deduplicateSections(sections)
      const sortedSections = sortSectionsByDefaultOrder(deduplicatedSections)
      
-     console.log(`📋 Deduplicated and sorted sections during upload (job match): ${sections.length} → ${deduplicatedSections.length} → ${sortedSections.length}`)
  
      const normalizedResume = {
        name: data?.name || '',
@@ -618,7 +661,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
            window.localStorage.setItem('deepLinkedJD', job.content)
          }
          // Clear ALL cached resume data before uploading
-         console.log('🧹 Clearing all cached resume data before upload (from job match)')
          window.localStorage.removeItem('currentResumeId')
          window.localStorage.removeItem('currentResumeVersionId')
          window.localStorage.removeItem('resumeData') // Clear cached resume
@@ -629,7 +671,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
            resume: normalizedResume,
            template: data?.template || 'tech'
          }
-         console.log('💾 Storing uploaded resume in sessionStorage:', uploadToken)
          window.sessionStorage.setItem(`uploadedResume:${uploadToken}`, JSON.stringify(payload))
 
          const redirectUrl = new URL('/editor', window.location.origin)
@@ -888,7 +929,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               {[
                 { id: 'overview', label: 'Overview', icon: DocumentIcon },
                 { id: 'notes', label: 'Notes', icon: EditIcon },
-                { id: 'resume', label: 'Resume', icon: FileTextIcon },
+                { id: 'resume', label: 'Resume Versions', icon: FileTextIcon },
                 { id: 'analysis', label: 'Analysis', icon: ChartIcon },
                 { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
               ].map(tab => {
@@ -1372,122 +1413,296 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 </div>
 
                 {job.resume_versions && job.resume_versions.length > 0 ? (
-                  <div className="space-y-3">
-                    {job.resume_versions.map((match) => {
-                      const resolveNumeric = (...values: Array<number | null | undefined>) => {
-                        for (const value of values) {
-                          if (typeof value === 'number' && Number.isFinite(value)) {
-                            return Math.round(value)
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[800px] border-separate border-spacing-0">
+                      <thead>
+                        <tr>
+                          <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                            Resume Version
+                          </th>
+                          <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                            ATS Score
+                          </th>
+                          <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                            Keywords
+                          </th>
+                          <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                            Date Saved
+                          </th>
+                          <th className="px-4 py-4 text-right text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {job.resume_versions.map((match) => {
+                          const resolveNumeric = (...values: Array<number | null | undefined>) => {
+                            for (const value of values) {
+                              if (typeof value === 'number' && Number.isFinite(value)) {
+                                return Math.round(value)
+                              }
+                            }
+                            return null
                           }
-                        }
-                        return null
-                      }
 
-                      const matchScore = resolveNumeric(
-                        match.score,
-                        (match as any)?.match_analysis?.similarity_score,
-                        (match as any)?.score_snapshot?.overall_score
-                      )
+                          const matchScore = resolveNumeric(
+                            match.score,
+                            (match as any)?.match_analysis?.similarity_score,
+                            (match as any)?.score_snapshot?.overall_score
+                          )
 
-                      const keywordCoverageValue = resolveNumeric(
-                        match.keyword_coverage,
-                        (match as any)?.match_analysis?.keyword_coverage,
-                        (match as any)?.score_snapshot?.keyword_coverage
-                      )
+                          const keywordCoverageValue = resolveNumeric(
+                            match.keyword_coverage,
+                            (match as any)?.match_analysis?.keyword_coverage,
+                            (match as any)?.score_snapshot?.keyword_coverage
+                          )
 
-                      const scoreClass = matchScore === null
-                        ? 'bg-gray-100 text-gray-500'
-                        : matchScore >= 80
-                          ? 'bg-green-100 text-green-700'
-                          : matchScore >= 60
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-orange-100 text-orange-700'
+                          const getScoreColor = (score: number | null) => {
+                            if (score === null) return { ring: 'text-gray-300', text: 'text-gray-600' }
+                            if (score >= 80) return { ring: 'text-green-500', text: 'text-gray-900' }
+                            return { ring: 'text-gray-300', text: 'text-gray-600' }
+                          }
 
-                      return (
-                        <div
-                          key={match.id}
-                          className="border border-gray-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-                        >
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${scoreClass}`}>
-                                ATS: {matchScore !== null ? `${matchScore}%` : '—'}
-                              </span>
-                              {keywordCoverageValue !== null && (
-                                <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
-                                Keywords {keywordCoverageValue}%
-                                </span>
-                              )}
-                              <span className="text-xs text-gray-400">
-                                {match.updated_at ? new Date(match.updated_at).toLocaleString() : match.created_at ? new Date(match.created_at).toLocaleString() : ''}
-                              </span>
-                            </div>
-                            <div className="text-sm text-gray-700">
-                              {match.resume_name || 'Resume'}
-                              {match.resume_version_label && <span className="text-gray-400 ml-1">({match.resume_version_label})</span>}
-                            </div>
-                            {(match.matched_keywords?.length || match.missing_keywords?.length) && (
-                              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-2">
-                                {match.matched_keywords && match.matched_keywords.length > 0 && (
-                                  <div>
-                                    <div className="text-xs font-semibold text-green-600 mb-1">Matched Keywords ({match.matched_keywords.length})</div>
-                                    <div className="flex flex-wrap gap-1 text-[11px]">
-                                      {match.matched_keywords.slice(0, 15).map((kw) => (
-                                        <span key={kw} className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full">{kw}</span>
-                                      ))}
+                          const scoreColors = getScoreColor(matchScore)
+
+                          return (
+                            <tr 
+                              key={match.id}
+                              className="hover:bg-gray-50/50 transition-colors group"
+                            >
+                              <td className="px-4 py-6">
+                                <div>
+                                  <div className="font-semibold text-text-primary text-sm leading-tight">
+                                    {match.resume_name || 'Resume'}
+                                  </div>
+                                  {match.resume_version_label && (
+                                    <div className="text-xs text-text-muted mt-0.5">
+                                      {match.resume_version_label}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-6">
+                                {matchScore !== null ? (
+                                  <div className="flex items-center">
+                                    <div className="relative w-12 h-12 flex items-center justify-center">
+                                      <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                                        <circle
+                                          className="text-gray-200"
+                                          stroke="currentColor"
+                                          strokeWidth="3"
+                                          fill="none"
+                                          cx="18"
+                                          cy="18"
+                                          r="15"
+                                        />
+                                        <circle
+                                          className={scoreColors.ring}
+                                          stroke="currentColor"
+                                          strokeWidth="3"
+                                          fill="none"
+                                          strokeLinecap="round"
+                                          strokeDasharray={`${(matchScore / 100) * 94.2}, 94.2`}
+                                          cx="18"
+                                          cy="18"
+                                          r="15"
+                                        />
+                                      </svg>
+                                      <span className={`absolute text-sm font-bold ${scoreColors.text}`}>
+                                        {matchScore}
+                                      </span>
                                     </div>
                                   </div>
+                                ) : (
+                                  <span className="text-xs text-text-muted">—</span>
                                 )}
-                                {match.missing_keywords && match.missing_keywords.length > 0 && (
-                                  <div>
-                                    <div className="text-xs font-semibold text-red-600 mb-1">Improve These ({match.missing_keywords.length})</div>
-                                    <div className="flex flex-wrap gap-1 text-[11px]">
-                                      {match.missing_keywords.slice(0, 15).map((kw) => (
-                                        <span key={kw} className="px-2 py-0.5 bg-red-50 text-red-600 rounded-full">{kw}</span>
-                                      ))}
+                              </td>
+                              <td className="px-4 py-6">
+                                <div className="space-y-1">
+                                  {keywordCoverageValue !== null && (
+                                    <div className="text-xs text-text-muted">
+                                      Coverage: {keywordCoverageValue}%
                                     </div>
+                                  )}
+                                  <div className="flex flex-wrap gap-1 max-w-xs">
+                                    {match.matched_keywords && match.matched_keywords.length > 0 && (
+                                      <span className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded">
+                                        {match.matched_keywords.length} matched
+                                      </span>
+                                    )}
+                                    {match.missing_keywords && match.missing_keywords.length > 0 && (
+                                      <span className="text-[10px] px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded">
+                                        {match.missing_keywords.length} missing
+                                      </span>
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {match.resume_id && (
-                              <button
-                                onClick={() => {
-                                  const versionQuery = match.resume_version_id ? `&resumeVersionId=${match.resume_version_id}` : ''
-                                  window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}`
-                                }}
-                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                              >
-                                Improve in Editor
-                              </button>
-                            )}
-                            {match.resume_id && (
-                              <button
-                                onClick={() => {
-                                  const versionQuery = match.resume_version_id ? `&resumeVersionId=${match.resume_version_id}` : ''
-                                  window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}`
-                                }}
-                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                              >
-                                Improve in Editor
-                              </button>
-                            )}
-                            {match.resume_version_id && (
-                              <a
-                                href={`${config.apiBase}/api/resume/version/${match.resume_version_id}`}
-                                target="_blank"
-                                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
-                                rel="noopener noreferrer"
-                              >
-                                Download Version
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
+                                </div>
+                              </td>
+                              <td className="px-4 py-6 text-sm text-text-muted">
+                                {match.updated_at 
+                                  ? new Date(match.updated_at).toLocaleDateString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })
+                                  : match.created_at
+                                    ? new Date(match.created_at).toLocaleDateString('en-US', { 
+                                        month: 'short', 
+                                        day: 'numeric',
+                                        year: 'numeric'
+                                      })
+                                    : '-'}
+                              </td>
+                              <td className="px-4 py-6">
+                                <div className="flex items-center justify-end gap-2">
+                                  {match.resume_id && (
+                                    <button
+                                      onClick={() => {
+                                        const versionQuery = match.resume_version_id ? `&resumeVersionId=${match.resume_version_id}` : ''
+                                        window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}`
+                                      }}
+                                      className="text-xs px-4 py-2 border border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition-all"
+                                    >
+                                      Open in Editor
+                                    </button>
+                                  )}
+                                  {match.resume_version_id && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          if (!isAuthenticated || !user?.email) {
+                                            showAlert({
+                                              type: 'error',
+                                              message: 'Please sign in to export resumes',
+                                              title: 'Authentication Required'
+                                            })
+                                            return
+                                          }
+
+                                          const userEmail = user.email
+                                          
+                                          const versionRes = await fetch(`${config.apiBase}/api/resume/version/${match.resume_version_id}?user_email=${encodeURIComponent(userEmail)}`)
+                                          if (!versionRes.ok) {
+                                            throw new Error('Failed to fetch version data')
+                                          }
+                                          
+                                          const versionData = await versionRes.json()
+                                          const resumeData = versionData.version.resume_data
+                                          
+                                          const exportUrl = `${config.apiBase}/api/resume/export/pdf?user_email=${encodeURIComponent(userEmail)}`
+                                          const exportResponse = await fetch(exportUrl, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              name: resumeData.personalInfo?.name || resumeData.name || 'Resume',
+                                              title: resumeData.personalInfo?.title || resumeData.title || '',
+                                              email: resumeData.personalInfo?.email || resumeData.email || '',
+                                              phone: resumeData.personalInfo?.phone || resumeData.phone || '',
+                                              location: resumeData.personalInfo?.location || resumeData.location || '',
+                                              summary: resumeData.summary || '',
+                                              sections: resumeData.sections || [],
+                                              replacements: {},
+                                              template: resumeData.template || 'tech',
+                                              two_column_left: [],
+                                              two_column_right: [],
+                                              two_column_left_width: 50
+                                            })
+                                          })
+                                          
+                                          if (exportResponse.ok) {
+                                            const blob = await exportResponse.blob()
+                                            const url = window.URL.createObjectURL(blob)
+                                            const a = document.createElement('a')
+                                            a.href = url
+                                            const versionLabel = match.resume_version_label || `v${versionData.version.version_number}`
+                                            a.download = `Resume_${versionLabel}.pdf`
+                                            document.body.appendChild(a)
+                                            a.click()
+                                            document.body.removeChild(a)
+                                            window.URL.revokeObjectURL(url)
+                                          } else {
+                                            throw new Error(`Export failed: ${exportResponse.status}`)
+                                          }
+                                        } catch (error) {
+                                          console.error('Failed to export version:', error)
+                                          showAlert({
+                                            type: 'error',
+                                            message: `Failed to export version: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                            title: 'Export Failed'
+                                          })
+                                        }
+                                      }}
+                                      className="p-2 text-text-muted hover:text-text-primary hover:bg-gray-100 rounded-lg transition-colors"
+                                      title="Export PDF"
+                                    >
+                                      <FileTextIcon size={18} color="currentColor" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={async () => {
+                                      const confirmed = await showConfirm({
+                                        title: 'Delete Resume Version',
+                                        message: `Are you sure you want to delete this resume version match? This action cannot be undone.`,
+                                        confirmText: 'Delete',
+                                        cancelText: 'Cancel',
+                                        type: 'danger'
+                                      })
+
+                                      if (!confirmed) return
+
+                                      try {
+                                        if (!isAuthenticated || !user?.email) {
+                                          showAlert({
+                                            type: 'error',
+                                            message: 'Please sign in to delete resume versions',
+                                            title: 'Authentication Required'
+                                          })
+                                          return
+                                        }
+
+                                        const userEmail = user.email
+                                        const deleteUrl = `${config.apiBase}/api/job-descriptions/${job.id}/resume-versions/${match.id}?user_email=${encodeURIComponent(userEmail)}`
+                                        
+                                        const deleteResponse = await fetch(deleteUrl, {
+                                          method: 'DELETE',
+                                          headers: { 'Content-Type': 'application/json' }
+                                        })
+
+                                        if (deleteResponse.ok) {
+                                          showAlert({
+                                            type: 'success',
+                                            message: 'Resume version match deleted successfully',
+                                            title: 'Deleted'
+                                          })
+                                          fetchJobDetails()
+                                          if (onUpdate) {
+                                            onUpdate()
+                                          }
+                                        } else {
+                                          const errorData = await deleteResponse.json().catch(() => ({ detail: 'Failed to delete resume version match' }))
+                                          throw new Error(errorData.detail || `HTTP ${deleteResponse.status}`)
+                                        }
+                                      } catch (error) {
+                                        console.error('Failed to delete resume version:', error)
+                                        showAlert({
+                                          type: 'error',
+                                          message: `Failed to delete resume version: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                          title: 'Delete Failed'
+                                        })
+                                      }
+                                    }}
+                                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete this resume version match"
+                                  >
+                                    <XIcon size={18} color="currentColor" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <div className="text-center py-16 bg-white border-2 border-dashed border-gray-300 rounded-xl">
@@ -1888,7 +2103,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
           initialPositionTitle={job?.title || ''}
           jobId={jobId}
           onSaveSuccess={(savedLetter) => {
-            console.log('Cover letter saved successfully:', savedLetter)
             setShowCoverLetterGenerator(false)
             
             if (savedLetter && savedLetter.id) {
