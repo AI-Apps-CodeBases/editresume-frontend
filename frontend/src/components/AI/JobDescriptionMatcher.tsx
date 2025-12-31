@@ -3347,7 +3347,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   }, [selectedJobMetadata, currentJDInfo, initialJobDescription]);
 
   const handleSaveJobDescription = async (): Promise<number | null> => {
+    console.log('🚀 handleSaveJobDescription called');
+    
     if (!jobDescription || !jobDescription.trim()) {
+      console.log('❌ No job description to save');
       await showAlert({
         type: 'warning',
         message: 'Please enter a job description to save.',
@@ -3357,6 +3360,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     }
 
     if (!isAuthenticated || !user?.email) {
+      console.log('❌ Not authenticated');
       const requireAuth = shouldPromptAuthentication('saveJobDescription', isAuthenticated)
       if (requireAuth) {
         await showAlert({
@@ -3368,6 +3372,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
       return saveGuestJobDescriptionLocally();
     }
+    
+    console.log('✅ Authenticated, proceeding with save');
 
     // Extract accurate title from JD if not already analyzed
     // This ensures we always use the title extracted from the JD, even if user saves without analyzing first
@@ -3452,7 +3458,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
 
       const result = await response.json();
-      console.log('Job description saved successfully:', result);
+      console.log('✅ Job description saved successfully:', result);
 
       const savedJobId = result.id || currentJobDescriptionId;
       if (savedJobId && savedJobId !== currentJobDescriptionId && onSelectJobDescriptionId) {
@@ -3464,6 +3470,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
 
       // Save the tailored resume and create match session (if resume data exists)
+      console.log('🔍 Checking resume save conditions:', {
+        hasResumeData: !!resumeData,
+        resumeDataType: resumeData ? typeof resumeData : 'undefined',
+        savedJobId,
+        hasUpdatedResumeData: !!updatedResumeData,
+        resumeDataKeys: resumeData ? Object.keys(resumeData).slice(0, 10) : []
+      });
+
       let resumeSaveResult = null;
       if (resumeData && savedJobId) {
         try {
