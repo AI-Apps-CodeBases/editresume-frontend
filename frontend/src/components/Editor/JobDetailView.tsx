@@ -888,7 +888,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               {[
                 { id: 'overview', label: 'Overview', icon: DocumentIcon },
                 { id: 'notes', label: 'Notes', icon: EditIcon },
-                { id: 'resume', label: 'Resume', icon: FileTextIcon },
+                { id: 'resume', label: 'Resume Versions', icon: FileTextIcon },
                 { id: 'analysis', label: 'Analysis', icon: ChartIcon },
                 { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
               ].map(tab => {

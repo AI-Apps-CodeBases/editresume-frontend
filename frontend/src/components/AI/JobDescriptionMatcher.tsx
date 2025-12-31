@@ -3454,15 +3454,40 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       const result = await response.json();
       console.log('Job description saved successfully:', result);
 
-      // Update currentJobDescriptionId if it was a new save or if we got a different ID back
       const savedJobId = result.id || currentJobDescriptionId;
       if (savedJobId && savedJobId !== currentJobDescriptionId && onSelectJobDescriptionId) {
         onSelectJobDescriptionId(savedJobId);
       }
 
-      // Store the job ID in localStorage for persistence
       if (typeof window !== 'undefined' && savedJobId) {
         localStorage.setItem('activeJobDescriptionId', savedJobId.toString());
+      }
+
+      // Save the tailored resume and create match session (if resume data exists)
+      let resumeSaveResult = null;
+      if (resumeData && savedJobId) {
+        try {
+          const companyName = jdMetadata.company || currentJDInfo?.company || selectedJobMetadata?.company || '';
+          const autoResumeName = companyName 
+            ? `${companyName} - ${accurateTitle}`
+            : accurateTitle;
+          
+          resumeSaveResult = await handleSaveResumeWithName({
+            nameOverride: autoResumeName,
+            jobDescriptionIdOverride: savedJobId,
+            suppressModalReset: true
+          });
+          
+          if (resumeSaveResult?.resumeId) {
+            console.log('Resume saved with job description:', {
+              resumeId: resumeSaveResult.resumeId,
+              versionId: resumeSaveResult.versionId,
+              jobId: savedJobId
+            });
+          }
+        } catch (resumeError) {
+          console.warn('Job saved but resume save failed:', resumeError);
+        }
       }
 
       // Restore button state
@@ -3474,15 +3499,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       // Dispatch custom event to refresh jobs list everywhere
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('jobSaved', {
-          detail: { jobId: result.id || currentJobDescriptionId }
+          detail: { jobId: savedJobId }
         }));
       }
 
-      // Show success notification immediately - use the accurate title that was saved
+      // Show success notification
       const jobTitle = accurateTitle;
       const companyName = jdMetadata.company ? ` - ${jdMetadata.company}` : '';
       const atsScore = currentATSScore !== null ? currentATSScore : (matchResult?.match_analysis?.similarity_score || null);
       const scoreText = atsScore ? ` (ATS: ${Math.round(atsScore)}%)` : '';
+      const resumeSavedText = resumeSaveResult?.resumeId ? ' • Resume version saved' : '';
 
       const notification = document.createElement('div');
       notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
@@ -3490,8 +3516,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         <div class="flex items-center gap-3">
           <div class="text-2xl">✅</div>
           <div>
-            <div class="font-bold text-lg">Job Saved!</div>
-            <div class="text-sm mt-1">${jobTitle}${companyName}${scoreText}</div>
+            <div class="font-bold text-lg">Saved to Jobs!</div>
+            <div class="text-sm mt-1">${jobTitle}${companyName}${scoreText}${resumeSavedText}</div>
           </div>
           <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
         </div>
@@ -3499,7 +3525,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       document.body.appendChild(notification);
       setTimeout(() => notification.remove(), 5000);
 
-      return result.id || currentJobDescriptionId || null;
+      return savedJobId || null;
 
     } catch (error) {
       console.error('Failed to save job description:', error);
