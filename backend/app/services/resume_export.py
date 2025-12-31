@@ -93,6 +93,20 @@ async def export_pdf(
     """
     """Export resume as PDF"""
     try:
+        # Validate payload
+        if not payload:
+            raise ValueError("Export payload is required")
+        
+        # Check if we have at least some content to export
+        has_content = bool(
+            payload.name or 
+            payload.summary or 
+            (payload.sections and len(payload.sections) > 0) or
+            payload.cover_letter
+        )
+        if not has_content:
+            raise ValueError("Resume must have at least a name, summary, sections, or cover letter")
+        
         import weasyprint
         from weasyprint import HTML
         
@@ -1087,15 +1101,27 @@ async def export_pdf(
         import traceback
         logger.error(traceback.format_exc())
         
+        # Provide more specific error messages
         if "template" in error_msg.lower():
             raise HTTPException(
                 status_code=400,
                 detail="Invalid template configuration. Please select a valid template and try again."
             )
-        else:
+        elif "weasyprint" in error_msg.lower() or "html" in error_msg.lower():
             raise HTTPException(
                 status_code=500,
-                detail="An error occurred while generating the PDF. Please try again or contact support if the issue persists."
+                detail=f"PDF generation error: {error_msg}. Please check your resume content and try again."
+            )
+        elif "missing" in error_msg.lower() or "required" in error_msg.lower():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required data: {error_msg}"
+            )
+        else:
+            # Include the actual error message for debugging
+            raise HTTPException(
+                status_code=500,
+                detail=f"PDF generation failed: {error_msg}"
             )
 
 

@@ -196,39 +196,60 @@ async def export_pdf(
     db: Session = Depends(get_db),
 ):
     """Export resume as PDF"""
+    import logging
     from app.services.resume_export import export_pdf as export_pdf_service
     from app.services.usage_service import (
         check_export_limit,
         get_plan_tier,
     )
     from app.models import User
+    from fastapi import HTTPException
     
-    # Get user
-    user = None
-    if user_email:
-        user = db.query(User).filter(User.email == user_email).first()
-    else:
-        firebase_user = getattr(request.state, "firebase_user", None)
-        if firebase_user:
-            email = firebase_user.get("email")
-            if email:
-                user = db.query(User).filter(User.email == email).first()
+    logger = logging.getLogger(__name__)
     
-    # Check export limit
-    plan_tier = get_plan_tier(user, db)
-    allowed, usage_info = check_export_limit(user.id if user else None, plan_tier, session_id, db)
-    if not allowed:
-        from fastapi import HTTPException
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "Export limit exceeded",
-                "message": "You've reached your export limit. Upgrade to premium for unlimited exports.",
-                "usage_info": usage_info,
-            },
-        )
+    try:
+        # Validate payload
+        if not payload:
+            raise HTTPException(
+                status_code=400,
+                detail="Export payload is required"
+            )
+        
+        # Get user
+        user = None
+        if user_email:
+            user = db.query(User).filter(User.email == user_email).first()
+            if not user:
+                logger.warning(f"User with email {user_email} not found in database, proceeding as guest")
+        else:
+            firebase_user = getattr(request.state, "firebase_user", None)
+            if firebase_user:
+                email = firebase_user.get("email")
+                if email:
+                    user = db.query(User).filter(User.email == email).first()
+        
+        # Check export limit
+        plan_tier = get_plan_tier(user, db)
+        allowed, usage_info = check_export_limit(user.id if user else None, plan_tier, session_id, db)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Export limit exceeded",
+                    "message": "You've reached your export limit. Upgrade to premium for unlimited exports.",
+                    "usage_info": usage_info,
+                },
+            )
 
-    return await export_pdf_service(payload, user_email, session_id, db)
+        return await export_pdf_service(payload, user_email, session_id, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Export PDF error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {str(e)}"
+        )
 
 
 @router.post("/export/docx")

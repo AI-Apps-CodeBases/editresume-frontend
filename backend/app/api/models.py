@@ -17,6 +17,7 @@ class Section(BaseModel):
     id: Optional[str] = None
     title: str
     bullets: List[BulletParam] = []
+    params: Optional[Dict[str, Any]] = None
 
 
 class ResumePayload(BaseModel):

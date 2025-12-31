@@ -403,12 +403,26 @@ const EditorPageContent = () => {
                       headers
                     }).then(res => {
                       if (res.status === 404) return null;
-                      return res.ok ? res.json() : null;
-                    }).catch(() => null),
+                      if (!res.ok) {
+                        console.warn(`Job ${jobId} fetch failed: ${res.status}`);
+                        return null;
+                      }
+                      return res.json();
+                    }).catch(err => {
+                      console.warn(`Job ${jobId} fetch error:`, err);
+                      return null;
+                    }),
                     fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
                       if (res.status === 404) return null;
-                      return res.ok ? res.json() : null;
-                    }).catch(() => null)
+                      if (!res.ok) {
+                        console.warn(`Legacy job ${jobId} fetch failed: ${res.status}`);
+                        return null;
+                      }
+                      return res.json();
+                    }).catch(err => {
+                      console.warn(`Legacy job ${jobId} fetch error:`, err);
+                      return null;
+                    })
                   ]);
                   
                   if (!cancelled) {
@@ -561,8 +575,28 @@ const EditorPageContent = () => {
               const [newJob, legacyJob] = await Promise.all([
                 fetch(`${config.apiBase}/api/jobs/${jobId}`, {
                   headers
-                }).then(res => res.ok ? res.json() : null).catch(() => null),
-                fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => res.ok ? res.json() : null).catch(() => null)
+                }).then(res => {
+                  if (res.status === 404) return null;
+                  if (!res.ok) {
+                    console.warn(`Job ${jobId} fetch failed: ${res.status}`);
+                    return null;
+                  }
+                  return res.json();
+                }).catch(err => {
+                  console.warn(`Job ${jobId} fetch error:`, err);
+                  return null;
+                }),
+                fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
+                  if (res.status === 404) return null;
+                  if (!res.ok) {
+                    console.warn(`Legacy job ${jobId} fetch failed: ${res.status}`);
+                    return null;
+                  }
+                  return res.json();
+                }).catch(err => {
+                  console.warn(`Legacy job ${jobId} fetch error:`, err);
+                  return null;
+                })
               ]);
               
               const jobData = newJob || legacyJob
@@ -788,12 +822,26 @@ const EditorPageContent = () => {
               headers
             }).then(res => {
               if (res.status === 404) return null;
-              return res.ok ? res.json() : null;
-            }).catch(() => null),
+              if (!res.ok) {
+                console.warn(`Job ${jobId} fetch failed: ${res.status}`);
+                return null;
+              }
+              return res.json();
+            }).catch(err => {
+              console.warn(`Job ${jobId} fetch error:`, err);
+              return null;
+            }),
             fetch(`${config.apiBase}/api/job-descriptions/${jobId}`).then(res => {
               if (res.status === 404) return null;
-              return res.ok ? res.json() : null;
-            }).catch(() => null)
+              if (!res.ok) {
+                console.warn(`Legacy job ${jobId} fetch failed: ${res.status}`);
+                return null;
+              }
+              return res.json();
+            }).catch(err => {
+              console.warn(`Legacy job ${jobId} fetch error:`, err);
+              return null;
+            })
           ]);
           
           const jobData = newJob || legacyJob
@@ -1846,20 +1894,39 @@ const EditorPageContent = () => {
         // Refresh usage stats after successful export
         await refreshUsage()
       } else {
-        const errorText = await response.text()
-        console.error('Export failed:', response.status, errorText)
+        let errorMessage = `Export failed (${response.status})`
+        try {
+          const errorData = await response.json()
+          if (errorData.detail) {
+            errorMessage = typeof errorData.detail === 'string' 
+              ? errorData.detail 
+              : errorData.detail.message || errorData.detail.error || JSON.stringify(errorData.detail)
+          } else {
+            errorMessage = errorData.message || errorData.error || JSON.stringify(errorData)
+          }
+        } catch {
+          const errorText = await response.text()
+          errorMessage = errorText || errorMessage
+        }
+        console.error('Export failed:', response.status, errorMessage)
         await showAlert({
           type: 'error',
-          message: `Export failed (${response.status}): ${errorText}`,
+          message: errorMessage,
           title: 'Export Failed'
         })
       }
     } catch (error) {
       console.error('Export error:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      let errorMessage = 'Unknown error occurred'
+      if (error instanceof Error) {
+        errorMessage = error.message
+        if (errorMessage.includes('fetch')) {
+          errorMessage = 'Failed to connect to server. Please check your internet connection and ensure the backend is running.'
+        }
+      }
       await showAlert({
         type: 'error',
-        message: `Export failed: ${errorMessage}. Make sure backend is running.`,
+        message: `Export failed: ${errorMessage}`,
         title: 'Export Failed'
       })
     } finally {
