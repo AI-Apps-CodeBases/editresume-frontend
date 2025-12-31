@@ -10,7 +10,7 @@ from pydantic import BaseModel
 class BulletParam(BaseModel):
     id: Optional[str] = None
     text: str
-    params: Optional[Dict[str, str]] = {}
+    params: Optional[Dict[str, Any]] = {}  # Changed from Dict[str, str] to accept boolean values (visible: true/false)
 
 
 class Section(BaseModel):
