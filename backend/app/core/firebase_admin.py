@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import secrets
 import threading
 import time
@@ -82,6 +83,11 @@ def _initialize_firebase_with_timeout(cred, options, timeout: int = 10) -> Optio
 @lru_cache
 def get_firebase_app() -> Optional[firebase_admin.App]:
     global _firebase_init_attempted, _firebase_init_failed
+
+    # Check if Firebase is disabled via environment variable
+    if os.getenv("DISABLE_FIREBASE", "false").lower() == "true":
+        logger.info("Firebase disabled via DISABLE_FIREBASE environment variable")
+        return None
 
     if firebase_admin._apps:
         return firebase_admin.get_app()
