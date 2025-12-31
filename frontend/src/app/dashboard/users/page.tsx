@@ -112,7 +112,7 @@ export default function UsersPage() {
                                         <input type="checkbox" className="rounded border-gray-300" />
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">S.L</th>
-                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Join Date</th>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Join Date / Purchase Date</th>
                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department</th>
@@ -135,7 +135,16 @@ export default function UsersPage() {
                                             <input type="checkbox" className="rounded border-gray-300" />
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-900">{startIndex + index + 1}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-600">{user.joinDate}</td>
+                                        <td className="px-6 py-4 text-sm text-gray-600">
+                                            {user.status === 'Active' && user.purchaseDate ? (
+                                                <div>
+                                                    <div className="text-gray-900 font-medium">{user.purchaseDate}</div>
+                                                    <div className="text-xs text-gray-400">Joined: {user.joinDate}</div>
+                                                </div>
+                                            ) : (
+                                                user.joinDate
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 <img

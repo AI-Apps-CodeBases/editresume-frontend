@@ -297,20 +297,29 @@ async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) ->
 
     status = None
     current_period_end = None
+    purchase_timestamp = None
+    
     if subscription_id:
         try:
             subscription = stripe.Subscription.retrieve(subscription_id)
             status = subscription.get("status")
             current_period_end = subscription.get("current_period_end")
+            created_timestamp = subscription.get("created")
+            if created_timestamp:
+                purchase_timestamp = datetime.fromtimestamp(created_timestamp, tz=timezone.utc)
         except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
             logger.error("Failed to retrieve subscription %s: %s", subscription_id, exc)
+    
+    if not purchase_timestamp:
+        purchase_timestamp = datetime.now(timezone.utc)
 
     payload = _build_subscription_payload(
         status, current_period_end, customer_id, subscription_id
     )
+    payload["premiumPurchasedAt"] = purchase_timestamp
 
     if not payload:
-        payload = {"stripeCustomerId": customer_id, "isPremium": False}
+        payload = {"stripeCustomerId": customer_id, "isPremium": False, "premiumPurchasedAt": purchase_timestamp}
 
     update_user_subscription(uid, payload)
 

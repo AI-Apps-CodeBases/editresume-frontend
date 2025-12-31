@@ -62,8 +62,8 @@ async def get_dashboard_stats(
                 COUNT(*) FILTER (WHERE is_premium = true) as total_subscriptions,
                 COUNT(*) FILTER (WHERE created_at >= :thirty_days_ago) as users_last_30,
                 COUNT(*) FILTER (WHERE created_at >= :sixty_days_ago AND created_at < :thirty_days_ago) as users_previous_30,
-                COUNT(*) FILTER (WHERE is_premium = true AND created_at >= :thirty_days_ago) as subscriptions_last_30,
-                COUNT(*) FILTER (WHERE is_premium = true AND created_at >= :sixty_days_ago AND created_at < :thirty_days_ago) as subscriptions_previous_30
+                COUNT(*) FILTER (WHERE is_premium = true AND COALESCE(premium_purchased_at, created_at) >= :thirty_days_ago) as subscriptions_last_30,
+                COUNT(*) FILTER (WHERE is_premium = true AND COALESCE(premium_purchased_at, created_at) >= :sixty_days_ago AND COALESCE(premium_purchased_at, created_at) < :thirty_days_ago) as subscriptions_previous_30
             FROM users
         """
         user_stats_result = db.execute(
@@ -146,23 +146,25 @@ async def get_sales_data(
     db: Session = Depends(get_db),
     token: dict = Depends(verify_admin_token),
 ):
-    """Get sales statistics by month - Optimized with single GROUP BY query"""
+    """Get sales statistics by month - Uses actual purchase dates"""
     try:
-        # Get premium users grouped by month using a single query
-        # TODO: Implement actual Stripe payment tracking
-        # For now, use premium user creation dates as proxy
-        
         current_year = datetime.utcnow().year
         
-        # Single query to get all months at once
+        # Use premium_purchased_at if available, fallback to created_at for legacy data
         sales_data = db.query(
-            extract('month', User.created_at).label('month'),
+            extract('month', 
+                func.coalesce(User.premium_purchased_at, User.created_at)
+            ).label('month'),
             func.count(User.id).label('premium_count')
         ).filter(
             User.is_premium == True,
-            extract('year', User.created_at) == current_year
+            extract('year', 
+                func.coalesce(User.premium_purchased_at, User.created_at)
+            ) == current_year
         ).group_by(
-            extract('month', User.created_at)
+            extract('month', 
+                func.coalesce(User.premium_purchased_at, User.created_at)
+            )
         ).all()
         
         months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -206,10 +208,11 @@ async def get_subscriber_data(
         thirty_days_ago = now - timedelta(days=30)
         sixty_days_ago = now - timedelta(days=60)
         
+        purchase_date_col = func.coalesce(User.premium_purchased_at, User.created_at)
         subscription_changes = db.query(
-            func.count(case((User.created_at >= thirty_days_ago, 1))).label('subscriptions_last_30'),
+            func.count(case((purchase_date_col >= thirty_days_ago, 1))).label('subscriptions_last_30'),
             func.count(case((
-                (User.created_at >= sixty_days_ago) & (User.created_at < thirty_days_ago), 1
+                (purchase_date_col >= sixty_days_ago) & (purchase_date_col < thirty_days_ago), 1
             ))).label('subscriptions_previous_30')
         ).filter(
             User.is_premium == True
@@ -240,11 +243,12 @@ async def get_subscriber_data(
             else:
                 month_end = datetime(year, month_num + 1, 1)
 
-            # Count premium users created in this month
+            # Count premium users purchased in this month
+            purchase_date_col = func.coalesce(User.premium_purchased_at, User.created_at)
             count = db.query(func.count(User.id)).filter(
                 User.is_premium == True,
-                User.created_at >= month_start,
-                User.created_at < month_end
+                purchase_date_col >= month_start,
+                purchase_date_col < month_end
             ).scalar() or 0
 
             subscriber_by_month.append({
@@ -328,12 +332,12 @@ async def get_latest_subscribers(
     token: dict = Depends(verify_admin_token),
     limit: int = 10,
 ):
-    """Get latest subscribed (premium) users"""
+    """Get latest subscribed (premium) users - ordered by purchase date"""
     try:
         users = db.query(User).filter(
             User.is_premium == True
         ).order_by(
-            User.created_at.desc()
+            func.coalesce(User.premium_purchased_at, User.created_at).desc()
         ).limit(limit).all()
         
         return [
@@ -341,7 +345,8 @@ async def get_latest_subscribers(
                 "id": str(user.id),
                 "name": user.name,
                 "email": user.email,
-                "joinDate": user.created_at.strftime("%d %b %Y") if user.created_at else "",
+                "joinDate": (user.premium_purchased_at or user.created_at).strftime("%d %b %Y") if (user.premium_purchased_at or user.created_at) else "",
+                "purchaseDate": user.premium_purchased_at.strftime("%d %b %Y") if user.premium_purchased_at else "",
                 "isPremium": user.is_premium,
             }
             for user in users
@@ -521,6 +526,7 @@ async def get_users(
             {
                 "id": str(user.id),
                 "joinDate": user.created_at.strftime("%d %b %Y") if user.created_at else "",
+                "purchaseDate": user.premium_purchased_at.strftime("%d %b %Y") if user.premium_purchased_at else "",
                 "name": user.name or "Unknown",
                 "email": user.email,
                 "department": "N/A",  # Not stored in User model

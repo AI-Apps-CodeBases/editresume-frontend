@@ -1,6 +1,7 @@
 export interface User {
     id: string
     joinDate: string
+    purchaseDate?: string
     name: string
     email: string
     department: string

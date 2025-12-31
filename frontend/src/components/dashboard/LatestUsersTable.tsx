@@ -6,6 +6,7 @@ interface UserItem {
     name: string
     email: string
     joinDate: string
+    purchaseDate?: string
     isPremium: boolean
 }
 
@@ -61,7 +62,7 @@ export function LatestUsersTable({ latestUsers = [], latestSubscribers = [] }: L
                     <thead>
                         <tr className="text-gray-500 text-sm border-b border-gray-50">
                             <th className="pb-3 font-medium pl-2">Users</th>
-                            <th className="pb-3 font-medium">Registered On</th>
+                            <th className="pb-3 font-medium">{activeTab === 'subscribed' ? 'Purchased On' : 'Registered On'}</th>
                             <th className="pb-3 font-medium">Plan</th>
                             <th className="pb-3 font-medium text-right pr-2">Status</th>
                         </tr>
@@ -87,7 +88,7 @@ export function LatestUsersTable({ latestUsers = [], latestSubscribers = [] }: L
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="py-3 text-gray-500">{user.joinDate}</td>
+                                    <td className="py-3 text-gray-500">{activeTab === 'subscribed' && user.purchaseDate ? user.purchaseDate : user.joinDate}</td>
                                     <td className="py-3 text-gray-500">{getPlanName(user.isPremium)}</td>
                                     <td className="py-3 text-right pr-2">
                                         <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-600">
