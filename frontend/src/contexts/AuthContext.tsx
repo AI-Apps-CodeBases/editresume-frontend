@@ -122,7 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const token = await auth.currentUser?.getIdToken()
             if (!token) return
             
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/usage/trial/status`, {
+            const apiBase = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/$/, '')
+            const response = await fetch(`${apiBase}/api/usage/trial/status`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',

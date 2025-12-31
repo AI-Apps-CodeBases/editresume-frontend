@@ -8,39 +8,46 @@
  * - Otherwise uses environment variable or default
  */
 export function getApiBaseUrl(): string {
+  let baseUrl: string;
+  
   // If environment variable is set, use it (highest priority)
   if (process.env.NEXT_PUBLIC_API_BASE) {
-    return process.env.NEXT_PUBLIC_API_BASE;
-  }
-
-  // Only determine from window location in browser environment
-  if (typeof window !== 'undefined' && window.location) {
+    baseUrl = process.env.NEXT_PUBLIC_API_BASE;
+  } else if (typeof window !== 'undefined' && window.location) {
     try {
       const hostname = window.location.hostname;
       
       // Local development
       if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
-        return 'http://localhost:8000';
+        baseUrl = 'http://localhost:8000';
       }
-      
       // Staging environment
-      if (hostname.includes('staging') || hostname.includes('staging.editresume.io')) {
-        return 'https://editresume-staging.onrender.com';
+      else if (hostname.includes('staging') || hostname.includes('staging.editresume.io')) {
+        baseUrl = 'https://editresume-staging.onrender.com';
       }
-      
       // Production environment
-      if (hostname === 'editresume.io' || hostname === 'www.editresume.io' || hostname.includes('editresume.io')) {
+      else if (hostname === 'editresume.io' || hostname === 'www.editresume.io' || hostname.includes('editresume.io')) {
         // TODO: Replace with actual production API URL when available
-        return 'https://editresume-staging.onrender.com'; // Using staging for now
+        baseUrl = 'https://editresume-staging.onrender.com'; // Using staging for now
+      } else {
+        baseUrl = 'http://localhost:8000';
       }
     } catch (e) {
       // Fallback if window.location access fails
       console.warn('Failed to determine API URL from window.location:', e);
+      baseUrl = 'http://localhost:8000';
     }
+  } else {
+    // Default fallback
+    baseUrl = 'http://localhost:8000';
   }
+  
+  // Remove trailing slash to prevent double slashes in API paths
+  return baseUrl.replace(/\/$/, '');
+}
 
-  // Default fallback
-  return 'http://localhost:8000';
+export function normalizeApiUrl(url: string): string {
+  return url.replace(/\/$/, '');
 }
 
 export const config = {

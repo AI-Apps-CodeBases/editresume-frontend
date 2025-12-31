@@ -8,6 +8,7 @@ import StickyNav from '@/components/home/StickyNav'
 import Footer from '@/components/layout/Footer'
 import FeedbackWidget from '@/components/Feedback/FeedbackWidget'
 import ExtensionAuthHandler from '@/components/extension/ExtensionAuthHandler'
+import MobileWebAppMeta from '@/components/Shared/MobileWebAppMeta'
 import { Analytics } from '@vercel/analytics/react'
 import { Inter } from 'next/font/google'
 
@@ -67,6 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Suspense fallback={null}>
                 <ExtensionAuthHandler />
               </Suspense>
+              <MobileWebAppMeta />
               <FeedbackWidget />
               <Analytics />
             </ModalProvider>
