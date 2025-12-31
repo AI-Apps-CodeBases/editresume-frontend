@@ -232,6 +232,60 @@ async def update_cover_letter_endpoint(
     return update_cover_letter(jd_id, letter_id, payload.dict(exclude_unset=True), db)
 
 
+@router.delete("/{jd_id}/resume-versions/{version_id}")
+async def delete_job_resume_version(
+    jd_id: int,
+    version_id: int,
+    request: Request,
+    user_email: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Delete a job resume version match"""
+    try:
+        email = get_user_email_from_request(request, user_email)
+        if not email:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        jd, _ = safe_get_job_description(jd_id, db)
+        if not jd:
+            raise HTTPException(status_code=404, detail="Job description not found")
+
+        if jd.user_id and jd.user_id != user.id:
+            raise HTTPException(
+                status_code=403, detail="Not authorized to delete this match"
+            )
+
+        job_resume_version = (
+            db.query(JobResumeVersion)
+            .filter(
+                JobResumeVersion.id == version_id,
+                JobResumeVersion.job_description_id == jd_id
+            )
+            .first()
+        )
+
+        if not job_resume_version:
+            raise HTTPException(status_code=404, detail="Resume version match not found")
+
+        db.delete(job_resume_version)
+        db.commit()
+
+        logger.info(f"Deleted job resume version {version_id} for job {jd_id}")
+        return {"success": True, "message": "Resume version match deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting job resume version: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail="Failed to delete resume version match"
+        )
+
+
 @router.delete("/{jd_id}/cover-letters/{letter_id}")
 async def delete_cover_letter_endpoint(
     jd_id: int, letter_id: int, db: Session = Depends(get_db)
