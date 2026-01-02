@@ -104,6 +104,7 @@ function BillingContent() {
   const [trialEligible, setTrialEligible] = useState<boolean | null>(null)
   const [startingTrial, setStartingTrial] = useState(false)
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
+  const [trialPaymentType, setTrialPaymentType] = useState<'subscription' | 'onetime'>('subscription')
   const apiBase = config.apiBase
 
   const isPremium = subscription?.isPremium ?? false
@@ -161,6 +162,16 @@ function BillingContent() {
       checkTrialEligibility().then(setTrialEligible)
     }
   }, [isAuthenticated, user?.isPremium, isTrialActive, checkTrialEligibility])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const trialType = urlParams.get('trialType')
+      if (trialType === 'onetime' || trialType === 'subscription') {
+        setTrialPaymentType(trialType)
+      }
+    }
+  }, [])
 
   const handleStartTrial = async () => {
     setStartingTrial(true)
@@ -405,6 +416,30 @@ function BillingContent() {
               )}
               <h2 className="text-lg font-semibold text-text-primary">{plan.name}</h2>
               <p className="mt-1 text-xs text-text-muted">{plan.headline}</p>
+              {plan.id === 'trial' && (
+                <div className="mt-2 flex gap-1.5">
+                  <button
+                    onClick={() => setTrialPaymentType('subscription')}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      trialPaymentType === 'subscription'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Subscription
+                  </button>
+                  <button
+                    onClick={() => setTrialPaymentType('onetime')}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      trialPaymentType === 'onetime'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    One-Time
+                  </button>
+                </div>
+              )}
               {plan.id === 'premium' && (
                 <div className="mt-2 flex gap-1.5">
                   <button
@@ -431,17 +466,33 @@ function BillingContent() {
               )}
               <div className="mt-3 flex items-baseline gap-1">
                 <span className="text-2xl font-semibold text-text-primary">
-                  {plan.id === 'premium' && billingPeriod === 'annual' ? '$79' : plan.price}
+                  {plan.id === 'trial' && trialPaymentType === 'onetime' 
+                    ? '$14.99' 
+                    : plan.id === 'premium' && billingPeriod === 'annual' 
+                    ? '$79' 
+                    : plan.price}
                 </span>
                 <span className="text-xs text-text-muted">
-                  {plan.id === 'premium' && billingPeriod === 'annual' ? 'per year' : plan.cadence}
+                  {plan.id === 'trial' && trialPaymentType === 'onetime'
+                    ? ' one-time'
+                    : plan.id === 'premium' && billingPeriod === 'annual'
+                    ? 'per year'
+                    : plan.cadence}
                 </span>
                 {plan.id === 'premium' && billingPeriod === 'annual' && (
                   <span className="text-[10px] text-green-600 font-medium">Save $40</span>
                 )}
               </div>
               <ul className="mt-3 space-y-1.5 text-xs text-text-muted">
-                {plan.features.map((feature) => (
+                {(plan.id === 'trial' && trialPaymentType === 'onetime'
+                  ? [
+                      'All Premium features',
+                      'Unlimited everything',
+                      'Full access for 1 month',
+                      'One-time payment, no recurring charges'
+                    ]
+                  : plan.features
+                ).map((feature) => (
                   <li key={feature} className="flex items-center gap-1.5">
                     <span className="text-primary-600 text-xs">●</span>
                     <span className="text-text-muted">{feature}</span>
@@ -477,11 +528,11 @@ function BillingContent() {
                   </button>
                 ) : plan.id === 'trial' ? (
                   <button
-                    onClick={() => handleCheckout('monthly', 'trial')}
+                    onClick={() => handleCheckout('monthly', trialPaymentType === 'onetime' ? 'trial-onetime' : 'trial')}
                     disabled={checkoutLoading}
                     className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {checkoutLoading ? 'Starting checkout…' : 'Start Trial ($6.99)'}
+                    {checkoutLoading ? 'Starting checkout…' : trialPaymentType === 'onetime' ? 'Buy Now ($14.99)' : 'Start Trial ($6.99)'}
                   </button>
                 ) : (
                   <div className="rounded-lg border border-border-subtle bg-primary-50/60 px-3 py-2 text-xs text-text-muted">
