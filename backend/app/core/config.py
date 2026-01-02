@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     )
     stripe_price_id: Optional[str] = Field(default=None, env="STRIPE_PRICE_ID")
     stripe_trial_price_id: Optional[str] = Field(default=None, env="STRIPE_TRIAL_PRICE_ID")
+    stripe_trial_onetime_price_id: Optional[str] = Field(default=None, env="STRIPE_TRIAL_ONETIME_PRICE_ID")
     stripe_annual_price_id: Optional[str] = Field(default=None, env="STRIPE_ANNUAL_PRICE_ID")
     stripe_success_url: Optional[str] = Field(default=None, env="STRIPE_SUCCESS_URL")
     stripe_cancel_url: Optional[str] = Field(default=None, env="STRIPE_CANCEL_URL")

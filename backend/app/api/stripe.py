@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -32,7 +32,7 @@ class CheckoutSessionRequest(BaseModel):
         default=None, description="Stripe price ID (overrides default and planType)"
     )
     planType: Optional[str] = Field(
-        default=None, description="Plan type: 'trial' or 'premium' (uses corresponding price ID)"
+        default=None, description="Plan type: 'trial', 'trial-onetime', or 'premium' (uses corresponding price ID)"
     )
     period: Optional[str] = Field(
         default=None, description="Billing period: 'monthly' or 'annual'"
@@ -96,9 +96,13 @@ async def create_checkout_session(
             detail="Stripe is not configured.",
         )
     
-    # Determine price ID: explicit priceId > planType+period-based > default
+    # Determine price ID and payment mode
+    is_onetime = payload.planType == 'trial-onetime'
+    
     if payload.priceId:
         price_id = payload.priceId
+    elif payload.planType == 'trial-onetime':
+        price_id = settings.stripe_trial_onetime_price_id
     elif payload.planType == 'trial':
         price_id = settings.stripe_trial_price_id or settings.stripe_price_id
     elif payload.planType == 'premium' and payload.period == 'annual':
@@ -125,25 +129,29 @@ async def create_checkout_session(
         metadata = {
             "uid": user["uid"],
             "email": user.get("email") or "",
+            "planType": payload.planType or "premium",
         }
-        session = stripe.checkout.Session.create(
-            mode="subscription",
-            line_items=[
+        
+        session_params = {
+            "mode": "payment" if is_onetime else "subscription",
+            "line_items": [
                 {
                     "price": price_id,
                     "quantity": 1,
                 }
             ],
-            allow_promotion_codes=True,
-            client_reference_id=user["uid"],
-            customer_email=user.get("email"),
-            metadata=metadata,
-            subscription_data={
-                "metadata": metadata,
-            },
-            success_url=success_url,
-            cancel_url=cancel_url,
-        )
+            "allow_promotion_codes": True,
+            "client_reference_id": user["uid"],
+            "customer_email": user.get("email"),
+            "metadata": metadata,
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+        }
+        
+        if not is_onetime:
+            session_params["subscription_data"] = {"metadata": metadata}
+        
+        session = stripe.checkout.Session.create(**session_params)
     except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
         logger.error("Stripe error creating checkout session: %s", exc)
         raise HTTPException(
@@ -283,6 +291,8 @@ async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) ->
     uid = metadata.get("uid")
     customer_id = session.get("customer")
     subscription_id = session.get("subscription")
+    mode = session.get("mode")
+    plan_type = metadata.get("planType", "premium")
 
     if not uid and customer_id:
         user_doc = find_user_by_stripe_customer(customer_id)
@@ -295,6 +305,23 @@ async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) ->
         )
         return
 
+    # Handle one-time payment for trial
+    if mode == "payment" and plan_type == "trial-onetime":
+        purchase_timestamp = datetime.now(timezone.utc)
+        # Set premium access for 30 days (1 month)
+        current_period_end = (purchase_timestamp + timedelta(days=30)).timestamp()
+        status = "active"
+        payload = {
+            "stripeCustomerId": customer_id,
+            "subscriptionStatus": status,
+            "subscriptionCurrentPeriodEnd": datetime.fromtimestamp(current_period_end, tz=timezone.utc),
+            "isPremium": True,
+            "premiumPurchasedAt": purchase_timestamp,
+        }
+        update_user_subscription(uid, payload)
+        return
+
+    # Handle subscription-based payments
     status = None
     current_period_end = None
     purchase_timestamp = None
