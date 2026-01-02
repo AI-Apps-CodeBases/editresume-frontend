@@ -28,7 +28,7 @@ const features = [
 export default function FeatureGrid() {
   return (
     <section className="section-spacing bg-white">
-      <div className="container-padding mx-auto max-w-7xl">
+      <div className="w-full px-4 sm:px-6">
         <div className="flex flex-col items-center text-center">
           <span className="badge">WHY JOB SEEKERS CHOOSE EDITRESUME.IO</span>
           <h2 className="mt-6 text-3xl font-semibold text-text-primary sm:text-4xl">

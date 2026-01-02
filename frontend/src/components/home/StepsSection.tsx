@@ -115,7 +115,7 @@ export default function StepsSection() {
 
   return (
     <section className="section-spacing bg-[#f4f7ff]">
-      <div className="container-padding mx-auto max-w-7xl">
+      <div className="w-full px-4 sm:px-6">
         <div className="grid gap-8 lg:grid-cols-[420px_1fr] lg:items-start lg:gap-8">
           {/* Left Side - Editor Panel (Form + Tools) */}
           <div className="sticky top-8">

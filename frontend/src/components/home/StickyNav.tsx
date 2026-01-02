@@ -39,14 +39,14 @@ export default function StickyNav() {
           : 'bg-transparent'
       }`}
     >
-      <nav className="container-padding mx-auto max-w-7xl flex items-center justify-between h-16">
+      <nav className="w-full px-4 sm:px-6 flex items-center justify-between h-16">
         <Link href="/" className="flex items-center">
           <Image
             src="/logo.jpg"
             alt="editresume.io"
             width={480}
             height={240}
-            className="h-10 w-auto"
+            className="h-14 w-auto"
             priority
           />
         </Link>

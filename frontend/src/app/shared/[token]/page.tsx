@@ -162,7 +162,7 @@ export default function SharedResumePage() {
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
+      <main className="w-full flex-1 px-4 py-12 sm:px-6">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-[32px] border border-border-subtle bg-white shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
