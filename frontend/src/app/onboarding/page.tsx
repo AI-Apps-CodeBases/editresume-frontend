@@ -81,7 +81,7 @@ export default function OnboardingPage() {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-200/20 to-primary-200/20 rounded-full blur-3xl"></div>
       </div>
 
-      <main className="relative w-full flex flex-col gap-16 px-4 py-16 sm:px-6 lg:py-24">
+      <main className="relative w-full flex flex-col gap-16 px-[10%] py-16 lg:py-24">
         <div className="mb-6">
           <BackButton />
         </div>

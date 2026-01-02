@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center bg-body-gradient px-4 py-16 text-text-primary">
+    <div className="relative flex min-h-screen w-full items-center justify-center bg-body-gradient px-[10%] py-16 text-text-primary">
       <div className="absolute top-10 left-1/2 z-10 -translate-x-1/2 text-xs text-text-secondary">
         <Link href="/" className="rounded-pill border border-border-subtle bg-white/5 px-4 py-2 font-semibold uppercase tracking-[0.35em] transition hover:border-border-strong hover:text-text-primary">
           ← Back to site

@@ -334,7 +334,7 @@ function ProfilePageContent() {
 
   return (
     <div className="editor-shell min-h-screen bg-body-gradient text-text-primary pt-4">
-      <div className="w-full px-4 py-16 space-y-10">
+      <div className="w-full px-[10%] py-16 space-y-10">
         <div className="mb-4">
           <button
             onClick={() => router.push('/editor')}

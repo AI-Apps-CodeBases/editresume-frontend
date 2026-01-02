@@ -33,7 +33,7 @@ export default function BentoFeatureGrid() {
 
   return (
     <section id="features" className="section-spacing bg-slate-50">
-      <div className="w-full px-4 sm:px-6">
+      <div className="w-full px-[10%]">
         <div className="text-center mb-16">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

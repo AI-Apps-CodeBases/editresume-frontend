@@ -39,7 +39,7 @@ export default function StickyNav() {
           : 'bg-transparent'
       }`}
     >
-      <nav className="w-full px-4 sm:px-6 flex items-center justify-between h-16">
+      <nav className="w-full px-[10%] flex items-center justify-between h-16">
         <Link href="/" className="flex items-center">
           <Image
             src="/logo.jpg"

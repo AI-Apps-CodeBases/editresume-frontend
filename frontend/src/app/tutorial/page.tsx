@@ -18,7 +18,7 @@ export default function TutorialPage() {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-200/20 to-primary-200/20 rounded-full blur-3xl"></div>
       </div>
 
-      <main className="relative w-full flex flex-col gap-12 px-4 py-12 sm:px-6 lg:py-20">
+      <main className="relative w-full flex flex-col gap-12 px-[10%] py-12 lg:py-20">
         <div className="mb-6">
           <BackButton />
         </div>

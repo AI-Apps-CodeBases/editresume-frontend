@@ -22,7 +22,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             )}>
                 <DashboardNavbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
-                <main className="p-6 md:p-8">
+                <main className="px-[10%] py-6 md:py-8">
                     {children}
                 </main>
             </div>

@@ -12,7 +12,7 @@ export default function Pricing() {
 
   return (
     <section id="pricing" className="py-24 bg-gradient-to-b from-white to-gray-50">
-      <div className="w-full px-4 sm:px-6">
+      <div className="w-full px-[10%]">
         <div className="text-center mb-16">
           <h2 className="text-base font-semibold text-primary mb-2 tracking-wider">PRICING</h2>
           <p className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">

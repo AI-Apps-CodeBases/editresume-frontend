@@ -46,7 +46,7 @@ export default function Footer() {
 
   return (
     <footer className="border-t border-border-subtle bg-[#f1f5ff]">
-      <div className="w-full px-4 sm:px-6 py-16">
+      <div className="w-full px-[10%] py-16">
         <div className="grid gap-10 lg:grid-cols-[1.3fr_repeat(4,minmax(0,1fr))]">
           <div className="space-y-5">
             <div className="flex items-center gap-3">

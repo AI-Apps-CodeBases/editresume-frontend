@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <div className="w-full px-4 py-16 sm:px-6">
+    <div className="w-full px-[10%] py-16">
       <div className="mb-6">
         <BackButton />
       </div>

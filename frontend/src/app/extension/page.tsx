@@ -5,7 +5,7 @@ import BackButton from '@/components/Shared/BackButton'
 export default function ExtensionPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-[#f4f7ff] to-white">
-      <div className="w-full px-4 sm:px-6 py-16">
+      <div className="w-full px-[10%] py-16">
         <div className="mb-6">
           <BackButton />
         </div>

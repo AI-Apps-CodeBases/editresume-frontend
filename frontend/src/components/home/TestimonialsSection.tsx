@@ -26,7 +26,7 @@ const testimonials = [
 export default function TestimonialsSection() {
   return (
     <section className="section-spacing bg-white">
-      <div className="w-full px-4 sm:px-6">
+      <div className="w-full px-[10%]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
