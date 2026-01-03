@@ -12,7 +12,7 @@ export default function Pricing() {
 
   return (
     <section id="pricing" className="py-24 bg-gradient-to-b from-white to-gray-50">
-      <div className="mx-auto max-w-7xl px-6 lg:px-8">
+      <div className="w-full px-[10%]">
         <div className="text-center mb-16">
           <h2 className="text-base font-semibold text-primary mb-2 tracking-wider">PRICING</h2>
           <p className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
@@ -23,7 +23,7 @@ export default function Pricing() {
           </p>
         </div>
 
-        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-4">
+        <div className="w-full grid md:grid-cols-3 gap-4">
           {/* Free Plan */}
           <div className="relative bg-white rounded-2xl p-4 shadow-lg border-2 border-gray-200 hover:border-primary/50 transition-all hover:-translate-y-1">
             <div className="mb-3">

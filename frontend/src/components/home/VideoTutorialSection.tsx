@@ -27,7 +27,7 @@ export default function VideoTutorialSection() {
 
   return (
     <section className="pt-0 sm:pt-2 lg:pt-16 pb-20 sm:pb-24 lg:pb-28 bg-white -mt-8 sm:-mt-12">
-      <div className="container-padding mx-auto max-w-7xl">
+      <div className="w-full px-[10%]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}

@@ -277,7 +277,7 @@ function BillingContent() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+    <div className="w-full px-[10%] py-16">
       <div className="rounded-[32px] border border-border-subtle bg-white p-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div>

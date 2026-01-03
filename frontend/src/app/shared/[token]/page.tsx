@@ -9,7 +9,7 @@ import { sharedResumeService, SharedResumeData } from '@/lib/services/sharedResu
 function LoadingView({ message }: { message: string }) {
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary pt-4">
-      <div className="flex flex-1 items-center justify-center px-4">
+      <div className="flex flex-1 items-center justify-center px-[10%]">
         <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
           <div className="mb-4 text-4xl animate-pulse">📄</div>
           <p className="text-sm font-semibold text-text-muted">{message}</p>
@@ -22,7 +22,7 @@ function LoadingView({ message }: { message: string }) {
 function MessageView({ title, description, icon }: { title: string; description: string; icon: string }) {
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
-      <div className="flex flex-1 items-center justify-center px-4">
+      <div className="flex flex-1 items-center justify-center px-[10%]">
         <div className="max-w-md rounded-[28px] border border-border-subtle bg-white px-10 py-10 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
           <div className="mb-4 text-4xl">{icon}</div>
           <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
@@ -125,7 +125,7 @@ export default function SharedResumePage() {
   if (showPasswordForm) {
     return (
       <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
-        <div className="flex flex-1 items-center justify-center px-4">
+        <div className="flex flex-1 items-center justify-center px-[10%]">
           <div className="w-full max-w-md rounded-[28px] border border-border-subtle bg-white px-8 py-10 shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="text-center">
               <div className="mb-4 text-4xl">🔒</div>
@@ -162,7 +162,7 @@ export default function SharedResumePage() {
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary">
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
+      <main className="w-full flex-1 px-[10%] py-12">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-[32px] border border-border-subtle bg-white shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
             <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">

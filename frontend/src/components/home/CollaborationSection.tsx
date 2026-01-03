@@ -20,7 +20,7 @@ const resources = [
 export default function CollaborationSection() {
   return (
     <section id="resources" className="section-spacing bg-[#f4f7ff]">
-      <div className="container-padding mx-auto max-w-7xl">
+      <div className="w-full px-[10%]">
         <div className="grid gap-12 lg:grid-cols-[minmax(0,0.9fr)_1fr] lg:items-center lg:gap-16">
           <div>
             <span className="badge-gradient">RESOURCE CENTER</span>

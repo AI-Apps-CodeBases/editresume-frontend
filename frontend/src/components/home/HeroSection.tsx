@@ -18,7 +18,7 @@ export default function HeroSection() {
           <div className="absolute -right-16 top-1/3 h-80 w-80 rounded-full bg-purple-100/50 blur-[160px]" />
         </div>
 
-        <div className="container-padding mx-auto max-w-7xl relative z-10">
+        <div className="w-full px-[10%] relative z-10">
           <div className="grid gap-12 lg:grid-cols-[1.2fr_1fr] lg:gap-16 items-center">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
