@@ -9,6 +9,52 @@
       "main": true,
       "staging": true
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "editcv.com"
+        }
+      ],
+      "destination": "https://www.editresume.io/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.editcv.com"
+        }
+      ],
+      "destination": "https://www.editresume.io/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "editcv.io"
+        }
+      ],
+      "destination": "https://www.editresume.io/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.editcv.io"
+        }
+      ],
+      "destination": "https://www.editresume.io/:path*",
+      "permanent": true
+    }
+  ]
 }
 

@@ -103,6 +103,61 @@ const nextConfig = {
       },
     ]
   },
+  async redirects() {
+    const isStaging = process.env.VERCEL_ENV === 'preview' || 
+                      process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview';
+    
+    const destination = isStaging 
+      ? 'https://staging.editresume.io/:path*'
+      : 'https://www.editresume.io/:path*';
+
+    return [
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'editcv.com',
+          },
+        ],
+        destination,
+        permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'www.editcv.com',
+          },
+        ],
+        destination,
+        permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'editcv.io',
+          },
+        ],
+        destination,
+        permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'www.editcv.io',
+          },
+        ],
+        destination,
+        permanent: true,
+      },
+    ]
+  },
 };
 export default nextConfig;
 
