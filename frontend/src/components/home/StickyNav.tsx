@@ -46,7 +46,7 @@ export default function StickyNav() {
             alt="editresume.io"
             width={480}
             height={240}
-            className="h-14 w-auto"
+            className="h-14 w-auto mix-blend-multiply"
             priority
           />
         </Link>
