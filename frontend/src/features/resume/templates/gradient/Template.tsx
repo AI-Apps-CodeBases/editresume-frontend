@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 export default function GradientTemplate({ data, config, replacements }: TemplateProps) {
   const orderedSections = config.layout.sectionOrder.length > 0
@@ -10,13 +10,16 @@ export default function GradientTemplate({ data, config, replacements }: Templat
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const contactItems = [
-    data.email,
-    data.phone,
-    data.location,
-    data.linkedin,
-    data.website,
-    data.github,
+    shouldShowField(data.fieldsVisible, 'email') && data.email,
+    shouldShowField(data.fieldsVisible, 'phone') && data.phone,
+    shouldShowField(data.fieldsVisible, 'location') && data.location,
+    shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin,
+    shouldShowField(data.fieldsVisible, 'website') && data.website,
+    shouldShowField(data.fieldsVisible, 'github') && data.github,
   ].filter(Boolean)
 
   return (
@@ -32,22 +35,24 @@ export default function GradientTemplate({ data, config, replacements }: Templat
           boxShadow: `0 8px 24px ${config.design.colors.primary}30`,
         }}
       >
-        <h1
-          style={{
-            fontFamily: config.typography.fontFamily.heading,
-            fontSize: `${config.typography.fontSize.h1}px`,
-            fontWeight: config.typography.fontWeight?.heading || 600,
-            marginBottom: '16px',
-            letterSpacing: config.typography.letterSpacing || 0.3,
-            background: 'linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.9) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
-          {applyReplacements(data.name, replacements)}
-        </h1>
-        {data.title && (
+        {shouldShowField(data.fieldsVisible, 'name') && (
+          <h1
+            style={{
+              fontFamily: config.typography.fontFamily.heading,
+              fontSize: `${config.typography.fontSize.h1}px`,
+              fontWeight: config.typography.fontWeight?.heading || 600,
+              marginBottom: '16px',
+              letterSpacing: config.typography.letterSpacing || 0.3,
+              background: 'linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.9) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            {applyReplacements(data.name, replacements)}
+          </h1>
+        )}
+        {shouldShowField(data.fieldsVisible, 'title') && data.title && (
           <p
             style={{
               fontSize: `${config.typography.fontSize.body + 4}px`,
@@ -68,7 +73,7 @@ export default function GradientTemplate({ data, config, replacements }: Templat
         </div>
       </header>
 
-      {data.summary && (
+      {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
         <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <div
             className="p-5 rounded-xl"
@@ -91,7 +96,7 @@ export default function GradientTemplate({ data, config, replacements }: Templat
         </section>
       )}
 
-      {orderedSections.map((section, sectionIdx) => {
+      {visibleSections.map((section, sectionIdx) => {
         const gradientStart = sectionIdx % 2 === 0 
           ? config.design.colors.primary 
           : config.design.colors.secondary

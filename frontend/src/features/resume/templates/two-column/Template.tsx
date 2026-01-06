@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 export default function TwoColumnTemplate({ data, config, replacements }: TemplateProps) {
   const orderedSections = config.layout.sectionOrder.length > 0
@@ -10,11 +10,14 @@ export default function TwoColumnTemplate({ data, config, replacements }: Templa
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const leftColumnSections = ['Skills', 'Education', 'Certifications', 'Languages']
-  const rightColumnSections = orderedSections.filter(
+  const rightColumnSections = visibleSections.filter(
     s => !leftColumnSections.some(lc => s.title.toLowerCase().includes(lc.toLowerCase()))
   )
-  const leftSections = orderedSections.filter(
+  const leftSections = visibleSections.filter(
     s => leftColumnSections.some(lc => s.title.toLowerCase().includes(lc.toLowerCase()))
   )
 
@@ -27,18 +30,20 @@ export default function TwoColumnTemplate({ data, config, replacements }: Templa
           paddingBottom: '12px',
         }}
       >
-        <h1
-          style={{
-            fontFamily: config.typography.fontFamily.heading,
-            fontSize: `${config.typography.fontSize.h1}px`,
-            fontWeight: config.typography.fontWeight?.heading || 600,
-            color: config.design.colors.primary,
-            marginBottom: '4px',
-          }}
-        >
-          {applyReplacements(data.name, replacements)}
-        </h1>
-        {data.title && (
+        {shouldShowField(data.fieldsVisible, 'name') && (
+          <h1
+            style={{
+              fontFamily: config.typography.fontFamily.heading,
+              fontSize: `${config.typography.fontSize.h1}px`,
+              fontWeight: config.typography.fontWeight?.heading || 600,
+              color: config.design.colors.primary,
+              marginBottom: '4px',
+            }}
+          >
+            {applyReplacements(data.name, replacements)}
+          </h1>
+        )}
+        {shouldShowField(data.fieldsVisible, 'title') && data.title && (
           <p
             style={{
               fontSize: `${config.typography.fontSize.body + 1}px`,
@@ -53,15 +58,15 @@ export default function TwoColumnTemplate({ data, config, replacements }: Templa
           className="flex flex-wrap gap-3 text-xs"
           style={{ color: config.design.colors.secondary }}
         >
-          {data.email && <span>{data.email}</span>}
-          {data.phone && <span>{data.phone}</span>}
-          {data.location && <span>{data.location}</span>}
+          {shouldShowField(data.fieldsVisible, 'email') && data.email && <span>{data.email}</span>}
+          {shouldShowField(data.fieldsVisible, 'phone') && data.phone && <span>{data.phone}</span>}
+          {shouldShowField(data.fieldsVisible, 'location') && data.location && <span>{data.location}</span>}
         </div>
       </header>
 
       <div className="flex" style={{ gap: `${config.spacing.sectionGap}px` }}>
         <div style={{ width: `${config.layout.columnWidth || 40}%`, display: 'flex', flexDirection: 'column', gap: `${config.spacing.sectionGap}px` }}>
-          {data.summary && (
+          {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
             <section>
               <h2
                 className="mb-2"

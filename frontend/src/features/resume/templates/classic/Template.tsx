@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 export default function ClassicTemplate({ data, config, replacements }: TemplateProps) {
   const orderedSections = config.layout.sectionOrder.length > 0
@@ -10,13 +10,16 @@ export default function ClassicTemplate({ data, config, replacements }: Template
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const contactItems = [
-    data.email,
-    data.phone,
-    data.location,
-    data.linkedin,
-    data.website,
-    data.github,
+    shouldShowField(data.fieldsVisible, 'email') && data.email,
+    shouldShowField(data.fieldsVisible, 'phone') && data.phone,
+    shouldShowField(data.fieldsVisible, 'location') && data.location,
+    shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin,
+    shouldShowField(data.fieldsVisible, 'website') && data.website,
+    shouldShowField(data.fieldsVisible, 'github') && data.github,
   ].filter(Boolean)
 
   return (
@@ -30,19 +33,21 @@ export default function ClassicTemplate({ data, config, replacements }: Template
         }}
       >
         <div className="text-center mb-4">
-          <h1
-            style={{
-              fontFamily: config.typography.fontFamily.heading,
-              fontSize: `${config.typography.fontSize.h1}px`,
-              fontWeight: config.typography.fontWeight?.heading || 700,
-              color: config.design.colors.primary,
-              marginBottom: '8px',
-              letterSpacing: '0.5px',
-            }}
-          >
-            {applyReplacements(data.name, replacements)}
-          </h1>
-          {data.title && (
+          {shouldShowField(data.fieldsVisible, 'name') && (
+            <h1
+              style={{
+                fontFamily: config.typography.fontFamily.heading,
+                fontSize: `${config.typography.fontSize.h1}px`,
+                fontWeight: config.typography.fontWeight?.heading || 700,
+                color: config.design.colors.primary,
+                marginBottom: '8px',
+                letterSpacing: '0.5px',
+              }}
+            >
+              {applyReplacements(data.name, replacements)}
+            </h1>
+          )}
+          {shouldShowField(data.fieldsVisible, 'title') && data.title && (
             <p
               style={{
                 fontSize: `${config.typography.fontSize.body + 2}px`,
@@ -68,7 +73,7 @@ export default function ClassicTemplate({ data, config, replacements }: Template
         </div>
       </header>
 
-      {data.summary && (
+      {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
         <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <h2
             className="mb-3 uppercase tracking-wide"
@@ -96,7 +101,7 @@ export default function ClassicTemplate({ data, config, replacements }: Template
         </section>
       )}
 
-      {orderedSections.map((section) => (
+      {visibleSections.map((section) => (
         <section
           key={section.id}
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}

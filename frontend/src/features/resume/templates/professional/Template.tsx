@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 export default function ProfessionalTemplate({ data, config, replacements }: TemplateProps) {
   const orderedSections = config.layout.sectionOrder.length > 0
@@ -10,12 +10,15 @@ export default function ProfessionalTemplate({ data, config, replacements }: Tem
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const contactItems = [
-    data.email,
-    data.phone,
-    data.location,
-    data.linkedin,
-    data.website,
+    shouldShowField(data.fieldsVisible, 'email') && data.email,
+    shouldShowField(data.fieldsVisible, 'phone') && data.phone,
+    shouldShowField(data.fieldsVisible, 'location') && data.location,
+    shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin,
+    shouldShowField(data.fieldsVisible, 'website') && data.website,
   ].filter(Boolean)
 
   return (
@@ -28,19 +31,21 @@ export default function ProfessionalTemplate({ data, config, replacements }: Tem
           marginBottom: config.design.dividers ? '24px' : '16px',
         }}
       >
-        <h1
-          style={{
-            fontFamily: config.typography.fontFamily.heading,
-            fontSize: `${config.typography.fontSize.h1}px`,
-            fontWeight: config.typography.fontWeight?.heading || 600,
-            color: config.design.colors.primary,
-            marginBottom: '8px',
-            letterSpacing: config.typography.letterSpacing || 0.2,
-          }}
-        >
-          {applyReplacements(data.name, replacements)}
-        </h1>
-        {data.title && (
+        {shouldShowField(data.fieldsVisible, 'name') && (
+          <h1
+            style={{
+              fontFamily: config.typography.fontFamily.heading,
+              fontSize: `${config.typography.fontSize.h1}px`,
+              fontWeight: config.typography.fontWeight?.heading || 600,
+              color: config.design.colors.primary,
+              marginBottom: '8px',
+              letterSpacing: config.typography.letterSpacing || 0.2,
+            }}
+          >
+            {applyReplacements(data.name, replacements)}
+          </h1>
+        )}
+        {shouldShowField(data.fieldsVisible, 'title') && data.title && (
           <p
             style={{
               fontSize: `${config.typography.fontSize.body + 2}px`,
@@ -65,7 +70,7 @@ export default function ProfessionalTemplate({ data, config, replacements }: Tem
         </div>
       </header>
 
-      {data.summary && (
+      {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
         <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <h2
             className="mb-3 uppercase tracking-wide"
@@ -93,7 +98,7 @@ export default function ProfessionalTemplate({ data, config, replacements }: Tem
         </section>
       )}
 
-      {orderedSections.map((section) => (
+      {visibleSections.map((section) => (
         <section
           key={section.id}
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}

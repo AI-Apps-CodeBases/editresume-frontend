@@ -41,6 +41,9 @@ else:
         )
 
 # Initialize ATS checkers
+# NOTE: These are kept for backward compatibility with existing code.
+# New code should use ServiceFactory and dependency injection instead.
+# TODO: Migrate all endpoints to use dependency injection, then remove these globals.
 ats_checker: Optional[ATSChecker] = None
 try:
     ats_checker = ATSChecker()

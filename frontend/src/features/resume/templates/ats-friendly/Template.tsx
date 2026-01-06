@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 export default function AtsFriendlyTemplate({ data, config, replacements }: TemplateProps) {
   const orderedSections = config.layout.sectionOrder.length > 0
@@ -9,6 +9,9 @@ export default function AtsFriendlyTemplate({ data, config, replacements }: Temp
         .map(id => data.sections.find(s => s.id === id))
         .filter(Boolean) as typeof data.sections
     : data.sections
+
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
 
   return (
     <BaseTemplate data={data} config={config} replacements={replacements}>
@@ -19,30 +22,32 @@ export default function AtsFriendlyTemplate({ data, config, replacements }: Temp
           paddingBottom: '10px',
         }}
       >
-        <h1
-          style={{
-            fontFamily: config.typography.fontFamily.heading,
-            fontSize: `${config.typography.fontSize.h1}px`,
-            fontWeight: config.typography.fontWeight?.heading || 700,
-            color: config.design.colors.primary,
-            marginBottom: '4px',
-          }}
-        >
-          {applyReplacements(data.name, replacements)}
-        </h1>
+        {shouldShowField(data.fieldsVisible, 'name') && (
+          <h1
+            style={{
+              fontFamily: config.typography.fontFamily.heading,
+              fontSize: `${config.typography.fontSize.h1}px`,
+              fontWeight: config.typography.fontWeight?.heading || 700,
+              color: config.design.colors.primary,
+              marginBottom: '4px',
+            }}
+          >
+            {applyReplacements(data.name, replacements)}
+          </h1>
+        )}
         <div
           className="flex flex-wrap gap-3 text-xs"
           style={{ color: config.design.colors.secondary }}
         >
-          {data.email && <span>{data.email}</span>}
-          {data.phone && <span>{data.phone}</span>}
-          {data.location && <span>{data.location}</span>}
-          {data.linkedin && <span>{data.linkedin}</span>}
-          {data.website && <span>{data.website}</span>}
+          {shouldShowField(data.fieldsVisible, 'email') && data.email && <span>{data.email}</span>}
+          {shouldShowField(data.fieldsVisible, 'phone') && data.phone && <span>{data.phone}</span>}
+          {shouldShowField(data.fieldsVisible, 'location') && data.location && <span>{data.location}</span>}
+          {shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin && <span>{data.linkedin}</span>}
+          {shouldShowField(data.fieldsVisible, 'website') && data.website && <span>{data.website}</span>}
         </div>
       </header>
 
-      {data.summary && (
+      {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
         <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <h2
             className="mb-2"
@@ -67,7 +72,7 @@ export default function AtsFriendlyTemplate({ data, config, replacements }: Temp
         </section>
       )}
 
-      {orderedSections.map((section) => (
+      {visibleSections.map((section) => (
         <section
           key={section.id}
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}
