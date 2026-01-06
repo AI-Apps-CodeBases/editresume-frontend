@@ -29,6 +29,7 @@ interface JobDescription {
   company?: string
   source?: string
   url?: string
+  easy_apply_url?: string
   location?: string
   work_type?: string
   job_type?: string
@@ -470,6 +471,22 @@ export default function JobsView({ onBack }: Props) {
                               {jd.company && (
                                 <div className="text-xs text-text-muted mt-1">
                                   {jd.company}
+                                </div>
+                              )}
+                              {(jd.easy_apply_url || jd.url) && (
+                                <div className="mt-1.5">
+                                  <a
+                                    href={jd.easy_apply_url || jd.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                    {jd.easy_apply_url ? 'Apply on LinkedIn' : 'View Job Posting'}
+                                  </a>
                                 </div>
                               )}
                             </button>

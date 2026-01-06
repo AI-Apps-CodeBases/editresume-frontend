@@ -40,6 +40,7 @@ interface JobDescription {
   company?: string
   source?: string
   url?: string
+  easy_apply_url?: string
   location?: string
   work_type?: string
   job_type?: string
@@ -867,7 +868,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {job.company && (
                       <span className="text-base text-gray-700 font-medium">{job.company}</span>
                     )}
@@ -875,6 +876,22 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                       <>
                         <span className="text-gray-400">•</span>
                         <span className="text-base text-gray-600">{job.location}</span>
+                      </>
+                    )}
+                    {(job.easy_apply_url || job.url) && (
+                      <>
+                        <span className="text-gray-400">•</span>
+                        <a
+                          href={job.easy_apply_url || job.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-base text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          {job.easy_apply_url ? 'Apply on LinkedIn' : 'View Job Posting'}
+                        </a>
                       </>
                     )}
                   </div>
@@ -992,12 +1009,39 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                       <label className="text-sm font-semibold text-gray-600">Job Type</label>
                       <p className="text-gray-900">{job.job_type || 'N/A'}</p>
                     </div>
-                    {job.url && (
+                    {(job.easy_apply_url || job.url) && (
                       <div>
-                        <label className="text-sm font-semibold text-gray-600">Job URL</label>
-                        <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                          View Original Posting
-                        </a>
+                        <label className="text-sm font-semibold text-gray-600">
+                          {job.easy_apply_url ? 'Apply Link' : 'Job URL'}
+                        </label>
+                        <div className="flex flex-col gap-2 mt-1">
+                          {job.easy_apply_url && (
+                            <a
+                              href={job.easy_apply_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1.5"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              Apply on LinkedIn
+                            </a>
+                          )}
+                          {job.url && (
+                            <a
+                              href={job.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1.5"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              View Original Posting
+                            </a>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
