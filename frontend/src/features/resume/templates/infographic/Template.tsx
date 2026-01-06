@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 // Icon placeholders - in a real implementation, these would be SVG icons
 const SectionIcons: Record<string, string> = {
@@ -32,13 +32,16 @@ export default function InfographicTemplate({ data, config, replacements }: Temp
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const contactItems = [
-    { icon: '📧', value: data.email },
-    { icon: '📱', value: data.phone },
-    { icon: '📍', value: data.location },
-    { icon: '💼', value: data.linkedin },
-    { icon: '🌐', value: data.website },
-    { icon: '💻', value: data.github },
+    { icon: '📧', value: shouldShowField(data.fieldsVisible, 'email') && data.email },
+    { icon: '📱', value: shouldShowField(data.fieldsVisible, 'phone') && data.phone },
+    { icon: '📍', value: shouldShowField(data.fieldsVisible, 'location') && data.location },
+    { icon: '💼', value: shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin },
+    { icon: '🌐', value: shouldShowField(data.fieldsVisible, 'website') && data.website },
+    { icon: '💻', value: shouldShowField(data.fieldsVisible, 'github') && data.github },
   ].filter(item => item.value)
 
   return (
@@ -70,19 +73,21 @@ export default function InfographicTemplate({ data, config, replacements }: Temp
             👤
           </div>
           <div style={{ flex: 1 }}>
-            <h1
-              style={{
-                fontFamily: config.typography.fontFamily.heading,
-                fontSize: `${config.typography.fontSize.h1}px`,
-                fontWeight: config.typography.fontWeight?.heading || 700,
-                color: config.design.colors.primary,
-                marginBottom: '8px',
-                letterSpacing: config.typography.letterSpacing || 0.3,
-              }}
-            >
-              {applyReplacements(data.name, replacements)}
-            </h1>
-            {data.title && (
+            {shouldShowField(data.fieldsVisible, 'name') && (
+              <h1
+                style={{
+                  fontFamily: config.typography.fontFamily.heading,
+                  fontSize: `${config.typography.fontSize.h1}px`,
+                  fontWeight: config.typography.fontWeight?.heading || 700,
+                  color: config.design.colors.primary,
+                  marginBottom: '8px',
+                  letterSpacing: config.typography.letterSpacing || 0.3,
+                }}
+              >
+                {applyReplacements(data.name, replacements)}
+              </h1>
+            )}
+            {shouldShowField(data.fieldsVisible, 'title') && data.title && (
               <p
                 style={{
                   fontSize: `${config.typography.fontSize.body + 3}px`,
@@ -114,7 +119,7 @@ export default function InfographicTemplate({ data, config, replacements }: Temp
         </div>
       </header>
 
-      {data.summary && (
+      {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
         <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <div
             className="p-5 rounded-xl"
@@ -142,7 +147,7 @@ export default function InfographicTemplate({ data, config, replacements }: Temp
         </section>
       )}
 
-      {orderedSections.map((section) => {
+      {visibleSections.map((section) => {
         const icon = getSectionIcon(section.title)
         return (
           <section

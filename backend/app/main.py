@@ -29,8 +29,16 @@ from app.api import (
     usage,
     user,
 )
+from app.features.ats_scoring import router as ats_scoring_router
+from app.features.resume_management import router as resume_management_router
+from app.features.job_management import router as job_management_router, jobs_router as job_management_jobs_router
+from app.features.user_management import router as user_management_router
+from app.features.analytics import router as analytics_router
+from app.features.collaboration import router as collaboration_router, websocket_collab
+from app.features.dashboard import router as dashboard_router
+from app.features.ai import router as ai_feature_router
 from app.api.resumes import router as resumes_router
-from app.api.job import create_match, get_match
+from app.features.job_management.routes import create_match, get_match
 from app.core.db import get_db
 from app.core.config import settings
 from app.core.db import create_tables, migrate_schema
@@ -45,9 +53,10 @@ from app.middleware.visitor_tracking import VisitorTrackingMiddleware
 # Initialize logging
 setup_logging()
 
-# Initialize database
-create_tables()
-migrate_schema()
+# Initialize database (skip during tests)
+if os.getenv("SKIP_DB_INIT") != "1":
+    create_tables()
+    migrate_schema()
 
 # Create FastAPI app
 app = FastAPI(title=settings.app_name, version=settings.version)
@@ -108,12 +117,21 @@ else:
 app.include_router(firebase_auth.router)
 app.include_router(auth.router)
 app.include_router(stripe.router)
-app.include_router(ai.router)
-app.include_router(user.router)
-app.include_router(resume.router)
+app.include_router(ats_scoring_router)  # ATS scoring feature
+app.include_router(resume_management_router)  # Resume management feature
+app.include_router(job_management_router)  # Job management feature (job-descriptions)
+app.include_router(job_management_jobs_router)  # Job management feature (jobs)
+app.include_router(user_management_router)  # User management feature
+app.include_router(analytics_router)  # Analytics feature
+app.include_router(collaboration_router)  # Collaboration feature
+app.include_router(dashboard_router)  # Dashboard feature
+app.include_router(ai_feature_router)  # AI feature
+app.include_router(ai.router)  # Keep for backward compatibility
+app.include_router(user.router)  # Keep for backward compatibility
+app.include_router(resume.router)  # Keep for backward compatibility
 app.include_router(resumes_router)
-app.include_router(job.router)
-app.include_router(jobs.router)
+app.include_router(job.router)  # Keep for backward compatibility
+app.include_router(jobs.router)  # Keep for backward compatibility
 app.include_router(collaboration.router)
 app.include_router(analytics.router)
 app.include_router(dashboard.router)
@@ -123,12 +141,11 @@ app.include_router(usage.router)
 
 # Additional routes that need different prefixes
 # These are registered here because they don't fit the standard router prefix pattern
-from app.api.collaboration import websocket_collab
-from app.api.resume import list_user_resumes, delete_resume
+from app.features.resume_management.routes import list_user_resumes, delete_resume
 
 app.get("/api/resumes")(list_user_resumes)
 app.delete("/api/resumes/{resume_id}")(delete_resume)
-app.websocket("/ws/collab/{room_id}")(websocket_collab)
+app.websocket("/ws/collab/{room_id}")(websocket_collab)  # websocket_collab imported from features/collaboration above
 
 # OpenAI status endpoint (legacy route compatibility)
 @app.get("/api/openai/status")

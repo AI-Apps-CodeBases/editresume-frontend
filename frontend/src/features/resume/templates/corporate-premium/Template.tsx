@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 export default function CorporatePremiumTemplate({ data, config, replacements }: TemplateProps) {
   const orderedSections = config.layout.sectionOrder.length > 0
@@ -10,16 +10,19 @@ export default function CorporatePremiumTemplate({ data, config, replacements }:
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const sidebarWidth = config.layout.columnWidth || 30
   const mainWidth = 100 - sidebarWidth
 
   const contactItems = [
-    { label: 'Email', value: data.email },
-    { label: 'Phone', value: data.phone },
-    { label: 'Location', value: data.location },
-    { label: 'LinkedIn', value: data.linkedin },
-    { label: 'Website', value: data.website },
-    { label: 'GitHub', value: data.github },
+    { label: 'Email', value: shouldShowField(data.fieldsVisible, 'email') && data.email },
+    { label: 'Phone', value: shouldShowField(data.fieldsVisible, 'phone') && data.phone },
+    { label: 'Location', value: shouldShowField(data.fieldsVisible, 'location') && data.location },
+    { label: 'LinkedIn', value: shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin },
+    { label: 'Website', value: shouldShowField(data.fieldsVisible, 'website') && data.website },
+    { label: 'GitHub', value: shouldShowField(data.fieldsVisible, 'github') && data.github },
   ].filter(item => item.value)
 
   return (
@@ -36,18 +39,20 @@ export default function CorporatePremiumTemplate({ data, config, replacements }:
             minHeight: '200px',
           }}
         >
-          <h1
-            style={{
-              fontFamily: config.typography.fontFamily.heading,
-              fontSize: `${config.typography.fontSize.h1}px`,
-              fontWeight: config.typography.fontWeight?.heading || 700,
-              marginBottom: '8px',
-              letterSpacing: '0.5px',
-            }}
-          >
-            {applyReplacements(data.name, replacements)}
-          </h1>
-          {data.title && (
+          {shouldShowField(data.fieldsVisible, 'name') && (
+            <h1
+              style={{
+                fontFamily: config.typography.fontFamily.heading,
+                fontSize: `${config.typography.fontSize.h1}px`,
+                fontWeight: config.typography.fontWeight?.heading || 700,
+                marginBottom: '8px',
+                letterSpacing: '0.5px',
+              }}
+            >
+              {applyReplacements(data.name, replacements)}
+            </h1>
+          )}
+          {shouldShowField(data.fieldsVisible, 'title') && data.title && (
             <p
               style={{
                 fontSize: `${config.typography.fontSize.body + 2}px`,
@@ -90,7 +95,7 @@ export default function CorporatePremiumTemplate({ data, config, replacements }:
 
         {/* Main Content */}
         <div style={{ width: `${mainWidth}%` }}>
-          {data.summary && (
+          {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
             <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
               <h2
                 className="mb-3"
@@ -123,7 +128,7 @@ export default function CorporatePremiumTemplate({ data, config, replacements }:
 
       {/* Main Content Sections */}
       <div style={{ width: '100%' }}>
-        {orderedSections.map((section) => (
+        {visibleSections.map((section) => (
           <section
             key={section.id}
             style={{ marginBottom: `${config.spacing.sectionGap}px` }}

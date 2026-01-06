@@ -28,14 +28,95 @@ export function getSpacingPreset(preset: 'compact' | 'balanced' | 'spacious'): {
   }
 }
 
+/**
+ * Filters bullets by visibility, handling work experience headers and their associated bullets.
+ * When a company header has visible === false, all its associated bullets are also hidden.
+ * 
+ * @param bullets - Array of bullets to filter
+ * @returns Filtered array of visible bullets
+ */
+export function filterVisibleBullets(
+  bullets: Array<{ id: string; text: string; params?: Record<string, any> }>
+): Array<{ id: string; text: string; params?: Record<string, any> }> {
+  if (!bullets || bullets.length === 0) return []
+  
+  const filtered: Array<{ id: string; text: string; params?: Record<string, any> }> = []
+  let currentHeaderVisible = true
+  
+  for (const bullet of bullets) {
+    const text = bullet.text?.trim() || ''
+    const isHeader = text.startsWith('**') && text.includes('**', 2) && text.split('**').length >= 3
+    
+    if (isHeader) {
+      // Check if header is visible - hide if visible is explicitly false
+      const isHeaderHidden = bullet.params?.visible === false
+      currentHeaderVisible = !isHeaderHidden && text.length > 0
+      
+      if (currentHeaderVisible) {
+        filtered.push(bullet)
+      }
+    } else {
+      // Regular bullet - only include if current header is visible and bullet itself is visible
+      const isBulletHidden = bullet.params?.visible === false
+      if (currentHeaderVisible && !isBulletHidden && text.length > 0) {
+        filtered.push(bullet)
+      }
+    }
+  }
+  
+  return filtered
+}
+
+/**
+ * Filters sections by visibility.
+ * Sections with params.visible === false are excluded.
+ * 
+ * @param sections - Array of sections to filter
+ * @returns Filtered array of visible sections
+ */
+export function filterVisibleSections<T extends { params?: Record<string, any> }>(
+  sections: T[]
+): T[] {
+  if (!sections || sections.length === 0) return []
+  return sections.filter(s => s.params?.visible !== false)
+}
+
+/**
+ * Checks if a field should be visible based on fieldsVisible settings.
+ * 
+ * @param fieldsVisible - Record of field visibility settings
+ * @param fieldName - Name of the field to check
+ * @returns true if field should be shown, false otherwise
+ */
+export function shouldShowField(
+  fieldsVisible: Record<string, boolean> | undefined,
+  fieldName: string
+): boolean {
+  if (!fieldsVisible) return true
+  return fieldsVisible[fieldName] !== false
+}
+
+/**
+ * Renders bullet points with visibility filtering.
+ * CRITICAL: Filters out bullets where params.visible === false.
+ * For work experience sections, company headers with visible === false hide all associated bullets.
+ * 
+ * @param bullets - Array of bullets to render (will be filtered by visibility)
+ * @param config - Template configuration
+ * @param replacements - Text replacements to apply
+ * @param bulletStyle - Optional bullet style override
+ * @returns React node with rendered bullet points or null if none visible
+ */
 export function renderBulletPoints(
   bullets: Array<{ id: string; text: string; params?: Record<string, any> }>,
   config: TemplateConfig,
   replacements: Record<string, string>,
   bulletStyle?: 'circle' | 'square' | 'dash' | 'none'
 ): React.ReactNode {
+  // CRITICAL: Filter by visibility first - this ensures mark/unmark works across all templates
+  const visibleBullets = filterVisibleBullets(bullets)
   const style = bulletStyle || config.design.bulletStyle
-  const validBullets = bullets.filter(b => b.text && b.text.trim())
+  const validBullets = visibleBullets.filter(b => b.text && b.text.trim())
 
   if (validBullets.length === 0) return null
 

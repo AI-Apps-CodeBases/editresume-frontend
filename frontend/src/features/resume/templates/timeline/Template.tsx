@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField, filterVisibleBullets } from '../BaseTemplate'
 
 export default function TimelineTemplate({ data, config, replacements }: TemplateProps) {
   const orderedSections = config.layout.sectionOrder.length > 0
@@ -10,13 +10,16 @@ export default function TimelineTemplate({ data, config, replacements }: Templat
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const contactItems = [
-    data.email,
-    data.phone,
-    data.location,
-    data.linkedin,
-    data.website,
-    data.github,
+    shouldShowField(data.fieldsVisible, 'email') && data.email,
+    shouldShowField(data.fieldsVisible, 'phone') && data.phone,
+    shouldShowField(data.fieldsVisible, 'location') && data.location,
+    shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin,
+    shouldShowField(data.fieldsVisible, 'website') && data.website,
+    shouldShowField(data.fieldsVisible, 'github') && data.github,
   ].filter(Boolean)
 
   return (
@@ -29,19 +32,21 @@ export default function TimelineTemplate({ data, config, replacements }: Templat
           marginBottom: '32px',
         }}
       >
-        <h1
-          style={{
-            fontFamily: config.typography.fontFamily.heading,
-            fontSize: `${config.typography.fontSize.h1}px`,
-            fontWeight: config.typography.fontWeight?.heading || 600,
-            color: config.design.colors.primary,
-            marginBottom: '8px',
-            letterSpacing: config.typography.letterSpacing || 0.2,
-          }}
-        >
-          {applyReplacements(data.name, replacements)}
-        </h1>
-        {data.title && (
+        {shouldShowField(data.fieldsVisible, 'name') && (
+          <h1
+            style={{
+              fontFamily: config.typography.fontFamily.heading,
+              fontSize: `${config.typography.fontSize.h1}px`,
+              fontWeight: config.typography.fontWeight?.heading || 600,
+              color: config.design.colors.primary,
+              marginBottom: '8px',
+              letterSpacing: config.typography.letterSpacing || 0.2,
+            }}
+          >
+            {applyReplacements(data.name, replacements)}
+          </h1>
+        )}
+        {shouldShowField(data.fieldsVisible, 'title') && data.title && (
           <p
             style={{
               fontSize: `${config.typography.fontSize.body + 3}px`,
@@ -63,7 +68,7 @@ export default function TimelineTemplate({ data, config, replacements }: Templat
         </div>
       </header>
 
-      {data.summary && (
+      {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
         <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <div
             style={{
@@ -86,7 +91,10 @@ export default function TimelineTemplate({ data, config, replacements }: Templat
         </section>
       )}
 
-      {orderedSections.map((section) => (
+      {visibleSections.map((section) => {
+        // CRITICAL: Filter bullets by visibility for timeline template
+        const visibleBullets = filterVisibleBullets(section.bullets)
+        return (
         <section
           key={section.id}
           style={{
@@ -137,7 +145,7 @@ export default function TimelineTemplate({ data, config, replacements }: Templat
           </h2>
           
           <div style={{ paddingLeft: '8px' }}>
-            {section.bullets.map((bullet, bulletIdx) => {
+            {visibleBullets.map((bullet, bulletIdx) => {
               const text = applyReplacements(bullet.text, replacements)
               // Check if it's a company header (starts with **)
               const isHeader = text.startsWith('**') && text.includes('**', 2)
@@ -218,7 +226,8 @@ export default function TimelineTemplate({ data, config, replacements }: Templat
             })}
           </div>
         </section>
-      ))}
+        )
+      })}
     </BaseTemplate>
   )
 }

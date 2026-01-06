@@ -74,6 +74,186 @@ Design System: Use a minimalist, modern SaaS aesthetic.
 - Interactivity: Secondary actions (Delete, AI Assistant) should be hidden until hover.
 - Feedback: Use subtle underlines for keyword matching instead of solid red/green blocks.
 
+## Backend Feature Development Rules
+
+### Feature Module Structure (MANDATORY)
+When adding new API features, ALWAYS follow this structure:
+
+1. **Create feature module directory:**
+   ```
+   backend/app/features/<feature_name>/
+     ├── __init__.py          # Router export
+     ├── routes.py            # API endpoints
+     ├── services.py          # Business logic (optional)
+     ├── models.py            # Feature-specific models (optional)
+     └── types.py             # Type definitions (optional)
+   ```
+
+2. **Router structure in routes.py:**
+   ```python
+   from fastapi import APIRouter, Depends
+   from app.core.service_factory import get_service_name
+   
+   router = APIRouter(prefix="/api/feature-name", tags=["feature_name"])
+   
+   @router.get("/endpoint")
+   async def my_endpoint(service: ServiceType = Depends(get_service_name)):
+       # Implementation
+       pass
+   ```
+
+3. **Export router in __init__.py:**
+   ```python
+   from app.features.feature_name.routes import router
+   __all__ = ["router"]
+   ```
+
+4. **Register in main.py:**
+   ```python
+   from app.features.feature_name import router as feature_router
+   app.include_router(feature_router)
+   ```
+
+### Backward Compatibility (CRITICAL)
+- **NEVER delete old API files** (`app/api/` directory)
+- Always maintain backward compatibility by re-exporting router:
+  ```python
+  # app/api/old_file.py
+  """Old API file - kept for backward compatibility.
+  
+  NOTE: Endpoints moved to app/features/new_feature/routes.py
+  This file re-exports the router for backward compatibility.
+  """
+  from app.features.new_feature.routes import router
+  ```
+- Old router registrations in `main.py` should remain for compatibility
+
+### Dependency Injection (MANDATORY)
+- **ALWAYS use Service Factory pattern** for service creation
+- Services MUST be injected via `app/core/service_factory.py`
+- NEVER use global singletons directly in endpoints
+- Example:
+  ```python
+  # ✅ CORRECT
+  from app.core.service_factory import get_enhanced_ats_service
+  @router.post("/endpoint")
+  async def endpoint(service: EnhancedATSChecker = Depends(get_enhanced_ats_service)):
+      result = service.calculate_score(...)
+  
+  # ❌ WRONG
+  from app.core.dependencies import enhanced_ats_checker  # Global singleton
+  @router.post("/endpoint")
+  async def endpoint():
+      result = enhanced_ats_checker.calculate_score(...)
+  ```
+
+### Testing Requirements (MANDATORY)
+- **ALWAYS run regression tests** before completing feature addition:
+  ```bash
+  cd backend && make test-regression
+  ```
+- All 17 regression tests MUST pass
+- New features should include unit tests when possible
+- Test files should be in `backend/tests/features/<feature_name>/`
+
+### Code Organization Rules
+- **Maximum file size:** 500 lines per file
+  - If exceeding, split into sub-modules
+- **Maximum function size:** 50 lines per function
+  - If exceeding, extract helper functions
+- **Maximum endpoint file:** 20 endpoints per routes.py
+  - If exceeding, split into multiple route files
+
+### Import Rules
+- **Feature modules MUST NOT import each other** (no circular dependencies)
+- Shared logic goes in `app/lib/` or `app/core/`
+- Cross-feature communication via service layer only
+- Use absolute imports: `from app.features.x import y`
+
+### Error Handling
+- **ALL endpoints MUST have try-except blocks**
+- Consistent error response format:
+  ```python
+  {
+      "success": False,
+      "error": "Error message",
+      "details": {}  # Optional
+  }
+  ```
+- Always log errors: `logger.error(f"Error: {e}", exc_info=True)`
+
+### Documentation Requirements
+- **ALL endpoints MUST have docstrings**
+- Include request/response examples in docstrings
+- Document required dependencies and services
+- Add type hints for all function parameters and returns
+
+### Step-by-Step Feature Addition Process
+
+1. **Create feature module structure:**
+   ```bash
+   mkdir -p backend/app/features/new_feature
+   touch backend/app/features/new_feature/__init__.py
+   touch backend/app/features/new_feature/routes.py
+   ```
+
+2. **Implement routes.py with endpoints**
+
+3. **Export router in __init__.py**
+
+4. **Register in main.py:**
+   ```python
+   from app.features.new_feature import router as new_feature_router
+   app.include_router(new_feature_router)
+   ```
+
+5. **Update old API file (if exists) for backward compatibility:**
+   ```python
+   from app.features.new_feature.routes import router
+   ```
+
+6. **Run regression tests:**
+   ```bash
+   cd backend && make test-regression
+   ```
+
+7. **Follow the test checklist:**
+   - See `backend/tests/NEW_FEATURE_CHECKLIST.md` for complete checklist
+   - Minimum: Regression tests + Lint + Manual test
+   - Recommended: + Unit tests for new feature
+
+8. **Verify all tests pass before completing**
+
+### Service Factory Pattern
+- New services MUST be added to `app/core/service_factory.py`
+- Create factory method: `create_service_name() -> ServiceType`
+- Create dependency function: `get_service_name() -> ServiceType`
+- Use dependency injection in endpoints
+
+### Code Quality Gates
+- All code must pass `pytest tests/regression/ -v`
+- All code must pass type checking (if mypy configured)
+- All endpoints must have error handling
+- All services must be testable (dependency injection)
+- No global mutable state
+- No circular dependencies
+
+### When Modifying Existing Features
+1. **Search for all usages** before modifying:
+   ```bash
+   grep -r "function_name" backend/app/
+   ```
+2. **Check feature boundaries** - don't break other features
+3. **Update tests** if behavior changes
+4. **Maintain API contracts** - don't change response formats without versioning
+5. **Run regression tests** after changes
+
+### Critical Areas to Protect
+- **Service Factory** (`app/core/service_factory.py`) - never bypass
+- **Database models** (`app/models/`) - changes affect all features
+- **Core dependencies** (`app/core/`) - shared infrastructure
+- **Existing feature modules** - maintain boundaries
+
 
 
 
