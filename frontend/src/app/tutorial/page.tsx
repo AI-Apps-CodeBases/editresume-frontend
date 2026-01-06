@@ -18,14 +18,14 @@ export default function TutorialPage() {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-200/20 to-primary-200/20 rounded-full blur-3xl"></div>
       </div>
 
-      <main className="relative w-full flex flex-col gap-12 px-[10%] py-12 lg:py-20">
+      <main className="relative w-full flex flex-col gap-8 px-[10%] py-8 lg:py-12">
         <div className="mb-6">
           <BackButton />
         </div>
         <div className="relative">
           <div className="absolute -inset-1 bg-gradient-to-r from-primary-200/20 via-purple-200/20 to-blue-200/20 rounded-3xl blur-xl"></div>
-          <div className="relative rounded-3xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-8 lg:p-12 shadow-xl">
-            <div className="text-center space-y-6 mb-12">
+          <div className="relative rounded-3xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-6 lg:p-8 shadow-xl">
+            <div className="text-center space-y-4 mb-8">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-primary-100 to-purple-100 border border-primary-200/50">
                 <span className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-700">Tutorial</span>
               </div>
@@ -37,61 +37,89 @@ export default function TutorialPage() {
               </p>
             </div>
 
-            <div className="space-y-12">
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-slate-900">Getting Started</h2>
-                <div className="relative group">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-                  <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video w-full">
-                    {isMounted ? (
-                      <iframe
-                        className="w-full h-full"
-                        src="https://www.youtube.com/embed/qcGBFI1PEHo?rel=0&modestbranding=1"
-                        title="EditResume Tutorial"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full bg-slate-900 text-white">
-                        <div className="text-center">
-                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                          <p>Loading video player...</p>
+            <div className="max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <h2 className="text-xl font-bold text-slate-900">Getting Started</h2>
+                  <div className="relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+                    <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
+                      {isMounted ? (
+                        <iframe
+                          className="w-full h-full"
+                          src="https://www.youtube.com/embed/qcGBFI1PEHo?rel=0&modestbranding=1"
+                          title="EditResume Tutorial"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full bg-slate-900 text-white">
+                          <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                            <p>Loading video player...</p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-slate-900">Installing the Extension</h2>
-                <div className="relative group">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-                  <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video w-full">
-                    {isMounted ? (
-                      <iframe
-                        className="w-full h-full"
-                        src="https://www.youtube.com/embed/hkPa-JS-7hc?rel=0&modestbranding=1"
-                        title="Install EditResume Extension"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full bg-slate-900 text-white">
-                        <div className="text-center">
-                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                          <p>Loading video player...</p>
+                <div className="space-y-3">
+                  <h2 className="text-xl font-bold text-slate-900">Installing the Extension</h2>
+                  <div className="relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+                    <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
+                      {isMounted ? (
+                        <iframe
+                          className="w-full h-full"
+                          src="https://www.youtube.com/embed/hkPa-JS-7hc?rel=0&modestbranding=1"
+                          title="Install EditResume Extension"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full bg-slate-900 text-white">
+                          <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                            <p>Loading video player...</p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h2 className="text-xl font-bold text-slate-900">Advanced Features</h2>
+                  <div className="relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+                    <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
+                      {isMounted ? (
+                        <iframe
+                          className="w-full h-full"
+                          src="https://www.youtube.com/embed/1Y7k-FDtkOk?rel=0&modestbranding=1"
+                          title="EditResume Advanced Features"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full bg-slate-900 text-white">
+                          <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                            <p>Loading video player...</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
               <Link
                 href="/editor?new=true"
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold hover:from-primary-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
