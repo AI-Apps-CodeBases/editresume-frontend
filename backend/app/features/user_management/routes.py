@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.dependencies import OPENAI_API_KEY, openai_client
+from app.core.openai_client import OPENAI_API_KEY, openai_client
 from app.models import User
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 export default function ExecutiveTemplate({ data, config, replacements }: TemplateProps) {
   const orderedSections = config.layout.sectionOrder.length > 0
@@ -10,12 +10,15 @@ export default function ExecutiveTemplate({ data, config, replacements }: Templa
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const contactItems = [
-    data.email,
-    data.phone,
-    data.location,
-    data.linkedin,
-    data.website,
+    shouldShowField(data.fieldsVisible, 'email') && data.email,
+    shouldShowField(data.fieldsVisible, 'phone') && data.phone,
+    shouldShowField(data.fieldsVisible, 'location') && data.location,
+    shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin,
+    shouldShowField(data.fieldsVisible, 'website') && data.website,
   ].filter(Boolean)
 
   return (
@@ -28,19 +31,21 @@ export default function ExecutiveTemplate({ data, config, replacements }: Templa
           marginBottom: '32px',
         }}
       >
-        <h1
-          style={{
-            fontFamily: config.typography.fontFamily.heading,
-            fontSize: `${config.typography.fontSize.h1}px`,
-            fontWeight: config.typography.fontWeight?.heading || 700,
-            color: config.design.colors.primary,
-            marginBottom: '12px',
-            letterSpacing: config.typography.letterSpacing || 0.3,
-          }}
-        >
-          {applyReplacements(data.name, replacements)}
-        </h1>
-        {data.title && (
+        {shouldShowField(data.fieldsVisible, 'name') && (
+          <h1
+            style={{
+              fontFamily: config.typography.fontFamily.heading,
+              fontSize: `${config.typography.fontSize.h1}px`,
+              fontWeight: config.typography.fontWeight?.heading || 700,
+              color: config.design.colors.primary,
+              marginBottom: '12px',
+              letterSpacing: config.typography.letterSpacing || 0.3,
+            }}
+          >
+            {applyReplacements(data.name, replacements)}
+          </h1>
+        )}
+        {shouldShowField(data.fieldsVisible, 'title') && data.title && (
           <p
             style={{
               fontSize: `${config.typography.fontSize.body + 3}px`,
@@ -68,7 +73,7 @@ export default function ExecutiveTemplate({ data, config, replacements }: Templa
         </div>
       </header>
 
-      {data.summary && (
+      {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
         <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <div className="text-center mb-4">
             <div
@@ -95,7 +100,7 @@ export default function ExecutiveTemplate({ data, config, replacements }: Templa
         </section>
       )}
 
-      {orderedSections.map((section) => (
+      {visibleSections.map((section) => (
         <section
           key={section.id}
           style={{ marginBottom: `${config.spacing.sectionGap}px` }}

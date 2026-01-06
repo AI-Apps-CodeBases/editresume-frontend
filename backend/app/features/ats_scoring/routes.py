@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.api.models import EnhancedATSPayload, ResumePayload
 from app.core.db import get_db
-from app.core.dependencies import ats_checker
-from app.core.service_factory import get_enhanced_ats_service
+from app.core.service_factory import get_ats_service, get_enhanced_ats_service
+from app.services.ats_service import ATSChecker
 from app.services.enhanced_ats_service import EnhancedATSChecker
 from app.services.usage_service import record_ai_usage
 
@@ -37,13 +37,19 @@ def get_user_from_request(request: Request, db: Session):
 
 
 @router.post("/ats_score")
-async def get_ats_score(payload: ResumePayload):
-    """Get ATS compatibility score and suggestions for resume"""
+async def get_ats_score(
+    payload: ResumePayload,
+    ats_service: ATSChecker = Depends(get_ats_service),
+):
+    """Get ATS compatibility score and suggestions for resume
+    
+    Uses dependency injection for ATSChecker - can be mocked in tests.
+    """
     try:
         logger.info("Processing ATS score request")
 
         # Check if ATS checker is available
-        if not ats_checker:
+        if not ats_service:
             return {
                 "success": False,
                 "score": 0,
@@ -66,7 +72,7 @@ async def get_ats_score(payload: ResumePayload):
         }
 
         # Get ATS score and analysis
-        result = ats_checker.get_ats_score(resume_data)
+        result = ats_service.get_ats_score(resume_data)
 
         logger.info(f"ATS analysis completed. Score: {result.get('score', 0)}")
 

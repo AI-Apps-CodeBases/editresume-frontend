@@ -31,21 +31,18 @@ from app.api.models import (
     ScrapeJobUrlPayload,
     WorkExperienceRequest,
 )
-from app.core.dependencies import (
-    OPENAI_MAX_TOKENS,
-    OPENAI_MODEL,
-    ai_improvement_engine,
-    ats_checker,
-    ats_scoring_agent,
-    content_generation_agent,
-    cover_letter_agent,
-    enhanced_ats_checker,  # Keep for backward compatibility
-    improvement_agent,
-    job_matching_agent,
-    keyword_extractor,
-    openai_client,
+from app.core.openai_client import OPENAI_MAX_TOKENS, OPENAI_MODEL, openai_client
+from app.core.service_factory import (
+    get_enhanced_ats_service,
+    get_ats_service,
+    get_ai_improvement_engine_service,
+    get_keyword_extractor_service,
+    get_cover_letter_agent_service,
+    get_content_generation_agent_service,
+    get_improvement_agent_service,
+    get_job_matching_agent_service,
+    get_ats_scoring_agent_service,
 )
-from app.core.service_factory import get_enhanced_ats_service
 from app.core.db import get_db
 from app.models import JobMatch, Resume, User
 from app.services.ai_improvement_engine import ImprovementStrategy
@@ -125,7 +122,7 @@ async def health_check():
 @router.get("/openai/status", include_in_schema=False)
 async def get_openai_status():
     """Check OpenAI connection status - accessible at /api/openai/status"""
-    from app.core.dependencies import OPENAI_API_KEY, OPENAI_MODEL, openai_client
+    from app.core.openai_client import OPENAI_API_KEY, OPENAI_MODEL, openai_client
 
     if not OPENAI_API_KEY:
         return {
@@ -190,6 +187,7 @@ async def get_ai_improvement_suggestions(
     request: Request,
     db: Session = Depends(get_db),
     session_id: Optional[str] = None,
+    ai_improvement_engine_service = Depends(get_ai_improvement_engine_service),
 ):
     """Get AI-powered improvement suggestions based on 10 strategies"""
     try:
@@ -210,7 +208,7 @@ async def get_ai_improvement_suggestions(
             )
 
         # Check if AI improvement engine is available
-        if not ai_improvement_engine:
+        if not ai_improvement_engine_service:
             return {
                 "success": False,
                 "suggestions": [
@@ -241,7 +239,7 @@ async def get_ai_improvement_suggestions(
         }
 
         # Get AI improvement suggestions
-        result = ai_improvement_engine.get_improvement_suggestions(
+        result = ai_improvement_engine_service.get_improvement_suggestions(
             resume_data, payload.job_description, payload.target_role, payload.industry
         )
 
@@ -352,6 +350,7 @@ async def generate_cover_letter(
     request: Request,
     db: Session = Depends(get_db),
     session_id: Optional[str] = None,
+    cover_letter_agent_service = Depends(get_cover_letter_agent_service),
 ):
     """Generate a tailored cover letter using AI"""
     try:
@@ -367,6 +366,12 @@ async def generate_cover_letter(
                     "message": "You've reached your limit for cover letter generation. Upgrade to premium for unlimited access.",
                     "usage_info": usage_info,
                 },
+            )
+
+        if not cover_letter_agent_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Cover letter service is not available. Please check server configuration."
             )
 
         # Convert resume data to text for context (include contact info for cover letter)
@@ -395,7 +400,7 @@ async def generate_cover_letter(
             job_description_text = "\n".join(payload.selected_sentences)
         
         # Use cover letter agent
-        result = cover_letter_agent.generate_cover_letter(
+        result = cover_letter_agent_service.generate_cover_letter(
             company_name=payload.company_name,
             position_title=payload.position_title,
             job_description=job_description_text,
@@ -421,6 +426,7 @@ async def match_job_description(
     payload: JobDescriptionMatchPayload,
     user_email: str = None,
     db: Session = Depends(get_db),
+    job_matching_agent_service = Depends(get_job_matching_agent_service),
 ):
     """Match job description with resume and calculate similarity score"""
     try:
@@ -436,7 +442,7 @@ async def match_job_description(
             resume_text += "\n"
 
         # Check if job matching agent is available
-        if job_matching_agent is None:
+        if job_matching_agent_service is None:
             raise HTTPException(
                 status_code=503,
                 detail="Job matching service is not available. Please check server configuration."
@@ -444,7 +450,7 @@ async def match_job_description(
 
         # Use job matching agent
         try:
-            match_result = job_matching_agent.match_job_description(
+            match_result = job_matching_agent_service.match_job_description(
                 job_description=payload.job_description, resume_text=resume_text
             )
         except Exception as e:
@@ -521,7 +527,10 @@ async def match_job_description(
 
 
 @router.post("/extract_job_keywords")
-async def extract_job_keywords(payload: ExtractKeywordsPayload):
+async def extract_job_keywords(
+    payload: ExtractKeywordsPayload,
+    keyword_extractor_service = Depends(get_keyword_extractor_service),
+):
     """Extract high-intensity keywords from job description"""
     try:
         if not payload.job_description or not payload.job_description.strip():
@@ -530,7 +539,7 @@ async def extract_job_keywords(payload: ExtractKeywordsPayload):
                 detail="Job description cannot be empty"
             )
 
-        job_keywords = keyword_extractor.extract_keywords(payload.job_description)
+        job_keywords = keyword_extractor_service.extract_keywords(payload.job_description)
         
         technical_keywords = job_keywords.get("technical_keywords", [])
         general_keywords = job_keywords.get("general_keywords", [])
@@ -842,10 +851,18 @@ async def generate_bullet_points(payload: GenerateBulletPointsPayload):
 
 
 @router.post("/generate_summary")
-async def generate_summary(payload: GenerateSummaryPayload):
+async def generate_summary(
+    payload: GenerateSummaryPayload,
+    content_generation_agent_service = Depends(get_content_generation_agent_service),
+):
     """Generate professional resume summary using AI"""
     try:
-        result = await content_generation_agent.generate_summary(
+        if not content_generation_agent_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Content generation service is not available."
+            )
+        result = await content_generation_agent_service.generate_summary(
             role=payload.role,
             years_experience=payload.years_experience,
             skills=payload.skills,
@@ -864,10 +881,18 @@ async def generate_summary(payload: GenerateSummaryPayload):
 
 # Legacy OpenAI endpoint (redirected from /api/openai/improve-bullet)
 @router.post("/openai/improve-bullet")
-async def improve_bullet(payload: ImproveBulletPayload):
+async def improve_bullet(
+    payload: ImproveBulletPayload,
+    improvement_agent_service = Depends(get_improvement_agent_service),
+):
     """Improve a bullet point using AI"""
     try:
-        result = await improvement_agent.improve_bullet(
+        if not improvement_agent_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Improvement service is not available."
+            )
+        result = await improvement_agent_service.improve_bullet(
             bullet=payload.bullet,
             context=payload.context,
             tone=payload.tone,
@@ -890,7 +915,10 @@ async def improve_bullet(payload: ImproveBulletPayload):
 
 
 @router.post("/generate-work-experience")
-async def generate_work_experience(payload: WorkExperienceRequest):
+async def generate_work_experience(
+    payload: WorkExperienceRequest,
+    content_generation_agent_service = Depends(get_content_generation_agent_service),
+):
     """Generate work experience content from user description"""
     try:
         logger.info("Processing work experience generation request")
@@ -911,10 +939,25 @@ async def generate_work_experience(payload: WorkExperienceRequest):
                 ],
             }
 
+        if not content_generation_agent_service:
+            return {
+                "success": False,
+                "error": "Content generation service not available",
+                "companyName": payload.currentCompany or "Tech Company",
+                "jobTitle": payload.currentJobTitle or "Software Engineer",
+                "dateRange": payload.currentDateRange or "2020-2023",
+                "bullets": [
+                    "Developed and maintained web applications using modern technologies",
+                    "Collaborated with cross-functional teams to deliver high-quality software solutions",
+                    "Implemented automated testing and CI/CD pipelines",
+                    "Mentored junior developers and conducted code reviews",
+                ],
+            }
+
         missing_keywords = getattr(payload, 'missing_keywords', None) or []
         
         # Use content generation agent
-        result = await content_generation_agent.generate_work_experience(
+        result = await content_generation_agent_service.generate_work_experience(
             role=payload.currentJobTitle or payload.role or "Software Engineer",
             company=payload.currentCompany or payload.company or "Tech Company",
             date_range=payload.currentDateRange or payload.duration or "2020-2023",
@@ -962,11 +1005,14 @@ async def generate_work_experience(payload: WorkExperienceRequest):
 
 
 @router.post("/generate_bullet_from_keywords")
-async def generate_bullet_from_keywords(payload: dict):
+async def generate_bullet_from_keywords(
+    payload: dict,
+    content_generation_agent_service = Depends(get_content_generation_agent_service),
+):
     """Generate bullet points from keywords and company context"""
     try:
         # Check if content generation agent is available
-        if content_generation_agent is None:
+        if content_generation_agent_service is None:
             raise HTTPException(
                 status_code=503,
                 detail="Content generation service is not available. Please check server configuration."
@@ -1003,7 +1049,7 @@ async def generate_bullet_from_keywords(payload: dict):
 
         if mode in {"create", "new"} or not current_bullet:
             # Use content generation agent for create mode
-            result = await content_generation_agent.generate_bullet_from_keywords(
+            result = await content_generation_agent_service.generate_bullet_from_keywords(
                 keywords_str=keywords_str,
                 company_title=company_title,
                 job_title=job_title,
@@ -1034,7 +1080,7 @@ async def generate_bullet_from_keywords(payload: dict):
             }
         else:
             # Use improvement agent for improve mode
-            result = await content_generation_agent.generate_bullets_from_keywords(
+            result = await content_generation_agent_service.generate_bullets_from_keywords(
                 current_bullet=current_bullet,
                 keywords_str=keywords_str,
                 company_title=company_title,
@@ -1066,11 +1112,14 @@ async def generate_bullet_from_keywords(payload: dict):
 
 
 @router.post("/generate_bullets_from_keywords")
-async def generate_bullets_from_keywords(payload: dict):
+async def generate_bullets_from_keywords(
+    payload: dict,
+    content_generation_agent_service = Depends(get_content_generation_agent_service),
+):
     """Generate multiple bullet points from selected keywords for a work experience entry"""
     try:
         # Check if content generation agent is available
-        if content_generation_agent is None:
+        if content_generation_agent_service is None:
             raise HTTPException(
                 status_code=503,
                 detail="Content generation service is not available. Please check server configuration."
@@ -1087,7 +1136,7 @@ async def generate_bullets_from_keywords(payload: dict):
         keywords_str = ", ".join(keywords_list)
 
         # Use content generation agent - only use selected keywords, not missing keywords
-        result = await content_generation_agent.generate_bullet_from_keywords(
+        result = await content_generation_agent_service.generate_bullet_from_keywords(
             keywords_str=keywords_str,
             company_title=company_title,
             job_title=job_title,
@@ -1708,9 +1757,18 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
 
 
 @router.post("/generate_resume_content")
-async def generate_resume_content(payload: dict):
+async def generate_resume_content(
+    payload: dict,
+    content_generation_agent_service = Depends(get_content_generation_agent_service),
+):
     """Generate resume content based on user requirements"""
     try:
+        if not content_generation_agent_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Content generation service is not available."
+            )
+        
         content_type = payload.get("contentType", "job")
         requirements = payload.get("requirements", "")
         position = payload.get("position", "end")
@@ -1727,7 +1785,7 @@ async def generate_resume_content(payload: dict):
         """
 
         # Use content generation agent
-        result = await content_generation_agent.generate_resume_content(
+        result = await content_generation_agent_service.generate_resume_content(
             content_type=content_type,
             requirements=requirements,
             existing_context=existing_context,

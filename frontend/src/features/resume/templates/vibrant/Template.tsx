@@ -1,7 +1,7 @@
 'use client'
 
 import { TemplateProps } from '../types'
-import { BaseTemplate, renderBulletPoints, applyReplacements } from '../BaseTemplate'
+import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
 
 // Color palette for different sections
 const sectionColors = [
@@ -20,13 +20,16 @@ export default function VibrantTemplate({ data, config, replacements }: Template
         .filter(Boolean) as typeof data.sections
     : data.sections
 
+  // CRITICAL: Filter sections by visibility - ensures mark/unmark works
+  const visibleSections = filterVisibleSections(orderedSections)
+
   const contactItems = [
-    data.email,
-    data.phone,
-    data.location,
-    data.linkedin,
-    data.website,
-    data.github,
+    shouldShowField(data.fieldsVisible, 'email') && data.email,
+    shouldShowField(data.fieldsVisible, 'phone') && data.phone,
+    shouldShowField(data.fieldsVisible, 'location') && data.location,
+    shouldShowField(data.fieldsVisible, 'linkedin') && data.linkedin,
+    shouldShowField(data.fieldsVisible, 'website') && data.website,
+    shouldShowField(data.fieldsVisible, 'github') && data.github,
   ].filter(Boolean)
 
   return (
@@ -42,19 +45,21 @@ export default function VibrantTemplate({ data, config, replacements }: Template
           boxShadow: `0 4px 12px ${config.design.colors.primary}40`,
         }}
       >
-        <h1
-          style={{
-            fontFamily: config.typography.fontFamily.heading,
-            fontSize: `${config.typography.fontSize.h1}px`,
-            fontWeight: config.typography.fontWeight?.heading || 700,
-            marginBottom: '12px',
-            letterSpacing: config.typography.letterSpacing || 0.5,
-            textShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          }}
-        >
-          {applyReplacements(data.name, replacements)}
-        </h1>
-        {data.title && (
+        {shouldShowField(data.fieldsVisible, 'name') && (
+          <h1
+            style={{
+              fontFamily: config.typography.fontFamily.heading,
+              fontSize: `${config.typography.fontSize.h1}px`,
+              fontWeight: config.typography.fontWeight?.heading || 700,
+              marginBottom: '12px',
+              letterSpacing: config.typography.letterSpacing || 0.5,
+              textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            }}
+          >
+            {applyReplacements(data.name, replacements)}
+          </h1>
+        )}
+        {shouldShowField(data.fieldsVisible, 'title') && data.title && (
           <p
             style={{
               fontSize: `${config.typography.fontSize.body + 4}px`,
@@ -75,7 +80,7 @@ export default function VibrantTemplate({ data, config, replacements }: Template
         </div>
       </header>
 
-      {data.summary && (
+      {shouldShowField(data.fieldsVisible, 'summary') && data.summary && (
         <section style={{ marginBottom: `${config.spacing.sectionGap}px` }}>
           <div
             className="p-5 rounded-lg"
@@ -99,7 +104,7 @@ export default function VibrantTemplate({ data, config, replacements }: Template
         </section>
       )}
 
-      {orderedSections.map((section, sectionIdx) => {
+      {visibleSections.map((section, sectionIdx) => {
         const sectionColor = sectionColors[sectionIdx % sectionColors.length]
         return (
           <section
