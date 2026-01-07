@@ -92,7 +92,7 @@ export default function TutorialPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <h2 className="text-xl font-bold text-slate-900">Advanced Features</h2>
+                  <h2 className="text-xl font-bold text-slate-900">Tailor Your Resume to Any JD`s</h2>
                   <div className="relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
                     <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
@@ -101,6 +101,32 @@ export default function TutorialPage() {
                           className="w-full h-full"
                           src="https://www.youtube.com/embed/1Y7k-FDtkOk?rel=0&modestbranding=1"
                           title="EditResume Advanced Features"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full bg-slate-900 text-white">
+                          <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                            <p>Loading video player...</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h2 className="text-xl font-bold text-slate-900">Create Cover Letter</h2>
+                  <div className="relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+                    <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
+                      {isMounted ? (
+                        <iframe
+                          className="w-full h-full"
+                          src="https://www.youtube.com/embed/HyrjViD2_7g?rel=0&modestbranding=1"
+                          title="EditResume Tutorial"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                           allowFullScreen
                           loading="lazy"
