@@ -97,7 +97,7 @@ export default function ModernEditorLayout({
   onShareResume,
 }: ModernEditorLayoutProps) {
   const [activeRightTab, setActiveRightTab] = useState<'preview' | 'job-description'>('preview')
-  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(true)
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
   const [showLeftDrawer, setShowLeftDrawer] = useState(false)
   const [showRightDrawer, setShowRightDrawer] = useState(false)
   const [focusMode, setFocusMode] = useState(false)

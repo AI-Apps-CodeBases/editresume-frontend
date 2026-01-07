@@ -4589,18 +4589,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
             {/* Skills & Keywords */}
             <div className="space-y-3">
-              {selectedJobMetadata.skills && selectedJobMetadata.skills.length > 0 && (
-                <div>
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">⚙️ Technical Skills</div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedJobMetadata.skills.map((skill, idx) => (
-                      <span key={idx} className="px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-500 to-green-600 text-white">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
               {(selectedJobMetadata?.keywords && selectedJobMetadata.keywords.length > 0) || manualKeywordInput ? (
                 <div>
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">📊 Top Keywords</div>
@@ -4842,22 +4830,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </div>
                 )}
               </div>
-
-              {/* Technical Skills */}
-              {selectedJobMetadata?.skills && (selectedJobMetadata?.skills?.length ?? 0) > 0 && (
-                <div>
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
-                    <span>⚙️</span> Technical Skills
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(selectedJobMetadata?.skills || []).map((skill, idx) => (
-                      <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-500 to-green-600 text-white">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Top Keywords */}
               {selectedJobMetadata?.keywords && (selectedJobMetadata?.keywords?.length ?? 0) > 0 && (
