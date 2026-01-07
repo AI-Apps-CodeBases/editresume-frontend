@@ -92,7 +92,7 @@ export default function TutorialPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <h2 className="text-xl font-bold text-slate-900">Advanced Features</h2>
+                  <h2 className="text-xl font-bold text-slate-900">Tailor Your Resume to Any JD`s</h2>
                   <div className="relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
                     <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
@@ -118,7 +118,7 @@ export default function TutorialPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <h2 className="text-xl font-bold text-slate-900">Tutorial</h2>
+                  <h2 className="text-xl font-bold text-slate-900">Create Cover Letter</h2>
                   <div className="relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
                     <div className="relative rounded-2xl overflow-hidden bg-slate-900 shadow-2xl aspect-video">
