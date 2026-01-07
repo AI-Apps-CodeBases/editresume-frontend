@@ -4589,64 +4589,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
             {/* Skills & Keywords */}
             <div className="space-y-3">
-              {(selectedJobMetadata?.keywords && selectedJobMetadata.keywords.length > 0) || manualKeywordInput ? (
-                <div>
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">📊 Top Keywords</div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedJobMetadata?.keywords?.map((keyword, idx) => (
-                      <span key={idx} className="px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-                        {keyword}
-                      </span>
-                    ))}
-                    {manualKeywordInput && (
-                      <Tooltip text="Add this keyword as a bullet point seed for AI generation" color="purple" position="top">
-                        <button
-                          onClick={() => {
-                            const trimmed = manualKeywordInput.trim();
-                            if (!trimmed) return;
-                            setGeneratedBullets((prev) => [trimmed, ...prev]);
-                            setManualKeywordInput('');
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-white border border-purple-300 text-purple-700 hover:bg-purple-50 transition"
-                        >
-                          <span>＋</span> Add "{manualKeywordInput}"
-                        </button>
-                      </Tooltip>
-                    )}
-                  </div>
-                  <div className="mt-2 flex gap-2">
-                    <input
-                      type="text"
-                      value={manualKeywordInput}
-                      onChange={(e) => setManualKeywordInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const trimmed = manualKeywordInput.trim();
-                          if (!trimmed) return;
-                          setGeneratedBullets((prev) => [trimmed, ...prev]);
-                          setManualKeywordInput('');
-                        }
-                      }}
-                      placeholder="Type keyword or bullet seed..."
-                      className="flex-1 px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                    />
-                    <Tooltip text="Add keyword to bullet generation list" color="purple" position="top">
-                      <button
-                        onClick={() => {
-                          const trimmed = manualKeywordInput.trim();
-                          if (!trimmed) return;
-                          setGeneratedBullets((prev) => [trimmed, ...prev]);
-                          setManualKeywordInput('');
-                        }}
-                        className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition"
-                      >
-                        Add
-                      </button>
-                    </Tooltip>
-                  </div>
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
@@ -4830,22 +4772,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </div>
                 )}
               </div>
-
-              {/* Top Keywords */}
-              {selectedJobMetadata?.keywords && (selectedJobMetadata?.keywords?.length ?? 0) > 0 && (
-                <div>
-                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1">
-                    <span>📊</span> Top Keywords
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(selectedJobMetadata?.keywords || []).map((keyword, idx) => (
-                      <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-                        {keyword}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Soft Skills */}
               {selectedJobMetadata?.soft_skills && (selectedJobMetadata?.soft_skills?.length ?? 0) > 0 && (
