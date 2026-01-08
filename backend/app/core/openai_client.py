@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 import httpx
 import requests
@@ -20,9 +19,9 @@ OPENAI_MAX_TOKENS = settings.openai_max_tokens or 2000
 USE_AI_PARSER = os.getenv("USE_AI_PARSER", "true").lower() == "true"
 
 # Initialize async HTTP client with connection pooling for better performance
-_httpx_client: Optional[httpx.AsyncClient] = None
+_httpx_client: httpx.AsyncClient | None = None
 
-def get_httpx_client() -> Optional[httpx.AsyncClient]:
+def get_httpx_client() -> httpx.AsyncClient | None:
     """Get or create async HTTP client with connection pooling."""
     global _httpx_client
     if _httpx_client is None:
@@ -33,7 +32,7 @@ def get_httpx_client() -> Optional[httpx.AsyncClient]:
     return _httpx_client
 
 # Initialize OpenAI client
-openai_client: Optional[dict] = None
+openai_client: dict | None = None
 if OPENAI_API_KEY and OPENAI_API_KEY != "sk-your-openai-api-key-here":
     try:
         openai_client = {

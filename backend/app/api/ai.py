@@ -11,5 +11,5 @@ NOTE: ATS scoring endpoints have been moved to app/features/ats_scoring/routes.p
 # Import router from feature module for backward compatibility
 from app.features.ai.routes import router
 
-# All endpoint definitions have been moved to features/ai/routes.py
-# This file now re-exports the router for backward compatibility
+# Re-export router for backward compatibility with existing imports
+__all__ = ["router"]

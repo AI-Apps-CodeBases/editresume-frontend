@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -26,16 +26,16 @@ router = APIRouter(prefix="/api/usage", tags=["usage"])
 
 def get_user_from_request(
     request: Request, db: Session
-) -> Optional[User]:
+) -> User | None:
     """Get user from Firebase auth or return None for guests."""
     firebase_user = getattr(request.state, "firebase_user", None)
     if not firebase_user:
         return None
-    
+
     email = firebase_user.get("email")
     if not email:
         return None
-    
+
     user = db.query(User).filter(User.email == email).first()
     return user
 
@@ -43,7 +43,7 @@ def get_user_from_request(
 class UsageLimitsResponse(BaseModel):
     plan_tier: str
     is_premium_mode: bool
-    limits: Dict[str, Any]
+    limits: dict[str, Any]
     trial_eligible: bool = False
     trial_active: bool = False
 
@@ -51,43 +51,43 @@ class UsageLimitsResponse(BaseModel):
 class UsageStatsResponse(BaseModel):
     plan_tier: str
     is_premium_mode: bool
-    features: Dict[str, Any]
+    features: dict[str, Any]
     trial_active: bool = False
 
 
 class TrialStartResponse(BaseModel):
     success: bool
-    trial: Optional[Dict[str, Any]] = None
+    trial: dict[str, Any] | None = None
     message: str
 
 
 class TrialStatusResponse(BaseModel):
     has_trial: bool
     is_active: bool
-    expires_at: Optional[str] = None
-    started_at: Optional[str] = None
+    expires_at: str | None = None
+    started_at: str | None = None
 
 
 @router.get("/limits", response_model=UsageLimitsResponse)
 async def get_usage_limits(
     request: Request,
-    session_id: Optional[str] = Query(None, description="Guest session ID"),
+    session_id: str | None = Query(None, description="Guest session ID"),
     db: Session = Depends(get_db),
 ):
     """Get current usage limits for the user."""
     user = get_user_from_request(request, db)
     plan_tier = get_plan_tier(user, db)
-    
+
     from app.services.usage_service import USAGE_LIMITS, is_premium_mode_enabled
-    
+
     limits = USAGE_LIMITS.get(plan_tier, USAGE_LIMITS["free"])
-    
+
     trial_eligible = False
     trial_active = False
     if user:
         trial_eligible = check_trial_eligibility(user.id, db)
         trial_active = is_trial_active(user.id, db)
-    
+
     return UsageLimitsResponse(
         plan_tier=plan_tier,
         is_premium_mode=is_premium_mode_enabled(),
@@ -100,20 +100,20 @@ async def get_usage_limits(
 @router.get("/stats", response_model=UsageStatsResponse)
 async def get_usage_statistics(
     request: Request,
-    session_id: Optional[str] = Query(None, description="Guest session ID"),
+    session_id: str | None = Query(None, description="Guest session ID"),
     db: Session = Depends(get_db),
 ):
     """Get current usage statistics for the user."""
     user = get_user_from_request(request, db)
     plan_tier = get_plan_tier(user, db)
-    
+
     user_id = user.id if user else None
     stats = get_usage_stats(user_id, plan_tier, session_id, db)
-    
+
     trial_active = False
     if user:
         trial_active = is_trial_active(user.id, db)
-    
+
     return UsageStatsResponse(
         plan_tier=plan_tier,
         is_premium_mode=stats.get("is_premium_mode", False),
@@ -131,13 +131,13 @@ async def start_user_trial(
     user = get_user_from_request(request, db)
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
-    
+
     if not check_trial_eligibility(user.id, db):
         return TrialStartResponse(
             success=False,
             message="You are not eligible for a trial. You may already have an active trial or be a premium user."
         )
-    
+
     try:
         trial = start_trial(user.id, db)
         return TrialStartResponse(
@@ -173,26 +173,28 @@ async def get_trial_status(
             has_trial=False,
             is_active=False,
         )
-    
-    from app.models import TrialPeriod
+
     from datetime import datetime
+
     from sqlalchemy import and_
-    
+
+    from app.models import TrialPeriod
+
     trial = db.query(TrialPeriod).filter(
         and_(
             TrialPeriod.user_id == user.id,
             TrialPeriod.is_active == True
         )
     ).first()
-    
+
     if not trial:
         return TrialStatusResponse(
             has_trial=False,
             is_active=False,
         )
-    
+
     is_active = trial.expires_at > datetime.utcnow()
-    
+
     return TrialStatusResponse(
         has_trial=True,
         is_active=is_active,

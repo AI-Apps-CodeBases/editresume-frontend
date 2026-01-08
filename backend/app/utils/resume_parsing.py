@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def extract_pdf_text(file_content: bytes) -> Tuple[str, list[str]]:
+def extract_pdf_text(file_content: bytes) -> tuple[str, list[str]]:
     """Extract text from PDF using multiple methods"""
     text = ""
     methods = []
@@ -30,8 +29,9 @@ def extract_pdf_text(file_content: bytes) -> Tuple[str, list[str]]:
     # Method 2: pdfplumber - Good for complex layouts
     if len(text.strip()) < 100:
         try:
-            import pdfplumber
             import io
+
+            import pdfplumber
 
             with pdfplumber.open(io.BytesIO(file_content)) as pdf:
                 for page in pdf.pages:
@@ -46,8 +46,9 @@ def extract_pdf_text(file_content: bytes) -> Tuple[str, list[str]]:
     # Method 3: PyPDF2 - Fallback
     if len(text.strip()) < 100:
         try:
-            import PyPDF2
             import io
+
+            import PyPDF2
 
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
             for page in pdf_reader.pages:
@@ -60,15 +61,16 @@ def extract_pdf_text(file_content: bytes) -> Tuple[str, list[str]]:
     return text, methods
 
 
-def extract_docx_text(file_content: bytes) -> Tuple[str, list[str]]:
+def extract_docx_text(file_content: bytes) -> tuple[str, list[str]]:
     """Extract text from DOCX using multiple methods"""
     text = ""
     methods = []
 
     # Method 1: python-docx - Standard method
     try:
-        from docx import Document
         import io
+
+        from docx import Document
 
         doc = Document(io.BytesIO(file_content))
 
@@ -92,8 +94,9 @@ def extract_docx_text(file_content: bytes) -> Tuple[str, list[str]]:
     # Method 2: docx2txt - Alternative method
     if len(text.strip()) < 100:
         try:
-            import docx2txt
             import io
+
+            import docx2txt
 
             text = docx2txt.process(io.BytesIO(file_content))
             methods.append("docx2txt")
@@ -104,16 +107,16 @@ def extract_docx_text(file_content: bytes) -> Tuple[str, list[str]]:
     return text, methods
 
 
-def extract_doc_text(file_content: bytes) -> Tuple[str, list[str]]:
+def extract_doc_text(file_content: bytes) -> tuple[str, list[str]]:
     """Extract text from DOC files"""
     text = ""
     methods = []
 
     # Method 1: antiword (if available)
     try:
+        import os
         import subprocess
         import tempfile
-        import os
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".doc") as temp_file:
             temp_file.write(file_content)
@@ -241,7 +244,7 @@ def parse_resume_with_regex(text: str) -> dict:
     def normalize_section_title(title: str) -> str:
         """Normalize section title for comparison (case-insensitive, trimmed, semantic grouping)"""
         normalized = title.lower().strip()
-        
+
         # Map semantic variations to canonical names
         semantic_map = {
             "work experience": "work experience",
@@ -269,12 +272,12 @@ def parse_resume_with_regex(text: str) -> dict:
             "honor": "awards",
             "honors": "awards",
         }
-        
+
         # Check if any semantic mapping applies
         for variant, canonical in semantic_map.items():
             if variant in normalized:
                 return canonical
-        
+
         # Return normalized title if no semantic mapping found
         return normalized
 
@@ -282,36 +285,36 @@ def parse_resume_with_regex(text: str) -> dict:
         """Save or merge section with existing one if duplicate"""
         if not section_title:
             return
-        
+
         # Filter out empty bullets
         filtered_bullets = [b for b in bullets if b and str(b).strip()]
         if not filtered_bullets:
             return
-        
+
         normalized_title = normalize_section_title(section_title)
-        
+
         # Check if section with same normalized title already exists
         if normalized_title in section_dict:
             # Merge bullets into existing section
             existing_section = section_dict[normalized_title]
             existing_bullets = [b["text"] for b in existing_section["bullets"]]
-            
+
             # Use the most descriptive title (prefer longer, more specific titles)
             if len(section_title) > len(existing_section["title"]):
                 existing_section["title"] = section_title
-            
+
             # Add separator if needed (empty string for work experience sections)
             is_work_exp = normalized_title == "work experience"
             if is_work_exp and existing_bullets and existing_bullets[-1] != "":
                 existing_bullets.append("")
-            
+
             # Add new bullets, removing any duplicates (exact match and near-duplicates)
             existing_bullet_texts = {b.strip().lower() for b in existing_bullets if b.strip()}
             new_bullets_to_add = []
             for bullet in filtered_bullets:
                 bullet_text = bullet.strip() if isinstance(bullet, str) else str(bullet).strip()
                 bullet_lower = bullet_text.lower()
-                
+
                 # Skip empty bullets and exact duplicates (case-insensitive)
                 if bullet_text and bullet_lower not in existing_bullet_texts:
                     # Check for near-duplicates (similarity > 90%)
@@ -322,14 +325,14 @@ def parse_resume_with_regex(text: str) -> dict:
                            abs(len(bullet_lower) - len(existing_text)) < max(len(bullet_lower), len(existing_text)) * 0.2:
                             is_duplicate = True
                             break
-                    
+
                     if not is_duplicate:
                         existing_bullet_texts.add(bullet_lower)
                         new_bullets_to_add.append(bullet)
-            
+
             if new_bullets_to_add:
                 existing_bullets.extend(new_bullets_to_add)
-            
+
             # Update section with merged bullets
             existing_section["bullets"] = [
                 {
@@ -350,7 +353,7 @@ def parse_resume_with_regex(text: str) -> dict:
                 if bullet_text and bullet_lower not in seen_bullet_texts:
                     seen_bullet_texts.add(bullet_lower)
                     unique_bullets.append(bullet)
-            
+
             if unique_bullets:
                 new_section = {
                     "title": section_title,
@@ -370,7 +373,7 @@ def parse_resume_with_regex(text: str) -> dict:
     for i, line in enumerate(lines):
         line_lower = line.lower().strip()
         line_original = line.strip()
-        
+
         # More strict section header detection
         # A section header should:
         # 1. Be relatively short (section titles are usually < 50 chars)
@@ -378,14 +381,14 @@ def parse_resume_with_regex(text: str) -> dict:
         # 3. Match a section keyword at word boundaries
         # 4. Either be all caps, title case, or standalone
         # 5. Not be part of a longer sentence
-        
+
         is_section = False
         # Strict section header detection - must be a standalone header line
-        if (len(line_original) < 50 and 
+        if (len(line_original) < 50 and
             not line_original.startswith(("•", "-", "*", "·")) and
             not any(char.isdigit() for char in line_original[:10]) and  # Not a date
             " / " not in line_original):  # Not a job entry
-            
+
             # Check if line matches section keywords at word boundaries
             for keyword in section_keywords:
                 # Use word boundary matching to avoid false positives
@@ -394,29 +397,29 @@ def parse_resume_with_regex(text: str) -> dict:
                     # Additional checks to ensure it's a header, not content
                     words = line_lower.split()
                     keyword_words = keyword.split()
-                    
+
                     # Must start with keyword or be mostly the keyword
                     starts_with_keyword = line_lower.startswith(keyword)
                     is_mostly_keyword = (
                         len(words) <= len(keyword_words) + 2 and  # Max 2 extra words
                         all(w in keyword_words or len(w) < 5 for w in words)  # Short words only
                     )
-                    
+
                     if starts_with_keyword or is_mostly_keyword:
                         # Check if next line exists and is not empty (content should follow)
                         # Also check previous line - if it was content, this is likely a new section
                         prev_was_content = (
-                            i > 0 and 
-                            current_section and 
+                            i > 0 and
+                            current_section and
                             current_bullets and
                             len(current_bullets) > 0
                         )
                         has_next_content = i + 1 < len(lines) and lines[i + 1].strip()
-                        
+
                         if (has_next_content or prev_was_content):
                             is_section = True
                             break
-        
+
         if is_section:
             # Save previous section before starting new one
             if current_section and current_bullets:
@@ -436,7 +439,7 @@ def parse_resume_with_regex(text: str) -> dict:
                 any(keyword in line_lower_check for keyword in section_keywords) and
                 i + 1 < len(lines) and lines[i + 1].strip()  # Has content after
             )
-            
+
             if not looks_like_header:
                 if line_original.startswith(("•", "-", "*", "·")):
                     bullet_text = line_original[1:].strip()

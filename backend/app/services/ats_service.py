@@ -1,8 +1,5 @@
-import re
-import math
 import logging
-from typing import Dict, List, Tuple, Optional
-from collections import Counter
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +172,7 @@ class ATSChecker:
         else:
             self.vectorizer = None
 
-    def extract_text_from_resume(self, resume_data: Dict) -> str:
+    def extract_text_from_resume(self, resume_data: dict) -> str:
         """Extract all text content from resume data"""
         text_parts = []
 
@@ -215,7 +212,7 @@ class ATSChecker:
 
         return " ".join(text_parts)
 
-    def check_required_sections(self, resume_data: Dict) -> Dict[str, any]:
+    def check_required_sections(self, resume_data: dict) -> dict[str, any]:
         """Check if required sections are present"""
         found_sections = {}
         missing_sections = []
@@ -267,7 +264,7 @@ class ATSChecker:
             "section_score": min(5, section_score),  # Cap at 5 sections
         }
 
-    def analyze_keyword_density(self, resume_text: str) -> Dict[str, any]:
+    def analyze_keyword_density(self, resume_text: str) -> dict[str, any]:
         """Analyze keyword density and relevance"""
         if not resume_text.strip():
             return {"score": 0, "suggestions": ["Add content to your resume"]}
@@ -334,7 +331,7 @@ class ATSChecker:
             "suggestions": suggestions,
         }
 
-    def check_formatting_issues(self, resume_data: Dict) -> Dict[str, any]:
+    def check_formatting_issues(self, resume_data: dict) -> dict[str, any]:
         """Check for common ATS formatting issues"""
         issues = []
         suggestions = []
@@ -373,7 +370,7 @@ class ATSChecker:
 
         return {"score": formatting_score, "issues": issues, "suggestions": suggestions}
 
-    def calculate_overall_score(self, resume_data: Dict) -> Dict[str, any]:
+    def calculate_overall_score(self, resume_data: dict) -> dict[str, any]:
         """Calculate overall ATS compatibility score"""
         resume_text = self.extract_text_from_resume(resume_data)
 
@@ -414,7 +411,7 @@ class ATSChecker:
             "suggestions": list(set(all_suggestions)),  # Remove duplicates
         }
 
-    def get_ats_score(self, resume_data: Dict) -> Dict[str, any]:
+    def get_ats_score(self, resume_data: dict) -> dict[str, any]:
         """Main method to get ATS compatibility score and suggestions"""
         try:
             result = self.calculate_overall_score(resume_data)

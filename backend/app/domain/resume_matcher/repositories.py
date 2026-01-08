@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, Tuple, List
-
+from collections.abc import Sequence
 from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.job import Job, ResumeGeneration, JobDescription
+from app.models.job import Job, JobDescription, ResumeGeneration
 from app.models.resume import Resume, ResumeVersion
 
 
@@ -19,7 +18,7 @@ class ResumeMatchRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def fetch_job(self, job_id: int, user_id: int) -> Optional[Job]:
+    def fetch_job(self, job_id: int, user_id: int) -> Job | None:
         statement = select(Job).where(Job.id == job_id, Job.user_id == user_id)
         job = self._session.execute(statement).scalar_one_or_none()
         if job is not None:
@@ -51,7 +50,7 @@ class ResumeMatchRepository:
 
     def fetch_resume_with_latest_version(
         self, resume_id: int, user_id: int
-    ) -> Tuple[Optional[Resume], Optional[ResumeVersion]]:
+    ) -> tuple[Resume | None, ResumeVersion | None]:
         resume_stmt = select(Resume).where(
             Resume.id == resume_id,
             Resume.user_id == user_id,
@@ -91,7 +90,7 @@ class ResumeMatchRepository:
         user_id: int,
         job_id: int,
         source_resume_ids: Sequence[int],
-        generated_resume_id: Optional[int],
+        generated_resume_id: int | None,
         ats_score: float,
     ) -> ResumeGeneration:
         record = ResumeGeneration(
@@ -107,7 +106,7 @@ class ResumeMatchRepository:
         return record
 
     @staticmethod
-    def _extract_skills_from_legacy(legacy: JobDescription) -> List[str]:
+    def _extract_skills_from_legacy(legacy: JobDescription) -> list[str]:
         buckets = []
         for attr in (
             "skills",
@@ -120,7 +119,7 @@ class ResumeMatchRepository:
                 value = getattr(legacy, attr)
                 if value:
                     buckets.append(value)
-        skills: List[str] = []
+        skills: list[str] = []
         for bucket in buckets:
             if not bucket:
                 continue

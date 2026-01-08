@@ -9,5 +9,5 @@ The router is still registered in main.py but routes are now in the feature modu
 # Import router from feature module for backward compatibility
 from app.features.resume_management.routes import router
 
-# All endpoint definitions have been moved to features/resume_management/routes.py
-# This file now re-exports the router for backward compatibility
+# Re-export router for backward compatibility with existing imports
+__all__ = ["router"]

@@ -3,9 +3,9 @@
 This module calculates TF-IDF + Cosine Similarity scores for ATS matching.
 Uses sklearn's TfidfVectorizer and cosine_similarity for industry-standard scoring.
 """
-import re
 import logging
-from typing import Dict, Any, Optional
+import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ except ImportError:
     SKLEARN_AVAILABLE = False
 
 
-def _fallback_keyword_match(resume_text: str, job_description: str) -> Dict[str, Any]:
+def _fallback_keyword_match(resume_text: str, job_description: str) -> dict[str, Any]:
     """Fallback keyword matching when TF-IDF is not available."""
     resume_words = set(resume_text.lower().split())
     job_words = set(job_description.lower().split())
@@ -45,11 +45,11 @@ def _fallback_keyword_match(resume_text: str, job_description: str) -> Dict[str,
 
 def calculate_tfidf_cosine_score(
     resume_text: str,
-    vectorizer: Optional[TfidfVectorizer],
+    vectorizer: TfidfVectorizer | None,
     job_description: str = None,
-    extracted_keywords: Dict = None,
-    resume_data: Dict = None
-) -> Dict[str, Any]:
+    extracted_keywords: dict = None,
+    resume_data: dict = None
+) -> dict[str, Any]:
     """
     Industry-standard TF-IDF + Cosine Similarity scoring method.
     Based on information retrieval best practices used by most ATS systems.
@@ -79,7 +79,7 @@ def calculate_tfidf_cosine_score(
             "matching_keywords": [],
             "missing_keywords": [],
         }
-    
+
     # If extracted_keywords provided, use them; otherwise require job_description
     if extracted_keywords:
         # Use extension-extracted keywords (from LLM)
@@ -116,7 +116,7 @@ def calculate_tfidf_cosine_score(
             all_keywords.extend(extracted_keywords.get("general_keywords", []))
             all_keywords.extend(extracted_keywords.get("soft_skills", []))
             all_keywords.extend(extracted_keywords.get("priority_keywords", []))
-            
+
             # Get high_frequency_keywords if available
             high_freq = extracted_keywords.get("high_frequency_keywords", [])
             if high_freq:
@@ -126,12 +126,12 @@ def calculate_tfidf_cosine_score(
                     for kw in high_freq
                 ]
                 all_keywords.extend(high_freq_keywords)
-            
+
             # Remove duplicates and create keyword text
             unique_keywords = list(set([str(kw).lower() for kw in all_keywords if kw]))
             # Create a text representation for TF-IDF (join keywords with spaces)
             keyword_text = " ".join(unique_keywords)
-            
+
             # Use extension's total_keywords count if available
             extension_total_keywords = extracted_keywords.get("total_keywords")
             if extension_total_keywords:
@@ -154,7 +154,7 @@ def calculate_tfidf_cosine_score(
         # Small base boost for better scaling (5% boost) with smoothing
         if cosine_score > 0:
             cosine_score = min(100, cosine_score * 1.05)
-        
+
         # Extract feature names (keywords) and their TF-IDF scores
         feature_names = vectorizer.get_feature_names_out()
         resume_tfidf = tfidf_matrix[0].toarray()[0]
@@ -172,7 +172,7 @@ def calculate_tfidf_cosine_score(
         if use_extracted_keywords and extracted_keywords:
             # Normalize resume text for direct matching
             resume_text_lower = resume_text.lower()
-            
+
             # Check all keyword categories
             for keyword_list in [
                 extracted_keywords.get("technical_keywords", []),
@@ -188,12 +188,9 @@ def calculate_tfidf_cosine_score(
                     # Use word boundaries for better matching
                     # Check for exact word match or as part of a compound word
                     pattern = r'\b' + re.escape(kw_str) + r'\b'
-                    if re.search(pattern, resume_text_lower):
+                    if re.search(pattern, resume_text_lower) or kw_str in resume_text_lower:
                         direct_matching_keywords.add(kw_str)
-                    # Also check if keyword is part of resume text (for compound words)
-                    elif kw_str in resume_text_lower:
-                        direct_matching_keywords.add(kw_str)
-            
+
             # Check high frequency keywords
             high_freq = extracted_keywords.get("high_frequency_keywords", [])
             for kw_item in high_freq:
@@ -202,9 +199,7 @@ def calculate_tfidf_cosine_score(
                     kw_str = str(kw).lower().strip()
                     # More lenient matching for high frequency keywords
                     pattern = r'\b' + re.escape(kw_str) + r'\b'
-                    if re.search(pattern, resume_text_lower):
-                        direct_matching_keywords.add(kw_str)
-                    elif kw_str in resume_text_lower:
+                    if re.search(pattern, resume_text_lower) or kw_str in resume_text_lower:
                         direct_matching_keywords.add(kw_str)
 
         for i, keyword in enumerate(feature_names):
@@ -226,7 +221,7 @@ def calculate_tfidf_cosine_score(
                         missing_keywords.append(
                             {"keyword": keyword, "weight": round(float(job_weight), 4)}
                         )
-        
+
         # Merge direct matching keywords with TF-IDF matches
         # Add direct matches that weren't caught by TF-IDF
         for direct_kw in direct_matching_keywords:
@@ -242,10 +237,10 @@ def calculate_tfidf_cosine_score(
         # Sort by weight (most important first)
         matching_keywords.sort(key=lambda x: x["job_weight"], reverse=True)
         missing_keywords.sort(key=lambda x: x["weight"], reverse=True)
-        
+
         # Limit missing keywords to top 40 most impactful (those that will meaningfully improve score)
         missing_keywords = missing_keywords[:40]
-        
+
         # Count summary keyword matches and limit to 8 to prevent excessive score inflation
         summary_match_count = 0
         if resume_data:
@@ -261,26 +256,23 @@ def calculate_tfidf_cosine_score(
                     extracted_keywords.get("priority_keywords", []),
                 ]:
                     all_keywords.extend([str(kw).lower().strip() for kw in keyword_list if kw])
-                
+
                 high_freq = extracted_keywords.get("high_frequency_keywords", [])
                 for kw_item in high_freq:
                     kw = kw_item.get("keyword", kw_item) if isinstance(kw_item, dict) else kw_item
                     if kw:
                         all_keywords.append(str(kw).lower().strip())
-                
+
                 # Count matches in summary (limit to 8)
                 summary_matches = set()
                 for kw_str in all_keywords:
                     if len(summary_matches) >= 8:
                         break  # Stop at 8
                     pattern = r'\b' + re.escape(kw_str) + r'\b'
-                    if re.search(pattern, summary_lower):
-                        summary_matches.add(kw_str)
-                    # Also check if keyword is part of summary text (for compound words)
-                    elif kw_str in summary_lower:
+                    if re.search(pattern, summary_lower) or kw_str in summary_lower:
                         summary_matches.add(kw_str)
                 summary_match_count = len(summary_matches)
-        
+
         # Adjust matching_count: subtract excess summary matches (if > 8)
         total_matching_count = len(matching_keywords)
         if summary_match_count > 8:
@@ -290,7 +282,7 @@ def calculate_tfidf_cosine_score(
             logger.debug(f"Summary keyword limit: {summary_match_count} matches found in summary, limiting to 8. Adjusted matching_count: {matching_count} (was {total_matching_count})")
         else:
             matching_count = total_matching_count
-        
+
         # Increased boost for matching keywords to reward keyword additions
         if matching_count > 20:
             # More generous boost for very high counts
@@ -319,29 +311,29 @@ def calculate_tfidf_cosine_score(
             total_job_keywords = extension_total_keywords
         else:
             total_job_keywords = len([w for w in job_tfidf if w > threshold])
-        
+
         # Count direct matches in total
         direct_match_count = len(direct_matching_keywords) if use_extracted_keywords else 0
-        
+
         # Calculate weighted match score based on keyword importance
         total_job_weight = sum(job_tfidf[i] for i in range(len(job_tfidf)) if job_tfidf[i] > threshold)
         matched_weight = sum(
             job_tfidf[i] for i in range(len(job_tfidf))
             if job_tfidf[i] > threshold and resume_tfidf[i] > threshold
         )
-        
+
         # Add weight for direct matches (they're important even if TF-IDF weight is low)
         if direct_match_count > 0:
             # Add weight proportional to number of direct matches
             direct_match_weight = min(0.3, direct_match_count * 0.02)  # Up to 30% additional weight
             matched_weight += direct_match_weight * total_job_weight
-        
+
         # Use weighted percentage for better accuracy
         if total_job_weight > 0:
             weighted_match_percentage = (matched_weight / total_job_weight) * 100
         else:
             weighted_match_percentage = 0
-        
+
         # Also calculate simple count-based percentage (including direct matches)
         # Count unique matching keywords (TF-IDF + direct)
         total_matching_count = len(matching_keywords)  # Already includes direct matches
@@ -350,11 +342,11 @@ def calculate_tfidf_cosine_score(
             if total_job_keywords > 0
             else 0
         )
-        
+
         # Use weighted average (60% weighted, 40% simple) - favor weighted but include count
         # This ensures direct matches are properly counted
         base_match_percentage = (weighted_match_percentage * 0.6) + (simple_match_percentage * 0.4)
-        
+
         # Add responsive boost for having matching keywords
         # Increased boost to reward keyword additions
         matching_count = len(matching_keywords)
@@ -392,7 +384,7 @@ def calculate_tfidf_cosine_score(
             "total_job_keywords": total_job_keywords,
             "matched_keywords_count": len(matching_keywords),
         }
-        
+
         # If using extracted_keywords, also include the original keywords for reference
         if use_extracted_keywords and extracted_keywords:
             result["original_keywords"] = {
@@ -402,7 +394,7 @@ def calculate_tfidf_cosine_score(
                 "priority_keywords": extracted_keywords.get("priority_keywords", []),
                 "high_frequency_keywords": extracted_keywords.get("high_frequency_keywords", []),
             }
-        
+
         return result
 
     except Exception as e:

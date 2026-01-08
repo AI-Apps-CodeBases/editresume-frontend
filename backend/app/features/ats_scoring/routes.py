@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
@@ -26,11 +25,11 @@ def get_user_from_request(request: Request, db: Session):
     firebase_user = getattr(request.state, "firebase_user", None)
     if not firebase_user:
         return None
-    
+
     email = firebase_user.get("email")
     if not email:
         return None
-    
+
     from app.models import User
     user = db.query(User).filter(User.email == email).first()
     return user
@@ -99,18 +98,18 @@ async def get_ats_score(
 async def options_enhanced_ats_score(request: Request):
     """Handle OPTIONS preflight for enhanced_ats_score endpoint"""
     from app.core.config import settings
-    
+
     origin = request.headers.get("origin")
-    
+
     headers = {
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
     }
-    
+
     # Get allowed origins from settings
     allowed_origins = settings.allowed_origins
     env = os.getenv("ENVIRONMENT", "development")
-    
+
     # Check if origin is allowed
     if origin:
         if env == "staging":
@@ -123,7 +122,7 @@ async def options_enhanced_ats_score(request: Request):
             # Still allow for OPTIONS (preflight), actual request will be validated
             headers["Access-Control-Allow-Origin"] = origin
             headers["Access-Control-Allow-Credentials"] = "false"
-    
+
     return Response(status_code=200, headers=headers)
 
 
@@ -132,7 +131,7 @@ async def get_enhanced_ats_score(
     payload: EnhancedATSPayload,
     request: Request,
     db: Session = Depends(get_db),
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
     ats_service: EnhancedATSChecker = Depends(get_enhanced_ats_service),
 ):
     """Get enhanced ATS compatibility score with AI improvements using TF-IDF when job description provided
@@ -167,7 +166,7 @@ async def get_enhanced_ats_score(
         # If resume_text is provided (from live preview), use it directly for more accurate scoring
         resume_text_to_use = None
         resume_data_to_use = None
-        
+
         if payload.resume_text and payload.resume_text.strip():
             resume_text_to_use = payload.resume_text.strip()
             logger.info(f"Using resume_text from preview (length: {len(resume_text_to_use)})")
@@ -217,7 +216,7 @@ async def get_enhanced_ats_score(
             logger.info(f"Extracted resume_text from resume_data (length: {len(resume_text_to_use)})")
         else:
             raise HTTPException(status_code=400, detail="Either resume_text or resume_data required")
-        
+
         # Log for debugging score inconsistency issues
         if previewExtractionSuccess := (payload.resume_text and payload.resume_text.strip()):
             logger.info(f"Score calculation: Using resume_text from preview (length: {len(payload.resume_text)})")
@@ -227,12 +226,12 @@ async def get_enhanced_ats_score(
         # Get enhanced ATS score and analysis
         # Automatically use industry-standard TF-IDF when job description or extracted_keywords is provided
         use_tfidf = bool(
-            (payload.job_description and payload.job_description.strip()) or 
+            (payload.job_description and payload.job_description.strip()) or
             (payload.extracted_keywords and payload.extracted_keywords.get("total_keywords", 0) > 0)
         )
         result = ats_service.get_enhanced_ats_score(
             resume_data_to_use,  # Still pass for structure analysis
-            payload.job_description, 
+            payload.job_description,
             resume_text=resume_text_to_use,  # Pass extracted text for more accurate scoring
             use_industry_standard=use_tfidf,
             extracted_keywords=payload.extracted_keywords,

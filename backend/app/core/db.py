@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -94,8 +94,8 @@ def migrate_schema() -> None:
     if backend_name != "postgresql":
         return
 
-    from app.models.job import JobCoverLetter, JobResumeVersion  # noqa: WPS433
     from app.models.analytics import VisitorAnalytics  # noqa: WPS433
+    from app.models.job import JobCoverLetter, JobResumeVersion  # noqa: WPS433
     from app.models.usage import AIUsage, TrialPeriod  # noqa: WPS433
 
     # Ensure auxiliary tables exist
@@ -140,7 +140,7 @@ def migrate_schema() -> None:
                 text("ALTER TABLE users ADD COLUMN premium_purchased_at TIMESTAMP NULL")
             )
             conn.commit()
-            
+
             # Create index if it doesn't exist
             index_result = conn.execute(
                 text("""
@@ -155,7 +155,7 @@ def migrate_schema() -> None:
                     text("CREATE INDEX idx_users_premium_purchased_at ON users(premium_purchased_at)")
                 )
                 conn.commit()
-            
+
             # Set premium_purchased_at = created_at for existing premium users
             conn.execute(
                 text("""

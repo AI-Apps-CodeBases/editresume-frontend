@@ -1,8 +1,7 @@
 import re
-import json
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class ImprovementStrategy(Enum):
@@ -25,10 +24,10 @@ class AIImprovement:
     description: str
     priority: str  # 'high', 'medium', 'low'
     impact_score: int  # 1-10
-    original_text: Optional[str] = None
-    improved_text: Optional[str] = None
+    original_text: str | None = None
+    improved_text: str | None = None
     reasoning: str = ""
-    example: Optional[str] = None
+    example: str | None = None
 
 
 class AIResumeImprovementEngine:
@@ -76,7 +75,7 @@ class AIResumeImprovementEngine:
             },
         }
 
-    def extract_keywords_from_job_description(self, job_description: str) -> List[str]:
+    def extract_keywords_from_job_description(self, job_description: str) -> list[str]:
         """Extract important keywords from job description"""
         if not job_description:
             return []
@@ -135,11 +134,11 @@ class AIResumeImprovementEngine:
 
     def analyze_resume_for_improvements(
         self,
-        resume_data: Dict,
+        resume_data: dict,
         job_description: str = None,
         target_role: str = None,
         industry: str = None,
-    ) -> List[AIImprovement]:
+    ) -> list[AIImprovement]:
         """Analyze resume and generate improvement suggestions"""
         improvements = []
 
@@ -329,7 +328,7 @@ class AIResumeImprovementEngine:
     def generate_improvement_prompt(
         self,
         strategy: ImprovementStrategy,
-        resume_data: Dict,
+        resume_data: dict,
         job_description: str = None,
         target_role: str = None,
         industry: str = None,
@@ -364,7 +363,7 @@ class AIResumeImprovementEngine:
 
         return f"{prompt_config['system']}\n\n{user_prompt}"
 
-    def _extract_text_from_resume(self, resume_data: Dict) -> str:
+    def _extract_text_from_resume(self, resume_data: dict) -> str:
         """Extract all text content from resume data"""
         text_parts = []
 
@@ -388,11 +387,11 @@ class AIResumeImprovementEngine:
 
     def get_improvement_suggestions(
         self,
-        resume_data: Dict,
+        resume_data: dict,
         job_description: str = None,
         target_role: str = None,
         industry: str = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get comprehensive improvement suggestions"""
         improvements = self.analyze_resume_for_improvements(
             resume_data, job_description, target_role, industry

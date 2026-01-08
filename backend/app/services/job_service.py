@@ -6,14 +6,14 @@ import json
 import logging
 import secrets
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import keyword_extractor
-from app.models import JobDescription, JobCoverLetter, JobResumeVersion, User, Resume, ResumeVersion
+from app.models import JobCoverLetter, JobDescription, JobResumeVersion, Resume, ResumeVersion, User
 from app.utils.job_helpers import (
     _classify_priority_keywords,
     _determine_final_job_title,
@@ -24,7 +24,7 @@ from app.utils.job_helpers import (
 logger = logging.getLogger(__name__)
 
 # Cache schema check result to avoid repeated queries
-_SCHEMA_CHECK_CACHE: Optional[bool] = None
+_SCHEMA_CHECK_CACHE: bool | None = None
 
 
 def _check_new_columns_exist(db: Session) -> bool:
@@ -32,7 +32,7 @@ def _check_new_columns_exist(db: Session) -> bool:
     global _SCHEMA_CHECK_CACHE
     if _SCHEMA_CHECK_CACHE is not None:
         return _SCHEMA_CHECK_CACHE
-    
+
     try:
         result = db.execute(
             text(
@@ -53,15 +53,15 @@ def _check_new_columns_exist(db: Session) -> bool:
 
 
 def create_or_update_job_description(
-    payload: Dict[str, Any], db: Session
-) -> Dict[str, Any]:
+    payload: dict[str, Any], db: Session
+) -> dict[str, Any]:
     """Create or update a job description"""
     try:
         # Convert dict to object-like structure if needed
         if isinstance(payload, dict):
             # Create a simple wrapper object for attribute access
             class PayloadWrapper:
-                def __init__(self, data: Dict):
+                def __init__(self, data: dict):
                     for key, value in data.items():
                         setattr(self, key, value)
 
@@ -374,7 +374,7 @@ def create_or_update_job_description(
         db.commit()
         db.refresh(jd)
         logger.info(f"Successfully saved job description {jd.id} with user_id: {jd.user_id}")
-        
+
         # Save current resume version if resume_id is provided
         resume_id = getattr(payload, "resume_id", None)
         if resume_id and user:
@@ -383,21 +383,21 @@ def create_or_update_job_description(
                     Resume.id == resume_id,
                     Resume.user_id == user.id
                 ).first()
-                
+
                 if resume:
                     # Get the latest resume version
                     latest_version = db.query(ResumeVersion).filter(
                         ResumeVersion.resume_id == resume_id,
                         ResumeVersion.user_id == user.id
                     ).order_by(ResumeVersion.version_number.desc()).first()
-                    
+
                     if latest_version:
                         # Check if this resume version is already linked to this job
                         existing_link = db.query(JobResumeVersion).filter(
                             JobResumeVersion.job_description_id == jd.id,
                             JobResumeVersion.resume_version_id == latest_version.id
                         ).first()
-                        
+
                         if not existing_link:
                             # Create new link
                             job_resume_version = JobResumeVersion(
@@ -435,7 +435,7 @@ def create_or_update_job_description(
                 )
                 # Don't fail the job save if resume linking fails
                 db.rollback()
-        
+
         return {
             "id": jd.id,
             "message": "saved",
@@ -451,8 +451,8 @@ def create_or_update_job_description(
 
 
 def list_user_job_descriptions(
-    user_email: Optional[str], db: Session
-) -> List[Dict[str, Any]]:
+    user_email: str | None, db: Session
+) -> list[dict[str, Any]]:
     """List job descriptions for a user"""
     logger.info(f"Listing job descriptions for user_email: {user_email}")
     try:
@@ -483,9 +483,9 @@ def list_user_job_descriptions(
                 .all()
             )
             logger.info(f"Found {len(items)} job descriptions for user_email: {user_email}")
-            
+
             # Load resume_versions separately to avoid potential N+1 or timeout issues
-            resume_links_map: Dict[int, List[JobResumeVersion]] = {}
+            resume_links_map: dict[int, list[JobResumeVersion]] = {}
             job_ids = [it.id for it in items if getattr(it, "id", None)]
             if job_ids:
                 try:
@@ -557,7 +557,7 @@ def list_user_job_descriptions(
 
             # For raw SQL path, we need to query resume_versions separately
             job_ids = [it.id for it in items if getattr(it, "id", None)]
-            resume_links_map: Dict[int, List[JobResumeVersion]] = {}
+            resume_links_map: dict[int, list[JobResumeVersion]] = {}
             if job_ids:
                 try:
                     resume_links = (
@@ -592,8 +592,8 @@ def list_user_job_descriptions(
                         priority_kw = []
 
                 resume_links = resume_links_map.get(it.id, [])
-                resume_versions_payload: List[Dict[str, Any]] = []
-                best_link_payload: Optional[Dict[str, Any]] = None
+                resume_versions_payload: list[dict[str, Any]] = []
+                best_link_payload: dict[str, Any] | None = None
                 for link in resume_links:
                     link_payload = {
                         "id": link.id,
@@ -685,7 +685,7 @@ def list_user_job_descriptions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _cover_letter_to_dict(letter: JobCoverLetter) -> Dict[str, Any]:
+def _cover_letter_to_dict(letter: JobCoverLetter) -> dict[str, Any]:
     """Convert JobCoverLetter model to dictionary"""
     return {
         "id": letter.id,
@@ -698,7 +698,7 @@ def _cover_letter_to_dict(letter: JobCoverLetter) -> Dict[str, Any]:
     }
 
 
-def list_cover_letters(jd_id: int, db: Session) -> List[Dict[str, Any]]:
+def list_cover_letters(jd_id: int, db: Session) -> list[dict[str, Any]]:
     """List all cover letters for a job description"""
     jd, _ = safe_get_job_description(jd_id, db)
     if not jd:
@@ -713,8 +713,8 @@ def list_cover_letters(jd_id: int, db: Session) -> List[Dict[str, Any]]:
 
 
 def create_cover_letter(
-    jd_id: int, payload: Dict[str, Any], db: Session
-) -> Dict[str, Any]:
+    jd_id: int, payload: dict[str, Any], db: Session
+) -> dict[str, Any]:
     """Create a new cover letter for a job description"""
     jd, _ = safe_get_job_description(jd_id, db)
     if not jd:
@@ -739,8 +739,8 @@ def create_cover_letter(
 
 
 def update_cover_letter(
-    jd_id: int, letter_id: int, payload: Dict[str, Any], db: Session
-) -> Dict[str, Any]:
+    jd_id: int, letter_id: int, payload: dict[str, Any], db: Session
+) -> dict[str, Any]:
     """Update a cover letter"""
     jd, _ = safe_get_job_description(jd_id, db)
     if not jd:
@@ -763,7 +763,7 @@ def update_cover_letter(
     return _cover_letter_to_dict(letter)
 
 
-def delete_cover_letter(jd_id: int, letter_id: int, db: Session) -> Dict[str, Any]:
+def delete_cover_letter(jd_id: int, letter_id: int, db: Session) -> dict[str, Any]:
     """Delete a cover letter"""
     jd, _ = safe_get_job_description(jd_id, db)
     if not jd:
@@ -783,14 +783,14 @@ def delete_cover_letter(jd_id: int, letter_id: int, db: Session) -> Dict[str, An
 
 
 def get_job_description_detail(
-    jd_id: int, user_email: Optional[str], db: Session
-) -> Dict[str, Any]:
+    jd_id: int, user_email: str | None, db: Session
+) -> dict[str, Any]:
     """Get a specific job description"""
     jd, _ = safe_get_job_description(jd_id, db)
     if not jd:
         logger.warning(f"Job description {jd_id} not found in database")
         raise HTTPException(status_code=404, detail="Job description not found")
-    
+
     if user_email:
         user = db.query(User).filter(User.email == user_email).first()
         if user:
@@ -833,8 +833,8 @@ def get_job_description_detail(
         logger.warning(f"Failed to load cover letters for job {jd_id}: {e}")
 
     # Load resume versions for this job
-    resume_versions_payload: List[Dict[str, Any]] = []
-    best_link_payload: Optional[Dict[str, Any]] = None
+    resume_versions_payload: list[dict[str, Any]] = []
+    best_link_payload: dict[str, Any] | None = None
     try:
         resume_links = (
             db.query(JobResumeVersion)
@@ -845,7 +845,7 @@ def get_job_description_detail(
             )
             .all()
         )
-        
+
         for link in resume_links:
             link_payload = {
                 "id": link.id,

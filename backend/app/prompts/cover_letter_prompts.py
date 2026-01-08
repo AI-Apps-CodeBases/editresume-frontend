@@ -1,6 +1,7 @@
 """Cover letter generation prompts."""
 
 from __future__ import annotations
+
 from datetime import datetime
 
 
@@ -33,9 +34,9 @@ def get_cover_letter_prompt(
         jd_context = "Selected Key Points from Job Description:\n" + jd_text
     else:
         jd_context = f"Job Description:\n{job_description[:2000]}"
-    
+
     current_date = datetime.now().strftime("%B %d, %Y")
-    
+
     return f"""Generate a professional, well-formatted cover letter for this job application.
 
 Job Details:

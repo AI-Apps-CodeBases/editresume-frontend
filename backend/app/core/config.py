@@ -9,7 +9,6 @@ usage across the app without scattering ``os.getenv`` calls.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import List, Optional, Union
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,46 +23,46 @@ class Settings(BaseSettings):
 
     premium_mode: bool = Field(default=False, env="PREMIUM_MODE")
 
-    openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
+    openai_api_key: str | None = Field(default=None, env="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", env="OPENAI_MODEL")
     openai_max_tokens: int = Field(default=2000, env="OPENAI_MAX_TOKENS")
 
-    database_url: Optional[str] = Field(default=None, env="DATABASE_URL")
+    database_url: str | None = Field(default=None, env="DATABASE_URL")
 
-    additional_cors_origins: Union[str, List[str]] = Field(
+    additional_cors_origins: str | list[str] = Field(
         default="", env="ADDITIONAL_CORS_ORIGINS"
     )
 
-    firebase_project_id: Optional[str] = Field(default=None, env="FIREBASE_PROJECT_ID")
-    firebase_service_account_json: Optional[str] = Field(
+    firebase_project_id: str | None = Field(default=None, env="FIREBASE_PROJECT_ID")
+    firebase_service_account_json: str | None = Field(
         default=None, env="FIREBASE_SERVICE_ACCOUNT_JSON"
     )
-    firebase_service_account_base64: Optional[str] = Field(
+    firebase_service_account_base64: str | None = Field(
         default=None, env="FIREBASE_SERVICE_ACCOUNT_BASE64"
     )
-    firebase_service_account_key_path: Optional[str] = Field(
+    firebase_service_account_key_path: str | None = Field(
         default=None, env="FIREBASE_SERVICE_ACCOUNT_KEY_PATH"
     )
 
-    stripe_secret_key: Optional[str] = Field(default=None, env="STRIPE_SECRET_KEY")
-    stripe_webhook_secret: Optional[str] = Field(
+    stripe_secret_key: str | None = Field(default=None, env="STRIPE_SECRET_KEY")
+    stripe_webhook_secret: str | None = Field(
         default=None, env="STRIPE_WEBHOOK_SECRET"
     )
-    stripe_price_id: Optional[str] = Field(default=None, env="STRIPE_PRICE_ID")
-    stripe_trial_price_id: Optional[str] = Field(default=None, env="STRIPE_TRIAL_PRICE_ID")
-    stripe_trial_onetime_price_id: Optional[str] = Field(default=None, env="STRIPE_TRIAL_ONETIME_PRICE_ID")
-    stripe_annual_price_id: Optional[str] = Field(default=None, env="STRIPE_ANNUAL_PRICE_ID")
-    stripe_success_url: Optional[str] = Field(default=None, env="STRIPE_SUCCESS_URL")
-    stripe_cancel_url: Optional[str] = Field(default=None, env="STRIPE_CANCEL_URL")
-    stripe_portal_return_url: Optional[str] = Field(
+    stripe_price_id: str | None = Field(default=None, env="STRIPE_PRICE_ID")
+    stripe_trial_price_id: str | None = Field(default=None, env="STRIPE_TRIAL_PRICE_ID")
+    stripe_trial_onetime_price_id: str | None = Field(default=None, env="STRIPE_TRIAL_ONETIME_PRICE_ID")
+    stripe_annual_price_id: str | None = Field(default=None, env="STRIPE_ANNUAL_PRICE_ID")
+    stripe_success_url: str | None = Field(default=None, env="STRIPE_SUCCESS_URL")
+    stripe_cancel_url: str | None = Field(default=None, env="STRIPE_CANCEL_URL")
+    stripe_portal_return_url: str | None = Field(
         default=None, env="STRIPE_PORTAL_RETURN_URL"
     )
 
-    linkedin_client_id: Optional[str] = Field(default=None, env="LINKEDIN_CLIENT_ID")
-    linkedin_client_secret: Optional[str] = Field(
+    linkedin_client_id: str | None = Field(default=None, env="LINKEDIN_CLIENT_ID")
+    linkedin_client_secret: str | None = Field(
         default=None, env="LINKEDIN_CLIENT_SECRET"
     )
-    linkedin_redirect_uri: Optional[str] = Field(
+    linkedin_redirect_uri: str | None = Field(
         default=None, env="LINKEDIN_REDIRECT_URI"
     )
 
@@ -75,7 +74,7 @@ class Settings(BaseSettings):
 
     @field_validator("additional_cors_origins", mode="before")
     @classmethod
-    def split_cors_origins(_cls, value: str | List[str] | None):  # noqa: D401, N805
+    def split_cors_origins(_cls, value: str | list[str] | None):  # noqa: D401, N805
         """Split comma-separated origins into a list."""
         if value is None:
             return []
@@ -88,7 +87,7 @@ class Settings(BaseSettings):
         return []
 
     @property
-    def base_allowed_origins(self) -> List[str]:
+    def base_allowed_origins(self) -> list[str]:
         """Default CORS origins for the application."""
         return [
             "http://localhost:3000",
@@ -103,7 +102,7 @@ class Settings(BaseSettings):
         ]
 
     @property
-    def allowed_origins(self) -> List[str]:
+    def allowed_origins(self) -> list[str]:
         """Union of default and environment-provided CORS origins."""
         merged = [str(origin) for origin in self.base_allowed_origins]
         if isinstance(self.additional_cors_origins, str):
@@ -113,7 +112,7 @@ class Settings(BaseSettings):
         merged.extend(cors_origins)
         # Remove duplicates while preserving order
         seen: set[str] = set()
-        unique: List[str] = []
+        unique: list[str] = []
         for origin in merged:
             if origin not in seen:
                 unique.append(origin)

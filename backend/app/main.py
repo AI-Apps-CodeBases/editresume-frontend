@@ -29,24 +29,25 @@ from app.api import (
     usage,
     user,
 )
-from app.features.ats_scoring import router as ats_scoring_router
-from app.features.resume_management import router as resume_management_router
-from app.features.job_management import router as job_management_router, jobs_router as job_management_jobs_router
-from app.features.user_management import router as user_management_router
-from app.features.analytics import router as analytics_router
-from app.features.collaboration import router as collaboration_router, websocket_collab
-from app.features.dashboard import router as dashboard_router
-from app.features.ai import router as ai_feature_router
 from app.api.resumes import router as resumes_router
-from app.features.job_management.routes import create_match, get_match
-from app.core.db import get_db
 from app.core.config import settings
-from app.core.db import create_tables, migrate_schema
+from app.core.db import create_tables, get_db, migrate_schema
 from app.core.dependencies import (
     OPENAI_API_KEY,
     openai_client,
 )
 from app.core.logging import setup_logging
+from app.features.ai import router as ai_feature_router
+from app.features.analytics import router as analytics_router
+from app.features.ats_scoring import router as ats_scoring_router
+from app.features.collaboration import router as collaboration_router
+from app.features.collaboration import websocket_collab
+from app.features.dashboard import router as dashboard_router
+from app.features.job_management import jobs_router as job_management_jobs_router
+from app.features.job_management import router as job_management_router
+from app.features.job_management.routes import create_match, get_match
+from app.features.resume_management import router as resume_management_router
+from app.features.user_management import router as user_management_router
 from app.middleware.firebase_auth import FirebaseAuthMiddleware
 from app.middleware.visitor_tracking import VisitorTrackingMiddleware
 
@@ -141,7 +142,7 @@ app.include_router(usage.router)
 
 # Additional routes that need different prefixes
 # These are registered here because they don't fit the standard router prefix pattern
-from app.features.resume_management.routes import list_user_resumes, delete_resume
+from app.features.resume_management.routes import delete_resume, list_user_resumes
 
 app.get("/api/resumes")(list_user_resumes)
 app.delete("/api/resumes/{resume_id}")(delete_resume)
@@ -200,13 +201,13 @@ async def get_match_legacy(match_id: int, db=Depends(get_db)):
 # URL normalization middleware - removes double slashes
 class URLNormalizeMiddleware(BaseHTTPMiddleware):
     """Middleware to normalize URLs by removing double slashes"""
-    
+
     async def dispatch(self, request: Request, call_next):
         import re
         # Normalize the path by removing double slashes (but keep the leading slash)
         original_path = request.url.path
         normalized_path = re.sub(r'/+', '/', original_path)
-        
+
         if normalized_path != original_path:
             logger = logging.getLogger(__name__)
             logger.info(f"Normalizing URL: {original_path} -> {normalized_path}")
@@ -217,7 +218,7 @@ class URLNormalizeMiddleware(BaseHTTPMiddleware):
             # Update the path_info as well
             if "path_info" in request.scope:
                 request.scope["path_info"] = normalized_path
-        
+
         return await call_next(request)
 
 # Add URL normalization middleware (should run first, so add it last)
@@ -307,8 +308,8 @@ async def options_handler(path: str, request: Request):
 # Health check endpoint
 @app.get("/health")
 async def health():
-    from app.core.db import DATABASE_URL
     from app.core.config import settings
+    from app.core.db import DATABASE_URL
 
     openai_status = {
         "configured": OPENAI_API_KEY is not None,
@@ -326,9 +327,9 @@ async def health():
 @app.get("/api/test/db")
 async def test_db():
     """Test database connection"""
+
     from app.core.db import get_db
     from app.models import User
-    from sqlalchemy.orm import Session
 
     db: Session = next(get_db())
     try:

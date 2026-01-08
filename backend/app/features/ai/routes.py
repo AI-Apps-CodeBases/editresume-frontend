@@ -9,12 +9,9 @@ NOTE: ATS scoring endpoints have been moved to app/features/ats_scoring/routes.p
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.models import (
@@ -27,26 +24,21 @@ from app.api.models import (
     GenerateSummaryPayload,
     ImproveBulletPayload,
     JobDescriptionMatchPayload,
-    ResumePayload,
     ScrapeJobUrlPayload,
     WorkExperienceRequest,
 )
+from app.core.db import get_db
 from app.core.openai_client import OPENAI_MAX_TOKENS, OPENAI_MODEL, openai_client
 from app.core.service_factory import (
-    get_enhanced_ats_service,
-    get_ats_service,
     get_ai_improvement_engine_service,
-    get_keyword_extractor_service,
-    get_cover_letter_agent_service,
     get_content_generation_agent_service,
+    get_cover_letter_agent_service,
     get_improvement_agent_service,
     get_job_matching_agent_service,
-    get_ats_scoring_agent_service,
+    get_keyword_extractor_service,
 )
-from app.core.db import get_db
 from app.models import JobMatch, Resume, User
 from app.services.ai_improvement_engine import ImprovementStrategy
-from app.services.enhanced_ats_service import EnhancedATSChecker
 from app.services.url_scraper import URLScraper
 from app.services.usage_service import (
     check_usage_limit,
@@ -64,11 +56,11 @@ def get_user_from_request(request: Request, db: Session):
     firebase_user = getattr(request.state, "firebase_user", None)
     if not firebase_user:
         return None
-    
+
     email = firebase_user.get("email")
     if not email:
         return None
-    
+
     user = db.query(User).filter(User.email == email).first()
     return user
 
@@ -77,7 +69,7 @@ async def check_and_record_ai_usage(
     request: Request,
     db: Session,
     feature_type: str,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> tuple[bool, dict]:
     """
     Check if user can use AI feature and record usage if allowed.
@@ -85,19 +77,18 @@ async def check_and_record_ai_usage(
     """
     user = get_user_from_request(request, db)
     user_id = user.id if user else None
-    
-    from app.services.usage_service import get_plan_tier
+
     plan_tier = get_plan_tier(user, db)
-    
+
     allowed, info = check_usage_limit(user_id, feature_type, plan_tier, session_id, db)
-    
+
     if allowed:
         # Record usage
         try:
             record_ai_usage(user_id, feature_type, session_id, db)
         except Exception as e:
             logger.warning(f"Failed to record AI usage: {e}")
-    
+
     return allowed, info
 
 
@@ -122,7 +113,7 @@ async def health_check():
 @router.get("/openai/status", include_in_schema=False)
 async def get_openai_status():
     """Check OpenAI connection status - accessible at /api/openai/status"""
-    from app.core.openai_client import OPENAI_API_KEY, OPENAI_MODEL, openai_client
+    from app.core.openai_client import OPENAI_API_KEY, openai_client
 
     if not OPENAI_API_KEY:
         return {
@@ -186,7 +177,7 @@ async def get_ai_improvement_suggestions(
     payload: AIImprovementPayload,
     request: Request,
     db: Session = Depends(get_db),
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
     ai_improvement_engine_service = Depends(get_ai_improvement_engine_service),
 ):
     """Get AI-powered improvement suggestions based on 10 strategies"""
@@ -266,14 +257,13 @@ async def extract_jd_sentences(payload: ExtractSentencesPayload):
     """Extract important sentences from job description"""
     try:
         import re
-        from typing import List
-        
+
         if not payload.job_description:
             return {"sentences": []}
-        
+
         # Split by sentences (period, exclamation, question mark followed by space or newline)
         sentences = re.split(r'(?<=[.!?])\s+', payload.job_description)
-        
+
         # Clean sentences
         cleaned_sentences = []
         for sentence in sentences:
@@ -281,7 +271,7 @@ async def extract_jd_sentences(payload: ExtractSentencesPayload):
             # Filter out very short sentences (< 10 chars) and empty ones
             if len(sentence) > 10 and not sentence.startswith(('http://', 'https://', 'www.')):
                 cleaned_sentences.append(sentence)
-        
+
         # If we have many sentences, use AI to identify most important ones
         if len(cleaned_sentences) > 15 and openai_client:
             try:
@@ -299,21 +289,21 @@ Return ONLY a JSON array of numbers like [1, 3, 5, 7, ...], no other text."""
                     "Authorization": f"Bearer {openai_client['api_key']}",
                     "Content-Type": "application/json",
                 }
-                
+
                 data = {
                     "model": openai_client["model"],
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 200,
                     "temperature": 0.3,
                 }
-                
+
                 response = openai_client["requests"].post(
                     "https://api.openai.com/v1/chat/completions",
                     headers=headers,
                     json=data,
                     timeout=30,
                 )
-                
+
                 if response.status_code == 200:
                     result = response.json()
                     content = result["choices"][0]["message"]["content"].strip()
@@ -332,10 +322,10 @@ Return ONLY a JSON array of numbers like [1, 3, 5, 7, ...], no other text."""
                         pass
             except Exception as e:
                 logger.warning(f"Failed to use AI for sentence extraction: {e}")
-        
+
         # Fallback: return first 20 sentences or all if less
         return {"sentences": cleaned_sentences[:20]}
-        
+
     except Exception as e:
         logger.error(f"Sentence extraction error: {str(e)}")
         # Fallback: simple sentence split
@@ -349,7 +339,7 @@ async def generate_cover_letter(
     payload: CoverLetterPayload,
     request: Request,
     db: Session = Depends(get_db),
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
     cover_letter_agent_service = Depends(get_cover_letter_agent_service),
 ):
     """Generate a tailored cover letter using AI"""
@@ -398,7 +388,7 @@ async def generate_cover_letter(
         job_description_text = payload.job_description
         if payload.selected_sentences and len(payload.selected_sentences) > 0:
             job_description_text = "\n".join(payload.selected_sentences)
-        
+
         # Use cover letter agent
         result = cover_letter_agent_service.generate_cover_letter(
             company_name=payload.company_name,
@@ -540,7 +530,7 @@ async def extract_job_keywords(
             )
 
         job_keywords = keyword_extractor_service.extract_keywords(payload.job_description)
-        
+
         technical_keywords = job_keywords.get("technical_keywords", [])
         general_keywords = job_keywords.get("general_keywords", [])
         soft_skills = job_keywords.get("soft_skills", [])
@@ -548,15 +538,15 @@ async def extract_job_keywords(
         high_frequency_keywords = job_keywords.get("high_frequency_keywords", [])
 
         high_intensity_keywords = [
-            item for item in high_frequency_keywords 
+            item for item in high_frequency_keywords
             if item.get("importance") == "high"
         ]
         high_intensity_keywords.sort(key=lambda x: x.get("frequency", 0), reverse=True)
-        
+
         all_high_priority = set()
         all_high_priority.update([kw.lower() for kw in technical_keywords])
         all_high_priority.update([
-            item["keyword"].lower() 
+            item["keyword"].lower()
             for item in high_intensity_keywords[:20]
             if isinstance(item, dict) and item.get("keyword")
         ])
@@ -595,7 +585,7 @@ async def scrape_job_url(payload: ScrapeJobUrlPayload):
 
         url_scraper = URLScraper()
         scrape_result = url_scraper.scrape_url(payload.url.strip())
-        
+
         if not scrape_result.get("success") or not scrape_result.get("content"):
             raise HTTPException(
                 status_code=400,
@@ -604,7 +594,7 @@ async def scrape_job_url(payload: ScrapeJobUrlPayload):
 
         job_description = scrape_result["content"]
         job_keywords = keyword_extractor.extract_keywords(job_description)
-        
+
         technical_keywords = job_keywords.get("technical_keywords", [])
         general_keywords = job_keywords.get("general_keywords", [])
         soft_skills = job_keywords.get("soft_skills", [])
@@ -612,15 +602,15 @@ async def scrape_job_url(payload: ScrapeJobUrlPayload):
         high_frequency_keywords = job_keywords.get("high_frequency_keywords", [])
 
         high_intensity_keywords = [
-            item for item in high_frequency_keywords 
+            item for item in high_frequency_keywords
             if item.get("importance") == "high"
         ]
         high_intensity_keywords.sort(key=lambda x: x.get("frequency", 0), reverse=True)
-        
+
         all_high_priority = set()
         all_high_priority.update([kw.lower() for kw in technical_keywords])
         all_high_priority.update([
-            item["keyword"].lower() 
+            item["keyword"].lower()
             for item in high_intensity_keywords[:20]
             if isinstance(item, dict) and item.get("keyword")
         ])
@@ -637,14 +627,14 @@ async def scrape_job_url(payload: ScrapeJobUrlPayload):
             "ats_focused_keywords": ats_focused[:20],
             "total_keywords": len(technical_keywords) + len(general_keywords) + len(soft_skills),
         }
-        
+
         if scrape_result.get("title"):
             result["title"] = scrape_result["title"]
         if scrape_result.get("company"):
             result["company"] = scrape_result["company"]
         if scrape_result.get("work_type"):
             result["work_type"] = scrape_result["work_type"]
-        
+
         return result
 
     except HTTPException:
@@ -680,9 +670,9 @@ async def extract_keywords_llm(payload: ExtractKeywordsPayload):
             )
 
         from app.prompts.content_generation_prompts import get_llm_keyword_extraction_prompt
-        
+
         prompt = get_llm_keyword_extraction_prompt(payload.job_description)
-        
+
         headers = {
             "Authorization": f"Bearer {openai_client['api_key']}",
             "Content-Type": "application/json",
@@ -722,14 +712,14 @@ async def extract_keywords_llm(payload: ExtractKeywordsPayload):
 
             result = response.json()
             content = result["choices"][0]["message"]["content"].strip()
-            
+
             # Parse JSON response
             import json
             keywords_data = json.loads(content)
-            
+
             # Validate keywords against job description content
             jd_lower = payload.job_description.lower()
-            
+
             def keyword_in_text(keyword: str) -> bool:
                 """Check if keyword appears in job description text"""
                 if not keyword:
@@ -737,7 +727,7 @@ async def extract_keywords_llm(payload: ExtractKeywordsPayload):
                 kw_lower = keyword.lower().strip()
                 # Check exact match or as part of a word/phrase
                 return kw_lower in jd_lower
-            
+
             # Filter keywords to only those present in JD
             technical_keywords = [
                 kw for kw in keywords_data.get("technical_keywords", [])
@@ -763,7 +753,7 @@ async def extract_keywords_llm(payload: ExtractKeywordsPayload):
                 kw for kw in keywords_data.get("experience", [])
                 if keyword_in_text(kw)
             ]
-            
+
             # Create high_frequency_keywords format
             high_frequency_keywords = [
                 {
@@ -773,16 +763,16 @@ async def extract_keywords_llm(payload: ExtractKeywordsPayload):
                 }
                 for idx, kw in enumerate(priority_keywords[:20])
             ]
-            
+
             # Combine all keywords for total count
             all_keywords = (
-                technical_keywords + 
-                general_keywords + 
-                soft_skills + 
-                education_keywords + 
+                technical_keywords +
+                general_keywords +
+                soft_skills +
+                education_keywords +
                 experience_keywords
             )
-            
+
             return {
                 "success": True,
                 "method": "llm",
@@ -802,7 +792,7 @@ async def extract_keywords_llm(payload: ExtractKeywordsPayload):
                 status_code=500,
                 detail="Failed to parse LLM response"
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("OpenAI API timeout")
             raise HTTPException(
                 status_code=504,
@@ -955,7 +945,7 @@ async def generate_work_experience(
             }
 
         missing_keywords = getattr(payload, 'missing_keywords', None) or []
-        
+
         # Use content generation agent
         result = await content_generation_agent_service.generate_work_experience(
             role=payload.currentJobTitle or payload.role or "Software Engineer",
@@ -1151,7 +1141,7 @@ async def generate_bullets_from_keywords(
         # Validate that all keywords are used in the generated bullets
         keywords_lower = [kw.lower().strip() for kw in keywords_list if kw.strip()]
         used_keywords = set()
-        
+
         for bullet in bullets:
             bullet_lower = bullet.lower()
             for keyword in keywords_lower:
@@ -1160,7 +1150,7 @@ async def generate_bullets_from_keywords(
                 bullet_normalized = bullet_lower.replace('/', '').replace('-', '').replace('.', '').replace('#', '')
                 if keyword_normalized in bullet_normalized or keyword in bullet_lower:
                     used_keywords.add(keyword)
-        
+
         # If not all keywords are used, log a warning (prompt should handle this, but double-check)
         missing_keywords = set(keywords_lower) - used_keywords
         if missing_keywords:
@@ -1294,18 +1284,18 @@ async def generate_summary_from_experience(payload: dict):
         )
         matching_keywords = normalize_keywords(payload.get("matching_keywords", []))
         target_keywords = normalize_keywords(payload.get("target_keywords", []))
-        
+
         # Extract company name from payload if available
         company_name = payload.get("company_name") or payload.get("companyName") or None
-        
+
         # Filter out company names from missing keywords
-        def filter_company_names(keywords: List[str], company: str | None) -> List[str]:
+        def filter_company_names(keywords: list[str], company: str | None) -> list[str]:
             if not company or not keywords:
                 return keywords
             company_lower = company.lower().strip()
             if not company_lower:
                 return keywords
-            
+
             company_words = company_lower.split()
             filtered = []
             for keyword in keywords:
@@ -1320,12 +1310,12 @@ async def generate_summary_from_experience(payload: dict):
                         if len(cw) > 2 and (cw in keyword_lower or keyword_lower in cw):
                             is_company_name = True
                             break
-                
+
                 if not is_company_name:
                     filtered.append(keyword)
-            
+
             return filtered
-        
+
         # Filter company names from missing keywords
         if company_name:
             missing_keywords = filter_company_names(missing_keywords, company_name)
@@ -1335,21 +1325,21 @@ async def generate_summary_from_experience(payload: dict):
         MAX_KEYWORDS_FOR_SUMMARY = 8
         limited_missing_for_sections = missing_keywords[:MAX_KEYWORDS_FOR_SUMMARY]
         remaining_slots = MAX_KEYWORDS_FOR_SUMMARY - len(limited_missing_for_sections)
-        
+
         limited_priority = []
         if remaining_slots > 0:
             limited_priority = priority_keywords[:remaining_slots]
             remaining_slots -= len(limited_priority)
-        
+
         limited_high_freq = []
         if remaining_slots > 0:
             limited_high_freq = high_frequency_keywords[:remaining_slots]
             remaining_slots -= len(limited_high_freq)
-        
+
         limited_matching = []
         if remaining_slots > 0:
             limited_matching = matching_keywords[:remaining_slots]
-        
+
         # Limit target_keywords to fill any remaining slots (lowest priority)
         limited_target = []
         if remaining_slots > 0:
@@ -1358,12 +1348,12 @@ async def generate_summary_from_experience(payload: dict):
             for kw_list in [limited_missing_for_sections, limited_priority, limited_high_freq, limited_matching]:
                 for kw in kw_list:
                     seen_in_limited.add(kw.lower())
-            
+
             limited_target = [
-                kw for kw in target_keywords 
+                kw for kw in target_keywords
                 if kw.lower() not in seen_in_limited
             ][:remaining_slots]
-        
+
         # Build combined_keywords from LIMITED keywords only (for tracking)
         combined_keywords = []
         seen_keywords = set()
@@ -1441,9 +1431,9 @@ async def generate_summary_from_experience(payload: dict):
                     lines.append(f"- {bullet_text}")
             return "\n".join(lines).strip()
 
-        work_section_texts: List[str] = []
-        skills_entries_list: List[str] = []
-        project_section_texts: List[str] = []
+        work_section_texts: list[str] = []
+        skills_entries_list: list[str] = []
+        project_section_texts: list[str] = []
 
         for section in sections or []:
             formatted_section = format_section_text(section)
@@ -1487,7 +1477,7 @@ async def generate_summary_from_experience(payload: dict):
         work_experience_text = "\n\n".join(work_section_texts).strip()
 
         if not skills_entries_list:
-            aggregated_skills: List[str] = []
+            aggregated_skills: list[str] = []
             for section in sections or []:
                 for bullet in section.get("bullets") or []:
                     bullet_text = ""
@@ -1507,7 +1497,7 @@ async def generate_summary_from_experience(payload: dict):
 
         def build_fallback_summary() -> str:
             headline = title or "Experienced professional"
-            experience_phrases: List[str] = []
+            experience_phrases: list[str] = []
             for section in sections or []:
                 bullets = section.get("bullets") or []
                 for bullet in bullets:
@@ -1544,27 +1534,27 @@ async def generate_summary_from_experience(payload: dict):
 
         # Calculate total keywords being used for logging
         total_keywords_used = (
-            len(limited_missing_for_sections) + 
-            len(limited_priority) + 
-            len(limited_high_freq) + 
+            len(limited_missing_for_sections) +
+            len(limited_priority) +
+            len(limited_high_freq) +
             len(limited_matching) +
             len(limited_target)
         )
         logger.info(f"Professional summary generation: Using {total_keywords_used} total keywords (max 8): "
                    f"missing={len(limited_missing_for_sections)}, priority={len(limited_priority)}, "
                    f"high_freq={len(limited_high_freq)}, matching={len(limited_matching)}, target={len(limited_target)}")
-        
+
         # Verify we're not exceeding the limit
         if total_keywords_used > MAX_KEYWORDS_FOR_SUMMARY:
             logger.warning(f"Keyword limit exceeded! Total: {total_keywords_used}, Max: {MAX_KEYWORDS_FOR_SUMMARY}")
-        
+
         company_warning = ""
         if company_name:
             company_warning = f"""
 CRITICAL: NEVER mention or reference the company name "{company_name}" or any company name from the job description in the professional summary. 
 The summary should be generic and applicable to any role, not specific to any particular company.
 """
-        
+
         context = f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
 
 Professional Title: {title if title else 'Not specified'}
@@ -1606,7 +1596,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
 
         summary_text = ""
         tokens_used = 0
-        fallback_error: Optional[str] = None
+        fallback_error: str | None = None
 
         try:
             headers = {
@@ -1649,7 +1639,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
             result = await asyncio.wait_for(make_request(), timeout=35.0)
             summary_text = result["choices"][0]["message"]["content"].strip()
             tokens_used = result.get("usage", {}).get("total_tokens", 0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             fallback_error = "Request timed out after 35 seconds"
             logger.error(f"OpenAI generate summary timeout: {fallback_error}")
             summary_text = build_fallback_summary()
@@ -1730,7 +1720,7 @@ Return ONLY the professional summary paragraph, no labels, explanations, or form
             if not fallback_summary:
                 default_headline = payload.get("title") or "Results-driven professional"
                 fallback_summary = f"{default_headline} with a track record of driving successful outcomes and elevating team performance."
-            
+
             return {
                 "success": True,
                 "summary": fallback_summary,
@@ -1768,7 +1758,7 @@ async def generate_resume_content(
                 status_code=503,
                 detail="Content generation service is not available."
             )
-        
+
         content_type = payload.get("contentType", "job")
         requirements = payload.get("requirements", "")
         position = payload.get("position", "end")

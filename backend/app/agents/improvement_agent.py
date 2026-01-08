@@ -9,7 +9,7 @@ import logging
 
 from fastapi import HTTPException
 
-from app.core.openai_client import OPENAI_MAX_TOKENS, openai_client
+from app.core.openai_client import openai_client
 from app.prompts.improvement_prompts import (
     get_ats_improvement_prompt,
     get_improve_bullet_prompt,

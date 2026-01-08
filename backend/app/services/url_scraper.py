@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -29,7 +28,7 @@ class URLScraper:
         """Detect if the page is a login/authentication page"""
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
-        
+
         # Check for LinkedIn login page indicators
         if "linkedin.com" in domain:
             page_text = soup.get_text(separator=" ", strip=True).lower()
@@ -48,7 +47,7 @@ class URLScraper:
             indicator_count = sum(1 for indicator in login_indicators if indicator in page_text)
             if indicator_count >= 3:
                 return True
-                
+
             # Check for specific LinkedIn login page elements
             login_selectors = [
                 'input[name="session_key"]',
@@ -57,17 +56,17 @@ class URLScraper:
             ]
             if any(soup.select_one(sel) for sel in login_selectors):
                 return True
-        
+
         # Check page title
         title_tag = soup.find('title')
         if title_tag:
             title_text = title_tag.get_text(strip=True).lower()
             if "sign in" in title_text or "login" in title_text:
                 return True
-        
+
         return False
 
-    def _extract_linkedin_title(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_linkedin_title(self, soup: BeautifulSoup) -> str | None:
         selectors = [
             "h1.jobs-unified-top-card__job-title",
             "h1.job-details-jobs-unified-top-card__job-title",
@@ -84,7 +83,7 @@ class URLScraper:
                     return text
         return None
 
-    def _extract_linkedin_company(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_linkedin_company(self, soup: BeautifulSoup) -> str | None:
         selectors = [
             "a.jobs-unified-top-card__company-name",
             "a.job-details-jobs-unified-top-card__company-name",
@@ -104,21 +103,21 @@ class URLScraper:
                         return cleaned
         return None
 
-    def _extract_linkedin_work_type(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_linkedin_work_type(self, soup: BeautifulSoup) -> str | None:
         top_card = soup.select_one(".jobs-unified-top-card, .topcard, .job-details-jobs-unified-top-card")
         if top_card:
             text = top_card.get_text(separator=" ", strip=True).lower()
-            
+
             if re.search(r'\b(remote|work from home|wfh|distributed)\b', text):
                 return "Remote"
             elif re.search(r'\b(hybrid|partially remote)\b', text):
                 return "Hybrid"
             elif re.search(r'\b(on[-\s]?site|office|in[-\s]?person)\b', text):
                 return "On-site"
-        
+
         return None
 
-    def _extract_linkedin_content(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_linkedin_content(self, soup: BeautifulSoup) -> str | None:
         selectors = [
             ".description__text",
             ".show-more-less-html__markup",
@@ -134,7 +133,7 @@ class URLScraper:
                     return text
         return None
 
-    def _extract_indeed_title(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_indeed_title(self, soup: BeautifulSoup) -> str | None:
         selectors = [
             "h1.jobsearch-JobInfoHeader-title",
             "h2.jobsearch-JobInfoHeader-title",
@@ -150,7 +149,7 @@ class URLScraper:
                     return text
         return None
 
-    def _extract_indeed_company(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_indeed_company(self, soup: BeautifulSoup) -> str | None:
         selectors = [
             "[data-testid='inlineHeader-companyName']",
             ".jobsearch-InlineCompanyRating a",
@@ -166,19 +165,19 @@ class URLScraper:
                     return text
         return None
 
-    def _extract_indeed_work_type(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_indeed_work_type(self, soup: BeautifulSoup) -> str | None:
         job_info = soup.select_one(".jobsearch-JobMetadataHeader, .jobsearch-JobInfoHeader")
         if job_info:
             text = job_info.get_text(separator=" ", strip=True).lower()
-            
+
             if re.search(r'\b(remote|work from home|wfh)\b', text):
                 return "Remote"
             elif re.search(r'\b(hybrid)\b', text):
                 return "Hybrid"
-        
+
         return None
 
-    def _extract_indeed_content(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_indeed_content(self, soup: BeautifulSoup) -> str | None:
         selectors = [
             "#jobDescriptionText",
             ".jobsearch-jobDescriptionText",
@@ -192,7 +191,7 @@ class URLScraper:
                     return text
         return None
 
-    def _extract_generic_title(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_generic_title(self, soup: BeautifulSoup) -> str | None:
         selectors = [
             "h1.job-title",
             "h1[class*='title']",
@@ -205,16 +204,16 @@ class URLScraper:
                 text = element.get_text(strip=True)
                 if text and len(text) > 0 and len(text) < 200:
                     return text
-        
+
         og_title = soup.select_one('meta[property="og:title"]')
         if og_title and og_title.get('content'):
             title = og_title['content'].strip()
             if len(title) > 0 and len(title) < 200:
                 return title
-        
+
         return None
 
-    def _extract_generic_company(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_generic_company(self, soup: BeautifulSoup) -> str | None:
         selectors = [
             ".company-name",
             "[class*='company']",
@@ -227,22 +226,22 @@ class URLScraper:
                 text = element.get_text(strip=True)
                 if text and len(text) > 0 and len(text) < 100:
                     return text
-        
+
         return None
 
-    def _extract_generic_work_type(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_generic_work_type(self, soup: BeautifulSoup) -> str | None:
         meta_text = soup.get_text(separator=" ", strip=True).lower()
-        
+
         if re.search(r'\b(remote|work from home|wfh|distributed)\b', meta_text):
             return "Remote"
         elif re.search(r'\b(hybrid|partially remote)\b', meta_text):
             return "Hybrid"
         elif re.search(r'\b(on[-\s]?site|office|in[-\s]?person)\b', meta_text):
             return "On-site"
-        
+
         return None
 
-    def _extract_generic_content(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_generic_content(self, soup: BeautifulSoup) -> str | None:
         main_selectors = [
             "main",
             "[role='main']",
@@ -285,7 +284,7 @@ class URLScraper:
                 response.raise_for_status()
 
                 soup = BeautifulSoup(response.content, "lxml")
-                
+
                 # Check if we got a login page
                 if self._is_login_page(soup, url):
                     parsed_url = urlparse(url)
@@ -300,7 +299,7 @@ class URLScraper:
                             "This job posting requires authentication. "
                             "Please copy and paste the job description text directly."
                         )
-                
+
                 parsed_url = urlparse(url)
                 domain = parsed_url.netloc.lower()
 
@@ -338,14 +337,14 @@ class URLScraper:
                     "content": cleaned_content,
                     "url": url
                 }
-                
+
                 if title:
                     result["title"] = title
                 if company:
                     result["company"] = company
                 if work_type:
                     result["work_type"] = work_type
-                
+
                 return result
 
         except httpx.TimeoutException:

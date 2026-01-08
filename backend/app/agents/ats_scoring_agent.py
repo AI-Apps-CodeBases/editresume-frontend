@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
-import functools
-import json
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from app.core.openai_client import openai_client
 
@@ -22,12 +19,12 @@ class ATSScoringAgent:
 
     async def analyze_semantic_quality(
         self,
-        resume_data: Dict,
+        resume_data: dict,
         job_description: str = None,
-        extracted_keywords: Dict = None,
-        keyword_matches: List[str] = None,
-        missing_keywords: List[str] = None,
-    ) -> Dict[str, Any]:
+        extracted_keywords: dict = None,
+        keyword_matches: list[str] = None,
+        missing_keywords: list[str] = None,
+    ) -> dict[str, Any]:
         """
         Analyze semantic quality of resume content and provide quality adjustment.
         
@@ -144,7 +141,7 @@ class ATSScoringAgent:
         resume_text: str,
         keyword: str,
         job_description: str = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Analyze if a keyword is used in meaningful context.
         

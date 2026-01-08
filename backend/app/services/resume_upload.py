@@ -8,10 +8,8 @@ import json
 import logging
 import re
 from io import BytesIO
-from typing import Dict, List, Optional
 
 from app.core.openai_client import OPENAI_MAX_TOKENS, USE_AI_PARSER, openai_client
-from app.utils.resume_parsing import parse_resume_with_regex
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +18,8 @@ def extract_docx_text_from_bytes(file_content: bytes) -> str:
     """Extract text from DOCX file bytes"""
     try:
         from docx import Document
-        from docx.oxml.text.paragraph import CT_P
         from docx.oxml.table import CT_Tbl
+        from docx.oxml.text.paragraph import CT_P
         from docx.table import Table
         from docx.text.paragraph import Paragraph
 
@@ -108,7 +106,7 @@ def extract_pdf_text_from_bytes(file_content: bytes) -> str:
         raise
 
 
-async def upload_and_parse_resume(file_content: bytes, filename: str, content_type: Optional[str] = None) -> Dict:
+async def upload_and_parse_resume(file_content: bytes, filename: str, content_type: str | None = None) -> dict:
     """Upload and parse a resume file"""
     try:
         file_type = filename.split(".")[-1].lower() if "." in filename else ""
@@ -152,7 +150,7 @@ async def upload_and_parse_resume(file_content: bytes, filename: str, content_ty
                     "success": False,
                     "error": str(pdf_error),
                 }
-            except Exception as pdf_error:
+            except Exception:
                 raise
 
         else:
@@ -192,7 +190,7 @@ async def upload_and_parse_resume(file_content: bytes, filename: str, content_ty
         return {"success": False, "error": f"Upload failed: {str(e)}"}
 
 
-async def parse_resume_with_ai(text: str) -> Dict:
+async def parse_resume_with_ai(text: str) -> dict:
     """Use AI to intelligently parse and structure resume content"""
     if not USE_AI_PARSER:
         logger.info(
@@ -379,7 +377,7 @@ Resume Text (Full Content):
                 raise e2
 
         sections_raw = parsed_data.get("sections") or []
-        normalized_sections: List[Dict] = []
+        normalized_sections: list[dict] = []
         summary_section_text = ""
         summary_titles = {
             "professional summary",
@@ -391,8 +389,8 @@ Resume Text (Full Content):
 
         for raw_section in sections_raw:
             section_title = ""
-            section_params: Dict = {}
-            bullets_source: List = []
+            section_params: dict = {}
+            bullets_source: list = []
 
             if isinstance(raw_section, dict):
                 section_title = str(raw_section.get("title", "")).strip()
@@ -402,7 +400,7 @@ Resume Text (Full Content):
                 section_title = str(raw_section).strip()
                 bullets_source = []
 
-            bullet_entries: List[Dict] = []
+            bullet_entries: list[dict] = []
             for bullet in bullets_source:
                 if isinstance(bullet, dict):
                     bullet_entries.append(
@@ -461,8 +459,8 @@ Resume Text (Full Content):
                     )
 
         # Deduplicate sections by normalized title before finalizing
-        section_dict: Dict[str, Dict] = {}
-        
+        section_dict: dict[str, dict] = {}
+
         def normalize_section_title(title: str) -> str:
             """Normalize section title for comparison"""
             normalized = title.lower().strip()
@@ -497,12 +495,12 @@ Resume Text (Full Content):
                 if variant in normalized:
                     return canonical
             return normalized
-        
+
         for idx, section in enumerate(normalized_sections):
             section_title = section.get("title") or f"Section {idx + 1}"
             normalized_title = normalize_section_title(section_title)
-            
-            bullets: List[Dict] = []
+
+            bullets: list[dict] = []
             for bullet_idx, entry in enumerate(section.get("bullets", [])):
                 bullet_text = str(entry.get("text", "")).strip()
                 if bullet_text:  # Only add non-empty bullets
@@ -514,19 +512,19 @@ Resume Text (Full Content):
                             "params": bullet_params,
                         }
                     )
-            
+
             if normalized_title in section_dict:
                 # Merge with existing section
                 existing_section = section_dict[normalized_title]
                 existing_bullets = existing_section["bullets"]
-                
+
                 # Use more descriptive title
                 if len(section_title) > len(existing_section["title"]):
                     existing_section["title"] = section_title
-                
+
                 # Check for duplicate bullets (case-insensitive)
                 existing_bullet_texts = {b["text"].lower().strip() for b in existing_bullets}
-                
+
                 # Add separator for work experience sections
                 is_work_exp = normalized_title == "work experience"
                 if is_work_exp and existing_bullets and existing_bullets[-1]["text"].strip() != "":
@@ -535,7 +533,7 @@ Resume Text (Full Content):
                         "text": "",
                         "params": {}
                     })
-                
+
                 # Add new bullets, skipping duplicates
                 for bullet in bullets:
                     bullet_lower = bullet["text"].lower().strip()
@@ -547,11 +545,11 @@ Resume Text (Full Content):
                                 abs(len(bullet_lower) - len(existing_text)) < max(len(bullet_lower), len(existing_text)) * 0.2):
                                 is_duplicate = True
                                 break
-                        
+
                         if not is_duplicate:
                             existing_bullet_texts.add(bullet_lower)
                             existing_bullets.append(bullet)
-                
+
                 existing_section["bullets"] = existing_bullets
                 logger.info(f"Merged duplicate section '{section_title}' (normalized: '{normalized_title}') into existing section")
             else:
@@ -562,7 +560,7 @@ Resume Text (Full Content):
                     "bullets": bullets,
                     "params": section.get("params") or {},
                 }
-        
+
         final_sections = list(section_dict.values())
         parsed_data["sections"] = final_sections
 
@@ -583,7 +581,7 @@ Resume Text (Full Content):
         return parse_resume_text(text)
 
 
-def _extract_skills_from_text(raw_text: str) -> List[str]:
+def _extract_skills_from_text(raw_text: str) -> list[str]:
     """Extract skills from text"""
     if not raw_text:
         return []
@@ -601,7 +599,7 @@ def _extract_skills_from_text(raw_text: str) -> List[str]:
     heading_prefixes = tuple(skill.lower() for skill in skill_headings)
 
     lines = raw_text.splitlines()
-    captured_lines: List[str] = []
+    captured_lines: list[str] = []
     capturing = False
 
     for line in lines:
@@ -632,7 +630,7 @@ def _extract_skills_from_text(raw_text: str) -> List[str]:
     if not captured_lines:
         return []
 
-    skills: List[str] = []
+    skills: list[str] = []
     for entry in captured_lines:
         cleaned = entry.strip("•·▪∙●○-–— ")
         if not cleaned:
@@ -643,7 +641,7 @@ def _extract_skills_from_text(raw_text: str) -> List[str]:
         else:
             skills.append(cleaned)
 
-    deduped: List[str] = []
+    deduped: list[str] = []
     seen = set()
     for skill in skills:
         lowered = skill.lower()
@@ -654,7 +652,7 @@ def _extract_skills_from_text(raw_text: str) -> List[str]:
     return deduped
 
 
-def parse_resume_text(text: str) -> Dict:
+def parse_resume_text(text: str) -> dict:
     """Basic text parsing fallback"""
     lines = [l.strip() for l in text.split("\n") if l.strip()]
 
@@ -744,7 +742,7 @@ def parse_resume_text(text: str) -> Dict:
     return data
 
 
-def detect_parameterization(text: str) -> Dict[str, str]:
+def detect_parameterization(text: str) -> dict[str, str]:
     """Detect parameterization variables in text"""
     variables = {}
 

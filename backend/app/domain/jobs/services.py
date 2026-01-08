@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from sqlalchemy.orm import Session
 
 from app.domain.jobs.models import Job, JobCreate
@@ -19,10 +17,10 @@ class JobService:
     def create_job(self, payload: JobCreate) -> Job:
         return self._repository.create(payload)
 
-    def list_jobs(self, user_id: int) -> List[Job]:
+    def list_jobs(self, user_id: int) -> list[Job]:
         return self._repository.list_for_user(user_id)
 
-    def get_job(self, job_id: int, user_id: int) -> Optional[Job]:
+    def get_job(self, job_id: int, user_id: int) -> Job | None:
         return self._repository.get(job_id=job_id, user_id=user_id)
 
     def delete_job(self, job_id: int, user_id: int) -> bool:

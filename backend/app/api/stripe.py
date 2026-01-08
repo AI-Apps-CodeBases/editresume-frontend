@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -22,19 +22,19 @@ router = APIRouter(prefix="/api/billing", tags=["billing"])
 
 
 class CheckoutSessionRequest(BaseModel):
-    successUrl: Optional[str] = Field(
+    successUrl: str | None = Field(
         default=None, description="Override the default success URL"
     )
-    cancelUrl: Optional[str] = Field(
+    cancelUrl: str | None = Field(
         default=None, description="Override the default cancel URL"
     )
-    priceId: Optional[str] = Field(
+    priceId: str | None = Field(
         default=None, description="Stripe price ID (overrides default and planType)"
     )
-    planType: Optional[str] = Field(
+    planType: str | None = Field(
         default=None, description="Plan type: 'trial', 'trial-onetime', or 'premium' (uses corresponding price ID)"
     )
-    period: Optional[str] = Field(
+    period: str | None = Field(
         default=None, description="Billing period: 'monthly' or 'annual'"
     )
 
@@ -49,10 +49,10 @@ class WebhookResponse(BaseModel):
 
 class SubscriptionStatusResponse(BaseModel):
     isPremium: bool = False
-    subscriptionStatus: Optional[str] = None
-    subscriptionCurrentPeriodEnd: Optional[datetime] = None
-    stripeCustomerId: Optional[str] = None
-    stripeSubscriptionId: Optional[str] = None
+    subscriptionStatus: str | None = None
+    subscriptionCurrentPeriodEnd: datetime | None = None
+    stripeCustomerId: str | None = None
+    stripeSubscriptionId: str | None = None
 
 
 class PortalSessionResponse(BaseModel):
@@ -63,11 +63,11 @@ PREFERRED_ACTIVE_STATUSES = {"active", "trialing"}
 
 
 def _build_subscription_payload(
-    status: Optional[str],
-    current_period_end: Optional[int],
-    customer_id: Optional[str],
-    subscription_id: Optional[str],
-) -> Dict[str, Any]:
+    status: str | None,
+    current_period_end: int | None,
+    customer_id: str | None,
+    subscription_id: str | None,
+) -> dict[str, Any]:
     premium = status in PREFERRED_ACTIVE_STATUSES
     current_period_end_dt = (
         datetime.fromtimestamp(current_period_end, tz=timezone.utc)
@@ -87,7 +87,7 @@ def _build_subscription_payload(
 @router.post("/create-checkout-session", response_model=CheckoutSessionResponse)
 async def create_checkout_session(
     payload: CheckoutSessionRequest,
-    user: Dict[str, Any] = Depends(require_firebase_user),
+    user: dict[str, Any] = Depends(require_firebase_user),
 ) -> CheckoutSessionResponse:
     stripe = get_stripe_client()
     if not stripe:
@@ -95,10 +95,10 @@ async def create_checkout_session(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Stripe is not configured.",
         )
-    
+
     # Determine price ID and payment mode
     is_onetime = payload.planType == 'trial-onetime'
-    
+
     if payload.priceId:
         price_id = payload.priceId
     elif payload.planType == 'trial-onetime':
@@ -109,7 +109,7 @@ async def create_checkout_session(
         price_id = settings.stripe_annual_price_id or settings.stripe_price_id
     else:
         price_id = settings.stripe_price_id
-    
+
     if not price_id:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -131,7 +131,7 @@ async def create_checkout_session(
             "email": user.get("email") or "",
             "planType": payload.planType or "premium",
         }
-        
+
         session_params = {
             "mode": "payment" if is_onetime else "subscription",
             "line_items": [
@@ -147,10 +147,10 @@ async def create_checkout_session(
             "success_url": success_url,
             "cancel_url": cancel_url,
         }
-        
+
         if not is_onetime:
             session_params["subscription_data"] = {"metadata": metadata}
-        
+
         session = stripe.checkout.Session.create(**session_params)
     except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
         logger.error("Stripe error creating checkout session: %s", exc)
@@ -208,7 +208,7 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
 
 @router.get("/subscription", response_model=SubscriptionStatusResponse)
 async def get_subscription_status(
-    user: Dict[str, Any] = Depends(require_firebase_user),
+    user: dict[str, Any] = Depends(require_firebase_user),
 ) -> SubscriptionStatusResponse:
     profile = get_user_profile(user["uid"]) or {}
     return SubscriptionStatusResponse(
@@ -222,7 +222,7 @@ async def get_subscription_status(
 
 @router.post("/create-portal-session", response_model=PortalSessionResponse)
 async def create_portal_session(
-    user: Dict[str, Any] = Depends(require_firebase_user),
+    user: dict[str, Any] = Depends(require_firebase_user),
 ) -> PortalSessionResponse:
     stripe = get_stripe_client()
     if not stripe:
@@ -271,7 +271,7 @@ async def create_portal_session(
     return PortalSessionResponse(url=session["url"])
 
 
-async def _process_event(event: Dict[str, Any], stripe) -> None:
+async def _process_event(event: dict[str, Any], stripe) -> None:
     event_type = event.get("type")
     data_object = event.get("data", {}).get("object", {})
 
@@ -286,7 +286,7 @@ async def _process_event(event: Dict[str, Any], stripe) -> None:
         logger.debug("Unhandled Stripe event type: %s", event_type)
 
 
-async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) -> None:
+async def _handle_checkout_session_completed(session: dict[str, Any], stripe) -> None:
     metadata = session.get("metadata") or {}
     uid = metadata.get("uid")
     customer_id = session.get("customer")
@@ -325,7 +325,7 @@ async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) ->
     status = None
     current_period_end = None
     purchase_timestamp = None
-    
+
     if subscription_id:
         try:
             subscription = stripe.Subscription.retrieve(subscription_id)
@@ -336,7 +336,7 @@ async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) ->
                 purchase_timestamp = datetime.fromtimestamp(created_timestamp, tz=timezone.utc)
         except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
             logger.error("Failed to retrieve subscription %s: %s", subscription_id, exc)
-    
+
     if not purchase_timestamp:
         purchase_timestamp = datetime.now(timezone.utc)
 
@@ -351,7 +351,7 @@ async def _handle_checkout_session_completed(session: Dict[str, Any], stripe) ->
     update_user_subscription(uid, payload)
 
 
-async def _handle_subscription_event(subscription: Dict[str, Any]) -> None:
+async def _handle_subscription_event(subscription: dict[str, Any]) -> None:
     customer_id = subscription.get("customer")
     if not customer_id:
         return

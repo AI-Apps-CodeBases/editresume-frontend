@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,7 +29,7 @@ class JobRepository:
         self._session.refresh(record)
         return self._to_domain(record)
 
-    def list_for_user(self, user_id: int) -> List[Job]:
+    def list_for_user(self, user_id: int) -> list[Job]:
         statement = (
             select(JobRecord)
             .where(JobRecord.user_id == user_id)
@@ -41,7 +39,7 @@ class JobRepository:
         records = self._session.execute(statement).scalars().all()
         return [self._to_domain(record) for record in records]
 
-    def get(self, job_id: int, user_id: int) -> Optional[Job]:
+    def get(self, job_id: int, user_id: int) -> Job | None:
         statement = select(JobRecord).where(
             JobRecord.id == job_id,
             JobRecord.user_id == user_id,

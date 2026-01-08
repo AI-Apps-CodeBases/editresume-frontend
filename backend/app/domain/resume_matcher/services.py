@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Sequence, Tuple
+from collections.abc import Iterable, Sequence
 
 from sqlalchemy.orm import Session
 
 from app.domain.resume_matcher.models import ATSScore, ResumeJobMatch
 from app.domain.resume_matcher.repositories import ResumeMatchRepository
 from app.models.job import Job
-from app.models.resume import Resume, ResumeVersion
+from app.models.resume import Resume
 from app.services.enhanced_ats_service import EnhancedATSChecker
 
 try:
@@ -35,7 +35,7 @@ class ResumeMatchingService:
         ats_result = self._ats_checker.get_enhanced_ats_score(
             resume_data, job.description or ""
         )
-        details: Dict[str, Dict] = ats_result.get("details", {})
+        details: dict[str, dict] = ats_result.get("details", {})
         keyword_analysis = details.get("keyword_analysis", {}) or {}
         quality_analysis = details.get("quality_analysis", {}) or {}
 
@@ -49,7 +49,7 @@ class ResumeMatchingService:
 
     def build_match_summary(
         self, resume_id: int, job_id: int, user_id: int
-    ) -> Tuple[ResumeJobMatch, ATSScore, Dict]:
+    ) -> tuple[ResumeJobMatch, ATSScore, dict]:
         job, resume, resume_data = self._load_resume_job(resume_id, job_id, user_id)
 
         ats_score = self.analyze_fit(resume.id, job.id, user_id)
@@ -64,7 +64,7 @@ class ResumeMatchingService:
             {skill for skill in job_skills if skill.lower() not in resume_tokens}
         )
 
-        recommendations: List[str] = []
+        recommendations: list[str] = []
         if missing_skills:
             recommendations.append(
                 f"Add examples demonstrating: {', '.join(missing_skills[:5])}"
@@ -84,7 +84,7 @@ class ResumeMatchingService:
 
     def _load_resume_job(
         self, resume_id: int, job_id: int, user_id: int
-    ) -> Tuple[Job, Resume, Dict]:
+    ) -> tuple[Job, Resume, dict]:
         job = self._repository.fetch_job(job_id, user_id)
         if job is None:
             raise ValueError(f"Job {job_id} not found for user {user_id}")
@@ -112,12 +112,12 @@ class ATSOptimizationService:
 
     def generate_optimized_content(
         self,
-        resume_sections: Sequence[Dict],
+        resume_sections: Sequence[dict],
         job_requirements: Iterable[str],
     ) -> str:
         keywords = [req.lower() for req in job_requirements if isinstance(req, str)]
-        relevant_bullets: List[str] = []
-        fallback_bullets: List[str] = []
+        relevant_bullets: list[str] = []
+        fallback_bullets: list[str] = []
 
         for section in resume_sections or []:
             bullets = section.get("bullets", []) if isinstance(section, dict) else []

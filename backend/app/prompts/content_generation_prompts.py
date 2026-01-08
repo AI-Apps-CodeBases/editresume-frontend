@@ -70,10 +70,10 @@ def get_bullet_from_keywords_prompt(
     """Generate bullet points from keywords prompt."""
     # Only use the selected keywords - do not add missing keywords
     # The keywords_str parameter contains the user-selected keywords that should be used
-    
+
     # Count keywords for distribution guidance
     keyword_count = len([kw.strip() for kw in keywords_str.split(',') if kw.strip()])
-    
+
     return f"""You are crafting high-impact resume bullet points.
 
 Company: {company_title or 'Not specified'}
@@ -126,7 +126,7 @@ HIGH PRIORITY - Missing Keywords (MUST include these naturally):
 These keywords are currently MISSING from your resume and are HIGH PRIORITY for ATS score improvement.
 Ensure the improved bullet includes these missing keywords naturally.
 """
-    
+
     return f"""Improve this resume bullet to maximize impact and include the specified keywords naturally.
 
 Current bullet: "{current_bullet}"
@@ -172,14 +172,14 @@ These keywords are currently MISSING from your resume and MUST be incorporated
 into the summary to improve ATS score. Use them naturally in context - they are 
 the highest priority for inclusion.
 """
-    
+
     company_warning = ""
     if company_name:
         company_warning = f"""
 CRITICAL: NEVER mention or reference the company name "{company_name}" or any company name from the job description in the professional summary. 
 The summary should be generic and applicable to any role, not specific to any particular company.
 """
-    
+
     return f"""Analyze this professional's work experience and create a compelling ATS-optimized professional summary.
 
 Professional Title: {title if title else 'Not specified'}
@@ -364,7 +364,7 @@ def get_work_experience_prompt(
     bullets_text = "\n".join([f"- {b}" for b in current_bullets]) if current_bullets else "None"
     skills_text = f"\nSkills/Experience Description: {skills}" if skills else ""
     projects_text = f"\nProjects Worked On: {projects}" if projects else ""
-    
+
     jd_section = ""
     if job_description:
         jd_section = f"""
@@ -377,7 +377,7 @@ IMPORTANT: Your generated bullet points MUST:
 - Use terminology that aligns with the job description
 - Highlight experiences that directly relate to what the job is looking for
 """
-    
+
     missing_kw_section = ""
     if missing_keywords and len(missing_keywords) > 0:
         missing_kw_section = f"""

@@ -54,7 +54,7 @@ class ContentGenerationAgent:
             # Use lower temperature for faster, more deterministic responses
             model = self.openai_client["model"]
             max_tokens_for_bullets = min(300, OPENAI_MAX_TOKENS)  # Bullets are short, 300 tokens is plenty
-            
+
             data = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
@@ -235,7 +235,7 @@ class ContentGenerationAgent:
             # Optimize max_tokens based on model - gpt-4o needs less tokens for bullets
             model = self.openai_client["model"]
             max_tokens = 400 if "gpt-4o" in model and "mini" not in model else 600
-            
+
             # Use async httpx client for better performance
             httpx_client = self.openai_client.get("httpx_client")
             if httpx_client:
@@ -359,7 +359,7 @@ class ContentGenerationAgent:
             # Optimize max_tokens based on model
             model = self.openai_client["model"]
             max_tokens = 150 if "gpt-4o" in model and "mini" not in model else 200
-            
+
             # Use async httpx client for better performance
             httpx_client = self.openai_client.get("httpx_client")
             if httpx_client:
@@ -735,33 +735,33 @@ class ContentGenerationAgent:
                 if not bullet:
                     return ""
                 bullet = str(bullet).strip()
-                
+
                 # Remove JSON code block markers
                 bullet = bullet.replace("```json", "").replace("```", "").strip()
-                
+
                 # Remove JSON array brackets and structure
                 bullet = bullet.lstrip("[").rstrip("]").strip()
                 bullet = bullet.lstrip("...").rstrip("...").strip()
-                
+
                 # Remove surrounding quotes (both single and double)
                 if (bullet.startswith('"') and bullet.endswith('"')) or (bullet.startswith("'") and bullet.endswith("'")):
                     bullet = bullet[1:-1]
-                
+
                 # Remove any remaining quotes at start/end
                 bullet = bullet.strip('"').strip("'")
-                
+
                 # Remove trailing commas and JSON artifacts
                 bullet = bullet.rstrip(",").lstrip(",").strip()
                 bullet = bullet.replace('","', '').replace("','", '')
-                
+
                 # Remove bullet markers if present
                 bullet = bullet.lstrip("•").lstrip("-").lstrip("*").strip()
-                
+
                 # Remove any JSON escape characters
                 bullet = bullet.replace('\\"', '"').replace("\\'", "'")
-                
+
                 return bullet.strip()
-            
+
             # Filter out invalid bullets (too short, only special chars, JSON structure elements)
             def is_valid_bullet(bullet: str) -> bool:
                 if not bullet or len(bullet) < 10:
@@ -781,8 +781,8 @@ class ContentGenerationAgent:
                 return True
 
             cleaned_bullets = [
-                clean_bullet(str(bullet)) 
-                for bullet in bullets 
+                clean_bullet(str(bullet))
+                for bullet in bullets
                 if is_valid_bullet(clean_bullet(str(bullet)))
             ]
 

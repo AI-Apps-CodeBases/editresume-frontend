@@ -467,8 +467,10 @@ const EditorPageContent = () => {
     const uploadToken = searchParams.get('uploadToken')
     const jdIdParam = searchParams.get('jdId')
     
-    // Clear JD data if no jdId in URL (unless it's an upload with jdId)
-    if (typeof window !== 'undefined' && !jdIdParam && resumeUploadParam !== '1') {
+    // Don't clear JD data on mount - preserve selected job description across navigation
+    // Only clear if it's an explicit upload without jdId
+    if (resumeUploadParam === '1' && uploadToken && !jdIdParam && typeof window !== 'undefined') {
+      // This is an upload without jdId - clear JD data
       localStorage.removeItem('deepLinkedJD')
       localStorage.removeItem('activeJobDescriptionId')
       localStorage.removeItem('extractedKeywords')
@@ -734,44 +736,72 @@ const EditorPageContent = () => {
   })
   const [activeJobDescriptionId, setActiveJobDescriptionId] = useState<number | null>(() => {
     if (typeof window !== 'undefined') {
-      const jdIdParam = new URLSearchParams(window.location.search).get('jdId');
-      // Only load from localStorage if jdId is in URL
-      if (jdIdParam) {
-        const saved = localStorage.getItem('activeJobDescriptionId');
-        return saved ? parseInt(saved) : null;
+      // Always try to load from localStorage first for persistence
+      const saved = localStorage.getItem('activeJobDescriptionId');
+      if (saved) {
+        return parseInt(saved);
       }
-      // Clear JD ID if no jdId in URL
-      localStorage.removeItem('activeJobDescriptionId');
-      localStorage.removeItem('currentJDKeywords');
-      localStorage.removeItem('currentMatchResult');
+      // Fallback to URL parameter if no saved value
+      const jdIdParam = new URLSearchParams(window.location.search).get('jdId');
+      if (jdIdParam) {
+        const jobId = parseInt(jdIdParam);
+        return isNaN(jobId) ? null : jobId;
+      }
       return null;
     }
     return null;
   })
   
-  // Only save JD to localStorage if jdId is in URL
+  // Always save JD to localStorage for persistence across page navigation
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const jdIdParam = searchParams.get('jdId')
-      if (jdIdParam) {
         if (activeJobDescriptionId !== null) {
           localStorage.setItem('activeJobDescriptionId', activeJobDescriptionId.toString());
+      } else {
+        // Only clear if explicitly set to null (not just missing from URL)
+        localStorage.removeItem('activeJobDescriptionId');
         }
         if (deepLinkedJD) {
           localStorage.setItem('deepLinkedJD', deepLinkedJD);
         }
       }
-    }
-  }, [activeJobDescriptionId, deepLinkedJD, searchParams]);
+  }, [activeJobDescriptionId, deepLinkedJD]);
   
-  // Load JD when switching back to match mode if we have a saved ID and jdId is in URL
+  // Load JD when we have a saved ID but no description (either from URL or localStorage)
   useEffect(() => {
-    const jdIdParam = searchParams.get('jdId')
-    if (previewMode === 'match' && activeJobDescriptionId && !deepLinkedJD && jdIdParam) {
-      fetch(`${config.apiBase}/api/job-descriptions/${activeJobDescriptionId}`)
-        .then(res => {
-          if (res.status === 404) {
-            // Job description not found - clear stale ID
+    if (!activeJobDescriptionId || deepLinkedJD) return;
+    
+    const jdIdParam = searchParams.get('jdId');
+    // Fetch if: (1) jdId is in URL, or (2) we have saved ID but no JD content yet
+    const shouldFetch = jdIdParam || (typeof window !== 'undefined' && localStorage.getItem('activeJobDescriptionId'));
+    
+    if (shouldFetch) {
+      const fetchJobDescription = async () => {
+        try {
+          const headers = await getAuthHeadersAsync();
+          const [newJob, legacyJob] = await Promise.all([
+            fetch(`${config.apiBase}/api/jobs/${activeJobDescriptionId}`, {
+              headers
+            }).then(res => {
+              if (res.status === 404) return null;
+              if (!res.ok) return null;
+              return res.json();
+            }).catch(() => null),
+            fetch(`${config.apiBase}/api/job-descriptions/${activeJobDescriptionId}`).then(res => {
+              if (res.status === 404) return null;
+              if (!res.ok) return null;
+              return res.json();
+            }).catch(() => null)
+          ]);
+          
+          const jobData = newJob || legacyJob;
+          if (jobData) {
+            const description = newJob?.description || legacyJob?.content || '';
+            if (description) {
+              setDeepLinkedJD(description);
+            }
+          } else {
+            // Job not found - clear stale ID
             if (typeof window !== 'undefined') {
               localStorage.removeItem('activeJobDescriptionId');
               localStorage.removeItem('deepLinkedJD');
@@ -779,34 +809,48 @@ const EditorPageContent = () => {
             }
             setActiveJobDescriptionId(null);
             setDeepLinkedJD(null);
-            return null;
           }
-          return res.ok ? res.json() : null;
-        })
-        .then(data => {
-          if (data && data.content) {
-            setDeepLinkedJD(data.content)
-          }
-        })
-        .catch(() => {})
+        } catch (error) {
+          console.warn('Failed to load job description:', error);
+        }
+      };
+      
+      fetchJobDescription();
     }
-  }, [previewMode, activeJobDescriptionId, deepLinkedJD, searchParams]);
+  }, [activeJobDescriptionId, deepLinkedJD, searchParams]);
   
-  // Clear JD when jdId is removed from URL
+  // Don't clear JD data when jdId is removed from URL - keep it for persistence
+  // Only restore from localStorage if we don't have activeJobDescriptionId set
   useEffect(() => {
     if (typeof window === 'undefined') return
     const jdIdParam = searchParams.get('jdId')
-    if (!jdIdParam) {
-      // No jdId in URL - clear JD data
-      localStorage.removeItem('deepLinkedJD')
-      localStorage.removeItem('activeJobDescriptionId')
-      localStorage.removeItem('extractedKeywords')
-      localStorage.removeItem('currentJDKeywords')
-      localStorage.removeItem('currentMatchResult')
-      setDeepLinkedJD(null)
-      setActiveJobDescriptionId(null)
+    
+    // If jdId is in URL, use it (it will be handled by other useEffect)
+    if (jdIdParam) {
+      const jobId = Number(jdIdParam)
+      if (!isNaN(jobId) && activeJobDescriptionId !== jobId) {
+        setActiveJobDescriptionId(jobId)
+      }
+      return
     }
-  }, [searchParams])
+    
+    // If no jdId in URL, restore from localStorage if we don't have an active ID
+    // This allows persistence when navigating back to editor
+    if (!jdIdParam && !activeJobDescriptionId && typeof window !== 'undefined') {
+      const savedId = localStorage.getItem('activeJobDescriptionId')
+      if (savedId) {
+        const jobId = parseInt(savedId)
+        if (!isNaN(jobId)) {
+          setActiveJobDescriptionId(jobId)
+          // Also try to restore the JD content if available
+          const savedJD = localStorage.getItem('deepLinkedJD')
+          if (savedJD && !deepLinkedJD) {
+            setDeepLinkedJD(savedJD)
+          }
+        }
+      }
+    }
+  }, [searchParams, activeJobDescriptionId, deepLinkedJD])
 
   useEffect(() => {
     const id = searchParams.get('jdId')
@@ -1946,10 +1990,15 @@ const EditorPageContent = () => {
 
   const handleSelectJobDescriptionId = useCallback((jobId: number | null) => {
     setActiveJobDescriptionId(jobId)
+    // Save to localStorage for persistence
     if (typeof window !== 'undefined' && jobId !== null) {
       localStorage.setItem('activeJobDescriptionId', jobId.toString())
     } else if (typeof window !== 'undefined') {
       localStorage.removeItem('activeJobDescriptionId')
+      localStorage.removeItem('deepLinkedJD')
+      localStorage.removeItem('extractedKeywords')
+      localStorage.removeItem('currentJDKeywords')
+      localStorage.removeItem('currentMatchResult')
     }
   }, [])
 
