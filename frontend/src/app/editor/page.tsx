@@ -15,37 +15,14 @@ import GlobalReplacements from '@/components/AI/GlobalReplacements'
 import TemplateSelector from '@/components/Resume/TemplateSelector'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
 import ModernEditorLayout from '@/components/Editor/ModernEditorLayout'
+import ActionsDrawer from '@/components/Editor/ActionsDrawer'
 import EnhancedATSScoreWidget from '@/components/AI/EnhancedATSScoreWidget'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
 import AIImprovementWidget from '@/components/AI/AIImprovementWidget'
 import JobsView from '@/components/Editor/JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 
-const AIWizard = dynamic(() => import('@/components/AI/AIWizard'), {
-  ssr: false,
-})
-
-const CoverLetterGenerator = dynamic(() => import('@/components/AI/CoverLetterGenerator'), {
-  ssr: false,
-})
-
-const VersionControlPanel = dynamic(() => import('@/components/Resume/VersionControlPanel'), {
-  ssr: false,
-})
-
 const VersionComparisonModal = dynamic(() => import('@/components/Resume/VersionComparisonModal'), {
-  ssr: false,
-})
-
-const ExportAnalyticsDashboard = dynamic(() => import('@/components/Resume/ExportAnalyticsDashboard'), {
-  ssr: false,
-})
-
-const JobMatchAnalyticsDashboard = dynamic(() => import('@/components/AI/JobMatchAnalyticsDashboard'), {
-  ssr: false,
-})
-
-const ShareResumeModal = dynamic(() => import('@/components/Resume/ShareResumeModal'), {
   ssr: false,
 })
 
@@ -126,18 +103,13 @@ const EditorPageContent = () => {
   } | null>(null)
   const [mounted, setMounted] = useState(false)
   const [showWizard, setShowWizard] = useState(false) // Wizard removed - always show editor directly
-  const [showAIWizard, setShowAIWizard] = useState(false)
+  const [showActionsDrawer, setShowActionsDrawer] = useState(false)
+  const [activeAction, setActiveAction] = useState<'ai-wizard' | 'cover-letter' | 'version-control' | 'share' | 'export-analytics' | 'job-match-analytics'>('ai-wizard')
   const [aiWizardContext, setAiWizardContext] = useState<any>(null)
-  const [aiWizardContentType, setAiWizardContentType] = useState<'job' | 'project' | 'skill' | 'education' | null>(null)
-  const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
   const [showATSScore, setShowATSScore] = useState(false)
   const [showEnhancedATS, setShowEnhancedATS] = useState(false)
   const [showAIImprovements, setShowAIImprovements] = useState(false)
-  const [showVersionControl, setShowVersionControl] = useState(false)
   const [showVersionComparison, setShowVersionComparison] = useState(false)
-  const [showExportAnalytics, setShowExportAnalytics] = useState(false)
-  const [showShareResume, setShowShareResume] = useState(false)
-  const [showJobMatchAnalytics, setShowJobMatchAnalytics] = useState(false)
   const [showTemplateDesignPage, setShowTemplateDesignPage] = useState(false)
   const [templateConfig, setTemplateConfig] = useState<TemplateConfig | undefined>(undefined)
   const [currentResumeId, setCurrentResumeId] = useState<number | null>(null)
@@ -258,6 +230,18 @@ const EditorPageContent = () => {
       document.removeEventListener('mousedown', handleDocumentClick)
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    if (showActionsDrawer) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showActionsDrawer])
   const resumeIdParam = searchParams.get('resumeId')
   const resumeVersionIdParam = searchParams.get('resumeVersionId')
   useEffect(() => {
@@ -2540,9 +2524,9 @@ const EditorPageContent = () => {
 
   // Handler for AI Content Wizard from sidebar
   const handleAIContentWizard = (contentType: 'job' | 'project' | 'skill' | 'education') => {
-    setAiWizardContentType(contentType)
     setAiWizardContext({ type: contentType })
-    setShowAIWizard(true)
+    setActiveAction('ai-wizard')
+    setShowActionsDrawer(true)
   }
 
   // Handler for Export (convert handleExportOption to match expected format)
@@ -2640,7 +2624,10 @@ const EditorPageContent = () => {
         activeUsers={collaboration.activeUsers}
         deepLinkedJD={deepLinkedJD}
         activeJobDescriptionId={activeJobDescriptionId}
-        onOpenCoverLetter={() => setShowCoverLetterGenerator(true)}
+        onOpenCoverLetter={() => {
+          setActiveAction('cover-letter')
+          setShowActionsDrawer(true)
+        }}
         onAIImprove={async (text: string) => {
           try {
             console.log('AI Improve requested for:', text)
@@ -2716,7 +2703,14 @@ const EditorPageContent = () => {
         onSignIn={() => setShowAuthModal(true)}
         onAIContentWizard={handleAIContentWizard}
         onTemplatesClick={handleTemplatesClick}
-        onShareResume={() => setShowShareResume(true)}
+        onShareResume={() => {
+          setActiveAction('share')
+          setShowActionsDrawer(true)
+        }}
+        onActionsClick={() => {
+          setActiveAction('ai-wizard')
+          setShowActionsDrawer(true)
+        }}
         onSelectJobDescriptionId={handleSelectJobDescriptionId}
       />
 
@@ -2728,76 +2722,37 @@ const EditorPageContent = () => {
         />
       )}
 
-      {/* Keep all other modals */}
-      {showAIWizard && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-xl font-bold">AI Content Wizard</h2>
-              <button
-                onClick={() => {
-                  setShowAIWizard(false)
-                  setAiWizardContext(null)
-                }}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <AIWizard
-                resumeData={resumeData}
-                onClose={() => {
-                  setShowAIWizard(false)
-                  setAiWizardContext(null)
-                  setAiWizardContentType(null)
-                }}
-                context={aiWizardContext}
-                onAddContent={handleAddContent}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showCoverLetterGenerator && (
-        <CoverLetterGenerator
+      {showActionsDrawer && (
+        <ActionsDrawer
+          isOpen={showActionsDrawer}
+          onClose={() => {
+            setShowActionsDrawer(false)
+            setAiWizardContext(null)
+          }}
+          activeAction={activeAction}
+          onActionChange={setActiveAction}
           resumeData={resumeData}
-          onClose={() => setShowCoverLetterGenerator(false)}
+          currentResumeId={currentResumeId}
+          aiWizardContext={aiWizardContext}
+          onAddContent={handleAddContent}
           onCoverLetterChange={(letter: string | null) => {
             setLatestCoverLetter(letter)
-            setShowCoverLetterGenerator(false)
+            if (letter) {
+              setShowActionsDrawer(false)
+            }
           }}
+          onVersionLoad={handleVersionLoad}
+          onVersionSave={handleVersionSave}
+          onCompareVersions={handleCompareVersions}
+          onNewResume={handleNewResume}
+          onUploadResume={handleUploadResume}
+          onSaveResume={handleSaveResume}
+          onExport={handleExportForLayout}
+          isExporting={isExporting}
+          hasCoverLetter={!!latestCoverLetter}
+          hasResumeName={!!resumeData.name}
+          isAuthenticated={isAuthenticated}
         />
-      )}
-
-      {showVersionControl && currentResumeId && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Version Control</h2>
-                <button
-                  onClick={() => setShowVersionControl(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <VersionControlPanel
-                resumeId={currentResumeId}
-                resumeData={resumeData}
-                onVersionLoad={handleVersionLoad}
-                onSaveVersion={handleVersionSave}
-                onCompareVersions={handleCompareVersions}
-              />
-            </div>
-          </div>
-        </div>
       )}
 
       {showVersionComparison && comparisonVersions && (
@@ -2809,40 +2764,6 @@ const EditorPageContent = () => {
         />
       )}
 
-      {showShareResume && (
-        <ShareResumeModal
-          isOpen={showShareResume}
-          onClose={() => setShowShareResume(false)}
-          resumeId={currentResumeId || 0}
-          resumeName={resumeData.name || 'Untitled Resume'}
-          resumeData={{
-            personalInfo: {
-              name: resumeData.name,
-              title: resumeData.title,
-              email: resumeData.email,
-              phone: resumeData.phone,
-              location: resumeData.location
-            },
-            summary: resumeData.summary,
-            sections: resumeData.sections,
-            template: selectedTemplate
-          }}
-        />
-      )}
-
-      {showExportAnalytics && (
-        <ExportAnalyticsDashboard
-          isOpen={showExportAnalytics}
-          onClose={() => setShowExportAnalytics(false)}
-        />
-      )}
-
-        {showJobMatchAnalytics && (
-          <JobMatchAnalyticsDashboard
-            isOpen={showJobMatchAnalytics}
-            onClose={() => setShowJobMatchAnalytics(false)}
-          />
-        )}
         </div>
       </div>
     </>
