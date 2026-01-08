@@ -19,10 +19,9 @@ interface Props {
     }>
   }
   scale?: number
-  height?: number
 }
 
-export function TemplatePreview({ template, resumeData, scale = 0.2, height = 160 }: Props) {
+export function TemplatePreview({ template, resumeData, scale = 0.3 }: Props) {
   const TemplateComponent = template.Component
   const config = template.defaultConfig
 
@@ -48,14 +47,15 @@ export function TemplatePreview({ template, resumeData, scale = 0.2, height = 16
     fieldsVisible: {},
   }
 
+  const containerHeight = scale >= 0.12 ? 80 : 120
   return (
-    <div className="relative w-full" style={{ height: `${height}px`, overflow: 'hidden' }}>
+    <div className="relative w-full" style={{ height: `${containerHeight}px`, overflow: 'hidden' }}>
       <div
         className="absolute top-0 left-0 origin-top-left bg-white"
         style={{
           transform: `scale(${scale})`,
           width: `${100 / scale}%`,
-          minHeight: `${height / scale}px`,
+          minHeight: `${containerHeight / scale}px`,
         }}
       >
         <Suspense fallback={<div className="p-4 text-center text-gray-400 text-xs">Loading...</div>}>
@@ -69,3 +69,4 @@ export function TemplatePreview({ template, resumeData, scale = 0.2, height = 16
     </div>
   )
 }
+
