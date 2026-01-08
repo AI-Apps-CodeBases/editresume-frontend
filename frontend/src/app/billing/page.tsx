@@ -62,19 +62,6 @@ const plans: Plan[] = [
     highlight: true
   },
   {
-    id: 'trial-onetime',
-    name: 'Trial Plan (One-Time)',
-    price: '$14.99',
-    cadence: 'one-time payment',
-    headline: '1 month of premium access - no subscription',
-    features: [
-      'All Premium features',
-      'Unlimited everything',
-      'Full access for 1 month',
-      'One-time payment, no recurring charges'
-    ]
-  },
-  {
     id: 'premium',
     name: 'Premium',
     price: '$9.99',
@@ -401,7 +388,7 @@ function BillingContent() {
 
       <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {plans.map((plan) => {
-          const isCurrent = (plan.id === 'premium' && (isPremium || isTrialActive)) || (plan.id === 'free' && !isPremium && !isTrialActive) || (plan.id === 'trial' && isTrialActive) || (plan.id === 'trial-onetime' && isPremium && !subscription?.stripeSubscriptionId)
+          const isCurrent = (plan.id === 'premium' && (isPremium || isTrialActive)) || (plan.id === 'free' && !isPremium && !isTrialActive) || (plan.id === 'trial' && isTrialActive)
           return (
             <div
               key={plan.id}
@@ -469,7 +456,7 @@ function BillingContent() {
                   {plan.id === 'trial' && trialPaymentType === 'onetime' 
                     ? '$14.99' 
                     : plan.id === 'premium' && billingPeriod === 'annual' 
-                    ? '$79' 
+                    ? '$79.99' 
                     : plan.price}
                 </span>
                 <span className="text-xs text-text-muted">
@@ -515,17 +502,9 @@ function BillingContent() {
                       disabled={checkoutLoading}
                       className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {checkoutLoading ? 'Starting checkout…' : `Upgrade (${billingPeriod === 'annual' ? '$79/yr' : '$9.99/mo'})`}
+                      {checkoutLoading ? 'Starting checkout…' : `Upgrade (${billingPeriod === 'annual' ? '$79.99/yr' : '$9.99/mo'})`}
                     </button>
                   )
-                ) : plan.id === 'trial-onetime' ? (
-                  <button
-                    onClick={() => handleCheckout('monthly', 'trial-onetime')}
-                    disabled={checkoutLoading}
-                    className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {checkoutLoading ? 'Starting checkout…' : 'Buy Now ($14.99)'}
-                  </button>
                 ) : plan.id === 'trial' ? (
                   <button
                     onClick={() => handleCheckout('monthly', trialPaymentType === 'onetime' ? 'trial-onetime' : 'trial')}
