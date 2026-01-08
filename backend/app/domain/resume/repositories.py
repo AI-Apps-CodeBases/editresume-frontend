@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from sqlalchemy.orm import Session
 
 from app.models.resume import ResumeVersion
@@ -17,7 +15,7 @@ class ResumeVersionRepository:
 
     def latest_for_resume(
         self, resume_id: int, user_id: int
-    ) -> Optional[ResumeVersion]:
+    ) -> ResumeVersion | None:
         return (
             self._session.query(ResumeVersion)
             .filter(
@@ -28,7 +26,7 @@ class ResumeVersionRepository:
             .first()
         )
 
-    def list_for_resume(self, resume_id: int, user_id: int) -> List[ResumeVersion]:
+    def list_for_resume(self, resume_id: int, user_id: int) -> list[ResumeVersion]:
         return (
             self._session.query(ResumeVersion)
             .filter(
@@ -39,7 +37,7 @@ class ResumeVersionRepository:
             .all()
         )
 
-    def get(self, version_id: int, user_id: int) -> Optional[ResumeVersion]:
+    def get(self, version_id: int, user_id: int) -> ResumeVersion | None:
         return (
             self._session.query(ResumeVersion)
             .filter(
@@ -59,7 +57,7 @@ class ResumeVersionRepository:
             .count()
         )
 
-    def list_auto_saves(self, resume_id: int, user_id: int) -> List[ResumeVersion]:
+    def list_auto_saves(self, resume_id: int, user_id: int) -> list[ResumeVersion]:
         return (
             self._session.query(ResumeVersion)
             .filter(

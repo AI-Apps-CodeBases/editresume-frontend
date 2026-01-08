@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
-from typing import Optional
 
 import requests
 
@@ -18,7 +16,7 @@ OLLAMA_MODEL = settings.ollama_model
 USE_OLLAMA_FOR_PARSING = settings.use_ollama_for_parsing
 
 # Initialize Ollama client
-ollama_client: Optional[dict] = None
+ollama_client: dict | None = None
 ollama_available: bool = False
 
 def check_ollama_availability() -> bool:

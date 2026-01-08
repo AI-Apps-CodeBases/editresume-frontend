@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
 
 class JobBase(BaseModel):
     title: str = Field(..., max_length=255)
-    company: Optional[str] = Field(default=None, max_length=255)
+    company: str | None = Field(default=None, max_length=255)
     description: str = Field(..., description="Full job description text")
-    url: Optional[str] = Field(default=None)
-    skills: List[str] = Field(default_factory=list)
+    url: str | None = Field(default=None)
+    skills: list[str] = Field(default_factory=list)
 
 
 class JobCreate(JobBase):

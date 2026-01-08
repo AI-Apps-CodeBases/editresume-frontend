@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import datetime
-from typing import Dict, List, Optional
 
 from fastapi import WebSocket
 
@@ -40,8 +39,8 @@ class CollaborationRoom:
     """Manages real-time collaboration rooms."""
 
     def __init__(self):
-        self.rooms: Dict[str, Dict[str, any]] = {}
-        self.comments: Dict[str, List[Dict]] = {}
+        self.rooms: dict[str, dict[str, any]] = {}
+        self.comments: dict[str, list[dict]] = {}
 
     def create_room(self, room_id: str):
         """Create a new collaboration room."""
@@ -83,7 +82,7 @@ class CollaborationRoom:
                     del self.comments[room_id]
                 logger.info(f"Room {room_id} is now empty and removed")
 
-    def get_active_users(self, room_id: str) -> List[Dict]:
+    def get_active_users(self, room_id: str) -> list[dict]:
         """Get list of active users in a room."""
         if room_id not in self.rooms:
             return []
@@ -110,7 +109,7 @@ class CollaborationRoom:
         for user_id in dead_connections:
             self.remove_connection(room_id, user_id)
 
-    def add_comment(self, room_id: str, comment: Dict) -> Dict:
+    def add_comment(self, room_id: str, comment: dict) -> dict:
         """Add a comment to a room."""
         self.create_room(room_id)
         comment_data = {
@@ -122,7 +121,7 @@ class CollaborationRoom:
         logger.info(f"Added comment in room {room_id}: {comment_data['id']}")
         return comment_data
 
-    def get_comments(self, room_id: str, target_id: Optional[str] = None) -> List[Dict]:
+    def get_comments(self, room_id: str, target_id: str | None = None) -> list[dict]:
         """Get comments for a room, optionally filtered by target_id."""
         if room_id not in self.comments:
             return []

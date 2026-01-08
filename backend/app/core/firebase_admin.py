@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime
 from functools import lru_cache
-from typing import Any, Dict, Optional
+from typing import Any
 
 import firebase_admin
 from firebase_admin import auth as firebase_auth
@@ -29,7 +29,7 @@ _firebase_init_attempted = False
 _firebase_init_failed = False
 
 
-def _load_service_account_info() -> Optional[Dict[str, Any]]:
+def _load_service_account_info() -> dict[str, Any] | None:
     if settings.firebase_service_account_json:
         try:
             return json.loads(settings.firebase_service_account_json)
@@ -48,7 +48,7 @@ def _load_service_account_info() -> Optional[Dict[str, Any]]:
     return None
 
 
-def _initialize_firebase_with_timeout(cred, options, timeout: int = 10) -> Optional[firebase_admin.App]:
+def _initialize_firebase_with_timeout(cred, options, timeout: int = 10) -> firebase_admin.App | None:
     """Initialize Firebase with timeout to prevent hanging on network issues.
     Reduced to 10s to fail fast and avoid blocking API requests."""
     result = [None]
@@ -81,7 +81,7 @@ def _initialize_firebase_with_timeout(cred, options, timeout: int = 10) -> Optio
 
 
 @lru_cache
-def get_firebase_app() -> Optional[firebase_admin.App]:
+def get_firebase_app() -> firebase_admin.App | None:
     global _firebase_init_attempted, _firebase_init_failed
 
     # Check if Firebase is disabled via environment variable
@@ -169,7 +169,7 @@ def get_firebase_app() -> Optional[firebase_admin.App]:
 
 
 @lru_cache
-def get_firestore_client() -> Optional[firestore.Client]:
+def get_firestore_client() -> firestore.Client | None:
     app = get_firebase_app()
     if not app:
         return None
@@ -180,7 +180,7 @@ def get_firestore_client() -> Optional[firestore.Client]:
         return None
 
 
-def verify_id_token(id_token: str) -> Optional[Dict[str, Any]]:
+def verify_id_token(id_token: str) -> dict[str, Any] | None:
     app = get_firebase_app()
     if not app:
         logger.warning("verify_id_token called without configured Firebase app.")
@@ -198,7 +198,7 @@ def verify_id_token(id_token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def sync_user_profile(uid: str, profile: Dict[str, Any]) -> None:
+def sync_user_profile(uid: str, profile: dict[str, Any]) -> None:
     _sync_relational_user_profile(profile)
 
     client = get_firestore_client()
@@ -227,7 +227,7 @@ def sync_user_profile(uid: str, profile: Dict[str, Any]) -> None:
         logger.error("Unexpected error syncing Firestore profile for %s: %s", uid, exc)
 
 
-def _update_user_premium_purchase(email: str, is_premium: bool, premium_purchased_at: Optional[datetime]) -> None:
+def _update_user_premium_purchase(email: str, is_premium: bool, premium_purchased_at: datetime | None) -> None:
     session = SessionLocal()
     try:
         user = session.query(User).filter(User.email == email).first()
@@ -248,7 +248,7 @@ def _update_user_premium_purchase(email: str, is_premium: bool, premium_purchase
         session.close()
 
 
-def _sync_relational_user_profile(profile: Dict[str, Any]) -> None:
+def _sync_relational_user_profile(profile: dict[str, Any]) -> None:
     email = (profile.get("email") or "").strip()
     if not email:
         return
@@ -287,7 +287,7 @@ def _sync_relational_user_profile(profile: Dict[str, Any]) -> None:
         session.close()
 
 
-def update_user_subscription(uid: str, subscription_data: Dict[str, Any]) -> None:
+def update_user_subscription(uid: str, subscription_data: dict[str, Any]) -> None:
     client = get_firestore_client()
     if not client:
         return
@@ -299,10 +299,10 @@ def update_user_subscription(uid: str, subscription_data: Dict[str, Any]) -> Non
     }
     try:
         doc_ref.set(payload, merge=True)
-        
+
         premium_purchased_at = subscription_data.get("premiumPurchasedAt")
         is_premium = subscription_data.get("isPremium", False)
-        
+
         if premium_purchased_at or is_premium:
             user_doc = doc_ref.get()
             if user_doc.exists:
@@ -316,7 +316,7 @@ def update_user_subscription(uid: str, subscription_data: Dict[str, Any]) -> Non
         logger.error("Unexpected error updating subscription for %s: %s", uid, exc)
 
 
-def find_user_by_stripe_customer(customer_id: str) -> Optional[Dict[str, Any]]:
+def find_user_by_stripe_customer(customer_id: str) -> dict[str, Any] | None:
     client = get_firestore_client()
     if not client:
         return None
@@ -342,7 +342,7 @@ def find_user_by_stripe_customer(customer_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_user_profile(uid: str) -> Optional[Dict[str, Any]]:
+def get_user_profile(uid: str) -> dict[str, Any] | None:
     client = get_firestore_client()
     if not client:
         return None
@@ -363,7 +363,7 @@ def get_user_profile(uid: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def sanitized_user_from_token(token: Dict[str, Any]) -> Dict[str, Any]:
+def sanitized_user_from_token(token: dict[str, Any]) -> dict[str, Any]:
     email = token.get("email")
     name = token.get("name") or (email.split("@")[0] if email else None) or "User"
     firebase_claims = token.get("firebase", {})

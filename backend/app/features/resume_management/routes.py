@@ -8,15 +8,12 @@ from __future__ import annotations
 
 import logging
 import os
-import secrets
 from datetime import datetime, timedelta
-from io import BytesIO
-from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
-from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.api.models import ExportPayload, ResumePayload, SaveResumePayload
 from app.core.db import get_db
@@ -33,15 +30,10 @@ from app.models import (
     SharedResumeComment,
     User,
 )
-from app.utils.resume_templates import TEMPLATES
+from app.services.version_control_service import VersionControlService
 
+# Import job helpers from utility module
 # Import helper functions from utility modules
-from app.utils.resume_formatting import (
-    apply_replacements,
-    format_bold_text,
-    format_regular_bullets,
-    format_work_experience_bullets,
-)
 from app.utils.resume_parsing import (
     clean_extracted_text,
     extract_doc_text,
@@ -49,10 +41,7 @@ from app.utils.resume_parsing import (
     extract_pdf_text,
     parse_resume_with_regex,
 )
-from app.services.version_control_service import VersionControlService
-
-# Import job helpers from utility module
-from app.utils.job_helpers import safe_get_job_description
+from app.utils.resume_templates import TEMPLATES
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +54,8 @@ async def get_templates():
     return {
         "templates": [
             {
-                "id": tid, 
-                "name": t["name"], 
+                "id": tid,
+                "name": t["name"],
                 "industry": t.get("industry", "General"),
                 "preview": f"/templates/previews/{tid}.png"
             }
@@ -196,22 +185,24 @@ async def preview_resume(payload: ResumePayload):
 async def export_pdf(
     payload: ExportPayload,
     request: Request,
-    user_email: Optional[str] = None,
-    session_id: Optional[str] = None,
+    user_email: str | None = None,
+    session_id: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Export resume as PDF"""
     import logging
+
+    from fastapi import HTTPException
+
+    from app.models import User
     from app.services.resume_export import export_pdf as export_pdf_service
     from app.services.usage_service import (
         check_export_limit,
         get_plan_tier,
     )
-    from app.models import User
-    from fastapi import HTTPException
-    
+
     logger = logging.getLogger(__name__)
-    
+
     try:
         # Validate payload
         if not payload:
@@ -219,7 +210,7 @@ async def export_pdf(
                 status_code=400,
                 detail="Export payload is required"
             )
-        
+
         # Get user
         user = None
         if user_email:
@@ -232,7 +223,7 @@ async def export_pdf(
                 email = firebase_user.get("email")
                 if email:
                     user = db.query(User).filter(User.email == email).first()
-        
+
         # Check export limit
         plan_tier = get_plan_tier(user, db)
         allowed, usage_info = check_export_limit(user.id if user else None, plan_tier, session_id, db)
@@ -261,18 +252,18 @@ async def export_pdf(
 async def export_docx(
     payload: ExportPayload,
     request: Request,
-    user_email: Optional[str] = None,
-    session_id: Optional[str] = None,
+    user_email: str | None = None,
+    session_id: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Export resume as DOCX"""
+    from app.models import User
     from app.services.resume_export import export_docx as export_docx_service
     from app.services.usage_service import (
         check_export_limit,
         get_plan_tier,
     )
-    from app.models import User
-    
+
     # Get user
     user = None
     if user_email:
@@ -283,7 +274,7 @@ async def export_docx(
             email = firebase_user.get("email")
             if email:
                 user = db.query(User).filter(User.email == email).first()
-    
+
     # Check export limit
     plan_tier = get_plan_tier(user, db)
     allowed, usage_info = check_export_limit(user.id if user else None, plan_tier, session_id, db)
@@ -329,8 +320,7 @@ async def export_html_to_pdf(payload: dict):
         try:
             # WeasyPrint configuration for better CSS support
             # WeasyPrint 60+ supports modern CSS including flexbox and grid
-            from weasyprint.css.targets import get_all_computed_styles
-            
+
             pdf_bytes = HTML(
                 string=html_content,
                 base_url=None  # Prevent external resource loading issues
@@ -340,28 +330,28 @@ async def export_html_to_pdf(payload: dict):
                 # Enable modern CSS features
                 enable_hinting=True
             )
-            
+
             if not pdf_bytes or len(pdf_bytes) == 0:
                 logger.error("PDF generation returned empty bytes")
                 raise HTTPException(
                     status_code=500,
                     detail="PDF generation failed: Empty PDF file was generated."
                 )
-            
+
             if not isinstance(pdf_bytes, bytes):
                 logger.error(f"PDF generation returned invalid type: {type(pdf_bytes)}")
                 raise HTTPException(
                     status_code=500,
                     detail="PDF generation failed: Invalid PDF data type."
                 )
-            
+
             if not pdf_bytes.startswith(b"%PDF-"):
                 logger.error(f"PDF validation failed: Invalid PDF header. First 20 bytes: {pdf_bytes[:20]}")
                 raise HTTPException(
                     status_code=500,
                     detail="PDF generation failed: Generated file is not a valid PDF."
                 )
-            
+
             logger.info(f"PDF generated successfully, size: {len(pdf_bytes)} bytes, header: {pdf_bytes[:8]}")
         except AttributeError as e:
             if "'super' object has no attribute" in str(e) or "transform" in str(e):
@@ -374,7 +364,7 @@ async def export_html_to_pdf(payload: dict):
         except Exception as pdf_error:
             error_msg = str(pdf_error)
             logger.error(f"WeasyPrint PDF generation error: {error_msg}")
-            
+
             if "transform" in error_msg.lower() or "super" in error_msg.lower():
                 raise HTTPException(
                     status_code=500,
@@ -628,8 +618,8 @@ async def delete_version(
 async def create_shared_resume(
     resume_id: int,
     user_email: str = Query(..., description="User email for authentication"),
-    password: Optional[str] = None,
-    expires_days: Optional[int] = None,
+    password: str | None = None,
+    expires_days: int | None = None,
     db: Session = Depends(get_db),
 ):
     """Create a shareable link for a resume"""
@@ -706,7 +696,7 @@ async def create_shared_resume(
 @router.get("/shared/{share_token}")
 async def get_shared_resume(
     share_token: str,
-    password: Optional[str] = None,
+    password: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Get a shared resume by token"""
@@ -1270,7 +1260,7 @@ async def delete_resume(
         logger.info(f"delete_resume: Deleted {deleted_exports} export analytics records")
 
         # ResumeView is deleted automatically via cascade when SharedResume is deleted
-        
+
         # Delete resume generations
         deleted_generations = db.query(ResumeGeneration).filter(
             ResumeGeneration.generated_resume_id == resume_id
@@ -1324,7 +1314,7 @@ async def save_resume(
 
         # Validate payload
         if not payload.name or not payload.name.strip():
-            logger.error(f"save_resume: Resume name is required")
+            logger.error("save_resume: Resume name is required")
             raise HTTPException(status_code=400, detail="Resume name is required")
 
         # Check if resume exists
@@ -1349,7 +1339,7 @@ async def save_resume(
                 db.refresh(resume)
             else:
                 # Create new resume
-                logger.info(f"save_resume: Creating new resume")
+                logger.info("save_resume: Creating new resume")
                 resume = Resume(
                     user_id=user.id,
                     name=payload.name,

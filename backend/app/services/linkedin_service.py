@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
 
 import httpx
 
@@ -44,7 +43,7 @@ class LinkedInService:
         query_string = "&".join([f"{k}={v}" for k, v in params.items()])
         return f"{self.OAUTH_BASE_URL}/authorization?{query_string}"
 
-    async def exchange_code_for_token(self, code: str) -> Dict[str, any]:
+    async def exchange_code_for_token(self, code: str) -> dict[str, any]:
         """Exchange authorization code for access token."""
         token_url = f"{self.OAUTH_BASE_URL}/accessToken"
 
@@ -65,7 +64,7 @@ class LinkedInService:
             response.raise_for_status()
             return response.json()
 
-    async def get_user_profile(self, access_token: str) -> Dict[str, any]:
+    async def get_user_profile(self, access_token: str) -> dict[str, any]:
         """Fetch user profile from LinkedIn."""
         headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -139,8 +138,8 @@ class LinkedInService:
                 return ""
 
     async def share_to_linkedin(
-        self, access_token: str, text: str, share_url: Optional[str] = None
-    ) -> Dict[str, any]:
+        self, access_token: str, text: str, share_url: str | None = None
+    ) -> dict[str, any]:
         """Share content to LinkedIn feed."""
         person_id = await self.get_person_id(access_token)
         if not person_id:

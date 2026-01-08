@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable, Sequence
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Sequence, Tuple
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -38,7 +39,7 @@ class ResumeAutomationService:
         user_id: int,
         job_id: int,
         source_resume_ids: Sequence[int],
-    ) -> Tuple[Dict[str, Any], ATSScore]:
+    ) -> tuple[dict[str, Any], ATSScore]:
         if not source_resume_ids:
             raise ValueError("At least one source resume id is required")
 
@@ -46,7 +47,7 @@ class ResumeAutomationService:
         if job is None:
             raise ValueError(f"Job {job_id} not found for user {user_id}")
 
-        match_summaries: List[Tuple[ResumeJobMatch, ATSScore, Dict[str, Any]]] = []
+        match_summaries: list[tuple[ResumeJobMatch, ATSScore, dict[str, Any]]] = []
         for resume_id in source_resume_ids:
             try:
                 summary = self._matching_service.build_match_summary(
@@ -146,9 +147,9 @@ class ResumeAutomationService:
         self,
         *,
         user_id: int,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         change_summary: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         resume = Resume(
             user_id=user_id,
             name=payload["name"] or f"Optimized Resume {datetime.utcnow():%Y%m%d%H%M}",
@@ -202,9 +203,9 @@ class ResumeAutomationService:
 
     @staticmethod
     def _collect_sections(
-        match_summaries: Sequence[Tuple[ResumeJobMatch, ATSScore, Dict[str, Any]]]
-    ) -> List[Dict[str, Any]]:
-        sections: List[Dict[str, Any]] = []
+        match_summaries: Sequence[tuple[ResumeJobMatch, ATSScore, dict[str, Any]]]
+    ) -> list[dict[str, Any]]:
+        sections: list[dict[str, Any]] = []
         for _, _, resume_data in match_summaries:
             for section in resume_data.get("sections", []) or []:
                 if isinstance(section, dict):
@@ -212,7 +213,7 @@ class ResumeAutomationService:
         return sections
 
     @staticmethod
-    def _derive_job_requirements(job: Job) -> List[str]:
+    def _derive_job_requirements(job: Job) -> list[str]:
         requirements = list(job.skills or [])
         description = job.description or ""
         words = [
@@ -230,9 +231,9 @@ class ResumeAutomationService:
         self,
         job: Job,
         match: ResumeJobMatch,
-        resume_data: Dict[str, Any],
-        missing_keywords: List[str],
-        matched_keywords: List[str],
+        resume_data: dict[str, Any],
+        missing_keywords: list[str],
+        matched_keywords: list[str],
     ) -> str:
         """Generate AI-powered summary with JD keywords integrated."""
         try:
@@ -276,13 +277,13 @@ class ResumeAutomationService:
             skills_text = ", ".join(skills_parts[:15])
 
             # Filter out company names from missing keywords
-            def filter_company_names(keywords: List[str], company: str | None) -> List[str]:
+            def filter_company_names(keywords: list[str], company: str | None) -> list[str]:
                 if not company or not keywords:
                     return keywords
                 company_lower = company.lower().strip()
                 if not company_lower:
                     return keywords
-                
+
                 company_words = company_lower.split()
                 filtered = []
                 for keyword in keywords:
@@ -297,12 +298,12 @@ class ResumeAutomationService:
                             if len(cw) > 2 and (cw in keyword_lower or keyword_lower in cw):
                                 is_company_name = True
                                 break
-                    
+
                     if not is_company_name:
                         filtered.append(keyword)
-                
+
                 return filtered
-            
+
             # Filter company names and limit to 5-8 keywords
             filtered_missing = filter_company_names(missing_keywords, job.company if hasattr(job, 'company') else None)
             limited_missing = filtered_missing[:8] if filtered_missing else None
@@ -326,7 +327,7 @@ class ResumeAutomationService:
 
             if result.get("success") and result.get("summary"):
                 return result["summary"].strip()
-        except Exception as e:
+        except Exception:
             # Fallback to basic summary if AI generation fails
             pass
 
@@ -344,12 +345,12 @@ class ResumeAutomationService:
 
     @staticmethod
     def _enhance_skills_section(
-        section: Dict[str, Any],
-        keyword_distribution: Dict[str, Any],
+        section: dict[str, Any],
+        keyword_distribution: dict[str, Any],
         job: Job,
-        matches: Sequence[Tuple[ResumeJobMatch, ATSScore, Dict[str, Any]]],
-        _best_resume: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        matches: Sequence[tuple[ResumeJobMatch, ATSScore, dict[str, Any]]],
+        _best_resume: dict[str, Any],
+    ) -> dict[str, Any]:
         """Enhance skills section with missing technical keywords only."""
         existing_skills = set()
         for bullet in section.get("bullets", []) or []:
@@ -379,11 +380,11 @@ class ResumeAutomationService:
 
     @staticmethod
     def _enhance_experience_section(
-        section: Dict[str, Any],
-        keyword_distribution: Dict[str, Any],
+        section: dict[str, Any],
+        keyword_distribution: dict[str, Any],
         job: Job,
-        matched_keywords: List[str],
-    ) -> Dict[str, Any]:
+        matched_keywords: list[str],
+    ) -> dict[str, Any]:
         """Enhance experience section by preserving all bullets and adding relevant keywords naturally."""
         original_bullets = section.get("bullets", []) or []
         enhanced_bullets = []
@@ -428,10 +429,10 @@ class ResumeAutomationService:
     def _build_resume_payload(
         *,
         job: Job,
-        base_resume: Dict[str, Any],
+        base_resume: dict[str, Any],
         summary_text: str,
-        sections: Iterable[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        sections: Iterable[dict[str, Any]],
+    ) -> dict[str, Any]:
         payload = {
             "name": base_resume.get("name"),
             "title": job.title or base_resume.get("title"),

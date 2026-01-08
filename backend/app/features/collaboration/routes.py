@@ -9,11 +9,9 @@ from __future__ import annotations
 import logging
 import secrets
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from app.core.db import get_db
 from app.services.collaboration_service import collab_manager
 
 logger = logging.getLogger(__name__)

@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
@@ -45,6 +45,23 @@ export default function TopNavigationBar({
 }: TopNavigationBarProps) {
   const { user } = useAuth()
   const [showActionsMenu, setShowActionsMenu] = useState(false)
+  const actionsMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) {
+        setShowActionsMenu(false)
+      }
+    }
+
+    if (showActionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showActionsMenu])
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-md border-b border-border-subtle shadow-[0_4px_20px_rgba(15,23,42,0.08)]">
@@ -93,8 +110,34 @@ export default function TopNavigationBar({
             </Tooltip>
           )}
 
+          {/* Upload Resume Button - Visible on desktop */}
+          {onUploadResume && (
+            <Tooltip text="Upload an existing resume file (PDF, DOCX) to edit" color="gray" position="bottom">
+              <button
+                onClick={onUploadResume}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload Resume</span>
+              </button>
+            </Tooltip>
+          )}
+
+          {/* Save Resume Button - Visible on desktop */}
+          {onSaveResume && isAuthenticated && (
+            <Tooltip text="Save your current resume to your account" color="gray" position="bottom">
+              <button
+                onClick={onSaveResume}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Resume</span>
+              </button>
+            </Tooltip>
+          )}
+
           {/* Actions Dropdown - Hidden on mobile */}
-          <div className="hidden sm:block relative">
+          <div className="hidden sm:block relative" ref={actionsMenuRef}>
             <Tooltip text="Open actions menu (New Resume, Save, Upload, Export, etc.)" color="blue" position="bottom">
               <button
                 onClick={() => setShowActionsMenu(!showActionsMenu)}
@@ -122,41 +165,6 @@ export default function TopNavigationBar({
                     >
                       <Sparkles className="w-4 h-4 text-primary-600" />
                       <span className="font-medium">New Resume</span>
-                    </button>
-                  </Tooltip>
-                )}
-                
-                {/* Save Resume */}
-                {onSaveResume && isAuthenticated && (
-                  <>
-                    <div className="border-t border-border-subtle my-2"></div>
-                    <Tooltip text="Save your current resume to your account" color="gray" position="right">
-                      <button
-                        onClick={() => {
-                          setShowActionsMenu(false)
-                          onSaveResume()
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
-                      >
-                        <Save className="w-4 h-4 text-primary-600" />
-                        <span className="font-medium">Save Resume</span>
-                      </button>
-                    </Tooltip>
-                  </>
-                )}
-                
-                {/* Upload Resume */}
-                {onUploadResume && (
-                  <Tooltip text="Upload an existing resume file (PDF, DOCX) to edit" color="gray" position="right">
-                    <button
-                      onClick={() => {
-                        setShowActionsMenu(false)
-                        onUploadResume()
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
-                    >
-                      <Upload className="w-4 h-4 text-primary-600" />
-                      <span className="font-medium">Upload Resume</span>
                     </button>
                   </Tooltip>
                 )}

@@ -1,8 +1,6 @@
-import re
 import logging
-from typing import List, Dict, Tuple
+import re
 from collections import Counter
-import math
 
 logger = logging.getLogger(__name__)
 
@@ -418,19 +416,19 @@ class KeywordExtractor:
         for category, keywords in self.technical_keywords.items():
             self.all_technical_keywords.update(keywords)
 
-    def extract_ats_focused_keywords(self, text: str) -> List[str]:
+    def extract_ats_focused_keywords(self, text: str) -> list[str]:
         """Extract ATS-focused keywords: education, experience, certifications"""
         if not text:
             return []
-        
+
         ats_keywords = set()
-        
+
         # Extract education requirements (e.g., "Bachelor's degree in Computer Science")
         education_patterns = [
             r'\b(bachelor\'?s?|master\'?s?|phd|doctorate|mba)\s+(?:degree\s+)?(?:in\s+)?([a-z\s]+?)(?=\s*(?:or|and|,|\.|required|preferred|from|$))',
             r'\b(bachelor\'?s?|master\'?s?|phd|doctorate|mba)\b'
         ]
-        
+
         for pattern in education_patterns:
             matches = re.finditer(pattern, text, re.IGNORECASE)
             for match in matches:
@@ -444,7 +442,7 @@ class KeywordExtractor:
                 # Always add the degree itself
                 if match.group(1):
                     ats_keywords.add(match.group(1).title())
-        
+
         # Extract years of experience (e.g., "5+ years experience")
         exp_pattern = r'(\d+\+?)\s*(?:years?|yrs?)\s+(?:of\s+)?(?:experience|exp)(?:\s+(?:in|with)\s+([a-z\s/+#.]+?))?(?=\s*(?:,|\.|;|required|preferred|or|and|$))'
         exp_matches = re.finditer(exp_pattern, text, re.IGNORECASE)
@@ -457,13 +455,13 @@ class KeywordExtractor:
                         ats_keywords.add(f"{match.group(1)}+ years {skill.title()}")
             else:
                 ats_keywords.add(f"{match.group(1)}+ years experience")
-        
+
         # Extract certifications (e.g., "AWS Certified", "PMP Certification")
                 ats_keywords.add(cert.strip())
-        
+
         return list(ats_keywords)
 
-    def extract_keywords(self, text: str) -> Dict[str, any]:
+    def extract_keywords(self, text: str) -> dict[str, any]:
         """Extract keywords from text using multiple methods"""
         if not text or not text.strip():
             return {
@@ -538,7 +536,7 @@ class KeywordExtractor:
         """Normalize identifiers for comparison by stripping separators."""
         return re.sub(r"[\s\-/\\.+]", "", value.lower())
 
-    def _extract_technical_keywords(self, text: str) -> List[str]:
+    def _extract_technical_keywords(self, text: str) -> list[str]:
         """Extract technical keywords from text"""
         if not text:
             return []
@@ -560,7 +558,7 @@ class KeywordExtractor:
 
         return list(set(found_keywords))
 
-    def _extract_general_keywords(self, text: str) -> List[str]:
+    def _extract_general_keywords(self, text: str) -> list[str]:
         """Extract general keywords using simple frequency analysis"""
         try:
             # Extract tokens but filter out pure numbers and numeric strings
@@ -571,32 +569,32 @@ class KeywordExtractor:
                 # Filter out pure numbers (e.g., "5", "2024", "10")
                 if re.match(r'^\d+$', token):
                     continue
-                
+
                 # Filter out numeric strings with suffixes (e.g., "5+", "10+", "2024-2025")
                 if re.match(r'^\d+[+\-%]?$', token) or re.match(r'^\d+-\d+$', token):
                     continue
-                
+
                 # Filter out tokens that are mostly numbers (e.g., "5years", "10+")
                 if re.search(r'^\d+', token) and len(re.sub(r'\d', '', token)) < 2:
                     continue
-                
+
                 # Must have at least 3 characters for non-technical terms (increased from 2)
                 if len(token) < 3:
                     continue
-                
+
                 # Filter out common non-technical job posting words
                 if token in self.stop_words:
                     continue
-                
+
                 # Filter out technical keywords (they're handled separately)
                 if token in self.all_technical_keywords:
                     continue
-                
+
                 # Additional filtering: skip if token is just a number with a word (e.g., "5years" -> skip)
                 # But allow technical terms like "c++", "c#", etc.
                 if re.match(r'^\d+[a-z]+$', token) and len(token) < 6:
                     continue
-                
+
                 filtered_words.append(token)
 
             word_counts = Counter(filtered_words)
@@ -608,7 +606,7 @@ class KeywordExtractor:
             logger.error(f"Error extracting general keywords: {e}")
             return []
 
-    def _extract_soft_skills(self, text: str) -> List[str]:
+    def _extract_soft_skills(self, text: str) -> list[str]:
         """Extract soft skills from text"""
         found_skills = []
 
@@ -616,18 +614,12 @@ class KeywordExtractor:
             for skill in skills:
                 # Check for exact matches and variations
                 skill_lower = skill.lower()
-                if skill_lower in text:
-                    found_skills.append(skill)
-                # Check for variations (e.g., "problem-solving" vs "problem solving")
-                elif skill_lower.replace("-", " ").replace("_", " ") in text:
-                    found_skills.append(skill)
-                # Check for word boundaries
-                elif re.search(r"\b" + re.escape(skill_lower) + r"\b", text):
+                if skill_lower in text or skill_lower.replace("-", " ").replace("_", " ") in text or re.search(r"\b" + re.escape(skill_lower) + r"\b", text):
                     found_skills.append(skill)
 
         return list(set(found_skills))
 
-    def _extract_ats_keywords(self, text: str) -> Dict[str, List[str]]:
+    def _extract_ats_keywords(self, text: str) -> dict[str, list[str]]:
         """Extract ATS-relevant keywords"""
         result = {"action_verbs": [], "metrics": [], "industry_terms": []}
 
@@ -635,10 +627,7 @@ class KeywordExtractor:
             for keyword in keywords:
                 keyword_lower = keyword.lower()
                 # Check for exact matches
-                if keyword_lower in text:
-                    result[category].append(keyword)
-                # Check with word boundaries
-                elif re.search(r"\b" + re.escape(keyword_lower) + r"\b", text):
+                if keyword_lower in text or re.search(r"\b" + re.escape(keyword_lower) + r"\b", text):
                     result[category].append(keyword)
 
         # Remove duplicates
@@ -649,7 +638,7 @@ class KeywordExtractor:
 
     def _extract_high_frequency_keywords(
         self, cleaned_text: str
-    ) -> List[Dict[str, any]]:
+    ) -> list[dict[str, any]]:
         """Extract high-frequency keywords that are most important for ATS"""
         try:
             tokens = re.findall(
@@ -691,7 +680,7 @@ class KeywordExtractor:
 
     def calculate_similarity(
         self, job_description: str, resume_text: str
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """Calculate similarity between job description and resume"""
         try:
 
@@ -770,25 +759,25 @@ class KeywordExtractor:
             # This ensures Match JD shows the most important keywords first
             missing_technical = technical_missing
             missing_soft = job_soft - resume_soft
-            
+
             # Get ATS-focused keywords that are missing
             job_ats_focused = normalize_collection(job_keywords.get("ats_focused_keywords", []))
             resume_ats_focused = normalize_collection(resume_keywords.get("ats_focused_keywords", []))
             missing_ats_focused = job_ats_focused - resume_ats_focused
-            
+
             # Get general keywords that are missing (but exclude ones already in technical/ATS/soft)
             missing_general = missing_keywords - missing_technical - missing_ats_focused - missing_soft
-            
+
             # Combine in priority order: technical, ATS-focused, soft skills, then general
             prioritized_missing = (
                 list(missing_technical) +
-                list(missing_ats_focused) + 
+                list(missing_ats_focused) +
                 list(missing_soft) +
                 list(missing_general)
             )
-            
+
             # Debug logging
-            logger.info(f"Keyword extraction summary:")
+            logger.info("Keyword extraction summary:")
             logger.info(f"  Total job keywords: {len(job_all_keywords)}")
             logger.info(f"  Missing technical: {len(missing_technical)}")
             logger.info(f"  Missing ATS-focused: {len(missing_ats_focused)}")
@@ -828,8 +817,8 @@ class KeywordExtractor:
             }
 
     def get_keyword_suggestions(
-        self, missing_keywords: List[str]
-    ) -> Dict[str, List[str]]:
+        self, missing_keywords: list[str]
+    ) -> dict[str, list[str]]:
         """Get suggestions for missing keywords"""
         suggestions = {}
 

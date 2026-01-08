@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
@@ -22,18 +21,24 @@ from app.api.models import (
     MatchCreate,
 )
 from app.core.db import get_db
-from app.models import JobDescription, JobCoverLetter, MatchSession, Resume, ResumeVersion, JobResumeVersion, User
+from app.models import (
+    JobResumeVersion,
+    MatchSession,
+    Resume,
+    ResumeVersion,
+    User,
+)
 from app.services.job_service import (
-    create_or_update_job_description,
-    get_job_description_detail,
-    list_user_job_descriptions,
-    list_cover_letters,
     create_cover_letter,
-    update_cover_letter,
+    create_or_update_job_description,
     delete_cover_letter,
+    get_job_description_detail,
+    list_cover_letters,
+    list_user_job_descriptions,
+    update_cover_letter,
 )
 from app.utils.job_helpers import safe_get_job_description
-from app.utils.match_helpers import _resume_to_text, _compute_match_breakdown
+from app.utils.match_helpers import _compute_match_breakdown, _resume_to_text
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +51,8 @@ jobs_router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 def get_user_email_from_request(
     request: Request,
-    user_email: Optional[str] = None,
-) -> Optional[str]:
+    user_email: str | None = None,
+) -> str | None:
     """Extract user email from Firebase auth or query parameter"""
     # First try Firebase auth (for extension and frontend)
     firebase_user = getattr(request.state, "firebase_user", None)
@@ -66,7 +71,7 @@ def get_user_email_from_request(
 async def create_job_description(
     payload: dict,  # TODO: Create proper Pydantic model
     request: Request,
-    user_email: Optional[str] = None,
+    user_email: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Create or update a job description"""
@@ -84,7 +89,7 @@ async def create_job_description(
 @router.get("")
 async def list_job_descriptions(
     request: Request,
-    user_email: Optional[str] = Query(None),
+    user_email: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """List job descriptions for a user"""
@@ -98,7 +103,7 @@ async def list_job_descriptions(
 async def get_job_description(
     jd_id: int,
     request: Request,
-    user_email: Optional[str] = Query(None),
+    user_email: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Get a specific job description"""
@@ -111,7 +116,7 @@ async def get_job_description(
 async def delete_job_description(
     jd_id: int,
     request: Request,
-    user_email: Optional[str] = Query(None, description="User email for authentication (optional if using Firebase auth)"),
+    user_email: str | None = Query(None, description="User email for authentication (optional if using Firebase auth)"),
     db: Session = Depends(get_db),
 ):
     """Delete a job description"""
@@ -120,7 +125,7 @@ async def delete_job_description(
         email = get_user_email_from_request(request, user_email)
         if not email:
             raise HTTPException(status_code=401, detail="Authentication required")
-        
+
         user = db.query(User).filter(User.email == email).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -154,14 +159,14 @@ async def update_job_description(
     jd_id: int,
     payload: JobDescriptionUpdate,
     request: Request,
-    user_email: Optional[str] = None,
+    user_email: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Update specific fields of a job description"""
     try:
         # Extract user email from Firebase auth or query parameter
         email = get_user_email_from_request(request, user_email)
-        
+
         jd, jd_has_new_columns = safe_get_job_description(jd_id, db)
         if not jd:
             raise HTTPException(status_code=404, detail="Job description not found")
@@ -245,7 +250,7 @@ async def delete_job_resume_version(
     jd_id: int,
     version_id: int,
     request: Request,
-    user_email: Optional[str] = None,
+    user_email: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Delete a job resume version match"""
@@ -253,7 +258,7 @@ async def delete_job_resume_version(
         email = get_user_email_from_request(request, user_email)
         if not email:
             raise HTTPException(status_code=401, detail="Authentication required")
-        
+
         user = db.query(User).filter(User.email == email).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -420,7 +425,9 @@ def create_match(payload: MatchCreate, db: Session):
                         # Create version if snapshot provided
                         if payload.resume_snapshot:
                             try:
-                                from app.services.version_control_service import VersionControlService
+                                from app.services.version_control_service import (
+                                    VersionControlService,
+                                )
                                 version_service = VersionControlService(db)
                                 resume_data = {
                                     "personalInfo": payload.resume_snapshot.get(
@@ -471,7 +478,7 @@ def create_match(payload: MatchCreate, db: Session):
             )
 
         resolved_resume_version_id = payload.resume_version_id
-        resolved_resume_version_obj: Optional[ResumeVersion] = None
+        resolved_resume_version_obj: ResumeVersion | None = None
         resolved_resume_version_label = None
 
         # Get job description (use safe query to handle missing columns)
@@ -833,10 +840,8 @@ def get_match(match_id: int, db: Session):
     }
 """HTTP routes for managing saved jobs."""
 
-from typing import Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Response, status
 
 from app.api.firebase_auth import require_firebase_user
 from app.core.db import get_db
@@ -853,7 +858,7 @@ class JobCreateRequest(JobBase):
     pass
 
 
-def _resolve_user_id(session: Session, firebase_user: Dict[str, str]) -> int:
+def _resolve_user_id(session: Session, firebase_user: dict[str, str]) -> int:
     email = (firebase_user or {}).get("email")
     if not email:
         raise HTTPException(
@@ -880,7 +885,7 @@ def _resolve_user_id(session: Session, firebase_user: Dict[str, str]) -> int:
 def create_job(
     payload: JobCreateRequest,
     database: Session = Depends(get_db),
-    firebase_user: Dict[str, str] = Depends(require_firebase_user),
+    firebase_user: dict[str, str] = Depends(require_firebase_user),
 ) -> Job:
     user_id = _resolve_user_id(database, firebase_user)
     service = JobService(database)
@@ -899,13 +904,13 @@ def create_job(
 
 @jobs_router.get(
     "",
-    response_model=List[Job],
+    response_model=list[Job],
     summary="List jobs saved by the authenticated user",
 )
 def list_jobs(
     database: Session = Depends(get_db),
-    firebase_user: Dict[str, str] = Depends(require_firebase_user),
-) -> List[Job]:
+    firebase_user: dict[str, str] = Depends(require_firebase_user),
+) -> list[Job]:
     user_id = _resolve_user_id(database, firebase_user)
     service = JobService(database)
     return service.list_jobs(user_id)
@@ -919,7 +924,7 @@ def list_jobs(
 def get_job(
     job_id: int,
     database: Session = Depends(get_db),
-    firebase_user: Dict[str, str] = Depends(require_firebase_user),
+    firebase_user: dict[str, str] = Depends(require_firebase_user),
 ) -> Job:
     user_id = _resolve_user_id(database, firebase_user)
     service = JobService(database)
@@ -937,7 +942,7 @@ def get_job(
 def delete_job(
     job_id: int,
     database: Session = Depends(get_db),
-    firebase_user: Dict[str, str] = Depends(require_firebase_user),
+    firebase_user: dict[str, str] = Depends(require_firebase_user),
 ) -> Response:
     user_id = _resolve_user_id(database, firebase_user)
     service = JobService(database)

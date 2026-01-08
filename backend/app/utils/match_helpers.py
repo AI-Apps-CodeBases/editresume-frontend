@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 logger = None
 try:
@@ -24,9 +24,9 @@ def _get_classify_priority_keywords():
     return _classify_priority_keywords
 
 
-def _resume_to_text(resume_data: Dict[str, Any]) -> str:
+def _resume_to_text(resume_data: dict[str, Any]) -> str:
     """Convert resume data dictionary to plain text"""
-    parts: List[str] = []
+    parts: list[str] = []
     for key in ["name", "title", "summary", "email", "phone", "location"]:
         val = resume_data.get(key)
         if isinstance(val, str):
@@ -41,12 +41,12 @@ def _resume_to_text(resume_data: Dict[str, Any]) -> str:
 
 
 def _compute_match_breakdown(
-    jd_text: str, resume_text: str, extracted_jd: Dict[str, Any]
-) -> Dict[str, Any]:
+    jd_text: str, resume_text: str, extracted_jd: dict[str, Any]
+) -> dict[str, Any]:
     """Compute match breakdown between job description and resume"""
     keyword_extractor = _get_keyword_extractor()
     _classify_priority_keywords = _get_classify_priority_keywords()
-    
+
     similarity = keyword_extractor.calculate_similarity(jd_text, resume_text)
     hp = set(_classify_priority_keywords(extracted_jd)["high_priority"])
     matched = set(similarity["matching_keywords"])

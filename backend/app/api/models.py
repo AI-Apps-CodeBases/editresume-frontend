@@ -2,72 +2,72 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
 
 class BulletParam(BaseModel):
-    id: Optional[str] = None
+    id: str | None = None
     text: str
-    params: Optional[Dict[str, Any]] = {}  # Changed from Dict[str, str] to accept boolean values (visible: true/false)
+    params: dict[str, Any] | None = {}  # Changed from Dict[str, str] to accept boolean values (visible: true/false)
 
 
 class Section(BaseModel):
-    id: Optional[str] = None
+    id: str | None = None
     title: str
-    bullets: List[BulletParam] = []
-    params: Optional[Dict[str, Any]] = None
+    bullets: list[BulletParam] = []
+    params: dict[str, Any] | None = None
 
 
 class ResumePayload(BaseModel):
     name: str
     title: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    summary: Optional[str] = None
-    sections: List[Section] = []
-    variant: Optional[str] = None
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    summary: str | None = None
+    sections: list[Section] = []
+    variant: str | None = None
 
 
 class EnhancedATSPayload(BaseModel):
-    resume_data: Optional[ResumePayload] = None  # Make optional since we can use resume_text
-    resume_text: Optional[str] = None  # Text extracted from live preview - more accurate than resume_data
-    job_description: Optional[str] = None
-    target_role: Optional[str] = None
-    industry: Optional[str] = None
-    extracted_keywords: Optional[Dict[str, Any]] = None  # Extension-extracted keywords from LLM
-    previous_score: Optional[int] = None  # Previous ATS score to prevent decreases
+    resume_data: ResumePayload | None = None  # Make optional since we can use resume_text
+    resume_text: str | None = None  # Text extracted from live preview - more accurate than resume_data
+    job_description: str | None = None
+    target_role: str | None = None
+    industry: str | None = None
+    extracted_keywords: dict[str, Any] | None = None  # Extension-extracted keywords from LLM
+    previous_score: int | None = None  # Previous ATS score to prevent decreases
 
 
 class AIImprovementPayload(BaseModel):
     resume_data: ResumePayload
-    job_description: Optional[str] = None
-    target_role: Optional[str] = None
-    industry: Optional[str] = None
-    strategy: Optional[str] = None  # Specific improvement strategy to focus on
+    job_description: str | None = None
+    target_role: str | None = None
+    industry: str | None = None
+    strategy: str | None = None  # Specific improvement strategy to focus on
 
 
 class ExportPayload(BaseModel):
     name: str
     title: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    summary: Optional[str] = None
-    sections: List[Section] = []
-    replacements: Optional[Dict[str, str]] = None
-    template: Optional[str] = "tech"
-    templateConfig: Optional[Dict[str, Any]] = None  # Full template configuration
-    design: Optional[Dict[str, Any]] = None  # Legacy design object
-    fieldsVisible: Optional[Dict[str, bool]] = None  # CRITICAL: Controls visibility of fields (name, title, summary, etc.)
-    two_column_left: Optional[List[str]] = []
-    two_column_right: Optional[List[str]] = []
-    two_column_left_width: Optional[int] = 50
-    cover_letter: Optional[str] = None
-    company_name: Optional[str] = None  # Company name for cover letter title
-    position_title: Optional[str] = None  # Position title for cover letter title
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    summary: str | None = None
+    sections: list[Section] = []
+    replacements: dict[str, str] | None = None
+    template: str | None = "tech"
+    templateConfig: dict[str, Any] | None = None  # Full template configuration
+    design: dict[str, Any] | None = None  # Legacy design object
+    fieldsVisible: dict[str, bool] | None = None  # CRITICAL: Controls visibility of fields (name, title, summary, etc.)
+    two_column_left: list[str] | None = []
+    two_column_right: list[str] | None = []
+    two_column_left_width: int | None = 50
+    cover_letter: str | None = None
+    company_name: str | None = None  # Company name for cover letter title
+    position_title: str | None = None  # Position title for cover letter title
 
 
 class LoginPayload(BaseModel):
@@ -83,8 +83,8 @@ class SignupPayload(BaseModel):
 
 class ImproveBulletPayload(BaseModel):
     bullet: str
-    context: Optional[str] = None
-    tone: Optional[str] = "professional"
+    context: str | None = None
+    tone: str | None = "professional"
 
 
 class GenerateBulletPointsPayload(BaseModel):
@@ -92,14 +92,14 @@ class GenerateBulletPointsPayload(BaseModel):
     company: str
     skills: str
     count: int = 5
-    tone: Optional[str] = "professional"
+    tone: str | None = "professional"
 
 
 class GenerateSummaryPayload(BaseModel):
     role: str
     years_experience: int
     skills: str
-    achievements: Optional[str] = None
+    achievements: str | None = None
 
 
 class JobDescriptionMatchPayload(BaseModel):
@@ -113,8 +113,8 @@ class CoverLetterPayload(BaseModel):
     company_name: str
     position_title: str
     tone: str = "professional"
-    custom_requirements: Optional[str] = None
-    selected_sentences: Optional[List[str]] = None  # Selected JD sentences to use
+    custom_requirements: str | None = None
+    selected_sentences: list[str] | None = None  # Selected JD sentences to use
 
 
 class ExtractSentencesPayload(BaseModel):
@@ -122,26 +122,26 @@ class ExtractSentencesPayload(BaseModel):
 
 
 class WorkExperienceRequest(BaseModel):
-    currentCompany: Optional[str] = None
-    currentJobTitle: Optional[str] = None
-    currentDateRange: Optional[str] = None
-    experienceDescription: Optional[str] = None
-    projects: Optional[str] = None
-    jobDescription: Optional[str] = None
-    role: Optional[str] = None
-    company: Optional[str] = None
-    duration: Optional[str] = None
-    skills: List[str] = []
-    achievements: Optional[str] = None
-    tone: Optional[str] = "professional"
+    currentCompany: str | None = None
+    currentJobTitle: str | None = None
+    currentDateRange: str | None = None
+    experienceDescription: str | None = None
+    projects: str | None = None
+    jobDescription: str | None = None
+    role: str | None = None
+    company: str | None = None
+    duration: str | None = None
+    skills: list[str] = []
+    achievements: str | None = None
+    tone: str | None = "professional"
 
 
 class CreateVersionPayload(BaseModel):
     resume_id: int
-    resume_data: Dict[str, Any]
-    change_summary: Optional[str] = None
+    resume_data: dict[str, Any]
+    change_summary: str | None = None
     is_auto_save: bool = False
-    tokens_used: Optional[int] = None  # Track OpenAI token usage
+    tokens_used: int | None = None  # Track OpenAI token usage
 
 
 class RollbackVersionPayload(BaseModel):
@@ -156,35 +156,35 @@ class CompareVersionsPayload(BaseModel):
 class SaveResumePayload(BaseModel):
     name: str
     title: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    summary: Optional[str] = None
-    sections: List[Section] = []
-    template: Optional[str] = "tech"
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    summary: str | None = None
+    sections: list[Section] = []
+    template: str | None = "tech"
 
 
 class MatchCreate(BaseModel):
-    resumeId: Optional[int] = None
+    resumeId: int | None = None
     jobDescriptionId: int
-    user_email: Optional[str] = None
-    resume_name: Optional[str] = None
-    resume_title: Optional[str] = None
-    resume_snapshot: Optional[Dict[str, Any]] = None
-    resume_version_id: Optional[int] = None
-    ats_score: Optional[int] = None
-    jd_metadata: Optional[Dict[str, Any]] = None
-    matched_keywords: Optional[List[str]] = None
-    missing_keywords: Optional[List[str]] = None
-    keyword_coverage: Optional[float] = None
+    user_email: str | None = None
+    resume_name: str | None = None
+    resume_title: str | None = None
+    resume_snapshot: dict[str, Any] | None = None
+    resume_version_id: int | None = None
+    ats_score: int | None = None
+    jd_metadata: dict[str, Any] | None = None
+    matched_keywords: list[str] | None = None
+    missing_keywords: list[str] | None = None
+    keyword_coverage: float | None = None
 
 
 class JobDescriptionUpdate(BaseModel):
-    max_salary: Optional[int] = None
-    status: Optional[str] = None
-    follow_up_date: Optional[str] = None
-    importance: Optional[int] = None  # 0-5 stars (0 = not set, 1-5 = star rating)
-    notes: Optional[str] = None
+    max_salary: int | None = None
+    status: str | None = None
+    follow_up_date: str | None = None
+    importance: int | None = None  # 0-5 stars (0 = not set, 1-5 = star rating)
+    notes: str | None = None
 
 
 class JobCoverLetterCreate(BaseModel):
@@ -193,8 +193,8 @@ class JobCoverLetterCreate(BaseModel):
 
 
 class JobCoverLetterUpdate(BaseModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
+    title: str | None = None
+    content: str | None = None
 
 
 class ExtractKeywordsPayload(BaseModel):

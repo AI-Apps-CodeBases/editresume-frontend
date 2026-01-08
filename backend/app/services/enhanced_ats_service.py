@@ -1,11 +1,15 @@
-import re
-import math
-import json
-import logging
 import asyncio
-from typing import Dict, List, Tuple, Optional, Any
-from collections import Counter
+import logging
+import math
+import re
 from dataclasses import dataclass
+from typing import Any
+
+from app.services.ats.structure_analyzer import analyze_resume_structure as analyze_structure
+
+# Import extracted ATS modules
+from app.services.ats.text_extractor import extract_text_from_resume as extract_text
+from app.services.ats.tfidf_calculator import calculate_tfidf_cosine_score as calculate_tfidf
 
 # Import extracted ATS modules
 from app.services.ats.text_extractor import extract_text_from_resume as extract_text
@@ -87,7 +91,7 @@ class ATSImprovement:
     impact_score: int  # 1-10
     action_type: str  # 'add', 'modify', 'remove', 'restructure'
     specific_suggestion: str
-    example: Optional[str] = None
+    example: str | None = None
 
 
 class EnhancedATSChecker:
@@ -301,14 +305,14 @@ class EnhancedATSChecker:
         else:
             self.vectorizer = None
 
-    def extract_text_from_resume(self, resume_data: Dict, separate_sections: bool = False) -> str:
+    def extract_text_from_resume(self, resume_data: dict, separate_sections: bool = False) -> str:
         """Extract all text content from resume data.
         
         Delegates to extracted text_extractor module for better separation of concerns.
         """
         return extract_text(resume_data, separate_sections)
 
-    def analyze_resume_structure(self, resume_data: Dict) -> Dict[str, Any]:
+    def analyze_resume_structure(self, resume_data: dict) -> dict[str, Any]:
         """Comprehensive analysis of resume structure.
         
         Delegates to extracted structure_analyzer module for better separation of concerns.
@@ -317,7 +321,7 @@ class EnhancedATSChecker:
 
     def analyze_keyword_optimization(
         self, resume_text: str, job_description: str = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Enhanced keyword analysis with job matching"""
         if not resume_text.strip():
             return {"score": 0, "suggestions": ["Add content to your resume"]}
@@ -327,7 +331,7 @@ class EnhancedATSChecker:
         # Use regex to find word-like tokens (alphanumeric + common tech chars)
         word_pattern = r'\b[a-zA-Z0-9][a-zA-Z0-9+/#.-]*[a-zA-Z]|[a-zA-Z][a-zA-Z0-9+/#.-]*[a-zA-Z0-9]|[a-zA-Z]{2,}\b'
         all_tokens = re.findall(word_pattern, resume_text.lower())
-        
+
         # Filter tokens: keep meaningful words, filter out pure numbers
         words = []
         for token in all_tokens:
@@ -341,7 +345,7 @@ class EnhancedATSChecker:
             # Keep tokens that have at least one letter
             if re.search(r'[a-zA-Z]', cleaned):
                 words.append(cleaned)
-        
+
         # Also extract traditional alpha-only words for keyword matching
         alpha_words = [word.strip('.,!?;:"()[]{}') for word in resume_text.lower().split() if word.strip('.,!?;:"()[]{}').isalpha()]
         # Combine both lists, prioritizing technical terms
@@ -357,7 +361,7 @@ class EnhancedATSChecker:
         action_verb_count = sum(
             1 for word in words if word in self.ats_keywords["action_verbs"]
         )
-        
+
         # For technical terms, also check if word contains or is contained in technical keywords
         technical_count = 0
         for word in words:
@@ -374,14 +378,14 @@ class EnhancedATSChecker:
                     if tech_normalized in word_normalized or word_normalized in tech_normalized:
                         technical_count += 1
                         break
-        
+
         metrics_count = sum(1 for word in words if word in self.ats_keywords["metrics"])
         leadership_count = sum(
             1 for word in words if word in self.ats_keywords["leadership"]
         )
 
         total_words = len(words)
-        
+
         # Calculate actual densities (use directly without protection)
         action_density = (
             (action_verb_count / total_words) * 100 if total_words > 0 else 0
@@ -402,7 +406,7 @@ class EnhancedATSChecker:
             # Extract keywords from job description using same improved method
             job_word_pattern = r'\b[a-zA-Z0-9][a-zA-Z0-9+/#.-]*[a-zA-Z]|[a-zA-Z][a-zA-Z0-9+/#.-]*[a-zA-Z0-9]|[a-zA-Z]{2,}\b'
             job_all_tokens = re.findall(job_word_pattern, job_description.lower())
-            
+
             # Filter job keywords same way as resume keywords
             job_keywords = []
             for token in job_all_tokens:
@@ -416,11 +420,11 @@ class EnhancedATSChecker:
                 # Keep tokens that have at least one letter
                 if re.search(r'[a-zA-Z]', cleaned):
                     job_keywords.append(cleaned)
-            
+
             # Also extract alpha-only words
             job_alpha_words = [word.strip('.,!?;:"()[]{}') for word in job_description.lower().split() if word.strip('.,!?;:"()[]{}').isalpha()]
             job_keywords = list(set(job_keywords + job_alpha_words))
-            
+
             # Find matching keywords (exact matches and partial matches for technical terms)
             for resume_word in words:
                 for job_word in job_keywords:
@@ -434,7 +438,7 @@ class EnhancedATSChecker:
                         if resume_normalized == job_normalized or (len(resume_normalized) > 3 and resume_normalized in job_normalized) or (len(job_normalized) > 3 and job_normalized in resume_normalized):
                             matching_keywords.add(resume_word)
                             break
-            
+
             # More sensitive calculation: consider both percentage and absolute count
             if job_keywords:
                 match_percentage = (len(matching_keywords) / len(set(job_keywords))) * 100
@@ -465,7 +469,7 @@ class EnhancedATSChecker:
 
         # Balanced scoring: Highly responsive to improvements, rewards content additions
         base_score = 35
-        
+
         # Calculate bonuses: Prioritize absolute keyword counts (90% count, 10% density)
         # Count-based scoring ensures adding keywords always increases score
         def improved_hybrid_bonus(count, density, density_multiplier, density_base, max_bonus, log_factor=1.2, linear_factor=0.5):
@@ -476,19 +480,19 @@ class EnhancedATSChecker:
             else:
                 # Logarithmic scaling for larger counts (prevents extreme values)
                 count_part = 10 + math.log1p(count - 20) * log_factor
-            
+
             # Density contribution (secondary factor - 10% weight)
             density_part = density_base + (density_multiplier * min(density, 10))  # Cap density at 10%
-            
+
             # 90% weight on count, 10% on density - ensures adding keywords always improves score
             total_bonus = (count_part * 0.90) + (density_part * 0.10)
             return min(max_bonus, total_bonus)
-        
+
         action_bonus = improved_hybrid_bonus(action_verb_count, action_density, 1.5, 8, 22, 2.0, 0.7)
         technical_bonus = improved_hybrid_bonus(technical_count, technical_density, 2.5, 12, 25, 1.8, 0.6)
         metrics_bonus = improved_hybrid_bonus(metrics_count, metrics_density, 3.0, 12, 22, 2.2, 0.7)
         leadership_bonus = improved_hybrid_bonus(leadership_count, leadership_density, 4.0, 8, 18, 1.5, 0.6)
-        
+
         # Additional bonus for absolute keyword increases (rewards improvements regardless of density)
         # Increased bonuses to make score more responsive and prevent dilution penalties
         absolute_bonus = 0
@@ -500,14 +504,14 @@ class EnhancedATSChecker:
             absolute_bonus += min(4, (metrics_count - 3) * 0.5)  # Increased from 0.4 to 0.5, cap from 3 to 4
         if leadership_count >= 3:
             absolute_bonus += min(3, (leadership_count - 3) * 0.4)  # Increased from 0.3 to 0.4, cap from 2 to 3
-        
+
         # Additional protection: bonus for matching keywords when job description is provided
         # This ensures adding matching keywords from JD always improves score
         if job_description and len(matching_keywords) > 0:
             # Reward matching keyword additions (prevents score drop when adding JD keywords)
             matching_bonus = min(5, len(matching_keywords) * 0.15)  # Up to 5 points for matching keywords
             absolute_bonus += matching_bonus
-        
+
         # Job match bonus - highly responsive to keyword additions
         if job_description:
             match_count = len(matching_keywords)
@@ -518,12 +522,12 @@ class EnhancedATSChecker:
             else:
                 # Logarithmic for very high counts
                 match_count_bonus = 20 + math.log1p(match_count - 25) * 1.8  # Increased base and factor
-            
+
             match_count_bonus = min(20, match_count_bonus)  # Increased cap from 15 to 20
-            
+
             # Percentage bonus (reward overall alignment)
             percentage_bonus = (job_match_score * 0.25)  # Increased from 0.20
-            
+
             job_bonus = min(30, percentage_bonus + match_count_bonus)  # Increased cap from 25 to 30
         else:
             job_bonus = 0
@@ -538,7 +542,7 @@ class EnhancedATSChecker:
             + job_bonus
             + absolute_bonus,  # Add absolute improvement bonus
         )
-        
+
         # Minimal minimum score protection - only prevents catastrophic drops (max 2-3 points)
         # Removed aggressive minimum protection to allow score to reflect actual improvements
         if action_verb_count > 0 or technical_count > 0:
@@ -560,7 +564,7 @@ class EnhancedATSChecker:
             "suggestions": suggestions + job_suggestions,
         }
 
-    def analyze_content_quality(self, resume_data: Dict) -> Dict[str, Any]:
+    def analyze_content_quality(self, resume_data: dict) -> dict[str, Any]:
         """Analyze content quality and impact"""
         text_content = self.extract_text_from_resume(resume_data)
 
@@ -610,7 +614,7 @@ class EnhancedATSChecker:
 
         # Stabilized quality score calculation - reduced base to prevent summary inflation
         quality_score = 35  # Reduced from 45 to 35 to prevent excessive score from summary
-        
+
         if quantified_achievements > 0:
             # Reduced scaling to prevent large swings
             quality_score += min(25, math.log1p(quantified_achievements) * 6)  # 30->25, 8->6
@@ -628,7 +632,7 @@ class EnhancedATSChecker:
             quality_score -= min(3, (buzzword_count - 3) * 0.5)  # Reduced from 1.0 to 0.5, cap from 6 to 3
 
         quality_score = max(0, min(100, quality_score))
-        
+
         # Stabilized minimum score with gradual transition
         if text_content.strip():
             # Gradual minimum based on content quality indicators
@@ -654,7 +658,7 @@ class EnhancedATSChecker:
             "suggestions": suggestions,
         }
 
-    def check_formatting_compatibility(self, resume_data: Dict) -> Dict[str, Any]:
+    def check_formatting_compatibility(self, resume_data: dict) -> dict[str, Any]:
         """Check ATS formatting compatibility"""
         text_content = self.extract_text_from_resume(resume_data)
 
@@ -710,8 +714,8 @@ class EnhancedATSChecker:
         return {"score": formatting_score, "issues": issues, "suggestions": suggestions}
 
     def generate_ai_improvements(
-        self, resume_data: Dict, job_description: str = None
-    ) -> List[ATSImprovement]:
+        self, resume_data: dict, job_description: str = None
+    ) -> list[ATSImprovement]:
         """Generate AI-powered improvement suggestions based on the 10 strategies"""
         improvements = []
 
@@ -890,8 +894,8 @@ class EnhancedATSChecker:
         return improvements
 
     def calculate_tfidf_cosine_score(
-        self, resume_text: str, job_description: str = None, extracted_keywords: Dict = None, resume_data: Dict = None
-    ) -> Dict[str, Any]:
+        self, resume_text: str, job_description: str = None, extracted_keywords: dict = None, resume_data: dict = None
+    ) -> dict[str, Any]:
         """
         Industry-standard TF-IDF + Cosine Similarity scoring method.
         Based on information retrieval best practices used by most ATS systems.
@@ -914,7 +918,7 @@ class EnhancedATSChecker:
 
     def _fallback_keyword_match(
         self, resume_text: str, job_description: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Fallback keyword matching when TF-IDF is not available"""
         resume_words = set(resume_text.lower().split())
         job_words = set(job_description.lower().split())
@@ -939,8 +943,8 @@ class EnhancedATSChecker:
         }
 
     def calculate_industry_standard_score(
-        self, resume_data: Dict, job_description: str = None, extracted_keywords: Dict = None, resume_text: str = None
-    ) -> Dict[str, Any]:
+        self, resume_data: dict, job_description: str = None, extracted_keywords: dict = None, resume_text: str = None
+    ) -> dict[str, Any]:
         """
         Industry-standard ATS score using TF-IDF + Cosine Similarity.
         Based on information retrieval best practices.
@@ -983,7 +987,7 @@ class EnhancedATSChecker:
             keyword_weight = 0.60  # Higher weight for strong keyword matches
         else:
             keyword_weight = 0.50  # Standard weight for lower matches
-        
+
         # Distribute remaining weight among other components
         if keyword_match_score >= 85:
             tfidf_weight = 0.20
@@ -1009,7 +1013,7 @@ class EnhancedATSChecker:
             + formatting_score * formatting_weight
             + quality_score * quality_weight
         )
-        
+
         # Minimal protection: only prevent catastrophic drops (max 2-3 points)
         # Calculate minimal baseline based on having basic content
         resume_text_check = self.extract_text_from_resume(resume_data)
@@ -1021,11 +1025,11 @@ class EnhancedATSChecker:
             # Only use minimal baseline if score would drop catastrophically
             if overall_score < minimal_baseline - 3:
                 overall_score = max(overall_score, minimal_baseline - 3)
-        
+
         # Add bonuses to reward improvements: increased caps to allow score growth
         # Total bonus cap: maximum 5 points total from all bonuses combined (increased from 3)
         total_bonus = 0
-        
+
         # Bonus for high keyword match percentage (more generous)
         if keyword_match_score >= 95:
             bonus = min(1.5, 0.5 + (keyword_match_score - 95) * 0.1)  # Max 1.5 points (was 0.5)
@@ -1039,7 +1043,7 @@ class EnhancedATSChecker:
         elif keyword_match_score >= 75:
             bonus = min(0.5, (keyword_match_score - 75) * 0.05)  # New tier for 75-85%
             total_bonus += bonus
-        
+
         # Bonus for high TF-IDF score (more generous)
         if tfidf_score >= 90:
             bonus = min(1.5, 0.5 + (tfidf_score - 90) * 0.1)  # Max 1.5 points (was 0.5)
@@ -1053,7 +1057,7 @@ class EnhancedATSChecker:
         elif tfidf_score >= 70:
             bonus = min(0.5, (tfidf_score - 70) * 0.05)  # New tier for 70-80%
             total_bonus += bonus
-        
+
         # Bonus for having matching keywords (more generous - lower thresholds)
         matching_count = tfidf_analysis.get("matched_keywords_count", 0)
         if matching_count > 40:
@@ -1073,7 +1077,7 @@ class EnhancedATSChecker:
         if keyword_match_score >= 90 and tfidf_score >= 80:
             synergy_bonus = min(1.0, (keyword_match_score - 90) * 0.05 + (tfidf_score - 80) * 0.05)  # Max 1.0 points (was 0.5, thresholds lowered)
             total_bonus += synergy_bonus
-        
+
         # Apply total bonus cap: maximum 5 points from all bonuses combined (increased from 3)
         total_bonus = min(5, total_bonus)
         overall_score += total_bonus
@@ -1140,8 +1144,8 @@ class EnhancedATSChecker:
         }
 
     def calculate_comprehensive_score(
-        self, resume_data: Dict, job_description: str = None, resume_text: str = None
-    ) -> Dict[str, Any]:
+        self, resume_data: dict, job_description: str = None, resume_text: str = None
+    ) -> dict[str, Any]:
         """Calculate comprehensive ATS compatibility score"""
         # Use provided resume_text or extract from resume_data
         resume_text = resume_text if resume_text else self.extract_text_from_resume(resume_data)
@@ -1161,7 +1165,7 @@ class EnhancedATSChecker:
             + quality_analysis["score"] * 0.28
             + formatting_analysis["score"] * 0.12
         )
-        
+
         # Calculate protected baseline to prevent large drops (stronger protection)
         protected_baseline = (
             max(0, structure_analysis["section_score"] - 2) * 0.25
@@ -1169,7 +1173,7 @@ class EnhancedATSChecker:
             + max(0, quality_analysis["score"] - 3) * 0.28
             + max(0, formatting_analysis["score"] - 1) * 0.12
         )
-        
+
         # Calculate content-based baseline (reduced to prevent excessive scores)
         content_baseline = 0
         if resume_text.strip():
@@ -1181,16 +1185,16 @@ class EnhancedATSChecker:
                 content_baseline += 2  # Reduced from 3 to 2
             if resume_data.get("email") or resume_data.get("phone"):
                 content_baseline += 1  # Reduced from 2 to 1
-            
+
             # Add protected component contributions (reduced multipliers)
             content_baseline += (structure_analysis["section_score"] * 0.25 * 0.70)  # 0.85 -> 0.70
             content_baseline += (formatting_analysis["score"] * 0.12 * 0.75)  # 0.9 -> 0.75
             content_baseline += (quality_analysis["score"] * 0.28 * 0.65)  # 0.8 -> 0.65
             content_baseline += (keyword_analysis["score"] * 0.35 * 0.60)  # 0.7 -> 0.6
-        
+
         # Cap content_baseline at 50 to allow scores above 82 (increased from 45)
         content_baseline = min(50, content_baseline)
-        
+
         # Use the highest of: base score, protected baseline, or content baseline
         overall_score = max(base_overall_score, protected_baseline, content_baseline)
 
@@ -1232,13 +1236,13 @@ class EnhancedATSChecker:
 
     def get_enhanced_ats_score(
         self,
-        resume_data: Dict,
+        resume_data: dict,
         job_description: str = None,
         use_industry_standard: bool = False,
-        extracted_keywords: Dict = None,
+        extracted_keywords: dict = None,
         resume_text: str = None,  # Add this parameter - text extracted from live preview
         previous_score: int = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Main method to get enhanced ATS compatibility score and AI improvements.
         If resume_text is provided, use it directly; otherwise extract from resume_data.
@@ -1254,7 +1258,7 @@ class EnhancedATSChecker:
         try:
             # Use provided resume_text or extract from resume_data
             resume_text_to_use = resume_text if resume_text else self.extract_text_from_resume(resume_data)
-            
+
             if use_industry_standard and (job_description or extracted_keywords):
                 # Use industry-standard TF-IDF + Cosine Similarity method
                 # Pass extracted_keywords if available (from extension)
@@ -1268,16 +1272,16 @@ class EnhancedATSChecker:
                 result = self.calculate_comprehensive_score(resume_data, job_description, resume_text=resume_text_to_use)
 
             calculated_score = result["overall_score"]
-            
+
             # Apply AI agent semantic quality adjustment if available
             try:
                 from app.core.dependencies import ats_scoring_agent
-                
+
                 if ats_scoring_agent and extracted_keywords:
                     # Extract keyword matches and missing from result
                     keyword_matches = []
                     missing_keywords = []
-                    
+
                     # Get from TF-IDF analysis if available (industry standard method)
                     if "tfidf_analysis" in result:
                         tfidf_analysis = result["tfidf_analysis"]
@@ -1296,7 +1300,7 @@ class EnhancedATSChecker:
                         job_match = keyword_analysis.get("job_match_keywords", {})
                         keyword_matches = job_match.get("matched", [])
                         missing_keywords = job_match.get("missing", [])
-                    
+
                     # Only run agent if we have keyword data
                     if keyword_matches or missing_keywords:
                         # Run async agent analysis (sync wrapper)
@@ -1305,7 +1309,7 @@ class EnhancedATSChecker:
                         except RuntimeError:
                             loop = asyncio.new_event_loop()
                             asyncio.set_event_loop(loop)
-                        
+
                         semantic_analysis = loop.run_until_complete(
                             ats_scoring_agent.analyze_semantic_quality(
                                 resume_data=resume_data,
@@ -1315,19 +1319,19 @@ class EnhancedATSChecker:
                                 missing_keywords=missing_keywords,
                             )
                         )
-                        
+
                         # Apply semantic adjustment (30% of adjustment to prevent over-correction)
                         adjustment = semantic_analysis.get("adjustment", 0) * 0.3
                         calculated_score = max(0, min(100, calculated_score + adjustment))
-                        
+
                         # Add semantic analysis to details
                         result["semantic_analysis"] = semantic_analysis
                         logger.debug(f"Applied semantic adjustment: {adjustment:.2f} (quality_score: {semantic_analysis.get('quality_score', 50)})")
-                    
+
             except Exception as e:
                 # Non-critical: if agent fails, continue with rule-based score
                 logger.warning(f"ATS scoring agent analysis failed, using rule-based score only: {e}")
-            
+
             return {
                 "success": True,
                 "score": round(calculated_score, 1),

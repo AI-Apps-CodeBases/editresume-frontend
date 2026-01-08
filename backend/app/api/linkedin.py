@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.firebase_admin import verify_id_token, sanitized_user_from_token
+from app.core.firebase_admin import sanitized_user_from_token, verify_id_token
 from app.models import User
 from app.services.linkedin_service import linkedin_service
 

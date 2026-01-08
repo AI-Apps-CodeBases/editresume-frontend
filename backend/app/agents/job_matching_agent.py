@@ -6,8 +6,8 @@ import json
 import logging
 
 from app.core.openai_client import openai_client
-from app.services.keyword_service import KeywordExtractor
 from app.prompts.job_matching_prompts import get_job_match_improvement_prompt
+from app.services.keyword_service import KeywordExtractor
 
 logger = logging.getLogger(__name__)
 

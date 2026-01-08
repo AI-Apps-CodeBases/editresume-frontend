@@ -11,6 +11,8 @@ import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
 import { calculateEnhancedATSScore } from '@/lib/atsScoring.enhanced';
 import type { ExtensionKeywordData, LegacyATSScoreResult } from '@/lib/atsScoring.types';
+import { useSavedJobs } from '@/features/jobs/hooks/useSavedJobs';
+import type { Job } from '@/features/jobs/types';
 
 const USE_ENHANCED_ATS_SCORING = true;
 
@@ -1639,7 +1641,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
   const [keywordComparison, setKeywordComparison] = useState<{matched: string[], missing: string[]} | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showSavedJobsDropdown, setShowSavedJobsDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const savedJobsDropdownRef = useRef<HTMLDivElement>(null);
+  const { jobs: savedJobs, loading: savedJobsLoading, error: savedJobsError, refresh: refreshSavedJobs } = useSavedJobs();
 
   // Load job description from localStorage if not provided via prop
   useEffect(() => {
@@ -1726,6 +1731,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       }
     }
   }, [currentJobDescriptionId, jobDescription]);
+
   useEffect(() => {
     if (!jobDescription?.trim()) return;
     const extracted = deriveJobMetadataFromText(jobDescription);
@@ -1905,21 +1911,31 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     }
   }, [currentJobDescriptionId]);
 
+  // Refresh saved jobs when dropdown is opened
+  useEffect(() => {
+    if (showSavedJobsDropdown) {
+      refreshSavedJobs();
+    }
+  }, [showSavedJobsDropdown, refreshSavedJobs]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowDropdown(false);
       }
+      if (savedJobsDropdownRef.current && !savedJobsDropdownRef.current.contains(event.target as Node)) {
+        setShowSavedJobsDropdown(false);
+      }
     };
 
-    if (showDropdown) {
+    if (showDropdown || showSavedJobsDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [showDropdown]);
+  }, [showDropdown, showSavedJobsDropdown]);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -4662,18 +4678,77 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                               </button>
                             </Tooltip>
                             <Tooltip text="Browse and select from your previously saved job descriptions" color="blue" position="right">
-                              <button
-                                onClick={() => {
-                                  onViewChange?.('jobs');
-                                  setShowDropdown(false);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                <span>Browse Saved Jobs</span>
-                              </button>
+                              <div className="relative" ref={savedJobsDropdownRef}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowSavedJobsDropdown(!showSavedJobsDropdown);
+                                  }}
+                                  onMouseEnter={() => setShowSavedJobsDropdown(true)}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-2 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <span>Browse Saved Jobs</span>
+                                  </div>
+                                  <svg
+                                    className={`w-3 h-3 transition-transform ${showSavedJobsDropdown ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                                {showSavedJobsDropdown && (
+                                  <div className="absolute left-full top-0 ml-2 w-80 max-h-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden flex flex-col">
+                                    <div className="p-2 border-b border-gray-200 bg-gray-50">
+                                      <h3 className="text-xs font-semibold text-gray-700 uppercase">Saved Jobs</h3>
+                                    </div>
+                                    <div className="overflow-y-auto flex-1">
+                                      {savedJobsLoading ? (
+                                        <div className="p-4 text-center text-sm text-gray-500">
+                                          Loading saved jobs...
+                                        </div>
+                                      ) : savedJobsError ? (
+                                        <div className="p-4 text-center text-sm text-red-600">
+                                          {savedJobsError}
+                                        </div>
+                                      ) : savedJobs.length === 0 ? (
+                                        <div className="p-4 text-center text-sm text-gray-500">
+                                          No saved jobs yet
+                                        </div>
+                                      ) : (
+                                        <div className="py-1">
+                                          {savedJobs.map((job: Job) => (
+                                            <button
+                                              key={job.id}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (onSelectJobDescriptionId) {
+                                                  onSelectJobDescriptionId(job.id);
+                                                }
+                                                setShowSavedJobsDropdown(false);
+                                                setShowDropdown(false);
+                                              }}
+                                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 flex flex-col gap-1 transition-colors"
+                                            >
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{job.title}</div>
+                                                {job.company && (
+                                                  <div className="text-xs text-gray-500 truncate">{job.company}</div>
+                                                )}
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </Tooltip>
                           </div>
                         </div>
@@ -5776,7 +5851,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           </div>
         </div>
       )}
-
     </>
   );
 }

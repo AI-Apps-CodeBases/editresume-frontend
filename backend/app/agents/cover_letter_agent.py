@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import List
 
 from fastapi import HTTPException
 
-from app.core.openai_client import OPENAI_MAX_TOKENS, openai_client
+from app.core.openai_client import openai_client
 from app.prompts.cover_letter_prompts import get_cover_letter_prompt
 
 logger = logging.getLogger(__name__)
@@ -73,18 +72,18 @@ class CoverLetterAgent:
     ) -> str:
         """Build full letter from structured JSON response."""
         parts = []
-        
+
         # Title
         title = f"{position_title} at {company_name}"
         parts.append(title)
         parts.append("")
-        
+
         # Date
         date = parsed_content.get("date", "")
         if date:
             parts.append(date)
             parts.append("")
-        
+
         # Sender contact info (name and email only, no phone)
         sender_contact = parsed_content.get("sender_contact", {})
         if isinstance(sender_contact, dict):
@@ -109,24 +108,24 @@ class CoverLetterAgent:
             if filtered_lines:
                 parts.append("\n".join(filtered_lines))
                 parts.append("")
-        
+
         # Recipient info
         recipient_info = parsed_content.get("recipient_info", "")
         if recipient_info:
             parts.append(recipient_info)
             parts.append("")
-        
+
         # Salutation
         salutation = parsed_content.get("salutation", "Dear Hiring Manager,")
         parts.append(salutation)
         parts.append("")
-        
+
         # Opening paragraph
         opening = parsed_content.get("opening_paragraph") or parsed_content.get("opening", "")
         if opening:
             parts.append(opening.strip())
             parts.append("")
-        
+
         # Body paragraphs
         body_paragraphs = parsed_content.get("body_paragraphs", [])
         if isinstance(body_paragraphs, list) and len(body_paragraphs) > 0:
@@ -140,23 +139,23 @@ class CoverLetterAgent:
             if body:
                 parts.append(body.strip())
                 parts.append("")
-        
+
         # Closing paragraph
         closing_para = parsed_content.get("closing_paragraph") or parsed_content.get("closing", "")
         if closing_para:
             parts.append(closing_para.strip())
             parts.append("")
-        
+
         # Closing
         closing = parsed_content.get("closing", "Sincerely,")
         parts.append(closing)
         parts.append("")
-        
+
         # Signature
         signature = parsed_content.get("signature_line", "")
         if signature:
             parts.append(signature)
-        
+
         full_letter = "\n".join(parts)
         full_letter = re.sub(r"\n{3,}", "\n\n", full_letter)
         return full_letter.strip()
@@ -189,7 +188,7 @@ class CoverLetterAgent:
         resume_text: str,
         tone: str = "professional",
         custom_requirements: str | None = None,
-        selected_sentences: List[str] | None = None,
+        selected_sentences: list[str] | None = None,
     ) -> dict:
         """Generate a cover letter."""
         if not self.openai_client:
@@ -266,7 +265,7 @@ class CoverLetterAgent:
                 parsed_content["full_letter"] = self._build_full_letter_from_structure(
                     parsed_content, company_name, position_title
                 )
-                
+
                 # Also populate old fields for backward compatibility
                 if "opening_paragraph" in parsed_content:
                     parsed_content["opening"] = parsed_content["opening_paragraph"]
@@ -292,7 +291,7 @@ class CoverLetterAgent:
                     parsed_content["closing"] = self._sanitize_cover_letter(
                         parsed_content["closing"], company_name, position_title
                     )
-                
+
                 # Build or sanitize full_letter
                 if "full_letter" in parsed_content:
                     parsed_content["full_letter"] = self._ensure_title_and_formatting(

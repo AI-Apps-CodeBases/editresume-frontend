@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,7 @@ class ResumeVersionService:
     def __init__(
         self,
         session: Session,
-        repository: Optional[ResumeVersionRepository] = None,
+        repository: ResumeVersionRepository | None = None,
     ) -> None:
         self._repository = repository or ResumeVersionRepository(session)
 
@@ -25,10 +25,10 @@ class ResumeVersionService:
         self,
         user_id: int,
         resume_id: int,
-        resume_data: Dict[str, Any],
-        change_summary: Optional[str] = None,
+        resume_data: dict[str, Any],
+        change_summary: str | None = None,
         is_auto_save: bool = False,
-        tokens_used: Optional[int] = None,
+        tokens_used: int | None = None,
     ) -> ResumeVersion:
         latest_version = self._repository.latest_for_resume(resume_id, user_id)
         version_number = (
@@ -47,20 +47,20 @@ class ResumeVersionService:
 
         return self._repository.save(version)
 
-    def get_resume_versions(self, resume_id: int, user_id: int) -> List[ResumeVersion]:
+    def get_resume_versions(self, resume_id: int, user_id: int) -> list[ResumeVersion]:
         return self._repository.list_for_resume(resume_id, user_id)
 
-    def get_version(self, version_id: int, user_id: int) -> Optional[ResumeVersion]:
+    def get_version(self, version_id: int, user_id: int) -> ResumeVersion | None:
         return self._repository.get(version_id, user_id)
 
     def get_latest_version(
         self, resume_id: int, user_id: int
-    ) -> Optional[ResumeVersion]:
+    ) -> ResumeVersion | None:
         return self._repository.latest_for_resume(resume_id, user_id)
 
     def rollback_to_version(
         self, version_id: int, user_id: int
-    ) -> Optional[ResumeVersion]:
+    ) -> ResumeVersion | None:
         version = self.get_version(version_id, user_id)
         if version is None:
             return None
@@ -97,7 +97,7 @@ class ResumeVersionService:
         version1_id: int,
         version2_id: int,
         user_id: int,
-    ) -> Optional[ResumeVersionDiff]:
+    ) -> ResumeVersionDiff | None:
         version1 = self.get_version(version1_id, user_id)
         version2 = self.get_version(version2_id, user_id)
 
@@ -126,9 +126,9 @@ class ResumeVersionService:
 
     @staticmethod
     def _find_differences(
-        data1: Dict[str, Any], data2: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        differences: Dict[str, Any] = {
+        data1: dict[str, Any], data2: dict[str, Any]
+    ) -> dict[str, Any]:
+        differences: dict[str, Any] = {
             "personal_info": {},
             "sections": {},
             "summary": None,

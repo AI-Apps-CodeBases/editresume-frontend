@@ -7,15 +7,9 @@ for better feature isolation and organization.
 from __future__ import annotations
 
 import logging
-import secrets
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
-from app.core.db import get_db
-from app.core.openai_client import OPENAI_API_KEY, openai_client
-from app.models import User
+from fastapi import APIRouter, HTTPException
 
 logger = logging.getLogger(__name__)
 

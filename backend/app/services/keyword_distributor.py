@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 
 def categorize_keywords(
-    keywords: List[str], job_description: str
-) -> Dict[str, List[str]]:
+    keywords: list[str], job_description: str
+) -> dict[str, list[str]]:
     """Categorize keywords into skills, experience-related, and summary-worthy."""
     job_lower = job_description.lower()
-    skills_keywords: List[str] = []
-    experience_keywords: List[str] = []
-    summary_keywords: List[str] = []
+    skills_keywords: list[str] = []
+    experience_keywords: list[str] = []
+    summary_keywords: list[str] = []
 
     technical_indicators = [
         "language",
@@ -71,10 +71,10 @@ def categorize_keywords(
 
 
 def distribute_keywords_to_sections(
-    missing_keywords: List[str],
-    resume_data: Dict[str, Any],
+    missing_keywords: list[str],
+    resume_data: dict[str, Any],
     job_description: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Distribute missing keywords across appropriate resume sections."""
     categorized = categorize_keywords(missing_keywords, job_description)
 

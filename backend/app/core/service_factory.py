@@ -21,22 +21,21 @@ Usage:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
-from app.services.enhanced_ats_service import EnhancedATSChecker
-from app.services.ats_service import ATSChecker
-from app.services.keyword_service import KeywordExtractor
 from app.services.ai_improvement_engine import AIResumeImprovementEngine
+from app.services.ats_service import ATSChecker
+from app.services.enhanced_ats_service import EnhancedATSChecker
+from app.services.keyword_service import KeywordExtractor
 
 logger = logging.getLogger(__name__)
 
 # Import agents (optional - may fail if OpenAI not configured)
 try:
-    from app.agents.cover_letter_agent import CoverLetterAgent
+    from app.agents.ats_scoring_agent import ATSScoringAgent
     from app.agents.content_generation_agent import ContentGenerationAgent
+    from app.agents.cover_letter_agent import CoverLetterAgent
     from app.agents.improvement_agent import ImprovementAgent
     from app.agents.job_matching_agent import JobMatchingAgent
-    from app.agents.ats_scoring_agent import ATSScoringAgent
     AGENTS_AVAILABLE = True
 except ImportError as e:
     logger.debug(f"Agents not available: {e}")
@@ -50,7 +49,7 @@ except ImportError as e:
 
 class ServiceFactory:
     """Creates service instances - allows testing with mocks."""
-    
+
     @staticmethod
     def create_enhanced_ats_checker() -> EnhancedATSChecker:
         """Create EnhancedATSChecker instance."""
@@ -59,16 +58,16 @@ class ServiceFactory:
         except Exception as e:
             logger.error(f"Failed to create EnhancedATSChecker: {e}", exc_info=True)
             raise
-    
+
     @staticmethod
-    def create_ats_checker() -> Optional[ATSChecker]:
+    def create_ats_checker() -> ATSChecker | None:
         """Create ATSChecker instance."""
         try:
             return ATSChecker()
         except Exception as e:
             logger.warning(f"ATS checker not available: {e}")
             return None
-    
+
     @staticmethod
     def create_keyword_extractor() -> KeywordExtractor:
         """Create KeywordExtractor instance."""
@@ -77,18 +76,18 @@ class ServiceFactory:
         except Exception as e:
             logger.error(f"Failed to create KeywordExtractor: {e}", exc_info=True)
             raise
-    
+
     @staticmethod
-    def create_ai_improvement_engine() -> Optional[AIResumeImprovementEngine]:
+    def create_ai_improvement_engine() -> AIResumeImprovementEngine | None:
         """Create AIResumeImprovementEngine instance."""
         try:
             return AIResumeImprovementEngine()
         except Exception as e:
             logger.warning(f"AI Improvement Engine not available: {e}")
             return None
-    
+
     @staticmethod
-    def create_cover_letter_agent() -> Optional["CoverLetterAgent"]:
+    def create_cover_letter_agent() -> CoverLetterAgent | None:
         """Create CoverLetterAgent instance."""
         if not AGENTS_AVAILABLE or CoverLetterAgent is None:
             return None
@@ -97,9 +96,9 @@ class ServiceFactory:
         except Exception as e:
             logger.warning(f"Cover letter agent not available: {e}")
             return None
-    
+
     @staticmethod
-    def create_content_generation_agent() -> Optional["ContentGenerationAgent"]:
+    def create_content_generation_agent() -> ContentGenerationAgent | None:
         """Create ContentGenerationAgent instance."""
         if not AGENTS_AVAILABLE or ContentGenerationAgent is None:
             return None
@@ -108,9 +107,9 @@ class ServiceFactory:
         except Exception as e:
             logger.warning(f"Content generation agent not available: {e}")
             return None
-    
+
     @staticmethod
-    def create_improvement_agent() -> Optional["ImprovementAgent"]:
+    def create_improvement_agent() -> ImprovementAgent | None:
         """Create ImprovementAgent instance."""
         if not AGENTS_AVAILABLE or ImprovementAgent is None:
             return None
@@ -119,9 +118,9 @@ class ServiceFactory:
         except Exception as e:
             logger.warning(f"Improvement agent not available: {e}")
             return None
-    
+
     @staticmethod
-    def create_job_matching_agent() -> Optional["JobMatchingAgent"]:
+    def create_job_matching_agent() -> JobMatchingAgent | None:
         """Create JobMatchingAgent instance."""
         if not AGENTS_AVAILABLE or JobMatchingAgent is None:
             return None
@@ -130,9 +129,9 @@ class ServiceFactory:
         except Exception as e:
             logger.warning(f"Job matching agent not available: {e}")
             return None
-    
+
     @staticmethod
-    def create_ats_scoring_agent() -> Optional["ATSScoringAgent"]:
+    def create_ats_scoring_agent() -> ATSScoringAgent | None:
         """Create ATSScoringAgent instance."""
         if not AGENTS_AVAILABLE or ATSScoringAgent is None:
             return None
@@ -155,7 +154,7 @@ def get_enhanced_ats_service() -> EnhancedATSChecker:
     return ServiceFactory.create_enhanced_ats_checker()
 
 
-def get_ats_service() -> Optional[ATSChecker]:
+def get_ats_service() -> ATSChecker | None:
     """Dependency injection function for ATSChecker."""
     return ServiceFactory.create_ats_checker()
 
@@ -165,32 +164,32 @@ def get_keyword_extractor_service() -> KeywordExtractor:
     return ServiceFactory.create_keyword_extractor()
 
 
-def get_ai_improvement_engine_service() -> Optional[AIResumeImprovementEngine]:
+def get_ai_improvement_engine_service() -> AIResumeImprovementEngine | None:
     """Dependency injection function for AIResumeImprovementEngine."""
     return ServiceFactory.create_ai_improvement_engine()
 
 
-def get_cover_letter_agent_service() -> Optional["CoverLetterAgent"]:
+def get_cover_letter_agent_service() -> CoverLetterAgent | None:
     """Dependency injection function for CoverLetterAgent."""
     return ServiceFactory.create_cover_letter_agent()
 
 
-def get_content_generation_agent_service() -> Optional["ContentGenerationAgent"]:
+def get_content_generation_agent_service() -> ContentGenerationAgent | None:
     """Dependency injection function for ContentGenerationAgent."""
     return ServiceFactory.create_content_generation_agent()
 
 
-def get_improvement_agent_service() -> Optional["ImprovementAgent"]:
+def get_improvement_agent_service() -> ImprovementAgent | None:
     """Dependency injection function for ImprovementAgent."""
     return ServiceFactory.create_improvement_agent()
 
 
-def get_job_matching_agent_service() -> Optional["JobMatchingAgent"]:
+def get_job_matching_agent_service() -> JobMatchingAgent | None:
     """Dependency injection function for JobMatchingAgent."""
     return ServiceFactory.create_job_matching_agent()
 
 
-def get_ats_scoring_agent_service() -> Optional["ATSScoringAgent"]:
+def get_ats_scoring_agent_service() -> ATSScoringAgent | None:
     """Dependency injection function for ATSScoringAgent."""
     return ServiceFactory.create_ats_scoring_agent()
 

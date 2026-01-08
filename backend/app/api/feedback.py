@@ -1,13 +1,14 @@
+import logging
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
+
 from app.core.db import get_db
 from app.models.feedback import Feedback
 from app.models.user import User
 from app.services.email_service import send_feedback_notification
-from pydantic import BaseModel, field_validator
-from typing import Optional, List
-import re
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +16,11 @@ router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
 
 class FeedbackCreate(BaseModel):
-    rating: Optional[int] = None
+    rating: int | None = None
     feedback: str
     category: str = "general"
-    page_url: Optional[str] = None
-    user_email: Optional[str] = None
+    page_url: str | None = None
+    user_email: str | None = None
 
     @field_validator('user_email')
     @classmethod
@@ -34,11 +35,11 @@ class FeedbackCreate(BaseModel):
 
 class FeedbackResponse(BaseModel):
     id: int
-    user_email: Optional[str]
-    rating: Optional[int]
+    user_email: str | None
+    rating: int | None
     feedback: str
     category: str
-    page_url: Optional[str]
+    page_url: str | None
     created_at: str
 
     class Config:
@@ -53,14 +54,14 @@ async def create_feedback(
     # Validate that email is provided (required for anonymous users)
     if not payload.user_email or not payload.user_email.strip():
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="Email address is required to submit feedback. Please provide a valid email address."
         )
 
     user = None
     if payload.user_email:
         user = db.query(User).filter(User.email == payload.user_email).first()
-    
+
     feedback = Feedback(
         user_id=user.id if user else None,
         user_email=payload.user_email.strip() if payload.user_email else None,
@@ -69,7 +70,7 @@ async def create_feedback(
         category=payload.category,
         page_url=payload.page_url
     )
-    
+
     db.add(feedback)
     db.commit()
     db.refresh(feedback)
@@ -81,28 +82,28 @@ async def create_feedback(
         user_email=payload.user_email,
         page_url=payload.page_url,
     )
-    
+
     if not email_sent:
         logger.warning(f"Feedback saved (ID: {feedback.id}) but email notification failed. Check logs for details.")
-    
+
     return {"success": True, "id": feedback.id, "email_sent": email_sent}
 
 
-@router.get("", response_model=List[FeedbackResponse])
+@router.get("", response_model=list[FeedbackResponse])
 async def get_feedback(
-    user_email: Optional[str] = Query(None),
+    user_email: str | None = Query(None),
     db: Session = Depends(get_db)
 ):
     if not user_email:
         raise HTTPException(status_code=401, detail="Authentication required")
-    
+
     user = db.query(User).filter(User.email == user_email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     if not user.is_premium:
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
     return feedbacks
 

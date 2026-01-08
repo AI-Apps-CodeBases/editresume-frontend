@@ -6,18 +6,17 @@ import html
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import keyword_extractor
 from app.models import JobDescription
 
 logger = logging.getLogger(__name__)
 
 
-def safe_get_job_description(jd_id: int, db: Session) -> Tuple[Optional[JobDescription], bool]:
+def safe_get_job_description(jd_id: int, db: Session) -> tuple[JobDescription | None, bool]:
     """Safely get job description, handling missing columns gracefully.
     Returns a tuple of (job_description, new_columns_exist_flag).
     """
@@ -136,7 +135,7 @@ def _looks_generic_title(title: str) -> bool:
     return False
 
 
-def _clean_candidate_title(candidate: str) -> Optional[str]:
+def _clean_candidate_title(candidate: str) -> str | None:
     """Clean candidate title"""
     if not candidate:
         return None
@@ -183,7 +182,7 @@ def _clean_candidate_title(candidate: str) -> Optional[str]:
     return candidate.title() if candidate.isupper() else candidate
 
 
-def _extract_title_from_extracted_keywords(extracted: Dict[str, Any]) -> Optional[str]:
+def _extract_title_from_extracted_keywords(extracted: dict[str, Any]) -> str | None:
     """Extract title from extracted keywords"""
     if not isinstance(extracted, dict):
         return None
@@ -196,7 +195,7 @@ def _extract_title_from_extracted_keywords(extracted: Dict[str, Any]) -> Optiona
     return None
 
 
-def _extract_job_title_from_content(content: str) -> Optional[str]:
+def _extract_job_title_from_content(content: str) -> str | None:
     """Extract job title from content"""
     if not content:
         return None
@@ -212,10 +211,10 @@ def _extract_job_title_from_content(content: str) -> Optional[str]:
 
 
 def _determine_final_job_title(
-    provided_title: Optional[str], content: str, extracted_dict: Dict[str, Any]
-) -> Optional[str]:
+    provided_title: str | None, content: str, extracted_dict: dict[str, Any]
+) -> str | None:
     """Determine final job title from multiple sources"""
-    candidates: List[str] = []
+    candidates: list[str] = []
     if provided_title and provided_title.strip():
         candidates.append(re.sub(r"\s+", " ", provided_title).strip())
     extracted_title = _extract_title_from_extracted_keywords(extracted_dict)
@@ -236,9 +235,9 @@ def _determine_final_job_title(
     return None
 
 
-def _classify_priority_keywords(extracted: Dict[str, Any]) -> Dict[str, List[str]]:
+def _classify_priority_keywords(extracted: dict[str, Any]) -> dict[str, list[str]]:
     """Classify keywords by priority"""
-    keyword_freq: Dict[str, int] = (
+    keyword_freq: dict[str, int] = (
         extracted.get("keyword_frequency", {}) if isinstance(extracted, dict) else {}
     )
     technical = (
@@ -246,15 +245,15 @@ def _classify_priority_keywords(extracted: Dict[str, Any]) -> Dict[str, List[str
         if isinstance(extracted, dict)
         else set()
     )
-    high_priority: List[str] = []
-    regular: List[str] = []
+    high_priority: list[str] = []
+    regular: list[str] = []
     for kw, cnt in keyword_freq.items():
         if cnt >= 3 or kw in technical:
             high_priority.append(kw)
         else:
             regular.append(kw)
     return {
-        "high_priority": list(sorted(set(high_priority))),
-        "regular": list(sorted(set(regular))),
+        "high_priority": sorted(set(high_priority)),
+        "regular": sorted(set(regular)),
     }
 

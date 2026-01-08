@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -21,7 +21,7 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app,
-        protected_paths: Optional[Iterable[str]] = None,
+        protected_paths: Iterable[str] | None = None,
     ):
         super().__init__(app)
         self.protected_paths = tuple(protected_paths or ())
@@ -67,7 +67,7 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
     @staticmethod
-    def _extract_bearer_token(request: Request) -> Optional[str]:
+    def _extract_bearer_token(request: Request) -> str | None:
         header = request.headers.get("authorization")
         if not header:
             return None

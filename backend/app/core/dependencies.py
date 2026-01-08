@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import logging
-import os
-from typing import Optional
 
-import requests
-
-from app.core.config import settings
-from app.core.openai_client import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MAX_TOKENS, USE_AI_PARSER, openai_client
+from app.core.openai_client import (
+    OPENAI_API_KEY,
+    openai_client,
+)
 from app.services.ai_improvement_engine import AIResumeImprovementEngine
 from app.services.ats_service import ATSChecker
 from app.services.enhanced_ats_service import EnhancedATSChecker
@@ -44,7 +42,7 @@ else:
 # NOTE: These are kept for backward compatibility with existing code.
 # New code should use ServiceFactory and dependency injection instead.
 # TODO: Migrate all endpoints to use dependency injection, then remove these globals.
-ats_checker: Optional[ATSChecker] = None
+ats_checker: ATSChecker | None = None
 try:
     ats_checker = ATSChecker()
     logger.info("ATS checker initialized successfully")
@@ -52,7 +50,7 @@ except Exception as e:
     logger.warning(f"ATS checker not available: {e}")
     ats_checker = None
 
-enhanced_ats_checker: Optional[EnhancedATSChecker] = None
+enhanced_ats_checker: EnhancedATSChecker | None = None
 try:
     enhanced_ats_checker = EnhancedATSChecker()
     logger.info("Enhanced ATS checker initialized successfully")
@@ -61,7 +59,7 @@ except Exception as e:
     enhanced_ats_checker = None
 
 # Initialize AI improvement engine
-ai_improvement_engine: Optional[AIResumeImprovementEngine] = None
+ai_improvement_engine: AIResumeImprovementEngine | None = None
 try:
     ai_improvement_engine = AIResumeImprovementEngine()
     logger.info("AI Improvement Engine initialized successfully")
@@ -73,11 +71,11 @@ except Exception as e:
 keyword_extractor = KeywordExtractor()
 
 # Initialize AI agents
-ats_scoring_agent: Optional[ATSScoringAgent] = None
-cover_letter_agent: Optional[CoverLetterAgent] = None
-content_generation_agent: Optional[ContentGenerationAgent] = None
-improvement_agent: Optional[ImprovementAgent] = None
-job_matching_agent: Optional[JobMatchingAgent] = None
+ats_scoring_agent: ATSScoringAgent | None = None
+cover_letter_agent: CoverLetterAgent | None = None
+content_generation_agent: ContentGenerationAgent | None = None
+improvement_agent: ImprovementAgent | None = None
+job_matching_agent: JobMatchingAgent | None = None
 
 try:
     if ATSScoringAgent is not None:

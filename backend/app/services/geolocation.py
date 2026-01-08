@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any
+
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -11,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 class GeolocationService:
     """Service for getting country information from IP address."""
-    
+
     @staticmethod
-    async def get_country_from_ip(ip_address: str) -> Optional[Dict[str, Any]]:
+    async def get_country_from_ip(ip_address: str) -> dict[str, Any] | None:
         """
         Get country information from IP address using free IP geolocation API.
         
@@ -31,7 +32,7 @@ class GeolocationService:
                 "city": "Local",
                 "region": "Local"
             }
-        
+
         try:
             # Using ip-api.com (free, no API key required, 45 requests/minute)
             # Alternative: ipapi.co, ipgeolocation.io
@@ -40,7 +41,7 @@ class GeolocationService:
                     f"http://ip-api.com/json/{ip_address}",
                     params={"fields": "status,country,countryCode,city,region"}
                 )
-                
+
                 if response.status_code == 200:
                     data = response.json()
                     if data.get("status") == "success":
@@ -52,9 +53,9 @@ class GeolocationService:
                         }
         except Exception as e:
             logger.warning(f"Failed to get geolocation for IP {ip_address}: {e}")
-        
+
         return None
-    
+
     @staticmethod
     def extract_ip_from_request(request) -> str:
         """
@@ -66,14 +67,14 @@ class GeolocationService:
         if forwarded_for:
             # Take the first IP (original client)
             return forwarded_for.split(",")[0].strip()
-        
+
         real_ip = request.headers.get("X-Real-IP")
         if real_ip:
             return real_ip.strip()
-        
+
         # Fallback to direct connection IP
         if hasattr(request.client, "host"):
             return request.client.host
-        
+
         return "unknown"
 
