@@ -97,7 +97,7 @@ async def create_checkout_session(
         )
 
     # Determine price ID and payment mode
-    is_onetime = payload.planType == 'trial-onetime'
+    is_onetime = payload.planType == 'trial-onetime' or (payload.planType == 'premium' and payload.period == 'annual')
 
     if payload.priceId:
         price_id = payload.priceId
@@ -130,6 +130,7 @@ async def create_checkout_session(
             "uid": user["uid"],
             "email": user.get("email") or "",
             "planType": payload.planType or "premium",
+            "period": payload.period or "monthly",
         }
 
         session_params = {
@@ -305,11 +306,19 @@ async def _handle_checkout_session_completed(session: dict[str, Any], stripe) ->
         )
         return
 
-    # Handle one-time payment for trial
-    if mode == "payment" and plan_type == "trial-onetime":
+    # Handle one-time payments (trial-onetime or premium annual)
+    if mode == "payment":
         purchase_timestamp = datetime.now(timezone.utc)
-        # Set premium access for 30 days (1 month)
-        current_period_end = (purchase_timestamp + timedelta(days=30)).timestamp()
+        if plan_type == "trial-onetime":
+            # Set premium access for 30 days (1 month)
+            current_period_end = (purchase_timestamp + timedelta(days=30)).timestamp()
+        elif plan_type == "premium" and metadata.get("period") == "annual":
+            # Set premium access for 365 days (1 year)
+            current_period_end = (purchase_timestamp + timedelta(days=365)).timestamp()
+        else:
+            # Default to 30 days if plan type not recognized
+            current_period_end = (purchase_timestamp + timedelta(days=30)).timestamp()
+        
         status = "active"
         payload = {
             "stripeCustomerId": customer_id,
