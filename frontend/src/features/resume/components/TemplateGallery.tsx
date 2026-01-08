@@ -99,87 +99,6 @@ function TemplateCard({
   onSelect: () => void
   resumeData: any
 }) {
-  const getTemplateThumbnail = (templateId: string) => {
-    const thumbnails: Record<string, JSX.Element> = {
-      'classic': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="20" y="10" width="160" height="8" fill="#dee2e6" rx="2"/>
-          <rect x="20" y="25" width="80" height="6" fill="#adb5bd" rx="1"/>
-          <rect x="20" y="35" width="60" height="4" fill="#ced4da" rx="1"/>
-          <line x1="20" y1="50" x2="180" y2="50" stroke="#dee2e6" strokeWidth="1"/>
-          <rect x="20" y="58" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <circle cx="25" cy="75" r="2" fill="#6c757d"/>
-          <rect x="30" y="73" width="120" height="4" fill="#ced4da" rx="1"/>
-          <circle cx="25" cy="85" r="2" fill="#6c757d"/>
-          <rect x="30" y="83" width="100" height="4" fill="#ced4da" rx="1"/>
-        </svg>
-      ),
-      'modern': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="60" y="10" width="80" height="8" fill="#dee2e6" rx="2"/>
-          <rect x="60" y="22" width="60" height="4" fill="#adb5bd" rx="1"/>
-          <rect x="20" y="35" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <rect x="20" y="45" width="140" height="4" fill="#ced4da" rx="1"/>
-          <rect x="20" y="58" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <circle cx="25" cy="75" r="2" fill="#6c757d"/>
-          <rect x="30" y="73" width="130" height="4" fill="#ced4da" rx="1"/>
-          <circle cx="25" cy="85" r="2" fill="#6c757d"/>
-          <rect x="30" y="83" width="110" height="4" fill="#ced4da" rx="1"/>
-        </svg>
-      ),
-      'two-column': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="20" y="10" width="70" height="8" fill="#dee2e6" rx="2"/>
-          <rect x="110" y="10" width="70" height="8" fill="#dee2e6" rx="2"/>
-          <rect x="20" y="25" width="70" height="6" fill="#adb5bd" rx="1"/>
-          <rect x="110" y="25" width="70" height="6" fill="#adb5bd" rx="1"/>
-          <line x1="100" y1="10" x2="100" y2="90" stroke="#dee2e6" strokeWidth="1"/>
-          <circle cx="25" cy="45" r="2" fill="#6c757d"/>
-          <rect x="30" y="43" width="50" height="4" fill="#ced4da" rx="1"/>
-          <circle cx="115" cy="45" r="2" fill="#6c757d"/>
-          <rect x="120" y="43" width="50" height="4" fill="#ced4da" rx="1"/>
-          <rect x="20" y="58" width="70" height="6" fill="#adb5bd" rx="1"/>
-          <rect x="110" y="58" width="70" height="6" fill="#adb5bd" rx="1"/>
-        </svg>
-      ),
-      'creative': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <defs>
-            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#667eea"/>
-              <stop offset="100%" stopColor="#764ba2"/>
-            </linearGradient>
-          </defs>
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="0" y="0" width="200" height="20" fill="url(#grad)"/>
-          <rect x="20" y="30" width="160" height="8" fill="#adb5bd" rx="2"/>
-          <rect x="20" y="45" width="140" height="6" fill="#ced4da" rx="1"/>
-          <rect x="20" y="58" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <circle cx="25" cy="75" r="2" fill="#6c757d"/>
-          <rect x="30" y="73" width="120" height="4" fill="#ced4da" rx="1"/>
-        </svg>
-      ),
-      'ats-friendly': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="20" y="10" width="160" height="6" fill="#28a745" rx="1"/>
-          <rect x="20" y="20" width="160" height="4" fill="#6c757d" rx="1"/>
-          <line x1="20" y1="32" x2="180" y2="32" stroke="#28a745" strokeWidth="2"/>
-          <rect x="20" y="38" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <circle cx="25" cy="55" r="2" fill="#28a745"/>
-          <rect x="30" y="53" width="150" height="4" fill="#ced4da" rx="1"/>
-          <circle cx="25" cy="65" r="2" fill="#28a745"/>
-          <rect x="30" y="63" width="130" height="4" fill="#ced4da" rx="1"/>
-          <rect x="20" y="75" width="160" height="6" fill="#adb5bd" rx="1"/>
-        </svg>
-      ),
-    }
-    return thumbnails[templateId] || thumbnails['classic']
-  }
-
   return (
     <button
       onClick={onSelect}
@@ -204,8 +123,8 @@ function TemplateCard({
         </div>
       </div>
       
-      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden" style={{ height: '80px' }}>
-        {getTemplateThumbnail(template.id)}
+      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden">
+        <TemplatePreview template={template} resumeData={resumeData} scale={0.18} height={160} />
       </div>
       
       <div className="flex items-center justify-between">
@@ -220,4 +139,3 @@ function TemplateCard({
     </button>
   )
 }
-

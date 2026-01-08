@@ -6,14 +6,9 @@ import { useAuth } from '@/contexts/AuthContext'
 interface ExportAnalyticsDashboardProps {
   isOpen: boolean
   onClose: () => void
-  variant?: 'modal' | 'panel'
 }
 
-export default function ExportAnalyticsDashboard({
-  isOpen,
-  onClose,
-  variant = 'modal',
-}: ExportAnalyticsDashboardProps) {
+export default function ExportAnalyticsDashboard({ isOpen, onClose }: ExportAnalyticsDashboardProps) {
   const { user } = useAuth()
   const [analytics, setAnalytics] = useState<ExportAnalytics | null>(null)
   const [loading, setLoading] = useState(false)
@@ -44,25 +39,41 @@ export default function ExportAnalyticsDashboard({
 
   if (!isOpen) return null
 
-  const content = (
-    <div className={variant === 'panel' ? 'p-0' : 'overflow-y-auto max-h-[calc(90vh-80px)] p-4'}>
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Loading analytics...</span>
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+        <div className="p-4 border-b">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Export Analytics</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
-      ) : error ? (
-        <div className="text-center py-12 text-red-600">
-          <p>{error}</p>
-          <button
-            onClick={loadAnalytics}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Retry
-          </button>
-        </div>
-      ) : analytics ? (
-        <div className="space-y-6">
+
+        <div className="overflow-y-auto max-h-[calc(90vh-80px)] p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">Loading analytics...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12 text-red-600">
+              <p>{error}</p>
+              <button
+                onClick={loadAnalytics}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Retry
+              </button>
+            </div>
+          ) : analytics ? (
+            <div className="space-y-6">
               {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
@@ -98,6 +109,7 @@ export default function ExportAnalyticsDashboard({
                 </div>
               )}
 
+              {/* Export History */}
               <div>
                 <h3 className="text-lg font-semibold mb-3">Export History</h3>
                 {analytics.exports.length === 0 ? (
@@ -161,36 +173,14 @@ export default function ExportAnalyticsDashboard({
                 )}
               </div>
             </div>
-      ) : (
-        <div className="text-center py-12 text-gray-500">
-          <p>No analytics data available</p>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <p>No analytics data available</p>
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  )
-
-  if (variant === 'panel') {
-    return <div className="p-0">{content}</div>
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-        <div className="p-4 border-b">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Export Analytics</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        {content}
       </div>
     </div>
   )
 }
+

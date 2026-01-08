@@ -89,11 +89,10 @@ export default function UploadPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/40">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-100">
       {/* Background decorative elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary-200/20 to-purple-200/20 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-200/20 to-primary-200/20 rounded-full blur-3xl"></div>
+        <div className="absolute top-0 right-0 w-[28rem] h-[28rem] bg-gradient-to-br from-primary-200/25 to-blue-200/25 rounded-full blur-3xl"></div>
       </div>
 
       <main className="relative w-full flex flex-col gap-20 px-[10%] py-12 lg:py-20">
@@ -109,7 +108,7 @@ export default function UploadPage() {
               </span>
               <span className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-700">Upload + Diagnose</span>
             </div>
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-primary-700 to-purple-700 leading-tight">
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-primary-700 to-blue-700 leading-tight">
               Drop in your resume.<br />
               <span className="text-primary-600">We'll prep it in seconds.</span>
             </h1>
@@ -268,4 +267,3 @@ export default function UploadPage() {
     </div>
   )
 }
-

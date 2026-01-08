@@ -7,7 +7,7 @@ import RightPanel from './RightPanel'
 import JobsView from './JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 import Tooltip from '@/components/Shared/Tooltip'
-import { Menu, Zap, Eye } from 'lucide-react'
+import { Menu, Zap, Upload, Save } from 'lucide-react'
 
 interface ModernEditorLayoutProps {
   resumeData: {
@@ -60,7 +60,6 @@ interface ModernEditorLayoutProps {
   onTemplatesClick?: () => void
   onShareResume?: () => void
   onSelectJobDescriptionId?: (id: number | null) => void
-  onActionsClick?: () => void
 }
 
 export default function ModernEditorLayout({
@@ -98,14 +97,12 @@ export default function ModernEditorLayout({
   onTemplatesClick,
   onShareResume,
   onSelectJobDescriptionId,
-  onActionsClick,
 }: ModernEditorLayoutProps) {
   const [activeRightTab, setActiveRightTab] = useState<'preview' | 'job-description'>('preview')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
   const [showLeftDrawer, setShowLeftDrawer] = useState(false)
   const [showRightDrawer, setShowRightDrawer] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
-  const [showStepper, setShowStepper] = useState(false)
 
   useEffect(() => {
     if (deepLinkedJD && activeRightTab !== 'job-description') {
@@ -126,14 +123,6 @@ export default function ModernEditorLayout({
   }, [])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const seen = localStorage.getItem('editorStepperSeen')
-    if (!seen) {
-      setShowStepper(true)
-    }
-  }, [])
-
-  useEffect(() => {
     if (showLeftDrawer || showRightDrawer) {
       document.body.style.overflow = 'hidden'
     } else {
@@ -147,12 +136,20 @@ export default function ModernEditorLayout({
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-primary-50/30 via-white to-primary-50/20">
       <TopNavigationBar 
+        onNewResume={onNewResume}
         onSaveResume={onSaveResume}
         onUploadResume={onUploadResume}
+        onExport={onExport}
+        isExporting={isExporting}
+        hasResumeName={!!resumeData.name}
+        hasCoverLetter={hasCoverLetter}
+        userName={userName}
         isAuthenticated={isAuthenticated}
+        onLogout={onLogout}
+        onSignIn={onSignIn}
+        onShareResume={onShareResume}
         onMenuClick={() => setShowLeftDrawer(true)}
         onRightPanelClick={() => setShowRightDrawer(true)}
-        onActionsClick={onActionsClick}
         focusMode={focusMode}
         onFocusModeToggle={() => setFocusMode(!focusMode)}
       />
@@ -217,77 +214,6 @@ export default function ModernEditorLayout({
                   </div>
                 </div>
               </div>
-              {showStepper && !focusMode && (
-                <div className="mx-4 mt-4 rounded-xl border border-border-subtle bg-white/90 backdrop-blur-sm shadow-sm">
-                  <div className="flex flex-col gap-3 p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-text-primary">Quick start</div>
-                        <div className="text-xs text-text-muted">Follow this flow to finish a strong resume.</div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setShowStepper(false)
-                          if (typeof window !== 'undefined') {
-                            localStorage.setItem('editorStepperSeen', '1')
-                          }
-                        }}
-                        className="text-xs font-semibold text-text-muted hover:text-text-primary"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                      {['Upload', 'Review', 'Variables', 'Template', 'Export'].map((step, index) => (
-                        <div
-                          key={step}
-                          className="flex items-center gap-2 rounded-lg border border-border-subtle bg-white px-3 py-2 text-text-secondary"
-                        >
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-[10px] font-semibold">
-                            {index + 1}
-                          </span>
-                          <span className="font-medium">{step}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {onNewResume && (
-                        <button
-                          onClick={onNewResume}
-                          className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border-subtle text-text-secondary hover:bg-primary-50/60 transition-all"
-                        >
-                          New Resume
-                        </button>
-                      )}
-                      {onUploadResume && (
-                        <button
-                          onClick={onUploadResume}
-                          className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border-subtle text-text-secondary hover:bg-primary-50/60 transition-all"
-                        >
-                          Upload Resume
-                        </button>
-                      )}
-                      {onTemplatesClick && (
-                        <button
-                          onClick={onTemplatesClick}
-                          className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border-subtle text-text-secondary hover:bg-primary-50/60 transition-all"
-                        >
-                          Pick Template
-                        </button>
-                      )}
-                      {onExport && (
-                        <button
-                          onClick={() => onExport('pdf')}
-                          disabled={!resumeData.name || isExporting}
-                          className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-all"
-                        >
-                          Export PDF
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
               <VisualResumeEditor
                 data={resumeData}
                 onChange={onResumeUpdate || (() => {})}
@@ -395,26 +321,36 @@ export default function ModernEditorLayout({
                 <span className="font-medium">Menu</span>
               </button>
             </Tooltip>
-            {onActionsClick && (
-              <Tooltip text="Open actions drawer" color="blue" position="top">
-                <button
-                  onClick={onActionsClick}
-                  className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
-                >
-                  <Zap className="w-5 h-5" />
-                  <span className="font-medium">Actions</span>
-                </button>
-              </Tooltip>
-            )}
             <Tooltip text="Open AI Tools panel" color="purple" position="top">
               <button
                 onClick={() => setShowRightDrawer(true)}
                 className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
               >
-                <Eye className="w-5 h-5" />
-                <span className="font-medium">Preview</span>
+                <Zap className="w-5 h-5" />
+                <span className="font-medium">AI Tools</span>
               </button>
             </Tooltip>
+            <Tooltip text="Export resume as PDF" color="blue" position="top">
+              <button
+                onClick={() => onExport?.('pdf')}
+                disabled={!resumeData.name || isExporting}
+                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target disabled:opacity-50"
+              >
+                <Upload className="w-5 h-5" />
+                <span className="font-medium">Export</span>
+              </button>
+            </Tooltip>
+            {onSaveResume && isAuthenticated && (
+              <Tooltip text="Save resume to your account" color="green" position="top">
+                <button
+                  onClick={onSaveResume}
+                  className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
+                >
+                  <Save className="w-5 h-5" />
+                  <span className="font-medium">Save</span>
+                </button>
+              </Tooltip>
+            )}
           </div>
         </div>
       )}
