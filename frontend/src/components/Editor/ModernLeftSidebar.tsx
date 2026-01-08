@@ -44,7 +44,7 @@ export default function ModernLeftSidebar({
     onCollapseChange?.(newCollapsed)
   }
 
-  const mainItems = [
+  const workspaceItems = [
     {
       id: 'editor',
       title: 'Editor',
@@ -52,6 +52,9 @@ export default function ModernLeftSidebar({
       description: 'Resume builder',
       requiresAuth: false,
     },
+  ]
+
+  const libraryItems = [
     {
       id: 'jobs',
       title: 'Jobs',
@@ -114,7 +117,38 @@ export default function ModernLeftSidebar({
             </div>
             <div className="flex-1 overflow-y-auto">
               <div className="p-3 space-y-1">
-                {mainItems.map((item) => {
+                <div className="px-3 pt-2 pb-1">
+                  <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Workspace</p>
+                </div>
+                {workspaceItems.map((item) => {
+                  const isDisabled = item.requiresAuth && !isAuthenticated
+                  const isActive = currentView === item.id
+                  const IconComponent = item.icon
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => !isDisabled && handleItemClick(item.id)}
+                      disabled={isDisabled}
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-200 touch-target ${
+                        isActive
+                          ? 'bg-gradient-to-r from-primary-500/10 to-primary-50/50 text-primary-700 border-l-4 border-primary-500 shadow-sm'
+                          : isDisabled
+                          ? 'opacity-50 text-text-muted cursor-not-allowed'
+                          : 'text-text-secondary hover:bg-primary-50/50 hover:shadow-sm hover:-translate-y-0.5'
+                      }`}
+                    >
+                      <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">{item.title}</div>
+                        <div className={`text-xs ${isActive ? 'text-primary-600' : 'text-text-muted'}`}>{item.description}</div>
+                      </div>
+                    </button>
+                  )
+                })}
+                <div className="px-3 pt-4 pb-1">
+                  <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Library</p>
+                </div>
+                {libraryItems.map((item) => {
                   const isDisabled = item.requiresAuth && !isAuthenticated
                   const isActive = currentView === item.id
                   const IconComponent = item.icon
@@ -210,7 +244,20 @@ export default function ModernLeftSidebar({
               </svg>
             </button>
           </Tooltip>
-          {mainItems.map((item) => {
+          {workspaceItems.map((item) => {
+            const IconComponent = item.icon
+            return (
+              <Tooltip key={item.id} text={`${item.title} - ${item.description}`} color="blue" position="right">
+                <button
+                  onClick={() => handleItemClick(item.id)}
+                  className="p-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200 hover:shadow-sm"
+                >
+                  <IconComponent className="w-5 h-5 text-gray-600" />
+                </button>
+              </Tooltip>
+            )
+          })}
+          {libraryItems.map((item) => {
             const IconComponent = item.icon
             return (
               <Tooltip key={item.id} text={`${item.title} - ${item.description}`} color="blue" position="right">
@@ -258,7 +305,38 @@ export default function ModernLeftSidebar({
       {/* Main Navigation */}
       <div className="flex-1 overflow-y-auto py-3">
         <div className="px-3 space-y-1">
-          {mainItems.map((item) => {
+          <div className="px-2 pt-1 pb-2">
+            <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Workspace</p>
+          </div>
+          {workspaceItems.map((item) => {
+            const isDisabled = item.requiresAuth && !isAuthenticated
+            const isActive = currentView === item.id
+            const IconComponent = item.icon
+            return (
+              <button
+                key={item.id}
+                onClick={() => !isDisabled && handleItemClick(item.id)}
+                disabled={isDisabled}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 touch-target ${
+                  isActive
+                    ? 'bg-gradient-to-r from-primary-500/10 to-primary-50/50 text-primary-700 border-l-4 border-primary-500 shadow-sm'
+                    : isDisabled
+                    ? 'opacity-50 text-text-muted cursor-not-allowed'
+                    : 'text-text-secondary hover:bg-primary-50/50 hover:shadow-sm hover:-translate-y-0.5'
+                }`}
+              >
+                <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{item.title}</div>
+                  <div className={`text-xs ${isActive ? 'text-primary-600' : 'text-text-muted'}`}>{item.description}</div>
+                </div>
+              </button>
+            )
+          })}
+          <div className="px-2 pt-4 pb-2">
+            <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Library</p>
+          </div>
+          {libraryItems.map((item) => {
             const isDisabled = item.requiresAuth && !isAuthenticated
             const isActive = currentView === item.id
             const IconComponent = item.icon
@@ -341,4 +419,3 @@ export default function ModernLeftSidebar({
     </div>
   )
 }
-
