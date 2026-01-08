@@ -99,6 +99,9 @@ function TemplateCard({
   onSelect: () => void
   resumeData: any
 }) {
+  const [previewFailed, setPreviewFailed] = useState(false)
+  const showImagePreview = Boolean(template.preview) && !previewFailed
+
   return (
     <button
       onClick={onSelect}
@@ -124,7 +127,17 @@ function TemplateCard({
       </div>
       
       <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden">
-        <TemplatePreview template={template} resumeData={resumeData} scale={0.18} height={160} />
+        {showImagePreview ? (
+          <img
+            src={template.preview}
+            alt={`${template.name} template preview`}
+            className="w-full h-[160px] object-cover object-top"
+            onError={() => setPreviewFailed(true)}
+            loading="lazy"
+          />
+        ) : (
+          <TemplatePreview template={template} resumeData={resumeData} scale={0.24} height={160} />
+        )}
       </div>
       
       <div className="flex items-center justify-between">
