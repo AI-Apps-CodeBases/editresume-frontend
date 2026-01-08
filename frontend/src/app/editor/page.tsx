@@ -1944,6 +1944,15 @@ const EditorPageContent = () => {
     }
   }
 
+  const handleSelectJobDescriptionId = useCallback((jobId: number | null) => {
+    setActiveJobDescriptionId(jobId)
+    if (typeof window !== 'undefined' && jobId !== null) {
+      localStorage.setItem('activeJobDescriptionId', jobId.toString())
+    } else if (typeof window !== 'undefined') {
+      localStorage.removeItem('activeJobDescriptionId')
+    }
+  }, [])
+
   const handleSaveResume = useCallback(async () => {
     if (!resumeData.name && !resumeData.sections?.length) {
       await showAlert({
@@ -2659,6 +2668,7 @@ const EditorPageContent = () => {
         onAIContentWizard={handleAIContentWizard}
         onTemplatesClick={handleTemplatesClick}
         onShareResume={() => setShowShareResume(true)}
+        onSelectJobDescriptionId={handleSelectJobDescriptionId}
       />
 
       {/* Modals */}

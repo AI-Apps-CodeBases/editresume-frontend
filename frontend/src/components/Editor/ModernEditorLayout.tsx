@@ -59,6 +59,7 @@ interface ModernEditorLayoutProps {
   activeJobDescriptionId?: number | null
   onTemplatesClick?: () => void
   onShareResume?: () => void
+  onSelectJobDescriptionId?: (id: number | null) => void
 }
 
 export default function ModernEditorLayout({
@@ -95,6 +96,7 @@ export default function ModernEditorLayout({
   activeJobDescriptionId,
   onTemplatesClick,
   onShareResume,
+  onSelectJobDescriptionId,
 }: ModernEditorLayoutProps) {
   const [activeRightTab, setActiveRightTab] = useState<'preview' | 'job-description'>('preview')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
@@ -228,6 +230,7 @@ export default function ModernEditorLayout({
                 deepLinkedJD={deepLinkedJD}
                 activeJobDescriptionId={activeJobDescriptionId}
                 onViewChange={onViewChange}
+                onSelectJobDescriptionId={onSelectJobDescriptionId}
               />
             </div>
             

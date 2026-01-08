@@ -11,6 +11,7 @@ import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
 import { calculateEnhancedATSScore } from '@/lib/atsScoring.enhanced';
 import type { ExtensionKeywordData, LegacyATSScoreResult } from '@/lib/atsScoring.types';
+import { JobSelectionModal } from '@/components/AI/JobSelectionModal';
 
 const USE_ENHANCED_ATS_SCORING = true;
 
@@ -1639,6 +1640,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
   const [keywordComparison, setKeywordComparison] = useState<{matched: string[], missing: string[]} | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showJobSelectionModal, setShowJobSelectionModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Load job description from localStorage if not provided via prop
@@ -4664,7 +4666,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                             <Tooltip text="Browse and select from your previously saved job descriptions" color="blue" position="right">
                               <button
                                 onClick={() => {
-                                  onViewChange?.('jobs');
+                                  setShowJobSelectionModal(true);
                                   setShowDropdown(false);
                                 }}
                                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
@@ -5777,6 +5779,16 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         </div>
       )}
 
+      <JobSelectionModal
+        isOpen={showJobSelectionModal}
+        onClose={() => setShowJobSelectionModal(false)}
+        onSelect={(jobId) => {
+          if (onSelectJobDescriptionId) {
+            onSelectJobDescriptionId(jobId);
+          }
+          setShowJobSelectionModal(false);
+        }}
+      />
     </>
   );
 }
