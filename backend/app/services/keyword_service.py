@@ -548,13 +548,20 @@ class KeywordExtractor:
         for category, keywords in self.technical_keywords.items():
             for keyword in keywords:
                 keyword_lower = keyword.lower()
-                if keyword_lower in raw_text:
+                # Use word boundary matching to avoid partial matches
+                # Match as whole word or with separators (/, -, ., etc.)
+                pattern = r'\b' + re.escape(keyword_lower) + r'\b'
+                if re.search(pattern, raw_text):
                     found_keywords.append(keyword)
                     continue
 
+                # For keywords with special chars (like "c++", "node.js"), check normalized
                 normalized_keyword = self._normalize_identifier(keyword_lower)
-                if normalized_keyword and normalized_keyword in normalized_text:
-                    found_keywords.append(keyword)
+                if normalized_keyword and len(normalized_keyword) > 2:
+                    # Only match if it's a significant portion (not just 1-2 chars)
+                    normalized_pattern = re.escape(normalized_keyword)
+                    if re.search(normalized_pattern, normalized_text):
+                        found_keywords.append(keyword)
 
         return list(set(found_keywords))
 
