@@ -3,11 +3,9 @@
 This module calculates TF-IDF + Cosine Similarity scores for ATS matching.
 Uses sklearn's TfidfVectorizer and cosine_similarity for industry-standard scoring.
 """
-from __future__ import annotations
-
 import logging
 import re
-from typing import Any, TYPE_CHECKING, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +16,6 @@ try:
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
-    TfidfVectorizer = None  # type: ignore
-
-if TYPE_CHECKING:
-    from sklearn.feature_extraction.text import TfidfVectorizer as _TfidfVectorizerType
-    _VectorizerType = _TfidfVectorizerType
-else:
-    _VectorizerType = Any
 
 
 def _fallback_keyword_match(resume_text: str, job_description: str) -> dict[str, Any]:
@@ -54,7 +45,7 @@ def _fallback_keyword_match(resume_text: str, job_description: str) -> dict[str,
 
 def calculate_tfidf_cosine_score(
     resume_text: str,
-    vectorizer: Union["_VectorizerType", None],
+    vectorizer: TfidfVectorizer | None,
     job_description: str = None,
     extracted_keywords: dict = None,
     resume_data: dict = None

@@ -6,8 +6,6 @@ export const twoColumnDefaultConfig: TemplateConfig = {
     sectionOrder: [],
     spacing: 'balanced',
     columnWidth: 40, // 40% left, 60% right
-    twoColumnLeft: [],
-    twoColumnRight: [],
   },
   typography: {
     fontFamily: {

@@ -10,8 +10,6 @@ import { gradientDefaultConfig } from './gradient/config'
 import { corporatePremiumDefaultConfig } from './corporate-premium/config'
 import { timelineDefaultConfig } from './timeline/config'
 import { infographicDefaultConfig } from './infographic/config'
-import { minimalDefaultConfig } from './minimal/config'
-import { professionalDefaultConfig } from './professional/config'
 import ClassicTemplate from './classic/Template'
 import ModernTemplate from './modern/Template'
 import TwoColumnTemplate from './two-column/Template'
@@ -23,8 +21,6 @@ import GradientTemplate from './gradient/Template'
 import CorporatePremiumTemplate from './corporate-premium/Template'
 import TimelineTemplate from './timeline/Template'
 import InfographicTemplate from './infographic/Template'
-import MinimalTemplate from './minimal/Template'
-import ProfessionalTemplate from './professional/Template'
 
 export interface TemplateRegistryEntry {
   id: string
@@ -147,26 +143,6 @@ export const templateRegistry: TemplateRegistryEntry[] = [
     preview: '/templates/previews/infographic.png',
     defaultConfig: infographicDefaultConfig,
     Component: InfographicTemplate,
-  },
-  {
-    id: 'minimal',
-    name: 'Minimal',
-    description: 'Ultra-clean design with maximum whitespace and minimal visual elements',
-    category: 'modern',
-    atsScore: 93,
-    preview: '/templates/previews/minimal.png',
-    defaultConfig: minimalDefaultConfig,
-    Component: MinimalTemplate,
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    description: 'Balanced professional layout with clear hierarchy and centered header',
-    category: 'traditional',
-    atsScore: 94,
-    preview: '/templates/previews/professional.png',
-    defaultConfig: professionalDefaultConfig,
-    Component: ProfessionalTemplate,
   },
 ]
 
