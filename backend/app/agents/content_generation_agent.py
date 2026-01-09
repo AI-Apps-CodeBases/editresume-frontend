@@ -15,6 +15,7 @@ from app.prompts.content_generation_prompts import (
     get_bullet_from_keywords_prompt,
     get_bullet_points_prompt,
     get_bullets_from_keywords_prompt,
+    get_relevant_keywords_for_bullet_prompt,
     get_resume_content_prompt,
     get_summary_from_experience_prompt,
     get_summary_prompt,
@@ -430,6 +431,139 @@ class ContentGenerationAgent:
                 f"OpenAI generate bullets from keywords error: {str(e)}"
             )
             error_message = "AI generation failed: " + str(e)
+            raise HTTPException(status_code=500, detail=error_message)
+
+    async def analyze_relevant_keywords_for_bullet(
+        self,
+        current_bullet: str,
+        available_keywords: list[str],
+        job_description_excerpt: str | None = None,
+    ) -> dict:
+        """Analyze bullet point and return relevant keywords from available list."""
+        if not self.openai_client:
+            raise HTTPException(
+                status_code=503, detail="OpenAI service not available"
+            )
+
+        try:
+            prompt = get_relevant_keywords_for_bullet_prompt(
+                current_bullet=current_bullet,
+                available_keywords=available_keywords,
+                job_description_excerpt=job_description_excerpt,
+            )
+
+            headers = {
+                "Authorization": f"Bearer {self.openai_client['api_key']}",
+                "Content-Type": "application/json",
+            }
+
+            model = self.openai_client["model"]
+            max_tokens = 300
+
+            httpx_client = self.openai_client.get("httpx_client")
+            if httpx_client:
+                response = await httpx_client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a resume optimization expert. Analyze bullet points and identify relevant keywords that would naturally enhance them.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        "max_tokens": max_tokens,
+                        "temperature": 0.3,
+                    },
+                    timeout=20.0,
+                )
+            else:
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        self.openai_client["requests"].post,
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json={
+                            "model": model,
+                            "messages": [
+                                {
+                                    "role": "system",
+                                    "content": "You are a resume optimization expert. Analyze bullet points and identify relevant keywords that would naturally enhance them.",
+                                },
+                                {"role": "user", "content": prompt},
+                            ],
+                            "max_tokens": max_tokens,
+                            "temperature": 0.3,
+                        },
+                        timeout=20,
+                    )
+                )
+
+            if response.status_code != 200:
+                error_text = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else str(response)
+                logger.error(f"OpenAI API error: {response.status_code} - {error_text}")
+                raise HTTPException(status_code=500, detail="AI service error")
+
+            result = response.json()
+            raw_content = result["choices"][0]["message"]["content"].strip()
+
+            # Clean up markdown code blocks if present
+            if raw_content.startswith("```"):
+                raw_content = re.sub(r'^```(?:json)?\s*', '', raw_content, flags=re.MULTILINE)
+                raw_content = re.sub(r'\s*```$', '', raw_content, flags=re.MULTILINE)
+            raw_content = raw_content.strip()
+
+            # Parse JSON array
+            try:
+                relevant_keywords = json.loads(raw_content)
+                if not isinstance(relevant_keywords, list):
+                    # If it's a dict, try to extract array
+                    relevant_keywords = relevant_keywords.get("keywords", [])
+                
+                # Validate keywords are strings
+                relevant_keywords = [str(kw) for kw in relevant_keywords if kw and isinstance(kw, (str, int, float))]
+                
+                # Filter to only include keywords that exist in available_keywords (case-insensitive)
+                available_lower = {kw.lower(): kw for kw in available_keywords}
+                filtered_keywords = []
+                for kw in relevant_keywords:
+                    kw_lower = kw.lower().strip()
+                    if kw_lower in available_lower:
+                        # Use original case from available_keywords
+                        filtered_keywords.append(available_lower[kw_lower])
+                
+                return {
+                    "success": True,
+                    "relevant_keywords": filtered_keywords[:30],  # Limit to top 30
+                    "tokens_used": result.get("usage", {}).get("total_tokens", 0),
+                }
+            except json.JSONDecodeError:
+                # Fallback: try to extract keywords from text response
+                logger.warning(f"Failed to parse JSON, trying text extraction: {raw_content[:200]}")
+                # Look for array-like patterns
+                matches = re.findall(r'["\']([^"\']+)["\']', raw_content)
+                if matches:
+                    available_lower = {kw.lower(): kw for kw in available_keywords}
+                    filtered = [available_lower[kw.lower()] for kw in matches if kw.lower() in available_lower]
+                    return {
+                        "success": True,
+                        "relevant_keywords": filtered[:30],
+                        "tokens_used": result.get("usage", {}).get("total_tokens", 0),
+                    }
+                raise HTTPException(status_code=500, detail="Failed to parse AI response")
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"OpenAI analyze keywords error: {str(e)}")
+            error_message = "AI analysis failed: " + str(e)
             raise HTTPException(status_code=500, detail=error_message)
 
     async def generate_summary_from_experience(

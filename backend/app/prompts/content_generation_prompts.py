@@ -451,3 +451,40 @@ Return ONLY a valid JSON object with this exact structure:
 The "priority_keywords" array should contain the top 15-20 most important keywords for ATS matching.
 Return ONLY the JSON, no explanations or markdown formatting."""
 
+
+def get_relevant_keywords_for_bullet_prompt(
+    current_bullet: str,
+    available_keywords: list[str],
+    job_description_excerpt: str | None = None,
+) -> str:
+    """Get prompt to analyze bullet point and return relevant keywords."""
+    keywords_str = ", ".join(available_keywords[:100])  # Limit to first 100 keywords
+    
+    return f"""Analyze this resume bullet point and identify which keywords from the provided list are most relevant to enhance or improve this bullet point.
+
+Current Bullet Point: "{current_bullet}"
+
+Available Keywords from Job Description:
+{keywords_str}
+
+Job Description Context:
+{job_description_excerpt[:500] if job_description_excerpt else 'Not provided'}
+
+Your task:
+1. Understand the context and meaning of the current bullet point
+2. Identify which keywords from the available list would naturally fit into this bullet point
+3. Prioritize keywords that:
+   - Are semantically related to the bullet's content
+   - Can be naturally integrated without forcing
+   - Would enhance the bullet's ATS score
+   - Are missing or underrepresented in the current bullet
+4. Select between 8-20 most relevant keywords (prioritize quality over quantity)
+
+Return ONLY a valid JSON array of keyword strings that are most relevant to this bullet point.
+Example: ["kubernetes", "monitoring", "automation", "scalability", "ci/cd", "infrastructure"]
+
+IMPORTANT:
+- Return ONLY the JSON array, no explanations or markdown formatting
+- Only include keywords that exist in the provided available keywords list
+- Focus on keywords that would naturally enhance this specific bullet point"""
+
