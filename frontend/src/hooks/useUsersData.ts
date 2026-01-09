@@ -17,10 +17,8 @@ export function useUsersData(page: number = 1, limit: number = 10, searchQuery: 
         const fetchUsers = async () => {
             setLoading(true)
             try {
-                // Get auth token (optional for local development)
-                const token = typeof window !== 'undefined' 
-                    ? localStorage.getItem('authToken') 
-                    : null
+                const { getAuthHeadersAsync } = await import('@/lib/auth')
+                const authHeaders = await getAuthHeadersAsync()
 
                 const baseUrl = getApiBaseUrl()
                 
@@ -40,11 +38,7 @@ export function useUsersData(page: number = 1, limit: number = 10, searchQuery: 
 
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
-                }
-                
-                // Add authorization header only if token exists
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`
+                    ...authHeaders,
                 }
 
                 const response = await fetch(`${baseUrl}/api/dashboard/users?${params.toString()}`, {
