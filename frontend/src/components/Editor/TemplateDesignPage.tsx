@@ -49,7 +49,20 @@ export default function TemplateDesignPage({
 
   useEffect(() => {
     if (templateConfig) {
-      setLocalConfig(templateConfig)
+      setLocalConfig(prev => {
+        // If we have local state with twoColumnLeft/Right, preserve it when templateConfig updates
+        if (prev && (prev.layout.twoColumnLeft || prev.layout.twoColumnRight)) {
+          return {
+            ...templateConfig,
+            layout: {
+              ...templateConfig.layout,
+              twoColumnLeft: prev.layout.twoColumnLeft ?? templateConfig.layout.twoColumnLeft,
+              twoColumnRight: prev.layout.twoColumnRight ?? templateConfig.layout.twoColumnRight,
+            }
+          }
+        }
+        return templateConfig
+      })
     } else {
       const template = templateRegistry.find((t) => t.id === currentTemplate)
       if (template) {
@@ -60,13 +73,18 @@ export default function TemplateDesignPage({
 
   const handleConfigUpdate = (updates: Partial<TemplateConfig>) => {
     // Deep merge the updates with existing config
+    const layoutUpdates = updates.layout || {} as Partial<TemplateConfig['layout']>
     const newConfig: TemplateConfig = {
       layout: { 
         ...localConfig!.layout, 
-        ...(updates.layout || {}),
-        // Preserve twoColumnLeft and twoColumnRight if they exist
-        twoColumnLeft: updates.layout?.twoColumnLeft ?? localConfig!.layout.twoColumnLeft,
-        twoColumnRight: updates.layout?.twoColumnRight ?? localConfig!.layout.twoColumnRight,
+        ...layoutUpdates,
+        // Always use twoColumnLeft and twoColumnRight from updates if provided, otherwise keep existing
+        twoColumnLeft: layoutUpdates.twoColumnLeft !== undefined 
+          ? layoutUpdates.twoColumnLeft 
+          : localConfig!.layout.twoColumnLeft,
+        twoColumnRight: layoutUpdates.twoColumnRight !== undefined 
+          ? layoutUpdates.twoColumnRight 
+          : localConfig!.layout.twoColumnRight,
       },
       typography: {
         ...localConfig!.typography,
@@ -163,6 +181,7 @@ export default function TemplateDesignPage({
             </div>
             <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card overflow-visible">
               <PreviewPanel
+                key={`preview-${currentTemplate}-${JSON.stringify(config?.layout?.twoColumnLeft || [])}-${JSON.stringify(config?.layout?.twoColumnRight || [])}`}
                 data={resumeData}
                 replacements={{}}
                 template={currentTemplate as any}

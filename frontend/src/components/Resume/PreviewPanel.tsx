@@ -59,7 +59,7 @@ interface Props {
 export default function PreviewPanel({ 
   data, 
   replacements, 
-  template = 'clean' as const,
+  template = 'classic' as const,
   templateConfig,
   constrained = false
 }: Props) {
@@ -360,8 +360,11 @@ export default function PreviewPanel({
   const columnWidth = templateConfig?.layout?.columnWidth || layout.columnWidth || 50
 
   // Update layout configuration when localStorage changes
+  // CRITICAL: Only use localStorage for OLD template system (when templateConfig is not provided)
+  // When using NEW template system (templateConfig provided), skip this entirely to avoid conflicts
   useEffect(() => {
-    if (isTwoColumn && typeof window !== 'undefined') {
+    // Skip localStorage logic if using new template system with templateConfig
+    if (isTwoColumn && typeof window !== 'undefined' && !templateConfig) {
       const updateLayout = () => {
         const savedLeft = localStorage.getItem('twoColumnLeft')
         const savedRight = localStorage.getItem('twoColumnRight')
@@ -442,6 +445,11 @@ export default function PreviewPanel({
         window.removeEventListener('storage', handleStorageChange)
         clearInterval(interval)
       }
+    } else if (isTwoColumn && templateConfig) {
+      // When using new template system, don't touch localStorage at all
+      // The template component will read directly from templateConfig
+      setLeftSectionIds([])
+      setRightSectionIds([])
     } else {
       // Reset when not two-column
       setLeftSectionIds([])

@@ -29,7 +29,7 @@ interface RightPanelProps {
       }>
     }>
   }
-  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
+  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'classic'
   templateConfig?: any
   deepLinkedJD?: string | null
   activeJobDescriptionId?: number | null

@@ -1,18 +1,25 @@
 import dynamic from 'next/dynamic'
 import { Suspense } from 'react'
-import HeroSection from '@/components/home/HeroSection'
 import CompanyLogoBar from '@/components/home/CompanyLogoBar'
 import Pricing from '@/components/Pricing'
 
+const HeroSection = dynamic(() => import('@/components/home/HeroSection'), {
+  ssr: false,
+  loading: () => <div className="h-[90vh]" />,
+})
+
 const VideoTutorialSection = dynamic(() => import('@/components/home/VideoTutorialSection'), {
+  ssr: false,
   loading: () => <div className="h-64" />,
 })
 
 const StepsSection = dynamic(() => import('@/components/home/StepsSection'), {
+  ssr: false,
   loading: () => <div className="h-96 bg-[#f4f7ff]" />,
 })
 
 const TestimonialsSection = dynamic(() => import('@/components/home/TestimonialsSection'), {
+  ssr: false,
   loading: () => <div className="h-64" />,
 })
 
