@@ -1101,6 +1101,45 @@ async def generate_bullet_from_keywords(
         raise HTTPException(status_code=500, detail=error_message)
 
 
+@router.post("/analyze_keywords_for_bullet")
+async def analyze_keywords_for_bullet(
+    payload: dict,
+    content_generation_agent_service = Depends(get_content_generation_agent_service),
+):
+    """Analyze a bullet point and return relevant keywords from available keywords list"""
+    try:
+        if content_generation_agent_service is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Content generation service is not available. Please check server configuration."
+            )
+
+        current_bullet = payload.get("current_bullet", "").strip()
+        available_keywords = payload.get("available_keywords", [])
+        job_description = payload.get("job_description", "")
+
+        if not current_bullet:
+            raise HTTPException(status_code=400, detail="Current bullet point is required")
+        
+        if not available_keywords or len(available_keywords) == 0:
+            raise HTTPException(status_code=400, detail="Available keywords list is required")
+
+        result = await content_generation_agent_service.analyze_relevant_keywords_for_bullet(
+            current_bullet=current_bullet,
+            available_keywords=available_keywords,
+            job_description_excerpt=job_description[:500] if job_description else None,
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Analyze keywords for bullet error: {str(e)}", exc_info=True)
+        error_message = "Failed to analyze keywords: " + str(e)
+        raise HTTPException(status_code=500, detail=error_message)
+
+
 @router.post("/generate_bullets_from_keywords")
 async def generate_bullets_from_keywords(
     payload: dict,
