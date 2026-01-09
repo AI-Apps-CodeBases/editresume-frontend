@@ -47,6 +47,7 @@ export default function TemplateDesignPage({
 }: Props) {
   const [localConfig, setLocalConfig] = useState<TemplateConfig | null>(templateConfig || null)
   const [configVersion, setConfigVersion] = useState(0)
+  const [templateFilter, setTemplateFilter] = useState<'all' | 'traditional' | 'modern' | 'creative' | 'ats-friendly'>('all')
   const prevTemplateRef = useRef<string>(currentTemplate)
 
   useEffect(() => {
@@ -165,16 +166,29 @@ export default function TemplateDesignPage({
             <p className="text-sm text-gray-500 mt-0.5">Customize your resume appearance</p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="px-6 py-3 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-105 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 button-primary"
-          style={{ background: 'var(--gradient-accent)' }}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          <span>Done</span>
-        </button>
+        <div className="flex items-center gap-4">
+          <select
+            value={templateFilter}
+            onChange={(e) => setTemplateFilter(e.target.value as typeof templateFilter)}
+            className="px-4 py-2 text-sm border border-gray-300 rounded-lg bg-white shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+          >
+            <option value="all">All Templates</option>
+            <option value="traditional">Traditional</option>
+            <option value="modern">Modern</option>
+            <option value="creative">Creative</option>
+            <option value="ats-friendly">ATS Friendly</option>
+          </select>
+          <button
+            onClick={onClose}
+            className="px-6 py-3 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-105 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 button-primary"
+            style={{ background: 'var(--gradient-accent)' }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Done</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
@@ -186,6 +200,7 @@ export default function TemplateDesignPage({
             onConfigUpdate={handleConfigUpdate}
             onResetConfig={handleResetConfig}
             resumeData={resumeData}
+            templateFilter={templateFilter}
           />
         </div>
 

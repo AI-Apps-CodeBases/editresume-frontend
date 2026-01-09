@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { templateRegistry, TemplateRegistryEntry } from '../templates/registry'
-import { Check, TrendingUp, Sparkles, FileText } from 'lucide-react'
+import { Check } from 'lucide-react'
 
 // Placeholder SVG for template preview thumbnails
 const TemplatePlaceholder = () => (
@@ -61,11 +61,10 @@ interface Props {
       bullets: Array<{ id: string; text: string }>
     }>
   }
+  filter?: 'all' | 'traditional' | 'modern' | 'creative' | 'ats-friendly'
 }
 
-export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeData }: Props) {
-  const [filter, setFilter] = useState<'all' | 'traditional' | 'modern' | 'creative' | 'ats-friendly'>('all')
-
+export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeData, filter = 'all' }: Props) {
   const filteredTemplates = filter === 'all'
     ? templateRegistry
     : templateRegistry.filter(t => t.category === filter)
@@ -97,39 +96,11 @@ export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeDat
     ],
   }
 
-  const filterOptions: Array<{ value: typeof filter; label: string }> = [
-    { value: 'all', label: 'All Templates' },
-    { value: 'traditional', label: 'Traditional' },
-    { value: 'modern', label: 'Modern' },
-    { value: 'creative', label: 'Creative' },
-    { value: 'ats-friendly', label: 'ATS Friendly' },
-  ]
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h3 className="text-xl font-semibold text-gray-900">Choose Template</h3>
-          <p className="text-sm text-gray-500 mt-1">Select a template that matches your style and industry</p>
-        </div>
-        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-200" role="tablist" aria-label="Filter templates by category">
-          {filterOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setFilter(option.value)}
-              role="tab"
-              aria-selected={filter === option.value}
-              aria-controls="template-grid"
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                filter === option.value
-                  ? 'bg-white text-primary-600 shadow-sm border border-primary-200'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h3 className="text-xl font-semibold text-gray-900">Choose Template</h3>
+        <p className="text-sm text-gray-500 mt-1">Select a template that matches your style and industry</p>
       </div>
 
       <div id="template-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" role="grid" aria-label="Template selection grid">
@@ -167,22 +138,11 @@ function TemplateCard({
 }) {
   const getATSBadgeStyle = (score: number) => {
     if (score >= 85) {
-      return 'bg-gradient-to-r from-green-500 to-emerald-500'
+      return 'bg-green-50 border-green-200 text-green-700'
     } else if (score >= 70) {
-      return 'bg-gradient-to-r from-amber-500 to-orange-500'
+      return 'bg-amber-50 border-amber-200 text-amber-700'
     }
-    return 'bg-gradient-to-r from-green-500 to-emerald-500'
-  }
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'ats-friendly':
-        return <TrendingUp className="w-3 h-3" />
-      case 'creative':
-        return <Sparkles className="w-3 h-3" />
-      default:
-        return <FileText className="w-3 h-3" />
-    }
+    return 'bg-green-50 border-green-200 text-green-700'
   }
 
   return (
@@ -198,39 +158,33 @@ function TemplateCard({
             : 'border-gray-200 group-hover:border-primary-300 shadow-md group-hover:shadow-lg group-hover:scale-[1.02]'
         }`}
       >
-        <div className="relative bg-gray-50 border-b border-gray-200 overflow-hidden" style={{ height: '240px' }}>
+        <div className="relative bg-gray-50 border-b border-gray-200 overflow-hidden" style={{ height: '200px' }}>
           <TemplatePlaceholderImage template={template} />
           
-          {/* ATS Score Badge - Top Right Overlay */}
-          <div
-            className={`absolute top-3 right-3 ${getATSBadgeStyle(
-              template.atsScore
-            )} px-2.5 py-1 rounded-md shadow-lg backdrop-blur-sm z-10 flex items-center gap-1.5`}
-            title={`ATS Score: ${template.atsScore}% - Optimized for Applicant Tracking Systems`}
-          >
-            <Check className="w-3 h-3 text-white drop-shadow-sm" strokeWidth={3} />
-            <span className="text-xs font-bold text-white drop-shadow-sm">ATS {template.atsScore}%</span>
-          </div>
-
           {/* Selection Checkmark Badge */}
           {isSelected && (
-            <div className="absolute top-3 left-3 w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-xl z-10 animate-in fade-in zoom-in duration-200">
+            <div className="absolute top-3 right-3 w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-xl z-10 animate-in fade-in zoom-in duration-200">
               <Check className="w-5 h-5 text-white" strokeWidth={3} />
             </div>
           )}
         </div>
 
-        <div className="p-5 space-y-3">
+        <div className="p-4 space-y-3">
           <div>
-            <h4 className="font-semibold text-gray-900 text-lg mb-2 leading-tight">{template.name}</h4>
-            <p className="text-xs text-gray-600 leading-relaxed line-clamp-3">{template.description}</p>
+            <h4 className="font-semibold text-gray-900 text-base mb-1 leading-tight">{template.name}</h4>
+            <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{template.description}</p>
           </div>
 
-          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-            <span className="capitalize px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-full text-xs font-medium text-gray-700 transition-colors duration-200 flex items-center gap-1.5">
-              {getCategoryIcon(template.category)}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <span className="capitalize px-2.5 py-1 bg-gray-100 rounded-md text-xs font-medium text-gray-700">
               {template.category.replace('-', ' ')}
             </span>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${getATSBadgeStyle(
+              template.atsScore
+            )}`}>
+              <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
+              <span className="text-xs font-semibold">ATS {template.atsScore}%</span>
+            </div>
           </div>
         </div>
       </div>

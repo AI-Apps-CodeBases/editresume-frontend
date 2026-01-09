@@ -25,6 +25,7 @@ interface Props {
       bullets: Array<{ id: string; text: string }>
     }>
   }
+  templateFilter?: 'all' | 'traditional' | 'modern' | 'creative' | 'ats-friendly'
 }
 
 export function TemplateCustomizer({
@@ -34,6 +35,7 @@ export function TemplateCustomizer({
   onConfigUpdate,
   onResetConfig,
   resumeData,
+  templateFilter = 'all',
 }: Props) {
   const [activeTab, setActiveTab] = useState<'templates' | 'customize'>('templates')
 
@@ -78,6 +80,7 @@ export function TemplateCustomizer({
             currentTemplateId={currentTemplateId} 
             onSelectTemplate={onTemplateChange}
             resumeData={resumeData}
+            filter={templateFilter}
           />
         )}
         {activeTab === 'customize' && (
