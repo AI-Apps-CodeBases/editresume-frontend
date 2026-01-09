@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { TemplateCustomizer } from '@/features/resume/components'
 import { templateRegistry } from '@/features/resume/templates'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
@@ -46,27 +46,55 @@ export default function TemplateDesignPage({
   onClose,
 }: Props) {
   const [localConfig, setLocalConfig] = useState<TemplateConfig | null>(templateConfig || null)
+  const [configVersion, setConfigVersion] = useState(0)
+  const [templateFilter, setTemplateFilter] = useState<'all' | 'traditional' | 'modern' | 'creative' | 'ats-friendly'>('all')
+  const prevTemplateRef = useRef<string>(currentTemplate)
 
   useEffect(() => {
-    if (templateConfig) {
-      setLocalConfig(templateConfig)
-    } else {
-      const template = templateRegistry.find((t) => t.id === currentTemplate)
-      if (template) {
-        setLocalConfig(template.defaultConfig)
+    // Only update localConfig if template changes (template switch), not on every config update
+    // This prevents overwriting user's local changes
+    if (currentTemplate !== prevTemplateRef.current) {
+      prevTemplateRef.current = currentTemplate
+      if (templateConfig) {
+        setLocalConfig(templateConfig)
+      } else {
+        const template = templateRegistry.find((t) => t.id === currentTemplate)
+        if (template) {
+          setLocalConfig(template.defaultConfig)
+        }
+      }
+    } else if (!localConfig) {
+      // Initial setup only
+      if (templateConfig) {
+        setLocalConfig(templateConfig)
+      } else {
+        const template = templateRegistry.find((t) => t.id === currentTemplate)
+        if (template) {
+          setLocalConfig(template.defaultConfig)
+        }
       }
     }
-  }, [templateConfig, currentTemplate])
+  }, [currentTemplate, templateConfig])
 
   const handleConfigUpdate = (updates: Partial<TemplateConfig>) => {
-    // Deep merge the updates with existing config
+    // Deep merge the updates with existing config, ensuring arrays are new references
+    const baseLayout = localConfig!.layout
+    const updateLayout = updates.layout as Partial<TemplateConfig['layout']> | undefined
+    
     const newConfig: TemplateConfig = {
       layout: { 
-        ...localConfig!.layout, 
-        ...(updates.layout || {}),
-        // Preserve twoColumnLeft and twoColumnRight if they exist
-        twoColumnLeft: updates.layout?.twoColumnLeft ?? localConfig!.layout.twoColumnLeft,
-        twoColumnRight: updates.layout?.twoColumnRight ?? localConfig!.layout.twoColumnRight,
+        ...baseLayout,
+        ...(updateLayout || {}),
+        // Always create new array references for React to detect changes
+        sectionOrder: updateLayout?.sectionOrder !== undefined 
+          ? [...(updateLayout.sectionOrder || [])]
+          : [...(baseLayout.sectionOrder || [])],
+        twoColumnLeft: updateLayout?.twoColumnLeft !== undefined
+          ? (Array.isArray(updateLayout.twoColumnLeft) ? [...updateLayout.twoColumnLeft] : [])
+          : (Array.isArray(baseLayout.twoColumnLeft) ? [...baseLayout.twoColumnLeft] : []),
+        twoColumnRight: updateLayout?.twoColumnRight !== undefined
+          ? (Array.isArray(updateLayout.twoColumnRight) ? [...updateLayout.twoColumnRight] : [])
+          : (Array.isArray(baseLayout.twoColumnRight) ? [...baseLayout.twoColumnRight] : []),
       },
       typography: {
         ...localConfig!.typography,
@@ -94,6 +122,7 @@ export default function TemplateDesignPage({
       },
     }
     setLocalConfig(newConfig)
+    setConfigVersion(v => v + 1) // Force re-render
     onTemplateConfigUpdate(newConfig)
   }
 
@@ -115,32 +144,51 @@ export default function TemplateDesignPage({
   }
 
   const config = localConfig || templateRegistry.find((t) => t.id === currentTemplate)?.defaultConfig
+  
+  // Ensure config is always a valid object
+  if (!config) {
+    return null
+  }
 
   return (
     <div className="fixed inset-0 z-[110] bg-gradient-to-br from-primary-50/20 to-white flex flex-col">
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-2.5 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
-        <div className="flex items-center gap-4">
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
+        <div className="flex items-center gap-6">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-primary-50/50 rounded-lg flex items-center gap-2 transition-all duration-200"
+            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           >
             <span className="text-lg">←</span>
             <span>Back to Editor</span>
           </button>
-          <div className="border-l border-gray-200 pl-4">
-            <h1 className="text-lg font-semibold text-gray-900">Templates & Design</h1>
+          <div className="border-l border-gray-200 pl-6">
+            <h1 className="text-2xl font-semibold text-gray-900">Templates & Design</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Customize your resume appearance</p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-glow flex items-center gap-2 button-primary"
-          style={{ background: 'var(--gradient-accent)' }}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          <span>Done</span>
-        </button>
+        <div className="flex items-center gap-4">
+          <select
+            value={templateFilter}
+            onChange={(e) => setTemplateFilter(e.target.value as typeof templateFilter)}
+            className="px-4 py-2 text-sm border border-gray-300 rounded-lg bg-white shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+          >
+            <option value="all">All Templates</option>
+            <option value="traditional">Traditional</option>
+            <option value="modern">Modern</option>
+            <option value="creative">Creative</option>
+            <option value="ats-friendly">ATS Friendly</option>
+          </select>
+          <button
+            onClick={onClose}
+            className="px-6 py-3 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-105 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 button-primary"
+            style={{ background: 'var(--gradient-accent)' }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Done</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
@@ -152,17 +200,19 @@ export default function TemplateDesignPage({
             onConfigUpdate={handleConfigUpdate}
             onResetConfig={handleResetConfig}
             resumeData={resumeData}
+            templateFilter={templateFilter}
           />
         </div>
 
         <div className="flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-8 flex items-start justify-center">
           <div className="w-full max-w-4xl">
-            <div className="mb-4 text-center">
-              <h2 className="text-lg font-semibold text-text-primary mb-2">Live Preview</h2>
-              <p className="text-xs text-text-muted">See your changes in real-time</p>
+            <div className="mb-6 text-center">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Live Preview</h2>
+              <p className="text-sm text-gray-500">See your changes in real-time</p>
             </div>
-            <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card overflow-visible">
+            <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-4 overflow-visible">
               <PreviewPanel
+                key={`preview-${currentTemplate}-${configVersion}-${config?.layout?.sectionOrder?.join(',') || ''}-${config?.layout?.twoColumnLeft?.join(',') || ''}-${config?.layout?.twoColumnRight?.join(',') || ''}`}
                 data={resumeData}
                 replacements={{}}
                 template={currentTemplate as any}
