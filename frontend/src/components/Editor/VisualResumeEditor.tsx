@@ -389,7 +389,6 @@ export default function VisualResumeEditor({
   const [generatedBulletOptions, setGeneratedBulletOptions] = useState<string[]>([]);
   const [isGeneratingBullets, setIsGeneratingBullets] = useState(false);
   const [selectedBullets, setSelectedBullets] = useState<Set<number>>(new Set());
-  const [keywordSourceType, setKeywordSourceType] = useState<'missing' | 'matching' | 'tfidf'>('missing');
   const hasCleanedDataRef = useRef(false); // Track if we've cleaned old HTML data
 
   // Collapsible sections state
@@ -3649,7 +3648,6 @@ export default function VisualResumeEditor({
                 setAiImproveContext(null);
                 setSelectedMissingKeywords(new Set());
                 setGeneratedBulletOptions([]);
-                setKeywordSourceType('missing');
                 setMatchResult(null);
               }}>
                 <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -3661,7 +3659,6 @@ export default function VisualResumeEditor({
                         setAiImproveContext(null);
                         setSelectedMissingKeywords(new Set());
                         setGeneratedBulletOptions([]);
-                        setKeywordSourceType('missing');
                         setMatchResult(null);
                       }}
                       className="text-white hover:text-gray-200 text-2xl font-bold"
@@ -3678,132 +3675,84 @@ export default function VisualResumeEditor({
                       </div>
                     </div>
 
-                    {/* Keyword Source Selection - Show for both new and existing bullets */}
-                    <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                      <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Select Keyword Source to Boost ATS Score
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          onClick={() => setKeywordSourceType('missing')}
-                          className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-                            keywordSourceType === 'missing'
-                              ? 'bg-red-100 text-red-800 border-2 border-red-400'
-                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          Missing Keywords
-                        </button>
-                        <button
-                          onClick={() => setKeywordSourceType('matching')}
-                          className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-                            keywordSourceType === 'matching'
-                              ? 'bg-green-100 text-green-800 border-2 border-green-400'
-                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          Matching Keywords
-                        </button>
-                        <button
-                          onClick={() => setKeywordSourceType('tfidf')}
-                          className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-                            keywordSourceType === 'tfidf'
-                              ? 'bg-purple-100 text-purple-800 border-2 border-purple-400'
-                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          TF-IDF Boost
-                        </button>
-                      </div>
-                    </div>
-
                     <div className="mb-4">
                       <p className="text-sm font-semibold text-gray-900 mb-3">
-                        {aiImproveContext.mode === 'new' 
-                          ? 'Select missing keywords to include (choose 2-8):'
-                          : keywordSourceType === 'missing'
-                            ? 'Select missing keywords to include (choose 2-8):'
-                            : keywordSourceType === 'matching'
-                              ? 'Select matching keywords to reinforce (choose 2-8):'
-                              : 'Select TF-IDF boost keywords to include (choose 2-8):'
-                        }
+                        Select keywords to include (choose 2-8):
                       </p>
                       <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
                         {(() => {
-                          // Determine which keywords to show based on source type (same for new and existing)
-                          let keywordsToShow: string[] = [];
-                          if (keywordSourceType === 'missing') {
-                            // Combine jdKeywords missing and matchResult missing keywords
-                            const jdMissing = jdKeywords?.missing?.filter((kw: string) => kw && kw.length > 1) || [];
-                            const matchMissing = matchResult?.match_analysis?.missing_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
-                            // Combine and deduplicate
-                            const combined = [...new Set([...jdMissing, ...matchMissing])];
-                            
-                            // Get technical keywords - ONLY show technical keywords from the field
-                            const technicalKeywordsList = matchResult?.match_analysis?.technical_keywords || 
-                                                         matchResult?.match_analysis?.technical_missing || 
-                                                         [];
-                            
-                            // Filter to show ONLY technical keywords
-                            const technicalKeywordsSet = new Set(
-                              technicalKeywordsList.map((kw: string) => kw.toLowerCase())
-                            );
-                            
-                            // Only show keywords that are in the technical keywords list
-                            keywordsToShow = combined.filter((kw: string) => {
-                              const kwLower = kw.toLowerCase();
-                              return technicalKeywordsSet.has(kwLower) || 
-                                     technicalKeywordsList.some((tech: string) => 
-                                       kwLower.includes(tech.toLowerCase()) || 
-                                       tech.toLowerCase().includes(kwLower)
-                                     );
-                            });
-                            
+                          // Combine all keyword sources into a single list
+                          const jdMissing = jdKeywords?.missing?.filter((kw: string) => kw && kw.length > 1) || [];
+                          const matchMissing = matchResult?.match_analysis?.missing_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
+                          const jdMatching = jdKeywords?.matching?.filter((kw: string) => kw && kw.length > 1) || [];
+                          const matchMatching = matchResult?.match_analysis?.matching_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
+                          const tfidfKeywords = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && kw.length > 1) || [];
+                          
+                          // Get technical keywords for filtering
+                          const technicalKeywordsList = matchResult?.match_analysis?.technical_keywords || 
+                                                       matchResult?.match_analysis?.technical_missing || 
+                                                       [];
+                          const technicalKeywordsSet = new Set(
+                            technicalKeywordsList.map((kw: string) => kw.toLowerCase())
+                          );
+                          
+                          // Combine all keyword sources and deduplicate
+                          let allKeywords = [
+                            ...jdMissing,
+                            ...matchMissing,
+                            ...jdMatching,
+                            ...matchMatching,
+                            ...tfidfKeywords
+                          ];
+                          
+                          // Filter to prioritize technical keywords from missing/matching sources
+                          // but include all TF-IDF keywords
+                          allKeywords = allKeywords.filter((kw: string, index, self) => {
                             // Remove duplicates
-                            keywordsToShow = [...new Set(keywordsToShow)];
+                            if (self.indexOf(kw) !== index) return false;
                             
-                            // Sort by usage count (least used first) and take at least 15
-                            const sortedByUsage = keywordsToShow.sort((a, b) => {
-                              const countA = calculatedKeywordUsageCounts?.get(a) || 0;
-                              const countB = calculatedKeywordUsageCounts?.get(b) || 0;
-                              return countA - countB; // Least used first
-                            });
+                            const kwLower = kw.toLowerCase();
+                            // Include if it's in technical keywords set, or if it's from TF-IDF
+                            const isTfidf = tfidfKeywords.includes(kw);
+                            const isTechnical = technicalKeywordsSet.has(kwLower) || 
+                                              technicalKeywordsList.some((tech: string) => 
+                                                kwLower.includes(tech.toLowerCase()) || 
+                                                tech.toLowerCase().includes(kwLower)
+                                              );
                             
-                            // Ensure at least 15 keywords are shown (prioritize least used)
-                            // If we have less than 15, show all available, otherwise show top 50
-                            if (sortedByUsage.length < 15) {
-                              keywordsToShow = sortedByUsage; // Show all if less than 15
-                            } else {
-                              keywordsToShow = sortedByUsage.slice(0, 50); // Show up to 50, but at least 15
+                            // Include technical keywords from missing/matching, or any TF-IDF keywords
+                            if (isTfidf) return true;
+                            if ((jdMissing.includes(kw) || matchMissing.includes(kw) || jdMatching.includes(kw) || matchMatching.includes(kw)) && isTechnical) {
+                              return true;
                             }
-                          } else if (keywordSourceType === 'matching') {
-                            // Combine jdKeywords matching and matchResult matching keywords
-                            const jdMatching = jdKeywords?.matching?.filter((kw: string) => kw && kw.length > 1) || [];
-                            const matchMatching = matchResult?.match_analysis?.matching_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
-                            // Combine and deduplicate
-                            const combined = [...new Set([...jdMatching, ...matchMatching])];
-                            
-                            // Show all matching keywords (no filtering by technical only)
-                            keywordsToShow = combined.slice(0, 50);
-                          } else if (keywordSourceType === 'tfidf') {
-                            keywordsToShow = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && kw.length > 1) || [];
-                          }
+                            return false;
+                          });
+                          
+                          // Remove duplicates again after filtering
+                          allKeywords = [...new Set(allKeywords)];
+                          
+                          // Sort by usage count (least used first)
+                          const sortedByUsage = allKeywords.sort((a, b) => {
+                            const countA = calculatedKeywordUsageCounts?.get(a) || 0;
+                            const countB = calculatedKeywordUsageCounts?.get(b) || 0;
+                            return countA - countB;
+                          });
+                          
+                          // Show up to 50 keywords (prioritize least used)
+                          const keywordsToShow = sortedByUsage.length < 15 
+                            ? sortedByUsage 
+                            : sortedByUsage.slice(0, 50);
 
-                          // Filter out keywords used more than 3 times (less than 4 times = <= 3)
+                          // Filter out keywords used more than 3 times
                           const filteredKeywords = keywordsToShow.filter((keyword) => {
                             const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
-                            return usageCount < 4; // Changed from <= 3 to < 4 for clarity
+                            return usageCount < 4;
                           });
 
                           return filteredKeywords.length > 0 ? (
                             filteredKeywords.map((keyword, idx) => {
                               const isSelected = selectedMissingKeywords.has(keyword);
                               const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
-                              const colorClass = keywordSourceType === 'missing'
-                                ? (isSelected ? 'bg-red-600 text-white border-2 border-red-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-red-400 hover:bg-red-50')
-                                : keywordSourceType === 'matching'
-                                  ? (isSelected ? 'bg-green-600 text-white border-2 border-green-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-green-400 hover:bg-green-50')
-                                  : (isSelected ? 'bg-purple-600 text-white border-2 border-purple-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-400 hover:bg-purple-50');
                               
                               return (
                                 <button
@@ -3823,7 +3772,11 @@ export default function VisualResumeEditor({
                                     }
                                     setSelectedMissingKeywords(newSelected);
                                   }}
-                                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${colorClass}`}
+                                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                    isSelected 
+                                      ? 'bg-blue-600 text-white border-2 border-blue-700' 
+                                      : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                                  }`}
                                 >
                                   {isSelected && '✓ '}{keyword}{usageCount > 0 ? ` (${usageCount})` : ''}
                                 </button>
@@ -3833,7 +3786,7 @@ export default function VisualResumeEditor({
                             <p className="text-sm text-gray-500 text-center py-4">
                               {keywordsToShow.length > 0 
                                 ? 'All available keywords are already used more than 3 times. Consider removing some instances before adding more.'
-                                : `No ${keywordSourceType === 'missing' ? 'missing' : keywordSourceType === 'matching' ? 'matching' : 'TF-IDF boost'} keywords available. Please match a job description first.`}
+                                : 'No keywords available. Please match a job description first.'}
                             </p>
                           );
                         })()}
