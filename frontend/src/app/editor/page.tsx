@@ -198,12 +198,12 @@ const EditorPageContent = () => {
     }
     return ''
   })
-  const [selectedTemplate, setSelectedTemplate] = useState<'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'>(() => {
+  const [selectedTemplate, setSelectedTemplate] = useState<'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'classic'>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('selectedTemplate') || 'clean'
-      return stored as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
+      const stored = localStorage.getItem('selectedTemplate') || 'classic'
+      return stored as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'classic'
     }
-    return 'clean'
+    return 'classic'
   })
 
   const collaboration = useCollaboration()
@@ -373,7 +373,7 @@ const EditorPageContent = () => {
           }
         }
 
-        const allowedTemplates = ['clean', 'two-column', 'compact', 'minimal', 'modern', 'tech'] as const
+        const allowedTemplates = ['clean', 'two-column', 'compact', 'minimal', 'modern', 'tech', 'classic'] as const
         if (resumeMeta?.template && allowedTemplates.includes(resumeMeta.template)) {
           setSelectedTemplate(resumeMeta.template)
           if (typeof window !== 'undefined') {
@@ -1118,7 +1118,7 @@ const EditorPageContent = () => {
       }
     }
     
-    setSelectedTemplate(template === 'visual' ? 'tech' : template as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech')
+    setSelectedTemplate(template === 'visual' ? 'tech' : template as 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'classic')
     if (typeof window !== 'undefined') {
       localStorage.setItem('selectedTemplate', template === 'visual' ? 'tech' : template)
     }

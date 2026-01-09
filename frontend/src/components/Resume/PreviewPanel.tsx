@@ -59,7 +59,7 @@ interface Props {
 export default function PreviewPanel({ 
   data, 
   replacements, 
-  template = 'clean' as const,
+  template = 'classic' as const,
   templateConfig,
   constrained = false
 }: Props) {

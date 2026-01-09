@@ -95,10 +95,29 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
             return !leftColumnKeywords.some(keyword => titleLower.includes(keyword))
           })
           .map(s => s.id)
+        
+        // Save default distribution to config so it persists
+        if (leftIds.length > 0 || rightIds.length > 0) {
+          onUpdate({
+            layout: {
+              ...config.layout,
+              twoColumnLeft: leftIds,
+              twoColumnRight: rightIds,
+            }
+          })
+        }
       } else {
         // Ensure summary is included if it exists
         if (hasSummary && !leftIds.includes(SUMMARY_ID) && !rightIds.includes(SUMMARY_ID)) {
           leftIds.push(SUMMARY_ID)
+          // Update config with summary added
+          onUpdate({
+            layout: {
+              ...config.layout,
+              twoColumnLeft: leftIds,
+              twoColumnRight: rightIds,
+            }
+          })
         }
       }
       

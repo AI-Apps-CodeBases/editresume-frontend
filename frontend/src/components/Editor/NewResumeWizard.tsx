@@ -23,7 +23,7 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
     setResumeData(data)
     setCurrentStep(3)
     // Go directly to editor with default template
-    onComplete(data, 'tech', {})
+    onComplete(data, 'classic', {})
   }
 
   const handleStartFromScratch = () => {
@@ -56,7 +56,7 @@ export default function NewResumeWizard({ onComplete, onCancel }: Props) {
         }
       ]
     }
-    onComplete(emptyResumeData, 'tech', {})
+    onComplete(emptyResumeData, 'classic', {})
   }
 
   const handleBack = () => {
