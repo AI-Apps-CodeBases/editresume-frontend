@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { templateRegistry, TemplateRegistryEntry } from '../templates/registry'
-import { TemplatePreview } from './TemplatePreview'
 
 interface Props {
   currentTemplateId: string
@@ -117,14 +116,19 @@ function TemplateCard({
           : 'border-gray-200 group-hover:border-primary-300 shadow-md'
       }`}>
         <div className="relative bg-gray-50 border-b border-gray-200 overflow-hidden" style={{ height: '200px' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100"></div>
-          <div className="relative h-full">
-            <TemplatePreview 
-              template={template} 
-              resumeData={resumeData}
-              scale={0.18}
-            />
-          </div>
+          <img
+            src={template.preview || '/templates/previews/classic.png'}
+            alt={`${template.name} template preview`}
+            className="w-full h-full object-cover object-center bg-white"
+            style={{ objectFit: 'cover', minHeight: '200px' }}
+            onError={(e) => {
+              // Fallback to default image if preview fails to load
+              const target = e.target as HTMLImageElement
+              if (target.src !== window.location.origin + '/templates/previews/classic.png') {
+                target.src = '/templates/previews/classic.png'
+              }
+            }}
+          />
           {isSelected && (
             <div className="absolute top-3 right-3 w-7 h-7 bg-primary-500 rounded-full flex items-center justify-center shadow-lg z-10">
               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

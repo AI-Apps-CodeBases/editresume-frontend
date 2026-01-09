@@ -25,8 +25,28 @@ export default function TwoColumnTemplate({ data, config, replacements }: Templa
 
   const SUMMARY_ID = '__summary__'
   // Ensure arrays exist and are arrays (handle undefined/null cases)
-  const leftIds = Array.isArray(config.layout.twoColumnLeft) ? config.layout.twoColumnLeft : []
-  const rightIds = Array.isArray(config.layout.twoColumnRight) ? config.layout.twoColumnRight : []
+  let leftIds = Array.isArray(config.layout.twoColumnLeft) ? [...config.layout.twoColumnLeft] : []
+  let rightIds = Array.isArray(config.layout.twoColumnRight) ? [...config.layout.twoColumnRight] : []
+  
+  // Auto-distribute if arrays are empty (first load scenario)
+  if (leftIds.length === 0 && rightIds.length === 0) {
+    const leftColumnKeywords = ['skill', 'certificate', 'certification', 'education', 'academic', 'qualification', 'award', 'honor']
+    
+    // Add summary to right by default
+    if (data.summary && shouldShowField(data.fieldsVisible, 'summary')) {
+      rightIds.push(SUMMARY_ID)
+    }
+    
+    // Distribute visible sections between left and right columns
+    visibleSections.forEach(section => {
+      const titleLower = section.title.toLowerCase()
+      if (leftColumnKeywords.some(keyword => titleLower.includes(keyword))) {
+        leftIds.push(section.id)
+      } else {
+        rightIds.push(section.id)
+      }
+    })
+  }
   
   // Use sectionOrder to maintain proper ordering within each column
   const sectionOrder = Array.isArray(config.layout.sectionOrder) && config.layout.sectionOrder.length > 0 
