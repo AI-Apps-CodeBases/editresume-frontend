@@ -30,7 +30,7 @@ interface ModernEditorLayoutProps {
   onResumeUpdate?: (updatedResume: any) => void
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
   currentView?: 'editor' | 'jobs' | 'resumes'
-  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech'
+  template?: 'clean' | 'two-column' | 'compact' | 'minimal' | 'modern' | 'tech' | 'classic'
   templateConfig?: any
   onAIContentWizard?: (contentType: 'job' | 'project' | 'skill' | 'education') => void
   onOpenCoverLetter?: () => void

@@ -73,7 +73,7 @@ export default function TemplateDesignPage({
 
   const handleConfigUpdate = (updates: Partial<TemplateConfig>) => {
     // Deep merge the updates with existing config
-    const layoutUpdates = updates.layout || {}
+    const layoutUpdates = updates.layout || {} as Partial<TemplateConfig['layout']>
     const newConfig: TemplateConfig = {
       layout: { 
         ...localConfig!.layout, 
