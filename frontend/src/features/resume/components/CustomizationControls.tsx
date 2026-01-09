@@ -54,11 +54,17 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
   useEffect(() => {
     if (typeof window !== 'undefined' && sections) {
       // First try to get from config (persisted across templates)
-      let leftIds: string[] = config.layout.twoColumnLeft || []
-      let rightIds: string[] = config.layout.twoColumnRight || []
+      // Check if config values exist (even if empty arrays) - don't fallback to localStorage
+      // This prevents localStorage from overriding config in production/staging
+      const leftIdsFromConfig = config.layout.twoColumnLeft
+      const rightIdsFromConfig = config.layout.twoColumnRight
       
-      // Fallback to localStorage if config doesn't have it
-      if (leftIds.length === 0 && rightIds.length === 0) {
+      let leftIds: string[] = Array.isArray(leftIdsFromConfig) ? leftIdsFromConfig : []
+      let rightIds: string[] = Array.isArray(rightIdsFromConfig) ? rightIdsFromConfig : []
+      
+      // Only use localStorage if config values are completely undefined (not just empty arrays)
+      // This ensures config takes precedence over localStorage
+      if (leftIdsFromConfig === undefined && rightIdsFromConfig === undefined) {
         const savedLeft = localStorage.getItem('twoColumnLeft')
         const savedRight = localStorage.getItem('twoColumnRight')
         leftIds = savedLeft ? JSON.parse(savedLeft) : []
