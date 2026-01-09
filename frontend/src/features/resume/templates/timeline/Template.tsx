@@ -2,6 +2,7 @@
 
 import { TemplateProps } from '../types'
 import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField, filterVisibleBullets } from '../BaseTemplate'
+import { getFontFamily } from '../utils'
 
 export default function TimelineTemplate({ data, config, replacements }: TemplateProps) {
   // Use sectionOrder if available, otherwise use natural order
