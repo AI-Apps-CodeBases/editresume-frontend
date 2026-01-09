@@ -4,11 +4,20 @@ import { TemplateProps } from '../types'
 import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField, filterVisibleBullets } from '../BaseTemplate'
 
 export default function TimelineTemplate({ data, config, replacements }: TemplateProps) {
-  const orderedSections = config.layout.sectionOrder.length > 0
-    ? config.layout.sectionOrder
-        .map(id => data.sections.find(s => s.id === id))
-        .filter(Boolean) as typeof data.sections
-    : data.sections
+  // Use sectionOrder if available, otherwise use natural order
+  // Always include all sections, even if not in sectionOrder
+  let orderedSections: typeof data.sections
+  if (config.layout.sectionOrder.length > 0) {
+    const ordered = config.layout.sectionOrder
+      .map(id => data.sections.find(s => s.id === id))
+      .filter(Boolean) as typeof data.sections
+    // Add any sections not in sectionOrder to the end
+    const orderedIds = new Set(config.layout.sectionOrder)
+    const remaining = data.sections.filter(s => !orderedIds.has(s.id))
+    orderedSections = [...ordered, ...remaining]
+  } else {
+    orderedSections = data.sections
+  }
 
   // CRITICAL: Filter sections by visibility - ensures mark/unmark works
   const visibleSections = filterVisibleSections(orderedSections)
@@ -181,7 +190,7 @@ export default function TimelineTemplate({ data, config, replacements }: Templat
                     />
                     <div
                       style={{
-                        fontFamily: config.typography.fontFamily.heading,
+                        fontFamily: getFontFamily(config.typography.fontFamily.heading),
                         fontSize: `${config.typography.fontSize.body + 1}px`,
                         fontWeight: 600,
                         color: config.design.colors.primary,
@@ -214,7 +223,7 @@ export default function TimelineTemplate({ data, config, replacements }: Templat
                   />
                   <span
                     style={{
-                      fontFamily: config.typography.fontFamily.body,
+                      fontFamily: getFontFamily(config.typography.fontFamily.body),
                       fontSize: `${config.typography.fontSize.body}px`,
                       lineHeight: config.typography.lineHeight,
                       color: config.design.colors.text,

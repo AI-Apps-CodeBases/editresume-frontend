@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { TemplateCustomizer } from '@/features/resume/components'
 import { templateRegistry } from '@/features/resume/templates'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
@@ -46,27 +46,54 @@ export default function TemplateDesignPage({
   onClose,
 }: Props) {
   const [localConfig, setLocalConfig] = useState<TemplateConfig | null>(templateConfig || null)
+  const [configVersion, setConfigVersion] = useState(0)
+  const prevTemplateRef = useRef<string>(currentTemplate)
 
   useEffect(() => {
-    if (templateConfig) {
-      setLocalConfig(templateConfig)
-    } else {
-      const template = templateRegistry.find((t) => t.id === currentTemplate)
-      if (template) {
-        setLocalConfig(template.defaultConfig)
+    // Only update localConfig if template changes (template switch), not on every config update
+    // This prevents overwriting user's local changes
+    if (currentTemplate !== prevTemplateRef.current) {
+      prevTemplateRef.current = currentTemplate
+      if (templateConfig) {
+        setLocalConfig(templateConfig)
+      } else {
+        const template = templateRegistry.find((t) => t.id === currentTemplate)
+        if (template) {
+          setLocalConfig(template.defaultConfig)
+        }
+      }
+    } else if (!localConfig) {
+      // Initial setup only
+      if (templateConfig) {
+        setLocalConfig(templateConfig)
+      } else {
+        const template = templateRegistry.find((t) => t.id === currentTemplate)
+        if (template) {
+          setLocalConfig(template.defaultConfig)
+        }
       }
     }
-  }, [templateConfig, currentTemplate])
+  }, [currentTemplate, templateConfig])
 
   const handleConfigUpdate = (updates: Partial<TemplateConfig>) => {
-    // Deep merge the updates with existing config
+    // Deep merge the updates with existing config, ensuring arrays are new references
+    const baseLayout = localConfig!.layout
+    const updateLayout = updates.layout as Partial<TemplateConfig['layout']> | undefined
+    
     const newConfig: TemplateConfig = {
       layout: { 
-        ...localConfig!.layout, 
-        ...(updates.layout || {}),
-        // Preserve twoColumnLeft and twoColumnRight if they exist
-        twoColumnLeft: updates.layout?.twoColumnLeft ?? localConfig!.layout.twoColumnLeft,
-        twoColumnRight: updates.layout?.twoColumnRight ?? localConfig!.layout.twoColumnRight,
+        ...baseLayout,
+        ...(updateLayout || {}),
+        // Always create new array references for React to detect changes
+        sectionOrder: updateLayout?.sectionOrder !== undefined 
+          ? [...(updateLayout.sectionOrder || [])]
+          : [...(baseLayout.sectionOrder || [])],
+        twoColumnLeft: updateLayout?.twoColumnLeft !== undefined
+          ? (Array.isArray(updateLayout.twoColumnLeft) ? [...updateLayout.twoColumnLeft] : [])
+          : (Array.isArray(baseLayout.twoColumnLeft) ? [...baseLayout.twoColumnLeft] : []),
+        twoColumnRight: updateLayout?.twoColumnRight !== undefined
+          ? (Array.isArray(updateLayout.twoColumnRight) ? [...updateLayout.twoColumnRight] : [])
+          : (Array.isArray(baseLayout.twoColumnRight) ? [...baseLayout.twoColumnRight] : []),
       },
       typography: {
         ...localConfig!.typography,
@@ -94,6 +121,7 @@ export default function TemplateDesignPage({
       },
     }
     setLocalConfig(newConfig)
+    setConfigVersion(v => v + 1) // Force re-render
     onTemplateConfigUpdate(newConfig)
   }
 
@@ -115,6 +143,11 @@ export default function TemplateDesignPage({
   }
 
   const config = localConfig || templateRegistry.find((t) => t.id === currentTemplate)?.defaultConfig
+  
+  // Ensure config is always a valid object
+  if (!config) {
+    return null
+  }
 
   return (
     <div className="fixed inset-0 z-[110] bg-gradient-to-br from-primary-50/20 to-white flex flex-col">
@@ -163,6 +196,7 @@ export default function TemplateDesignPage({
             </div>
             <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card overflow-visible">
               <PreviewPanel
+                key={`preview-${currentTemplate}-${configVersion}-${config?.layout?.sectionOrder?.join(',') || ''}-${config?.layout?.twoColumnLeft?.join(',') || ''}-${config?.layout?.twoColumnRight?.join(',') || ''}`}
                 data={resumeData}
                 replacements={{}}
                 template={currentTemplate as any}

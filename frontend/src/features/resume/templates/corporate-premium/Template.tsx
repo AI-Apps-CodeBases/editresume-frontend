@@ -2,13 +2,23 @@
 
 import { TemplateProps } from '../types'
 import { BaseTemplate, renderBulletPoints, applyReplacements, filterVisibleSections, shouldShowField } from '../BaseTemplate'
+import { getFontFamily } from '../utils'
 
 export default function CorporatePremiumTemplate({ data, config, replacements }: TemplateProps) {
-  const orderedSections = config.layout.sectionOrder.length > 0
-    ? config.layout.sectionOrder
-        .map(id => data.sections.find(s => s.id === id))
-        .filter(Boolean) as typeof data.sections
-    : data.sections
+  // Use sectionOrder if available, otherwise use natural order
+  // Always include all sections, even if not in sectionOrder
+  let orderedSections: typeof data.sections
+  if (config.layout.sectionOrder.length > 0) {
+    const ordered = config.layout.sectionOrder
+      .map(id => data.sections.find(s => s.id === id))
+      .filter(Boolean) as typeof data.sections
+    // Add any sections not in sectionOrder to the end
+    const orderedIds = new Set(config.layout.sectionOrder)
+    const remaining = data.sections.filter(s => !orderedIds.has(s.id))
+    orderedSections = [...ordered, ...remaining]
+  } else {
+    orderedSections = data.sections
+  }
 
   // CRITICAL: Filter sections by visibility - ensures mark/unmark works
   const visibleSections = filterVisibleSections(orderedSections)
@@ -42,7 +52,7 @@ export default function CorporatePremiumTemplate({ data, config, replacements }:
           {shouldShowField(data.fieldsVisible, 'name') && (
             <h1
               style={{
-                fontFamily: config.typography.fontFamily.heading,
+                fontFamily: getFontFamily(config.typography.fontFamily.heading),
                 fontSize: `${config.typography.fontSize.h1}px`,
                 fontWeight: config.typography.fontWeight?.heading || 700,
                 marginBottom: '8px',
@@ -100,7 +110,7 @@ export default function CorporatePremiumTemplate({ data, config, replacements }:
               <h2
                 className="mb-3"
                 style={{
-                  fontFamily: config.typography.fontFamily.heading,
+                  fontFamily: getFontFamily(config.typography.fontFamily.heading),
                   fontSize: `${config.typography.fontSize.h2}px`,
                   fontWeight: config.typography.fontWeight?.heading || 700,
                   color: config.design.colors.primary,
@@ -136,7 +146,7 @@ export default function CorporatePremiumTemplate({ data, config, replacements }:
             <h2
               className="mb-3"
               style={{
-                fontFamily: config.typography.fontFamily.heading,
+                fontFamily: getFontFamily(config.typography.fontFamily.heading),
                 fontSize: `${config.typography.fontSize.h2}px`,
                 fontWeight: config.typography.fontWeight?.heading || 700,
                 color: config.design.colors.primary,

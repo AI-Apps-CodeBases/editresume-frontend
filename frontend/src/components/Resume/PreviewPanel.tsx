@@ -807,25 +807,34 @@ export default function PreviewPanel({
           // This handles cases where * appears in the text after conversion
           cleanText = cleanText.replace(/\*(?![*<>/])/g, '')
           
+          const lineHeightNum = typeof lineHeight === 'number' ? lineHeight : parseFloat(lineHeight.toString()) || 1.5
+          const calculatedLineHeight = bodySize * lineHeightNum
+          const bulletSize = bodySize * 0.9
+          
           currentList.push(
             <li 
               key={bullet.id} 
-              className="text-sm leading-snug flex"
+              className="text-sm leading-snug flex items-baseline"
               style={{ 
                 fontFamily: bodyFont,
                 fontSize: `${bodySize}px`,
-                lineHeight: lineHeight,
+                lineHeight: `${calculatedLineHeight}px`,
                 color: textColor,
                 marginBottom: `${Math.max(bulletSpacing * 0.6, 4)}px`,
                 maxWidth: '100%',
                 width: '100%',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
               }}
             >
               {bulletStyle !== 'none' && (
                 <span 
                   className="mr-1.5 flex-shrink-0"
-                  style={{ color: primaryColor }}
+                  style={{ 
+                    color: primaryColor,
+                    fontSize: `${bulletSize}px`,
+                    lineHeight: `${calculatedLineHeight}px`,
+                    display: 'inline-block',
+                  }}
                 >
                   {bulletSymbol}
                 </span>
@@ -837,7 +846,8 @@ export default function PreviewPanel({
                   overflowWrap: 'break-word',
                   wordWrap: 'break-word',
                   wordBreak: 'break-word',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  lineHeight: `${calculatedLineHeight}px`,
                 }}
                 dangerouslySetInnerHTML={{ 
                   __html: cleanText
