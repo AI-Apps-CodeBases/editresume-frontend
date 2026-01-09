@@ -7,7 +7,6 @@ import RightPanel from './RightPanel'
 import JobsView from './JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 import Tooltip from '@/components/Shared/Tooltip'
-import { Menu, Zap, Upload, Save } from 'lucide-react'
 
 interface ModernEditorLayoutProps {
   resumeData: {
@@ -179,7 +178,7 @@ export default function ModernEditorLayout({
             focusMode ? 'max-w-[700px]' : ''
           }`}>
           {currentView === 'editor' ? (
-            <div className="h-full overflow-y-auto bg-gradient-to-b from-primary-50/20 to-transparent pb-20 lg:pb-0">
+            <div className="h-full overflow-y-auto bg-gradient-to-b from-primary-50/20 to-transparent">
               <div className="hidden lg:block sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-border-subtle">
                 <div className="flex items-center justify-between px-4 py-2">
                   <div className="text-xs font-semibold text-text-muted uppercase tracking-wider">
@@ -308,52 +307,6 @@ export default function ModernEditorLayout({
           </>
         )}
       </div>
-
-      {currentView === 'editor' && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-border-subtle z-40 safe-area-inset-bottom shadow-[0_-4px_20px_rgba(15,23,42,0.08)]">
-          <div className="flex items-center justify-around px-2 py-2">
-            <Tooltip text="Open navigation menu" color="gray" position="top">
-              <button
-                onClick={() => setShowLeftDrawer(true)}
-                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
-              >
-                <Menu className="w-5 h-5" />
-                <span className="font-medium">Menu</span>
-              </button>
-            </Tooltip>
-            <Tooltip text="Open AI Tools panel" color="purple" position="top">
-              <button
-                onClick={() => setShowRightDrawer(true)}
-                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
-              >
-                <Zap className="w-5 h-5" />
-                <span className="font-medium">AI Tools</span>
-              </button>
-            </Tooltip>
-            <Tooltip text="Export resume as PDF" color="blue" position="top">
-              <button
-                onClick={() => onExport?.('pdf')}
-                disabled={!resumeData.name || isExporting}
-                className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target disabled:opacity-50"
-              >
-                <Upload className="w-5 h-5" />
-                <span className="font-medium">Export</span>
-              </button>
-            </Tooltip>
-            {onSaveResume && isAuthenticated && (
-              <Tooltip text="Save resume to your account" color="green" position="top">
-                <button
-                  onClick={onSaveResume}
-                  className="flex flex-col items-center gap-1 px-3 py-2 text-xs touch-target transition-all duration-200 hover:text-primary-600"
-                >
-                  <Save className="w-5 h-5" />
-                  <span className="font-medium">Save</span>
-                </button>
-              </Tooltip>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
