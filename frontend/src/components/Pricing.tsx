@@ -152,18 +152,18 @@ export default function Pricing() {
                       : 'bg-white/20 text-white hover:bg-white/30'
                   }`}
                 >
-                  Annual
+                  3 Months
                 </button>
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-3xl font-bold text-white">
-                  {billingPeriod === 'annual' ? '$79.99' : '$9.99'}
+                  {billingPeriod === 'annual' ? '$26.99' : '$9.99'}
                 </span>
                 <span className="text-blue-100 text-sm">
-                  {billingPeriod === 'annual' ? '/year' : '/month'}
+                  {billingPeriod === 'annual' ? '/3 months' : '/month'}
                 </span>
                 {billingPeriod === 'annual' && (
-                  <span className="text-yellow-300 text-xs font-medium ml-1">Save $40</span>
+                  <span className="text-yellow-300 text-xs font-medium ml-1">Save $3</span>
                 )}
               </div>
             </div>

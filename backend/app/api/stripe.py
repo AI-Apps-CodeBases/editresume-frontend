@@ -35,7 +35,7 @@ class CheckoutSessionRequest(BaseModel):
         default=None, description="Plan type: 'trial', 'trial-onetime', or 'premium' (uses corresponding price ID)"
     )
     period: str | None = Field(
-        default=None, description="Billing period: 'monthly' or 'annual'"
+        default=None, description="Billing period: 'monthly' or 'annual' (annual means quarterly 3-month plan)"
     )
 
 
@@ -126,6 +126,72 @@ async def create_checkout_session(
         )
 
     try:
+        # Verify price exists and matches expected type
+        try:
+            price_obj = stripe.Price.retrieve(price_id)
+            price_type = price_obj.get("type")
+            price_amount = price_obj.get("unit_amount", 0) / 100  # Convert cents to dollars
+            price_interval = price_obj.get("recurring", {}).get("interval") if price_type == "recurring" else None
+            price_interval_count = price_obj.get("recurring", {}).get("interval_count") if price_type == "recurring" else None
+
+            logger.info(
+                "Creating checkout session: planType=%s, period=%s, priceId=%s, priceType=%s, amount=$%.2f, interval=%s, intervalCount=%s, mode=%s",
+                payload.planType,
+                payload.period,
+                price_id,
+                price_type,
+                price_amount,
+                price_interval,
+                price_interval_count,
+                "payment" if is_onetime else "subscription",
+            )
+
+            # Validate price type matches payment mode
+            if is_onetime and price_type == "recurring":
+                logger.error(
+                    "Price type mismatch: trying to use recurring price %s ($%.2f) for one-time payment",
+                    price_id,
+                    price_amount,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Price ID {price_id} is configured as a subscription but should be a one-time payment. Please configure STRIPE_TRIAL_ONETIME_PRICE_ID with a one-time payment price.",
+                )
+            if not is_onetime and price_type != "recurring":
+                logger.error(
+                    "Price type mismatch: trying to use one-time price %s ($%.2f) for subscription",
+                    price_id,
+                    price_amount,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Price ID {price_id} is configured as a one-time payment but should be a recurring subscription. Please check your Stripe price configuration.",
+                )
+
+            # Validate trial plan billing interval (should be 2 weeks)
+            if payload.planType == "trial" and not is_onetime:
+                if price_interval != "week" or price_interval_count != 2:
+                    logger.warning(
+                        "Trial plan price interval mismatch: expected 2 weeks, got %s %s(s)",
+                        price_interval_count or "unknown",
+                        price_interval or "unknown",
+                    )
+            
+            # Validate premium quarterly (annual) billing interval (should be 3 months)
+            if payload.planType == "premium" and payload.period == "annual" and not is_onetime:
+                if price_interval != "month" or price_interval_count != 3:
+                    logger.warning(
+                        "Premium quarterly price interval mismatch: expected 3 months, got %s %s(s)",
+                        price_interval_count or "unknown",
+                        price_interval or "unknown",
+                    )
+        except stripe.error.InvalidRequestError as exc:  # type: ignore[attr-defined]
+            logger.error("Invalid Stripe price ID %s: %s", price_id, exc)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid Stripe price ID: {price_id}. Please check your Stripe configuration.",
+            ) from exc
+
         metadata = {
             "uid": user["uid"],
             "email": user.get("email") or "",

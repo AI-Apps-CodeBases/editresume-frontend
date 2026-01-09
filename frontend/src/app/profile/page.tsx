@@ -771,18 +771,18 @@ function ProfilePageContent() {
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
-                            Annual
+                            3 Months
                           </button>
                         </div>
                         <div className="mt-3 flex items-baseline gap-1">
                           <span className="text-2xl font-semibold text-text-primary">
-                            {billingPeriod === 'annual' ? '$79' : '$9.99'}
+                            {billingPeriod === 'annual' ? '$26.99' : '$9.99'}
                           </span>
                           <span className="text-xs text-text-muted">
-                            {billingPeriod === 'annual' ? 'per year' : 'per month'}
+                            {billingPeriod === 'annual' ? 'every 3 months' : 'per month'}
                           </span>
                           {billingPeriod === 'annual' && (
-                            <span className="text-[10px] text-green-600 font-medium">Save $40</span>
+                            <span className="text-[10px] text-green-600 font-medium">Save $3</span>
                           )}
                         </div>
                         <ul className="mt-3 space-y-1.5 text-xs text-text-muted">
@@ -826,7 +826,7 @@ function ProfilePageContent() {
                               disabled={checkoutLoading || subscriptionLoading}
                               className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                             >
-                              {checkoutLoading ? 'Starting checkout…' : `Upgrade (${billingPeriod === 'annual' ? '$79/yr' : '$9.99/mo'})`}
+                              {checkoutLoading ? 'Starting checkout…' : `Upgrade (${billingPeriod === 'annual' ? '$26.99/3mo' : '$9.99/mo'})`}
                             </button>
                           )}
                         </div>

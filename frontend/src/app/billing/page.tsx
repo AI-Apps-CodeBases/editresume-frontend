@@ -447,7 +447,7 @@ function BillingContent() {
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    Annual
+                    3 Months
                   </button>
                 </div>
               )}
@@ -456,18 +456,18 @@ function BillingContent() {
                   {plan.id === 'trial' && trialPaymentType === 'onetime' 
                     ? '$14.99' 
                     : plan.id === 'premium' && billingPeriod === 'annual' 
-                    ? '$79.99' 
+                    ? '$26.99' 
                     : plan.price}
                 </span>
                 <span className="text-xs text-text-muted">
                   {plan.id === 'trial' && trialPaymentType === 'onetime'
                     ? ' one-time'
                     : plan.id === 'premium' && billingPeriod === 'annual'
-                    ? 'per year'
+                    ? 'every 3 months'
                     : plan.cadence}
                 </span>
                 {plan.id === 'premium' && billingPeriod === 'annual' && (
-                  <span className="text-[10px] text-green-600 font-medium">Save $40</span>
+                  <span className="text-[10px] text-green-600 font-medium">Save $3</span>
                 )}
               </div>
               <ul className="mt-3 space-y-1.5 text-xs text-text-muted">
@@ -502,7 +502,7 @@ function BillingContent() {
                       disabled={checkoutLoading}
                       className="button-primary justify-center text-xs py-2 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {checkoutLoading ? 'Starting checkout…' : `Upgrade (${billingPeriod === 'annual' ? '$79.99/yr' : '$9.99/mo'})`}
+                      {checkoutLoading ? 'Starting checkout…' : `Upgrade (${billingPeriod === 'annual' ? '$26.99/3mo' : '$9.99/mo'})`}
                     </button>
                   )
                 ) : plan.id === 'trial' ? (
