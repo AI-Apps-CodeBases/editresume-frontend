@@ -19,7 +19,7 @@ lxml==5.1.0
 # PyMuPDF==1.23.8  # Optional: Requires compilation. App works with pdfplumber/PyPDF2 fallbacks
 docx2txt==0.8
 # ATS Checker dependencies - TF-IDF enabled for industry-standard scoring
-scikit-learn==1.3.2
+# scikit-learn==1.3.2  # Optional: Requires compilation. App has fallbacks. Try: pip install scikit-learn (newer version may support Python 3.14)
 # spacy==3.6.1  # Optional: Advanced NLP features (has fallback if not installed)
 nltk==3.8.1
 # Optional dependencies with fallback support
