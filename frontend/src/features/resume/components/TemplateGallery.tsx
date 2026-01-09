@@ -3,6 +3,47 @@
 import { useState } from 'react'
 import { templateRegistry, TemplateRegistryEntry } from '../templates/registry'
 
+// Placeholder SVG for template preview thumbnails
+const TemplatePlaceholder = () => (
+  <div className="w-full h-full flex items-center justify-center bg-white">
+    <svg
+      width="200"
+      height="260"
+      viewBox="0 0 200 260"
+      className="w-full h-full"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      {/* White background */}
+      <rect width="200" height="260" fill="#ffffff" />
+      {/* Header section */}
+      <rect x="15" y="15" width="170" height="28" rx="3" fill="#e5e7eb" />
+      {/* Contact info lines */}
+      <rect x="15" y="50" width="95" height="6" rx="2" fill="#d1d5db" />
+      <rect x="15" y="60" width="115" height="6" rx="2" fill="#d1d5db" />
+      {/* Section 1 */}
+      <rect x="15" y="80" width="170" height="18" rx="3" fill="#e5e7eb" />
+      <circle cx="20" cy="108" r="2.5" fill="#9ca3af" />
+      <rect x="28" y="106" width="150" height="5" rx="2" fill="#e5e7eb" />
+      <circle cx="20" cy="118" r="2.5" fill="#9ca3af" />
+      <rect x="28" y="116" width="125" height="5" rx="2" fill="#e5e7eb" />
+      {/* Section 2 */}
+      <rect x="15" y="135" width="170" height="18" rx="3" fill="#e5e7eb" />
+      <circle cx="20" cy="163" r="2.5" fill="#9ca3af" />
+      <rect x="28" y="161" width="155" height="5" rx="2" fill="#e5e7eb" />
+      <circle cx="20" cy="173" r="2.5" fill="#9ca3af" />
+      <rect x="28" y="171" width="105" height="5" rx="2" fill="#e5e7eb" />
+      {/* Section 3 */}
+      <rect x="15" y="190" width="170" height="18" rx="3" fill="#e5e7eb" />
+      <circle cx="20" cy="218" r="2.5" fill="#9ca3af" />
+      <rect x="28" y="216" width="140" height="5" rx="2" fill="#e5e7eb" />
+      <circle cx="20" cy="228" r="2.5" fill="#9ca3af" />
+      <rect x="28" y="226" width="120" height="5" rx="2" fill="#e5e7eb" />
+    </svg>
+  </div>
+)
+
 interface Props {
   currentTemplateId: string
   onSelectTemplate: (templateId: string) => void
@@ -90,6 +131,13 @@ export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeDat
   )
 }
 
+function TemplatePlaceholderImage({ template }: { template: TemplateRegistryEntry }) {
+  // Since the preview files are data URIs stored as text files (not actual images),
+  // we'll use the placeholder component for all templates
+  // In the future, when actual PNG preview images are available, they can be loaded here
+  return <TemplatePlaceholder />
+}
+
 function TemplateCard({
   template,
   isSelected,
@@ -116,18 +164,8 @@ function TemplateCard({
           : 'border-gray-200 group-hover:border-primary-300 shadow-md'
       }`}>
         <div className="relative bg-gray-50 border-b border-gray-200 overflow-hidden" style={{ height: '200px' }}>
-          <img
-            src={template.preview || '/templates/previews/classic.png'}
-            alt={`${template.name} template preview`}
-            className="w-full h-full object-cover object-center bg-white"
-            style={{ objectFit: 'cover', minHeight: '200px' }}
-            onError={(e) => {
-              // Fallback to default image if preview fails to load
-              const target = e.target as HTMLImageElement
-              if (target.src !== window.location.origin + '/templates/previews/classic.png') {
-                target.src = '/templates/previews/classic.png'
-              }
-            }}
+          <TemplatePlaceholderImage 
+            template={template}
           />
           {isSelected && (
             <div className="absolute top-3 right-3 w-7 h-7 bg-primary-500 rounded-full flex items-center justify-center shadow-lg z-10">
