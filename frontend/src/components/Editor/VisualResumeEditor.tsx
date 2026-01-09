@@ -463,20 +463,40 @@ export default function VisualResumeEditor({
     });
   }, [data.sections, data.summary]);
 
-  // Load match result when AI Improve modal opens (for both new and existing bullets)
+  // Reload keywords and match result when AI Improve modal opens
   useEffect(() => {
-    if (showAIImproveModal && !matchResult && typeof window !== 'undefined') {
-      const stored = localStorage.getItem('currentMatchResult');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setMatchResult(parsed);
-        } catch (e) {
-          console.error('Failed to parse match result:', e);
+    if (showAIImproveModal && typeof window !== 'undefined') {
+      try {
+        // Always reload matchResult when modal opens to ensure we have latest data
+        const storedMatchResult = localStorage.getItem('currentMatchResult');
+        if (storedMatchResult) {
+          try {
+            const parsed = JSON.parse(storedMatchResult);
+            if (parsed && (parsed.match_analysis || parsed.keyword_suggestions)) {
+              setMatchResult(parsed);
+            }
+          } catch (e) {
+            console.error('Failed to parse match result:', e);
+          }
         }
+        
+        // Always reload jdKeywords when modal opens to ensure we have latest data
+        const storedKeywords = localStorage.getItem('currentJDKeywords');
+        if (storedKeywords) {
+          try {
+            const parsed = JSON.parse(storedKeywords);
+            if (parsed && (parsed.missing || parsed.matching || parsed.priority)) {
+              setJdKeywords(parsed);
+            }
+          } catch (e) {
+            console.error('Failed to parse keywords:', e);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load keywords or match result:', e);
       }
     }
-  }, [showAIImproveModal, matchResult]);
+  }, [showAIImproveModal]);
 
   // Deduplicate sections by title (case-insensitive) - keep first occurrence
   const lastSectionsRef = useRef<string>('')
@@ -3681,67 +3701,52 @@ export default function VisualResumeEditor({
                       </p>
                       <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-3 bg-blue-50 rounded-lg border border-blue-200">
                         {(() => {
-                          // Combine all keyword sources into a single list
-                          const jdMissing = jdKeywords?.missing?.filter((kw: string) => kw && kw.length > 1) || [];
-                          const matchMissing = matchResult?.match_analysis?.missing_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
-                          const jdMatching = jdKeywords?.matching?.filter((kw: string) => kw && kw.length > 1) || [];
-                          const matchMatching = matchResult?.match_analysis?.matching_keywords?.filter((kw: string) => kw && kw.length > 1) || [];
-                          const tfidfKeywords = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && kw.length > 1) || [];
+                          // Combine all keyword sources into a single list - show ALL missing and matching keywords
+                          const jdMissing = jdKeywords?.missing?.filter((kw: string) => kw && typeof kw === 'string' && kw.trim().length > 1) || [];
+                          const matchMissing = matchResult?.match_analysis?.missing_keywords?.filter((kw: string) => kw && typeof kw === 'string' && kw.trim().length > 1) || [];
+                          const jdMatching = jdKeywords?.matching?.filter((kw: string) => kw && typeof kw === 'string' && kw.trim().length > 1) || [];
+                          const matchMatching = matchResult?.match_analysis?.matching_keywords?.filter((kw: string) => kw && typeof kw === 'string' && kw.trim().length > 1) || [];
+                          const tfidfKeywords = matchResult?.keyword_suggestions?.tfidf_suggestions?.filter((kw: string) => kw && typeof kw === 'string' && kw.trim().length > 1) || [];
                           
-                          // Get technical keywords for filtering
-                          const technicalKeywordsList = matchResult?.match_analysis?.technical_keywords || 
-                                                       matchResult?.match_analysis?.technical_missing || 
-                                                       [];
-                          const technicalKeywordsSet = new Set(
-                            technicalKeywordsList.map((kw: string) => kw.toLowerCase())
-                          );
+                          // Get priority keywords as well
+                          const priorityKeywords = jdKeywords?.priority?.filter((kw: string) => kw && typeof kw === 'string' && kw.trim().length > 1) || [];
+                          const highFreqKeywords = jdKeywords?.high_frequency?.map((item: any) => {
+                            const kw = typeof item === 'string' ? item : (item?.keyword || '');
+                            return kw && typeof kw === 'string' && kw.trim().length > 1 ? kw.trim() : null;
+                          }).filter(Boolean) || [];
                           
-                          // Combine all keyword sources and deduplicate
-                          let allKeywords = [
+                          // Combine all keyword sources - include ALL missing and matching keywords (not just technical)
+                          const allKeywords = [
                             ...jdMissing,
                             ...matchMissing,
                             ...jdMatching,
                             ...matchMatching,
-                            ...tfidfKeywords
+                            ...tfidfKeywords,
+                            ...priorityKeywords,
+                            ...highFreqKeywords
                           ];
                           
-                          // Filter to prioritize technical keywords from missing/matching sources
-                          // but include all TF-IDF keywords
-                          allKeywords = allKeywords.filter((kw: string, index, self) => {
-                            // Remove duplicates
-                            if (self.indexOf(kw) !== index) return false;
-                            
-                            const kwLower = kw.toLowerCase();
-                            // Include if it's in technical keywords set, or if it's from TF-IDF
-                            const isTfidf = tfidfKeywords.includes(kw);
-                            const isTechnical = technicalKeywordsSet.has(kwLower) || 
-                                              technicalKeywordsList.some((tech: string) => 
-                                                kwLower.includes(tech.toLowerCase()) || 
-                                                tech.toLowerCase().includes(kwLower)
-                                              );
-                            
-                            // Include technical keywords from missing/matching, or any TF-IDF keywords
-                            if (isTfidf) return true;
-                            if ((jdMissing.includes(kw) || matchMissing.includes(kw) || jdMatching.includes(kw) || matchMatching.includes(kw)) && isTechnical) {
-                              return true;
+                          // Remove duplicates (case-insensitive)
+                          const uniqueKeywords = new Map<string, string>();
+                          allKeywords.forEach((kw: string) => {
+                            const kwLower = kw.toLowerCase().trim();
+                            if (!uniqueKeywords.has(kwLower)) {
+                              // Keep original case of first occurrence
+                              uniqueKeywords.set(kwLower, kw.trim());
                             }
-                            return false;
                           });
                           
-                          // Remove duplicates again after filtering
-                          allKeywords = [...new Set(allKeywords)];
+                          let keywordsList = Array.from(uniqueKeywords.values());
                           
-                          // Sort by usage count (least used first)
-                          const sortedByUsage = allKeywords.sort((a, b) => {
+                          // Sort by usage count (least used first) to prioritize unused keywords
+                          const sortedByUsage = keywordsList.sort((a, b) => {
                             const countA = calculatedKeywordUsageCounts?.get(a) || 0;
                             const countB = calculatedKeywordUsageCounts?.get(b) || 0;
                             return countA - countB;
                           });
                           
-                          // Show up to 50 keywords (prioritize least used)
-                          const keywordsToShow = sortedByUsage.length < 15 
-                            ? sortedByUsage 
-                            : sortedByUsage.slice(0, 50);
+                          // Show up to 60 keywords (prioritize least used)
+                          const keywordsToShow = sortedByUsage.slice(0, 60);
 
                           // Filter out keywords used more than 3 times
                           const filteredKeywords = keywordsToShow.filter((keyword) => {
