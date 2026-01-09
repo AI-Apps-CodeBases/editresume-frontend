@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { TemplateConfig } from '../templates/types'
 
 interface Section {
@@ -49,6 +49,7 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
   const columnWidth = config.layout.columnWidth || 40
   const [leftSectionIds, setLeftSectionIds] = useState<string[]>([])
   const [rightSectionIds, setRightSectionIds] = useState<string[]>([])
+  const hasInitializedRef = useRef(false)
   const SUMMARY_ID = '__summary__'
 
   useEffect(() => {
@@ -102,8 +103,16 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
         }
       }
       
-      setLeftSectionIds(leftIds)
-      setRightSectionIds(rightIds)
+      // Only update if the IDs have actually changed to avoid overwriting local updates
+      const currentLeftStr = JSON.stringify([...leftSectionIds].sort())
+      const currentRightStr = JSON.stringify([...rightSectionIds].sort())
+      const newLeftStr = JSON.stringify([...leftIds].sort())
+      const newRightStr = JSON.stringify([...rightIds].sort())
+      
+      if (currentLeftStr !== newLeftStr || currentRightStr !== newRightStr) {
+        setLeftSectionIds(leftIds)
+        setRightSectionIds(rightIds)
+      }
     }
   }, [sections, hasSummary, config.layout.twoColumnLeft, config.layout.twoColumnRight])
 
@@ -116,6 +125,7 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
       ? [...rightSectionIds.filter(id => id !== sectionId), sectionId]
       : rightSectionIds.filter(id => id !== sectionId)
     
+    // Update local state first for immediate UI feedback
     setLeftSectionIds(newLeftIds)
     setRightSectionIds(newRightIds)
     
@@ -123,12 +133,14 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
     localStorage.setItem('twoColumnLeft', JSON.stringify(newLeftIds))
     localStorage.setItem('twoColumnRight', JSON.stringify(newRightIds))
     
-    // Update config (persists across templates)
+    // Update config (persists across templates) - ensure sectionOrder is preserved
+    // Always create new array references to ensure React detects changes
     onUpdate({
       layout: {
         ...config.layout,
-        twoColumnLeft: newLeftIds,
-        twoColumnRight: newRightIds,
+        sectionOrder: Array.isArray(config.layout.sectionOrder) ? [...config.layout.sectionOrder] : [],
+        twoColumnLeft: [...newLeftIds],
+        twoColumnRight: [...newRightIds],
       }
     })
     
@@ -350,7 +362,15 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
                             const newOrder = [...orderedIds]
                             const [moved] = newOrder.splice(index, 1)
                             newOrder.splice(index - 1, 0, moved)
-                            onUpdate({ layout: { ...config.layout, sectionOrder: newOrder } })
+                            onUpdate({ 
+                              layout: { 
+                                ...config.layout, 
+                                sectionOrder: newOrder,
+                                // Preserve twoColumnLeft and twoColumnRight as arrays
+                                twoColumnLeft: Array.isArray(config.layout.twoColumnLeft) ? [...config.layout.twoColumnLeft] : [],
+                                twoColumnRight: Array.isArray(config.layout.twoColumnRight) ? [...config.layout.twoColumnRight] : [],
+                              } 
+                            })
                           }
                         }}
                         disabled={index === 0}
@@ -370,7 +390,15 @@ function LayoutControls({ config, onUpdate, sections, hasSummary, onSectionDistr
                             const newOrder = [...orderedIds]
                             const [moved] = newOrder.splice(index, 1)
                             newOrder.splice(index + 1, 0, moved)
-                            onUpdate({ layout: { ...config.layout, sectionOrder: newOrder } })
+                            onUpdate({ 
+                              layout: { 
+                                ...config.layout, 
+                                sectionOrder: newOrder,
+                                // Preserve twoColumnLeft and twoColumnRight as arrays
+                                twoColumnLeft: Array.isArray(config.layout.twoColumnLeft) ? [...config.layout.twoColumnLeft] : [],
+                                twoColumnRight: Array.isArray(config.layout.twoColumnRight) ? [...config.layout.twoColumnRight] : [],
+                              } 
+                            })
                           }
                         }}
                         disabled={index === orderedIds.length - 1}

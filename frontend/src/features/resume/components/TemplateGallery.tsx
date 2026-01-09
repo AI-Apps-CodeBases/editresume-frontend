@@ -57,13 +57,16 @@ export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeDat
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Choose Template</h3>
+        <div>
+          <h3 className="text-xl font-semibold text-gray-900">Choose Template</h3>
+          <p className="text-sm text-gray-500 mt-1">Select a template that matches your style and industry</p>
+        </div>
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value as any)}
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+          className="px-4 py-2 text-sm border border-gray-300 rounded-lg bg-white shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
         >
           <option value="all">All Templates</option>
           <option value="traditional">Traditional</option>
@@ -73,7 +76,7 @@ export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeDat
         </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredTemplates.map((template) => (
           <TemplateCard
             key={template.id}
@@ -99,122 +102,55 @@ function TemplateCard({
   onSelect: () => void
   resumeData: any
 }) {
-  const getTemplateThumbnail = (templateId: string) => {
-    const thumbnails: Record<string, JSX.Element> = {
-      'classic': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="20" y="10" width="160" height="8" fill="#dee2e6" rx="2"/>
-          <rect x="20" y="25" width="80" height="6" fill="#adb5bd" rx="1"/>
-          <rect x="20" y="35" width="60" height="4" fill="#ced4da" rx="1"/>
-          <line x1="20" y1="50" x2="180" y2="50" stroke="#dee2e6" strokeWidth="1"/>
-          <rect x="20" y="58" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <circle cx="25" cy="75" r="2" fill="#6c757d"/>
-          <rect x="30" y="73" width="120" height="4" fill="#ced4da" rx="1"/>
-          <circle cx="25" cy="85" r="2" fill="#6c757d"/>
-          <rect x="30" y="83" width="100" height="4" fill="#ced4da" rx="1"/>
-        </svg>
-      ),
-      'modern': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="60" y="10" width="80" height="8" fill="#dee2e6" rx="2"/>
-          <rect x="60" y="22" width="60" height="4" fill="#adb5bd" rx="1"/>
-          <rect x="20" y="35" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <rect x="20" y="45" width="140" height="4" fill="#ced4da" rx="1"/>
-          <rect x="20" y="58" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <circle cx="25" cy="75" r="2" fill="#6c757d"/>
-          <rect x="30" y="73" width="130" height="4" fill="#ced4da" rx="1"/>
-          <circle cx="25" cy="85" r="2" fill="#6c757d"/>
-          <rect x="30" y="83" width="110" height="4" fill="#ced4da" rx="1"/>
-        </svg>
-      ),
-      'two-column': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="20" y="10" width="70" height="8" fill="#dee2e6" rx="2"/>
-          <rect x="110" y="10" width="70" height="8" fill="#dee2e6" rx="2"/>
-          <rect x="20" y="25" width="70" height="6" fill="#adb5bd" rx="1"/>
-          <rect x="110" y="25" width="70" height="6" fill="#adb5bd" rx="1"/>
-          <line x1="100" y1="10" x2="100" y2="90" stroke="#dee2e6" strokeWidth="1"/>
-          <circle cx="25" cy="45" r="2" fill="#6c757d"/>
-          <rect x="30" y="43" width="50" height="4" fill="#ced4da" rx="1"/>
-          <circle cx="115" cy="45" r="2" fill="#6c757d"/>
-          <rect x="120" y="43" width="50" height="4" fill="#ced4da" rx="1"/>
-          <rect x="20" y="58" width="70" height="6" fill="#adb5bd" rx="1"/>
-          <rect x="110" y="58" width="70" height="6" fill="#adb5bd" rx="1"/>
-        </svg>
-      ),
-      'creative': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <defs>
-            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#667eea"/>
-              <stop offset="100%" stopColor="#764ba2"/>
-            </linearGradient>
-          </defs>
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="0" y="0" width="200" height="20" fill="url(#grad)"/>
-          <rect x="20" y="30" width="160" height="8" fill="#adb5bd" rx="2"/>
-          <rect x="20" y="45" width="140" height="6" fill="#ced4da" rx="1"/>
-          <rect x="20" y="58" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <circle cx="25" cy="75" r="2" fill="#6c757d"/>
-          <rect x="30" y="73" width="120" height="4" fill="#ced4da" rx="1"/>
-        </svg>
-      ),
-      'ats-friendly': (
-        <svg viewBox="0 0 200 100" className="w-full h-full">
-          <rect width="200" height="100" fill="#f8f9fa"/>
-          <rect x="20" y="10" width="160" height="6" fill="#28a745" rx="1"/>
-          <rect x="20" y="20" width="160" height="4" fill="#6c757d" rx="1"/>
-          <line x1="20" y1="32" x2="180" y2="32" stroke="#28a745" strokeWidth="2"/>
-          <rect x="20" y="38" width="160" height="6" fill="#adb5bd" rx="1"/>
-          <circle cx="25" cy="55" r="2" fill="#28a745"/>
-          <rect x="30" y="53" width="150" height="4" fill="#ced4da" rx="1"/>
-          <circle cx="25" cy="65" r="2" fill="#28a745"/>
-          <rect x="30" y="63" width="130" height="4" fill="#ced4da" rx="1"/>
-          <rect x="20" y="75" width="160" height="6" fill="#adb5bd" rx="1"/>
-        </svg>
-      ),
-    }
-    return thumbnails[templateId] || thumbnails['classic']
-  }
-
   return (
     <button
       onClick={onSelect}
-      className={`relative w-full p-3 rounded-lg border-2 text-left transition-all ${
+      className={`group relative w-full text-left transition-all duration-200 ${
         isSelected
-          ? 'border-primary-500 bg-primary-50/30 shadow-lg'
-          : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
+          ? 'ring-2 ring-primary-500 ring-offset-2'
+          : 'hover:shadow-lg'
       }`}
     >
-      {isSelected && (
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center shadow-md z-10">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-          </svg>
+      <div className={`rounded-xl border-2 overflow-hidden bg-white transition-all ${
+        isSelected
+          ? 'border-primary-500 shadow-lg'
+          : 'border-gray-200 group-hover:border-primary-300 shadow-md'
+      }`}>
+        <div className="relative bg-gray-50 border-b border-gray-200 overflow-hidden" style={{ height: '200px' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100"></div>
+          <div className="relative h-full">
+            <TemplatePreview 
+              template={template} 
+              resumeData={resumeData}
+              scale={0.18}
+            />
+          </div>
+          {isSelected && (
+            <div className="absolute top-3 right-3 w-7 h-7 bg-primary-500 rounded-full flex items-center justify-center shadow-lg z-10">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          )}
         </div>
-      )}
-      
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1">
-          <h4 className="font-semibold text-gray-900 text-sm">{template.name}</h4>
-          <p className="text-xs text-gray-600 mt-0.5">{template.description}</p>
-        </div>
-      </div>
-      
-      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden" style={{ height: '80px' }}>
-        {getTemplateThumbnail(template.id)}
-      </div>
-      
-      <div className="flex items-center justify-between">
-        <span className="capitalize px-2 py-1 bg-gray-100 rounded text-xs text-gray-600">{template.category}</span>
-        <div className="flex items-center gap-1 px-2 py-1 bg-green-50 rounded-full border border-green-200">
-          <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-          </svg>
-          <span className="text-xs font-medium text-green-700">ATS {template.atsScore}%</span>
+        
+        <div className="p-4 space-y-3">
+          <div>
+            <h4 className="font-semibold text-gray-900 text-base mb-1">{template.name}</h4>
+            <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{template.description}</p>
+          </div>
+          
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <span className="capitalize px-2.5 py-1 bg-gray-100 rounded-md text-xs font-medium text-gray-700">
+              {template.category.replace('-', ' ')}
+            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 rounded-md border border-green-200">
+              <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-xs font-semibold text-green-700">ATS {template.atsScore}%</span>
+            </div>
+          </div>
         </div>
       </div>
     </button>

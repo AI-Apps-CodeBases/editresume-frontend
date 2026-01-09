@@ -1,5 +1,6 @@
 import React from 'react'
 import { TemplateProps, TemplateConfig } from './types'
+import { getFontFamily } from './utils'
 
 export interface BaseTemplateProps extends TemplateProps {
   children?: React.ReactNode
@@ -159,7 +160,7 @@ export function renderBulletPoints(
               key={item.bullet.id}
               className="mb-1"
               style={{
-                fontFamily: config.typography.fontFamily.heading,
+                fontFamily: getFontFamily(config.typography.fontFamily.heading),
                 fontSize: `${config.typography.fontSize.body + 1}px`,
                 fontWeight: 600,
                 color: config.design.colors.primary,
@@ -193,10 +194,23 @@ export function renderBulletPoints(
           // This handles cases where * appears in the text after conversion
           processedText = processedText.replace(/\*(?![*<>/])/g, '')
 
+          const fontSize = config.typography.fontSize.body || 11
+          const lineHeightValue = config.typography.lineHeight || 1.5
+          const calculatedLineHeight = fontSize * lineHeightValue
+          const bulletSize = fontSize * 0.9
+          
           return (
-            <div key={item.bullet.id} className="flex items-start gap-2" style={{ paddingLeft: style === 'none' ? 0 : '1.5rem' }}>
+            <div key={item.bullet.id} className="flex items-baseline gap-2" style={{ paddingLeft: style === 'none' ? 0 : '1.5rem' }}>
               {style !== 'none' && (
-                <span className="flex-shrink-0 mt-1" style={{ color: config.design.colors.primary }}>
+                <span 
+                  className="flex-shrink-0" 
+                  style={{ 
+                    color: config.design.colors.primary,
+                    fontSize: `${bulletSize}px`,
+                    lineHeight: `${calculatedLineHeight}px`,
+                    display: 'inline-block',
+                  }}
+                >
                   {bulletSymbol}
                 </span>
               )}
@@ -204,9 +218,9 @@ export function renderBulletPoints(
                 className="flex-1"
                 dangerouslySetInnerHTML={{ __html: processedText }}
                 style={{
-                  fontFamily: config.typography.fontFamily.body,
-                  fontSize: `${config.typography.fontSize.body}px`,
-                  lineHeight: config.typography.lineHeight,
+                  fontFamily: getFontFamily(config.typography.fontFamily.body),
+                  fontSize: `${fontSize}px`,
+                  lineHeight: `${calculatedLineHeight}px`,
                   color: config.design.colors.text,
                 }}
               />
@@ -229,7 +243,7 @@ export function BaseTemplate({ data, config, replacements, children }: BaseTempl
     <div
       className="preview-resume-container bg-white"
       style={{
-        fontFamily: config.typography.fontFamily.body,
+        fontFamily: getFontFamily(config.typography.fontFamily.body),
         color: config.design.colors.text,
         padding: `${Math.max(mergedSpacing.pageMargin * 0.5, 8)}px`,
         maxWidth: '8.5in',
