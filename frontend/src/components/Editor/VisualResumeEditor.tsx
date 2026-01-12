@@ -3907,7 +3907,7 @@ export default function VisualResumeEditor({
                           }
                           
                           // Sort by usage count (least used first) to prioritize unused keywords
-                          const sortedByUsage = keywordsToFilter.sort((a, b) => {
+                          const sortedByUsage = keywordsList.sort((a, b) => {
                             const countA = calculatedKeywordUsageCounts?.get(a) || 0;
                             const countB = calculatedKeywordUsageCounts?.get(b) || 0;
                             // If we have relevant keywords, prioritize those
@@ -3922,7 +3922,7 @@ export default function VisualResumeEditor({
                           
                           // If we have relevant keywords, show all of them (up to 30), otherwise show up to 60
                           const maxKeywords = relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords ? 30 : 60;
-                          let keywordsToShow = sortedByUsage.slice(0, maxKeywords);
+                          keywordsToShow = sortedByUsage.slice(0, maxKeywords);
 
                           return filteredKeywords.length > 0 ? (
                             filteredKeywords.map((keyword, idx) => {
