@@ -3864,52 +3864,45 @@ export default function VisualResumeEditor({
                           
                           let keywordsList = Array.from(uniqueKeywords.values());
                           
-                          // Filter by relevant keywords if AI analysis completed and found relevant keywords
-                          let keywordsToFilter = keywordsList;
+                          // When we have relevant keywords, prioritize showing ALL of them (at least 5-6)
+                          let filteredKeywords: string[] = [];
+                          
                           if (relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords) {
-                            keywordsToFilter = keywordsList.filter((kw: string) => {
-                              return relevantKeywords.has(kw);
-                            });
-                          }
-                          
-                          // Sort by usage count (least used first) to prioritize unused keywords
-                          const sortedByUsage = keywordsToFilter.sort((a, b) => {
-                            const countA = calculatedKeywordUsageCounts?.get(a) || 0;
-                            const countB = calculatedKeywordUsageCounts?.get(b) || 0;
-                            // If we have relevant keywords, prioritize those
-                            if (relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords) {
-                              const aIsRelevant = relevantKeywords.has(a);
-                              const bIsRelevant = relevantKeywords.has(b);
-                              if (aIsRelevant && !bIsRelevant) return -1;
-                              if (!aIsRelevant && bIsRelevant) return 1;
-                            }
-                            return countA - countB;
-                          });
-                          
-                          // If we have relevant keywords, show all of them (up to 30), otherwise show up to 60
-                          const maxKeywords = relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords ? 30 : 60;
-                          let keywordsToShow = sortedByUsage.slice(0, maxKeywords);
-
-                          // Filter out keywords used more than 3 times
-                          let filteredKeywords = keywordsToShow.filter((keyword) => {
-                            const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
-                            return usageCount < 4;
-                          });
-
-                          // If we filtered by relevant keywords but all were filtered out (used >3 times), fall back to all keywords
-                          if (filteredKeywords.length === 0 && relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords && keywordsToFilter.length > 0) {
-                            // Fall back to showing all available keywords (not just relevant ones)
-                            const fallbackSorted = keywordsList.sort((a, b) => {
+                            // Show ALL relevant keywords directly from the API response
+                            // Convert Set to Array - these are the keywords the AI found for THIS bullet
+                            const relevantKeywordsArray = Array.from(relevantKeywords);
+                            
+                            // Sort relevant keywords by usage count (least used first) for better UX
+                            const sortedRelevant = relevantKeywordsArray.sort((a, b) => {
                               const countA = calculatedKeywordUsageCounts?.get(a) || 0;
                               const countB = calculatedKeywordUsageCounts?.get(b) || 0;
                               return countA - countB;
                             });
-                            const fallbackToShow = fallbackSorted.slice(0, 60);
-                            filteredKeywords = fallbackToShow.filter((keyword) => {
-                              const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
-                              return usageCount < 4;
+                            
+                            // Show ALL relevant keywords (don't filter by usage count for relevant keywords)
+                            // This ensures we show at least 5-6 keywords as requested
+                            filteredKeywords = sortedRelevant;
+                            
+                            // If we have more than 15 relevant keywords, limit to top 15 (sorted by usage)
+                            if (filteredKeywords.length > 15) {
+                              filteredKeywords = filteredKeywords.slice(0, 15);
+                            }
+                          } else {
+                            // No relevant keywords - show all keywords filtered by usage count
+                            const sortedByUsage = keywordsList.sort((a, b) => {
+                              const countA = calculatedKeywordUsageCounts?.get(a) || 0;
+                              const countB = calculatedKeywordUsageCounts?.get(b) || 0;
+                              return countA - countB;
                             });
-                            keywordsToShow = fallbackToShow;
+                            
+                            const maxKeywords = 60;
+                            let keywordsToShow = sortedByUsage.slice(0, maxKeywords);
+                            
+                            // Filter out keywords used more than 6 times (only for non-relevant keywords)
+                            filteredKeywords = keywordsToShow.filter((keyword) => {
+                              const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
+                              return usageCount < 7;
+                            });
                           }
 
                           return filteredKeywords.length > 0 ? (
@@ -3950,7 +3943,7 @@ export default function VisualResumeEditor({
                               {isAnalyzingKeywords
                                 ? 'Analyzing bullet point to find relevant keywords...'
                                 : keywordsToShow.length > 0 
-                                  ? 'All available keywords are already used more than 3 times. Consider removing some instances before adding more.'
+                                  ? 'All available keywords are already used more than 6 times. Consider removing some instances before adding more.'
                                   : relevantKeywords && relevantKeywords.size === 0
                                     ? 'No relevant keywords found for this bullet point. Showing all available keywords.'
                                     : 'No keywords available. Please match a job description first.'}
