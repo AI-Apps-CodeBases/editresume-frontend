@@ -3905,6 +3905,24 @@ export default function VisualResumeEditor({
                               return usageCount < 7;
                             });
                           }
+                          
+                          // Sort by usage count (least used first) to prioritize unused keywords
+                          const sortedByUsage = keywordsToFilter.sort((a, b) => {
+                            const countA = calculatedKeywordUsageCounts?.get(a) || 0;
+                            const countB = calculatedKeywordUsageCounts?.get(b) || 0;
+                            // If we have relevant keywords, prioritize those
+                            if (relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords) {
+                              const aIsRelevant = relevantKeywords.has(a);
+                              const bIsRelevant = relevantKeywords.has(b);
+                              if (aIsRelevant && !bIsRelevant) return -1;
+                              if (!aIsRelevant && bIsRelevant) return 1;
+                            }
+                            return countA - countB;
+                          });
+                          
+                          // If we have relevant keywords, show all of them (up to 30), otherwise show up to 60
+                          const maxKeywords = relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords ? 30 : 60;
+                          let keywordsToShow = sortedByUsage.slice(0, maxKeywords);
 
                           return filteredKeywords.length > 0 ? (
                             filteredKeywords.map((keyword, idx) => {
