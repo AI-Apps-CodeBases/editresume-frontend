@@ -3866,6 +3866,7 @@ export default function VisualResumeEditor({
                           
                           // When we have relevant keywords, prioritize showing ALL of them (at least 5-6)
                           let filteredKeywords: string[] = [];
+                          let keywordsToShow: string[] = [];
                           
                           if (relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords) {
                             // Show ALL relevant keywords directly from the API response
@@ -3896,7 +3897,7 @@ export default function VisualResumeEditor({
                             });
                             
                             const maxKeywords = 60;
-                            let keywordsToShow = sortedByUsage.slice(0, maxKeywords);
+                            keywordsToShow = sortedByUsage.slice(0, maxKeywords);
                             
                             // Filter out keywords used more than 6 times (only for non-relevant keywords)
                             filteredKeywords = keywordsToShow.filter((keyword) => {
