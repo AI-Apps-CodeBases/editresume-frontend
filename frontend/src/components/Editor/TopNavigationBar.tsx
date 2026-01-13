@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
-import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus } from 'lucide-react'
+import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus, MoreVertical } from 'lucide-react'
 
 interface TopNavigationBarProps {
   onNewResume?: () => void
@@ -46,22 +46,27 @@ export default function TopNavigationBar({
   const { user } = useAuth()
   const [showActionsMenu, setShowActionsMenu] = useState(false)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
+  const [showMobileActionsMenu, setShowMobileActionsMenu] = useState(false)
+  const mobileActionsMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) {
         setShowActionsMenu(false)
       }
+      if (mobileActionsMenuRef.current && !mobileActionsMenuRef.current.contains(event.target as Node)) {
+        setShowMobileActionsMenu(false)
+      }
     }
 
-    if (showActionsMenu) {
+    if (showActionsMenu || showMobileActionsMenu) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [showActionsMenu])
+  }, [showActionsMenu, showMobileActionsMenu])
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-md border-b border-border-subtle shadow-[0_4px_20px_rgba(15,23,42,0.08)]">
@@ -236,6 +241,60 @@ export default function TopNavigationBar({
               </div>
             )}
           </div>
+
+          {/* Mobile Actions Button - Mobile only */}
+          {(onUploadResume || onExport) && (
+            <div className="sm:hidden relative" ref={mobileActionsMenuRef}>
+              <Tooltip text="Upload or export resume" color="gray" position="bottom">
+                <button
+                  onClick={() => setShowMobileActionsMenu(!showMobileActionsMenu)}
+                  className="p-2.5 text-text-muted hover:text-text-primary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target"
+                  aria-label="Actions"
+                >
+                  <MoreVertical className="w-6 h-6" />
+                </button>
+              </Tooltip>
+              {showMobileActionsMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-[0_12px_40px_rgba(15,23,42,0.12)] border border-border-subtle py-2 z-[100] backdrop-blur-sm animate-fade-in">
+                  {/* Upload Resume */}
+                  {onUploadResume && (
+                    <Tooltip text="Upload an existing resume file (PDF, DOCX) to edit" color="gray" position="left">
+                      <button
+                        onClick={() => {
+                          setShowMobileActionsMenu(false)
+                          onUploadResume()
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
+                      >
+                        <Upload className="w-4 h-4 text-primary-600" />
+                        <span className="font-medium">Upload Resume</span>
+                      </button>
+                    </Tooltip>
+                  )}
+                  
+                  {/* Export PDF */}
+                  {onExport && (
+                    <>
+                      {onUploadResume && <div className="border-t border-border-subtle my-2"></div>}
+                      <Tooltip text="Export your resume as a PDF file" color="gray" position="left">
+                        <button
+                          onClick={() => {
+                            setShowMobileActionsMenu(false)
+                            onExport('pdf')
+                          }}
+                          disabled={!hasResumeName || isExporting}
+                          className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 rounded-lg mx-1"
+                        >
+                          <FileText className="w-4 h-4 text-primary-600" />
+                          <span className="font-medium">{isExporting ? 'Exporting...' : 'Export PDF'}</span>
+                        </button>
+                      </Tooltip>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* AI Tools Button - Mobile only */}
           {onRightPanelClick && (
