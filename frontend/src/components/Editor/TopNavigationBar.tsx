@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
-import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus, MoreVertical } from 'lucide-react'
+import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus } from 'lucide-react'
 
 interface TopNavigationBarProps {
   onNewResume?: () => void
@@ -251,7 +251,7 @@ export default function TopNavigationBar({
                   className="p-2.5 text-text-muted hover:text-text-primary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target"
                   aria-label="Actions"
                 >
-                  <MoreVertical className="w-6 h-6" />
+                  <Upload className="w-6 h-6" />
                 </button>
               </Tooltip>
               {showMobileActionsMenu && (
