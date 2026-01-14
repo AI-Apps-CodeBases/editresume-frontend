@@ -497,9 +497,9 @@ function calculateKeywordCoverage(
   const coverage = (matchingKeywords.length / totalKeywords) * 100;
 
   const sectionWeights: Record<string, number> = {
-    skills: 1.0,
-    experience: 0.9,
-    summary: 0.6, // Balanced weight with 5-keyword cap to prevent excessive summary impact
+    skills: 2.0, // Doubled from 1.0 to make skills placement matter significantly more
+    experience: 1.5, // Increased from 0.9 to reward experience section keywords
+    summary: 0.4, // Reduced from 0.6 to minimize summary-only keyword impact
     education: 0.4,
     projects: 0.4,
   };
@@ -599,8 +599,8 @@ function calculateKeywordCoverage(
   });
 
   // Calculate base score with improved keyword contribution
-  // Increased max from 40 to 55 to allow more growth and prevent saturation
-  const baseScore = totalWeight > 0 ? (weightedScore / totalWeight) * 55 : 0;
+  // Increased max from 55 to 60 to ensure skills/experience improvements show clearly
+  const baseScore = totalWeight > 0 ? (weightedScore / totalWeight) * 60 : 0;
   
   // Apply bonus for keyword occurrences - each occurrence contributes meaningfully
   // Calculate bonus based on total occurrences
@@ -630,29 +630,72 @@ function calculateKeywordCoverage(
   // Add bonus (ensures minimum 2 points per occurrence, max 5 points)
   finalScore = finalScore + bonusToAdd;
   
-  // Add bonus for keywords appearing in multiple sections (shows depth of experience)
-  // This rewards comprehensive keyword integration across the resume
-  const keywordsInMultipleSections = new Map<string, Set<string>>();
-  processedMappings.forEach(mapping => {
-    if (!keywordsInMultipleSections.has(mapping.keyword.toLowerCase())) {
-      keywordsInMultipleSections.set(mapping.keyword.toLowerCase(), new Set());
+  // PLACEMENT BONUS: Reward keywords in skills/experience sections significantly
+  // This ensures adding keywords to skills/experience shows clear score increases
+  // even when those keywords already exist in summary
+  let placementBonus = 0;
+  const skillsKeywords = new Set<string>();
+  const experienceKeywords = new Set<string>();
+  const summaryKeywords = new Set<string>();
+  
+  // Track keywords by section from ALL mappings (not just processed ones)
+  // This allows us to detect when keywords appear in multiple sections
+  keywordMappings.forEach(mapping => {
+    const keywordLower = mapping.keyword.toLowerCase();
+    if (mapping.section === 'skills') {
+      skillsKeywords.add(keywordLower);
+    } else if (mapping.section === 'experience') {
+      experienceKeywords.add(keywordLower);
+    } else if (mapping.section === 'summary') {
+      summaryKeywords.add(keywordLower);
     }
-    keywordsInMultipleSections.get(mapping.keyword.toLowerCase())!.add(mapping.section);
+  });
+  
+  // Bonus for keywords in skills section: +0.5 points per keyword (capped at 10)
+  // This rewards having keywords in skills, even if they're also in summary
+  placementBonus += Math.min(10, skillsKeywords.size * 0.5);
+  
+  // Bonus for keywords in experience section: +0.3 points per keyword (capped at 8)
+  placementBonus += Math.min(8, experienceKeywords.size * 0.3);
+  
+  finalScore = finalScore + placementBonus;
+  
+  // MULTI-SECTION BONUS: Enhanced to reward keywords appearing in both summary AND skills/experience
+  // This encourages distributing keywords across sections (depth of experience)
+  const keywordsInMultipleSections = new Map<string, Set<string>>();
+  keywordMappings.forEach(mapping => {
+    const keywordLower = mapping.keyword.toLowerCase();
+    if (!keywordsInMultipleSections.has(keywordLower)) {
+      keywordsInMultipleSections.set(keywordLower, new Set());
+    }
+    keywordsInMultipleSections.get(keywordLower)!.add(mapping.section);
   });
   
   let multiSectionBonus = 0;
   keywordsInMultipleSections.forEach((sections, keyword) => {
-    if (sections.size >= 2) {
-      // Bonus for keywords in 2+ sections: 0.5 points per additional section
-      multiSectionBonus += (sections.size - 1) * 0.5;
+    const hasSummary = sections.has('summary');
+    const hasSkills = sections.has('skills');
+    const hasExperience = sections.has('experience');
+    
+    // Enhanced bonus for keywords in summary+skills: +1 point per keyword
+    if (hasSummary && hasSkills) {
+      multiSectionBonus += 1.0;
+    }
+    // Enhanced bonus for keywords in summary+experience: +0.7 points per keyword
+    else if (hasSummary && hasExperience) {
+      multiSectionBonus += 0.7;
+    }
+    // Smaller bonus for other multi-section combinations
+    else if (sections.size >= 2) {
+      multiSectionBonus += (sections.size - 1) * 0.3;
     }
   });
-  // Cap multi-section bonus at 5 points to prevent over-scoring
-  multiSectionBonus = Math.min(5, multiSectionBonus);
+  // Cap multi-section bonus at 12 points to prevent over-scoring while still rewarding distribution
+  multiSectionBonus = Math.min(12, multiSectionBonus);
   finalScore = finalScore + multiSectionBonus;
   
-  // Cap keyword coverage score at 55 (increased from 40 to allow more growth)
-  finalScore = Math.min(55, finalScore);
+  // Cap keyword coverage score at 60 (increased from 55 to allow more growth with placement bonuses)
+  finalScore = Math.min(60, finalScore);
 
   return {
     score: Math.round(finalScore * 100) / 100,
@@ -969,7 +1012,7 @@ export function calculateEnhancedATSScore(
     breakdown: {
       skillsMatch: { ...skillsMatch, max: 40 },
       experienceRelevance: { ...experienceRelevance, max: 30 },
-      keywordCoverage: { ...keywordCoverage, max: 55 },
+      keywordCoverage: { ...keywordCoverage, max: 60 },
       education: { ...education, max: 10 },
       atsCompatibility: { ...atsCompatibility, max: 5 },
     },
