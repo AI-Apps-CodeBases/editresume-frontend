@@ -3895,6 +3895,10 @@ export default function VisualResumeEditor({
                             const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
                             return usageCount < 4;
                           });
+                          
+                          // If we have relevant keywords, show all of them (up to 30), otherwise show up to 60
+                          const maxKeywords = relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords ? 30 : 60;
+                          keywordsToShow = sortedByUsage.slice(0, maxKeywords);
 
                           // If we filtered by relevant keywords but all were filtered out (used >3 times), fall back to all keywords
                           if (filteredKeywords.length === 0 && relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords && keywordsToFilter.length > 0) {

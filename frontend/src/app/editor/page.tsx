@@ -628,6 +628,120 @@ const EditorPageContent = () => {
     }
   }, [searchParams])
 
+  // Listen for extension-saved job descriptions
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const checkExtensionSavedJD = () => {
+      try {
+        const saved = localStorage.getItem('extensionSavedJobId');
+        if (!saved) return;
+        
+        const parsed = JSON.parse(saved);
+        if (!parsed?.jobId || parsed.source !== 'extension') return;
+        
+        // Check if this is a recent save (within last 30 seconds)
+        const age = Date.now() - (parsed.timestamp || 0);
+        if (age > 30000) {
+          // Too old, clear it
+          localStorage.removeItem('extensionSavedJobId');
+          return;
+        }
+        
+        const jobId = parsed.jobId;
+        console.log('Extension saved JD detected:', jobId);
+        
+        // Clear the signal immediately to prevent re-processing
+        localStorage.removeItem('extensionSavedJobId');
+        
+        // Only load if we're on the editor page and have resume data
+        const hasResumeData = resumeData && (resumeData.name || resumeData.sections?.length > 0);
+        if (!hasResumeData) {
+          console.log('No resume data, skipping auto-load');
+          return;
+        }
+        
+        // Load the JD
+        setActiveJobDescriptionId(jobId);
+        setPreviewMode('match');
+        
+        // Fetch JD content from API
+        (async () => {
+          try {
+            const headers = await getAuthHeadersAsync();
+            const [newJob, legacyJob] = await Promise.all([
+              fetch(`${config.apiBase}/api/jobs/${jobId}`, { headers })
+                .then(res => res.ok ? res.json() : null)
+                .catch(() => null),
+              fetch(`${config.apiBase}/api/job-descriptions/${jobId}`)
+                .then(res => res.ok ? res.json() : null)
+                .catch(() => null)
+            ]);
+            
+            const jobData = newJob || legacyJob;
+            if (jobData) {
+              const description = newJob?.description || legacyJob?.content || '';
+              if (description) {
+                setDeepLinkedJD(description);
+                // Store extracted keywords if available
+                const extractedKeywords = newJob?.extracted_keywords || legacyJob?.extracted_keywords;
+                if (extractedKeywords) {
+                  localStorage.setItem('extractedKeywords', JSON.stringify(extractedKeywords));
+                }
+                localStorage.setItem('deepLinkedJD', description);
+                localStorage.setItem('activeJobDescriptionId', String(jobId));
+                
+                // Show notification
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md';
+                notification.innerHTML = `
+                  <div class="flex items-center gap-3">
+                    <div class="text-2xl">📋</div>
+                    <div>
+                      <div class="font-bold text-lg">Job Description Loaded</div>
+                      <div class="text-sm mt-1">Ready to tailor your resume</div>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 text-xl">×</button>
+                  </div>
+                `;
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                  if (notification.parentElement) {
+                    notification.remove();
+                  }
+                }, 5000);
+              }
+            }
+          } catch (error) {
+            console.error('Failed to load extension-saved JD:', error);
+          }
+        })();
+      } catch (e) {
+        console.error('Error checking extension-saved JD:', e);
+      }
+    };
+    
+    // Check immediately
+    checkExtensionSavedJD();
+    
+    // Also listen for storage events (cross-tab communication)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'extensionSavedJobId' && e.newValue) {
+        checkExtensionSavedJD();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Poll every 2 seconds as fallback (in case storage event doesn't fire)
+    const pollInterval = setInterval(checkExtensionSavedJD, 2000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(pollInterval);
+    };
+  }, [resumeData]); // Re-run when resume data changes
+
   // Initialize templateConfig from localStorage on mount
   useEffect(() => {
     if (typeof window === 'undefined' || templateConfig !== undefined) return

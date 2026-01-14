@@ -1,6 +1,7 @@
 """Content generation prompts for resumes."""
 
 from __future__ import annotations
+import re
 
 
 def get_bullet_points_prompt(
