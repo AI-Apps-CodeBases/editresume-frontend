@@ -458,7 +458,7 @@ class ContentGenerationAgent:
             }
 
             model = self.openai_client["model"]
-            max_tokens = 500  # Increased to ensure enough tokens for 5-8 keywords
+            max_tokens = 300
 
             httpx_client = self.openai_client.get("httpx_client")
             if httpx_client:
@@ -470,12 +470,12 @@ class ContentGenerationAgent:
                         "messages": [
                             {
                                 "role": "system",
-                                "content": "You are a resume optimization expert. CRITICAL: Analyze EACH bullet point individually. Each bullet point has UNIQUE content and MUST receive DIFFERENT keywords. Focus on the specific technologies, actions, and outcomes mentioned in EACH bullet. Do NOT return the same keywords for different bullets - they must match each bullet's specific content.",
+                                "content": "You are a resume optimization expert. Analyze bullet points and identify relevant keywords that would naturally enhance them.",
                             },
                             {"role": "user", "content": prompt},
                         ],
                         "max_tokens": max_tokens,
-                        "temperature": 0.9,  # Increased to 0.9 for more varied, bullet-specific responses
+                        "temperature": 0.3,
                     },
                     timeout=20.0,
                 )
@@ -495,12 +495,12 @@ class ContentGenerationAgent:
                             "messages": [
                                 {
                                     "role": "system",
-                                    "content": "You are a resume optimization expert. CRITICAL: Analyze EACH bullet point individually. Each bullet point has UNIQUE content and MUST receive DIFFERENT keywords. Focus on the specific technologies, actions, and outcomes mentioned in EACH bullet. Do NOT return the same keywords for different bullets - they must match each bullet's specific content.",
+                                    "content": "You are a resume optimization expert. Analyze bullet points and identify relevant keywords that would naturally enhance them.",
                                 },
                                 {"role": "user", "content": prompt},
                             ],
                             "max_tokens": max_tokens,
-                            "temperature": 0.9,  # Increased to 0.9 for more varied, bullet-specific responses
+                            "temperature": 0.3,
                         },
                         timeout=20,
                     )
@@ -533,40 +533,11 @@ class ContentGenerationAgent:
                 # Filter to only include keywords that exist in available_keywords (case-insensitive)
                 available_lower = {kw.lower(): kw for kw in available_keywords}
                 filtered_keywords = []
-                seen_lower = set()  # Track seen keywords to avoid duplicates
-                
                 for kw in relevant_keywords:
                     kw_lower = kw.lower().strip()
-                    if kw_lower in available_lower and kw_lower not in seen_lower:
+                    if kw_lower in available_lower:
                         # Use original case from available_keywords
                         filtered_keywords.append(available_lower[kw_lower])
-                        seen_lower.add(kw_lower)
-                
-                # If we have fewer than 5 keywords after filtering, try fuzzy matching
-                if len(filtered_keywords) < 5 and len(available_keywords) >= 5:
-                    # Try to find partial matches or related keywords
-                    for kw in relevant_keywords:
-                        if len(filtered_keywords) >= 5:
-                            break
-                        kw_lower = kw.lower().strip()
-                        if kw_lower in seen_lower:
-                            continue
-                        # Try partial match (contains)
-                        for available_kw in available_keywords:
-                            available_lower_kw = available_kw.lower()
-                            if (kw_lower in available_lower_kw or available_lower_kw in kw_lower) and available_lower_kw not in seen_lower:
-                                if len(available_lower_kw) >= 3:  # Only match meaningful keywords
-                                    filtered_keywords.append(available_kw)
-                                    seen_lower.add(available_lower_kw)
-                                    break
-                
-                # Ensure we have at least 5 keywords if possible
-                if len(filtered_keywords) < 5 and len(available_keywords) >= 5:
-                    # Add top available keywords sorted by relevance to bullet point
-                    remaining = [kw for kw in available_keywords if kw.lower() not in seen_lower]
-                    # Take first few that aren't already included
-                    needed = 5 - len(filtered_keywords)
-                    filtered_keywords.extend(remaining[:needed])
                 
                 return {
                     "success": True,
@@ -580,20 +551,7 @@ class ContentGenerationAgent:
                 matches = re.findall(r'["\']([^"\']+)["\']', raw_content)
                 if matches:
                     available_lower = {kw.lower(): kw for kw in available_keywords}
-                    seen_lower = set()
-                    filtered = []
-                    for kw in matches:
-                        kw_lower = kw.lower().strip()
-                        if kw_lower in available_lower and kw_lower not in seen_lower:
-                            filtered.append(available_lower[kw_lower])
-                            seen_lower.add(kw_lower)
-                    
-                    # Ensure at least 5 keywords if possible
-                    if len(filtered) < 5 and len(available_keywords) >= 5:
-                        remaining = [kw for kw in available_keywords if kw.lower() not in seen_lower]
-                        needed = 5 - len(filtered)
-                        filtered.extend(remaining[:needed])
-                    
+                    filtered = [available_lower[kw.lower()] for kw in matches if kw.lower() in available_lower]
                     return {
                         "success": True,
                         "relevant_keywords": filtered[:30],
