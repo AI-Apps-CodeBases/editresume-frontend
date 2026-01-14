@@ -39,13 +39,13 @@ export default function HeroSection() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
-                className="text-5xl sm:text-6xl lg:text-[72px] font-bold leading-[1.1] text-text-primary mb-6"
+                className="text-[27px] sm:text-[36px] lg:text-[48px] font-bold leading-[1.1] text-text-primary mb-6"
               >
                 <span className="bg-gradient-to-r from-primary-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Build resumes
+                  Tailor Your Resume
                 </span>
                 <br />
-                that get you hired
+                to Any Job Description
               </motion.h1>
 
               <motion.p
@@ -54,15 +54,37 @@ export default function HeroSection() {
                 transition={{ duration: 0.6, delay: 0.3 }}
                 className="text-xl sm:text-2xl text-text-muted leading-relaxed max-w-2xl mb-10"
               >
-                The modern resume builder with AI-powered insights, ATS optimization, and
-                recruiter-approved templates.
+                Save jobs from LinkedIn instantly, then use AI to tailor your resume and beat ATS filters.
               </motion.p>
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.35 }}
+                className="flex items-center gap-2 mb-4 text-sm text-text-muted"
+              >
+                <span className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  1. Save Job
+                </span>
+                <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <span className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-medium">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  2. Tailor Resume
+                </span>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.4 }}
-                className="flex flex-row items-center gap-4 mb-4"
+                className="flex flex-wrap items-center gap-4 mb-4"
               >
                 <button
                   onClick={() => launchEditor('new')}
@@ -86,30 +108,6 @@ export default function HeroSection() {
                 </button>
 
                 <Link
-                  href="/upload"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 border-2 border-border-subtle text-text-primary rounded-xl font-semibold text-lg hover:border-border-strong hover:bg-slate-50 transition-all duration-200"
-                >
-                  Import Resume
-                </Link>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.45 }}
-                className="mb-6"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
-                    </span>
-                    New
-                  </span>
-                  <span className="text-sm text-text-muted">Save jobs from LinkedIn instantly</span>
-                </div>
-                <Link
                   href="https://chromewebstore.google.com/detail/editresume-job-saver/aecnknpdmopjemcdadfnlpoeldnehljp?utm_source=ext_app_menu"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -120,6 +118,13 @@ export default function HeroSection() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity blur-xl" />
+                </Link>
+
+                <Link
+                  href="/upload"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 border-2 border-border-subtle text-text-primary rounded-xl font-semibold text-lg hover:border-border-strong hover:bg-slate-50 transition-all duration-200"
+                >
+                  Import Resume
                 </Link>
               </motion.div>
 
