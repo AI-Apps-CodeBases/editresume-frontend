@@ -453,6 +453,61 @@ The "priority_keywords" array should contain the top 15-20 most important keywor
 Return ONLY the JSON, no explanations or markdown formatting."""
 
 
+def _extract_key_terms_from_bullet(bullet: str) -> dict[str, list[str]]:
+    """Extract key terms from bullet point to help guide keyword selection."""
+    bullet_lower = bullet.lower()
+    
+    # Common technologies and tools (case-insensitive patterns)
+    tech_patterns = {
+        "containerization": ["kubernetes", "k8s", "docker", "containers", "podman"],
+        "cloud": ["aws", "azure", "gcp", "cloud", "ec2", "s3", "lambda"],
+        "monitoring": ["prometheus", "grafana", "datadog", "monitoring", "observability"],
+        "automation": ["terraform", "ansible", "puppet", "chef", "automation", "iac"],
+        "ci_cd": ["jenkins", "gitlab", "github actions", "ci/cd", "pipeline"],
+        "security": ["security", "compliance", "vulnerability", "encryption", "iam"],
+        "databases": ["postgresql", "mysql", "mongodb", "redis", "database"],
+        "programming": ["python", "java", "javascript", "go", "rust"],
+    }
+    
+    # Actions/verbs that indicate domain
+    action_keywords = {
+        "deployment": ["deploy", "deployment", "release", "rollout"],
+        "monitoring": ["monitor", "track", "observe", "alert", "metric"],
+        "automation": ["automate", "automated", "script", "orchestrate"],
+        "optimization": ["optimize", "improve", "enhance", "reduce", "increase"],
+        "security": ["secure", "protect", "compliance", "audit", "scan"],
+    }
+    
+    # Extract technologies mentioned
+    found_technologies = []
+    found_actions = []
+    found_outcomes = []
+    
+    for category, terms in tech_patterns.items():
+        for term in terms:
+            if term in bullet_lower:
+                found_technologies.append(term)
+                break
+    
+    for category, terms in action_keywords.items():
+        for term in terms:
+            if term in bullet_lower:
+                found_actions.append(category)
+                break
+    
+    # Extract outcomes/impact terms
+    outcome_patterns = ["scalability", "performance", "cost", "efficiency", "latency", "availability", "reliability"]
+    for pattern in outcome_patterns:
+        if pattern in bullet_lower:
+            found_outcomes.append(pattern)
+    
+    return {
+        "technologies": found_technologies[:5],
+        "actions": found_actions[:3],
+        "outcomes": found_outcomes[:3],
+    }
+
+
 def get_relevant_keywords_for_bullet_prompt(
     current_bullet: str,
     available_keywords: list[str],
@@ -461,31 +516,86 @@ def get_relevant_keywords_for_bullet_prompt(
     """Get prompt to analyze bullet point and return relevant keywords."""
     keywords_str = ", ".join(available_keywords[:100])  # Limit to first 100 keywords
     
-    return f"""Analyze this resume bullet point and identify which keywords from the provided list are most relevant to enhance or improve this bullet point.
+    # Extract key terms from bullet to guide keyword selection
+    extracted_terms = _extract_key_terms_from_bullet(current_bullet)
+    terms_section = ""
+    if extracted_terms["technologies"] or extracted_terms["actions"] or extracted_terms["outcomes"]:
+        terms_parts = []
+        if extracted_terms["technologies"]:
+            terms_parts.append(f"Technologies/Tools: {', '.join(extracted_terms['technologies'])}")
+        if extracted_terms["actions"]:
+            terms_parts.append(f"Actions/Domains: {', '.join(extracted_terms['actions'])}")
+        if extracted_terms["outcomes"]:
+            terms_parts.append(f"Outcomes/Impact: {', '.join(extracted_terms['outcomes'])}")
+        if terms_parts:
+            terms_section = f"\n\nKEY TERMS EXTRACTED FROM BULLET:\n" + "\n".join(f"- {part}" for part in terms_parts) + "\n\nUse these terms to guide your keyword selection - keywords should relate to these extracted terms.\n"
+    
+    return f"""CRITICAL TASK: Analyze THIS SPECIFIC bullet point and identify AT LEAST 5 keywords that match THIS bullet's UNIQUE content.
 
-Current Bullet Point: "{current_bullet}"
+═══════════════════════════════════════════════════════════════════
+BULLET POINT TO ANALYZE (THIS IS THE PRIMARY FOCUS):
+"{current_bullet}"
+═══════════════════════════════════════════════════════════════════
+{terms_section}STEP 1: UNDERSTAND WHAT THIS BULLET IS ABOUT
+First, identify the SPECIFIC content of this bullet point:
+- What technology or tool is mentioned? (e.g., Kubernetes, Docker, Python)
+- What action or activity is described? (e.g., deployment, monitoring, automation)
+- What outcome or achievement is highlighted? (e.g., scalability, performance, cost reduction)
+- What domain or area does it cover? (e.g., infrastructure, security, data processing)
 
-Available Keywords from Job Description:
+STEP 2: SELECT KEYWORDS THAT MATCH THIS BULLET'S CONTENT
+Analyze the available keywords below and select AT LEAST 5 keywords that:
+- Directly relate to THIS bullet point's specific content (technology, action, outcome)
+- Match the technologies/tools mentioned or implied in THIS bullet
+- Match the domain or area covered by THIS bullet
+- Would naturally enhance THIS specific bullet point
+
+CRITICAL RULE: DIFFERENT BULLETS = DIFFERENT KEYWORDS
+- Each bullet point has UNIQUE content and requires DIFFERENT keywords
+- If this is a deployment bullet, select deployment-related keywords
+- If this is a monitoring bullet, select monitoring-related keywords
+- If this is an automation bullet, select automation-related keywords
+- DO NOT return the same keywords for different bullet points
+
+EXAMPLES OF DIFFERENT BULLETS → DIFFERENT KEYWORDS:
+
+Example 1 - Deployment Bullet:
+Bullet: "Deployed applications using Kubernetes across multiple environments"
+Keywords: ["kubernetes", "deployment", "containers", "orchestration", "environments", "ci/cd"]
+
+Example 2 - Monitoring Bullet:
+Bullet: "Monitored system performance and optimized response times"
+Keywords: ["monitoring", "performance", "optimization", "observability", "metrics", "latency"]
+
+Example 3 - Automation Bullet:
+Bullet: "Automated infrastructure provisioning reducing deployment time by 50%"
+Keywords: ["automation", "infrastructure", "provisioning", "terraform", "iac", "efficiency"]
+
+Example 4 - Security Bullet:
+Bullet: "Implemented security policies and compliance controls"
+Keywords: ["security", "compliance", "policies", "governance", "audit", "vulnerability"]
+
+See how each bullet gets DIFFERENT keywords based on its content!
+
+Available Keywords from Job Description (MUST select from this list):
 {keywords_str}
 
-Job Description Context:
+Job Description Context (for additional relevance):
 {job_description_excerpt[:500] if job_description_excerpt else 'Not provided'}
 
-Your task:
-1. Understand the context and meaning of the current bullet point
-2. Identify which keywords from the available list would naturally fit into this bullet point
-3. Prioritize keywords that:
-   - Are semantically related to the bullet's content
-   - Can be naturally integrated without forcing
-   - Would enhance the bullet's ATS score
-   - Are missing or underrepresented in the current bullet
-4. Select between 8-20 most relevant keywords (prioritize quality over quantity)
+REQUIREMENTS:
+1. Return AT LEAST 5 keywords (minimum 5, up to 8)
+2. Keywords must be SEMANTICALLY DIVERSE (different aspects):
+   - Technical skills/tools
+   - Methodologies/frameworks
+   - Outcomes/impact
+   - Domain concepts
+3. Keywords must match THIS bullet's specific content (not generic keywords)
+4. Each keyword should represent a DIFFERENT concept (avoid synonyms)
+5. Only select keywords that exist in the available list above
 
-Return ONLY a valid JSON array of keyword strings that are most relevant to this bullet point.
-Example: ["kubernetes", "monitoring", "automation", "scalability", "ci/cd", "infrastructure"]
+Return ONLY a JSON array with AT LEAST 5 keywords.
+Format: ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", ...]
 
-IMPORTANT:
-- Return ONLY the JSON array, no explanations or markdown formatting
-- Only include keywords that exist in the provided available keywords list
-- Focus on keywords that would naturally enhance this specific bullet point"""
+REMEMBER: Different bullet points = Different keywords. Match keywords to THIS bullet's content!"""
 

@@ -44,13 +44,19 @@ export const useDashboardData = () => {
             setError(null)
             
             try {
+                // Get auth token (optional for local development)
+                const token = typeof window !== 'undefined' 
+                    ? localStorage.getItem('authToken') 
+                    : null
+
                 const baseUrl = getApiBaseUrl()
-                const { getAuthHeadersAsync } = await import('@/lib/auth')
-                const authHeaders = await getAuthHeadersAsync()
-                
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
-                    ...authHeaders,
+                }
+                
+                // Add authorization header only if token exists
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`
                 }
 
                 // PRIORITY 1: Fetch critical stats first (show immediately)
@@ -187,12 +193,18 @@ export const useDashboardData = () => {
     // Function to fetch feedbacks separately (for refetching after deletion)
     const fetchFeedbacks = async () => {
         try {
-            const { getAuthHeadersAsync } = await import('@/lib/auth')
-            const authHeaders = await getAuthHeadersAsync()
+            const token = typeof window !== 'undefined' 
+                ? localStorage.getItem('authToken') 
+                : null
+            
+            if (!token) {
+                console.error('No auth token available')
+                return
+            }
 
             const baseUrl = getApiBaseUrl()
             const headers = {
-                ...authHeaders,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
             }
 
@@ -212,12 +224,18 @@ export const useDashboardData = () => {
     // Function to delete a feedback
     const deleteFeedback = async (feedbackId: number): Promise<boolean> => {
         try {
-            const { getAuthHeadersAsync } = await import('@/lib/auth')
-            const authHeaders = await getAuthHeadersAsync()
+            const token = typeof window !== 'undefined' 
+                ? localStorage.getItem('authToken') 
+                : null
+            
+            if (!token) {
+                console.error('No auth token available')
+                return false
+            }
 
             const baseUrl = getApiBaseUrl()
             const headers = {
-                ...authHeaders,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
             }
 

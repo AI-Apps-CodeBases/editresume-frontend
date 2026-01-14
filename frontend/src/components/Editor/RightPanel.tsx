@@ -402,6 +402,43 @@ export default function RightPanel({
                   {isAnalyzing && (
                     <span className="text-xs text-text-muted">Analyzing…</span>
                   )}
+                  {atsScore !== null && (
+                    <div className="flex items-center gap-2">
+                      <div className="relative inline-flex h-11 w-11 items-center justify-center">
+                        <svg viewBox="0 0 36 36" className="h-11 w-11">
+                          <path
+                            className="text-gray-200"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            fill="none"
+                            d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                          />
+                          <path
+                            className={atsScore >= 80 ? 'text-green-500' : atsScore >= 60 ? 'text-blue-500' : atsScore >= 40 ? 'text-yellow-500' : 'text-red-500'}
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeWidth="3"
+                            fill="none"
+                            strokeDasharray={`${atsScore}, 100`}
+                            d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className={`text-sm font-bold ${atsScore >= 80 ? 'text-green-600' : atsScore >= 60 ? 'text-blue-600' : atsScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
+                            {Math.round(atsScore)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="hidden sm:flex flex-col">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                          Match Score
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {atsScore >= 80 ? 'Excellent' : atsScore >= 60 ? 'Strong' : atsScore >= 40 ? 'Fair' : 'Needs Work'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
