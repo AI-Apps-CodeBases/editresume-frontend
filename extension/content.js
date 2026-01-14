@@ -1039,6 +1039,21 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Failed to save');
         setStatus(`Saved ✓ (id: ${data.id})`);
+        
+        // Signal to app that JD was saved via chrome.storage
+        // appBridge.js (running on editresume.io) will poll this and write to localStorage
+        if (data.id) {
+          try {
+            const signalData = {
+              jobId: data.id,
+              timestamp: Date.now(),
+              source: 'extension'
+            };
+            chrome.storage.local.set({ extensionSavedJobId: signalData });
+          } catch (e) {
+            console.warn('Failed to signal saved JD to app:', e);
+          }
+        }
         // Job saved successfully - no navigation needed
       } catch (e) {
         setStatus('Error: ' + e.message);

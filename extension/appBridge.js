@@ -43,5 +43,50 @@
 
     return true
   })
+
+  // Bridge chrome.storage to localStorage for extension-saved JD signals
+  // Polls chrome.storage.local for extensionSavedJobId and writes to localStorage
+  // This allows the extension (running on LinkedIn) to signal the app (running on editresume.io)
+  function checkForExtensionSavedJD() {
+    chrome.storage.local.get('extensionSavedJobId', (result) => {
+      if (chrome.runtime.lastError) {
+        console.warn('Failed to read extensionSavedJobId:', chrome.runtime.lastError);
+        return;
+      }
+      
+      const signal = result.extensionSavedJobId;
+      if (!signal || signal.source !== 'extension') return;
+      
+      // Check if signal is recent (within last 30 seconds)
+      const age = Date.now() - (signal.timestamp || 0);
+      if (age > 30000) {
+        // Too old, clear it
+        chrome.storage.local.remove('extensionSavedJobId');
+        return;
+      }
+      
+      // Write to localStorage so the editor page can detect it
+      try {
+        localStorage.setItem('extensionSavedJobId', JSON.stringify(signal));
+        
+        // Dispatch storage event for immediate detection
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'extensionSavedJobId',
+          newValue: JSON.stringify(signal)
+        }));
+        
+        // Clear from chrome.storage to prevent re-processing
+        chrome.storage.local.remove('extensionSavedJobId');
+      } catch (e) {
+        console.warn('Failed to write extensionSavedJobId to localStorage:', e);
+      }
+    });
+  }
+  
+  // Poll every 2 seconds
+  setInterval(checkForExtensionSavedJD, 2000);
+  
+  // Check immediately on load
+  checkForExtensionSavedJD();
 })()
 
