@@ -1,14 +1,17 @@
 'use client'
 import React, { useState, useRef, useCallback, useEffect } from 'react'
-import PreviewPanel from '@/components/Resume/PreviewPanel'
+import EnhancedPreviewPanel from './EnhancedPreviewPanel'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
 import config from '@/lib/config'
 import Tooltip from '@/components/Shared/Tooltip'
+import { Eye, FileText as FileTextIcon, CheckCircle2, Loader2, Lightbulb, XCircle, ChevronDown } from 'lucide-react'
 
+
+type RightPanelTab = 'preview' | 'job-description' | 'suggestions'
 
 interface RightPanelProps {
-  activeTab?: 'preview' | 'job-description'
-  onTabChange?: (tab: 'preview' | 'job-description') => void
+  activeTab?: RightPanelTab
+  onTabChange?: (tab: RightPanelTab) => void
   leftSidebarCollapsed?: boolean
   onResumeUpdate?: (updatedResume: any) => void
   onAIImprove?: (text: string, context?: string) => Promise<string>
@@ -35,6 +38,10 @@ interface RightPanelProps {
   activeJobDescriptionId?: number | null
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
   onSelectJobDescriptionId?: (id: number | null) => void
+  onMatchScoreChange?: (score: number | null, isAnalyzing: boolean) => void
+  onExport?: (format: 'pdf' | 'docx' | 'cover-letter') => void
+  isExporting?: boolean
+  hasResumeName?: boolean
 }
 
 export default function RightPanel({ 
@@ -49,7 +56,11 @@ export default function RightPanel({
   deepLinkedJD,
   activeJobDescriptionId,
   onViewChange,
-  onSelectJobDescriptionId
+  onSelectJobDescriptionId,
+  onMatchScoreChange,
+  onExport,
+  isExporting = false,
+  hasResumeName = false
 }: RightPanelProps) {
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [aiImprovements, setAiImprovements] = useState<number>(0)
@@ -58,6 +69,7 @@ export default function RightPanel({
   const [atsSuggestions, setAtsSuggestions] = useState<any[]>([])
   const [jdKeywords, setJdKeywords] = useState<any>(null)
   const [matchResult, setMatchResult] = useState<any>(null)
+  const [showSuggestions, setShowSuggestions] = useState(true)
   const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -86,7 +98,8 @@ export default function RightPanel({
       return
     }
 
-    setIsAnalyzing(true)
+      setIsAnalyzing(true)
+      onMatchScoreChange?.(atsScore, true)
     try {
       // Extract text from live preview only if already on 'live' tab
       // Don't switch tabs automatically - preserve user's current view
@@ -232,20 +245,37 @@ export default function RightPanel({
       }
 
       const data = await response.json()
+      // Use API score directly as the single source of truth
       const newScore = data.score || null
       setAtsScore(newScore)
       setAiImprovements(data.improvements_count || 0)
       setAtsSuggestions(data.suggestions || [])
       
-      // Store the new score for next calculation
+      // Sync score with match result in localStorage to ensure consistency
       if (newScore !== null && typeof window !== 'undefined') {
         localStorage.setItem('lastATSScore', newScore.toString())
+        try {
+          const savedMatchResult = localStorage.getItem('currentMatchResult')
+          if (savedMatchResult) {
+            const matchResult = JSON.parse(savedMatchResult)
+            if (matchResult.match_analysis) {
+              matchResult.match_analysis.similarity_score = newScore
+              localStorage.setItem('currentMatchResult', JSON.stringify(matchResult))
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to sync match result score:', e)
+        }
       }
+      
+      // Notify parent component of score change
+      onMatchScoreChange?.(newScore, false)
     } catch (error) {
       console.error('Error calculating ATS score:', error)
       setAtsScore(null)
       setAiImprovements(0)
       setAtsSuggestions([])
+      onMatchScoreChange?.(null, false)
     } finally {
       setIsAnalyzing(false)
     }
@@ -264,7 +294,9 @@ export default function RightPanel({
           const matchResult = JSON.parse(savedMatchResult)
           const matchScore = matchResult?.match_analysis?.similarity_score
           if (matchScore !== null && matchScore !== undefined && !isNaN(matchScore)) {
-            setAtsScore(Math.round(matchScore))
+            const roundedScore = Math.round(matchScore)
+            setAtsScore(roundedScore)
+            onMatchScoreChange?.(roundedScore, false)
             // Still calculate in background to keep it updated, but use match result for display
             analyzeTimeoutRef.current = setTimeout(() => {
               calculateATSScore()
@@ -289,16 +321,22 @@ export default function RightPanel({
   }, [calculateATSScore])
 
   const tabs = [
-    { id: 'preview' as const, label: 'Preview', icon: '👁️' },
-    { id: 'job-description' as const, label: 'Match JD', icon: '📄' },
+    { id: 'preview' as const, label: 'Preview', icon: Eye },
+    { id: 'job-description' as const, label: 'Match JD', icon: FileTextIcon },
+    { id: 'suggestions' as const, label: 'Suggestions', icon: Lightbulb },
   ]
+
+  // Notify parent when score changes
+  useEffect(() => {
+    onMatchScoreChange?.(atsScore, isAnalyzing)
+  }, [atsScore, isAnalyzing, onMatchScoreChange])
 
 
 
   return (
-    <div className="bg-white/95 backdrop-blur-sm border-l border-border-subtle flex flex-col h-full w-full custom-scrollbar transition-all duration-300 shadow-sm">
+    <div className="bg-white/95 backdrop-blur-sm border-l border-border-subtle flex flex-col h-full w-full custom-scrollbar transition-all duration-300">
       {/* Tabs */}
-      <div className="flex items-center border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-transparent">
+      <div className="flex items-center border-b border-border-subtle bg-gradient-to-r from-primary-50/20 to-transparent">
         {tabs.map((tab) => (
           <Tooltip 
             key={tab.id}
@@ -317,7 +355,7 @@ export default function RightPanel({
                   : 'text-text-muted hover:text-text-primary hover:bg-primary-50/50'
               }`}
             >
-              <span>{tab.icon}</span>
+              <tab.icon className="w-4 h-4" />
               <span className="hidden sm:inline">{tab.label}</span>
             </button>
           </Tooltip>
@@ -327,59 +365,35 @@ export default function RightPanel({
       {/* Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {activeTab === 'preview' && (
-          <div className="flex-1 overflow-y-auto bg-slate-50 custom-scrollbar">
+          <div className="flex-1 overflow-hidden">
             {resumeData && (resumeData.name || resumeData.sections?.length > 0) ? (
-              <div className="flex flex-col h-full">
-                <div className="mb-3 sticky top-0 bg-white/95 backdrop-blur-md px-4 pt-3 pb-2 z-10 border-b border-border-subtle shadow-sm">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-semibold text-text-primary">Preview</span>
-                      <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full font-medium capitalize shadow-sm">
-                        {template}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-text-muted">Live updates as you edit</p>
-                </div>
-                <div className="flex-1 flex items-center justify-center py-8 px-4 overflow-y-auto custom-scrollbar">
-                  <div className="relative w-full">
-                    <div className="absolute -left-8 top-0 bottom-0 flex items-center">
-                      <div className="text-xs font-mono text-slate-400 tracking-wider">PAGE 1</div>
-                    </div>
-                    <div className="bg-white rounded shadow-2xl overflow-visible">
-                      <PreviewPanel
-                        key={`preview-${template}-${JSON.stringify(resumeData?.sections?.map(s => s.id))}`}
-                        data={{
-                          ...resumeData,
-                          name: resumeData.name || '',
-                          title: resumeData.title || '',
-                          email: resumeData.email || '',
-                          phone: resumeData.phone || '',
-                          location: resumeData.location || '',
-                          summary: resumeData.summary || '',
-                          sections: (resumeData.sections || []).map(section => ({
-                            ...section,
-                            bullets: section.bullets || [],
-                          })),
-                          fieldsVisible: (resumeData as any).fieldsVisible || {},
-                        }}
-                        replacements={{}}
-                        template={template}
-                        templateConfig={templateConfig}
-                        constrained={true}
-                      />
-                    </div>
-                    <div className="absolute -right-8 top-0 bottom-0 flex items-center">
-                      <div className="text-xs font-mono text-slate-400 tracking-wider">PAGE 1</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <EnhancedPreviewPanel
+                key={`preview-${template}-${JSON.stringify(resumeData?.sections?.map(s => s.id))}`}
+                data={{
+                  ...resumeData,
+                  name: resumeData.name || '',
+                  title: resumeData.title || '',
+                  email: resumeData.email || '',
+                  phone: resumeData.phone || '',
+                  location: resumeData.location || '',
+                  summary: resumeData.summary || '',
+                  sections: (resumeData.sections || []).map(section => ({
+                    ...section,
+                    bullets: section.bullets || [],
+                  })),
+                  fieldsVisible: (resumeData as any).fieldsVisible || {},
+                }}
+                replacements={{}}
+                template={template}
+                templateConfig={templateConfig}
+                onExport={onExport}
+                isExporting={isExporting}
+                hasResumeName={hasResumeName}
+              />
             ) : (
-              <div className="flex items-center justify-center h-full p-4">
+              <div className="flex items-center justify-center h-full p-4 bg-slate-50">
                 <div className="text-center">
-                  <div className="text-4xl mb-2">📄</div>
+                  <FileTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-sm text-text-secondary mb-1">No resume data</p>
                   <p className="text-xs text-text-muted">Start editing to see live preview</p>
                 </div>
@@ -390,17 +404,20 @@ export default function RightPanel({
 
         {activeTab === 'job-description' && resumeData && (
           <div className="h-full flex flex-col">
-            <div className="sticky top-0 z-10 border-b border-border-subtle bg-white/95 backdrop-blur-md px-4 py-3">
+            <div className="sticky top-0 z-10 border-b border-border-subtle bg-white/95 backdrop-blur-md px-6 py-4">
               <div className="flex items-center justify-between">
-                <div className="flex flex-col">
+                <div className="flex flex-col gap-1">
                   <span className="text-sm font-semibold text-text-primary">Match JD</span>
                   <span className="text-xs text-text-muted">
                     Score is based on the selected job description
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   {isAnalyzing && (
-                    <span className="text-xs text-text-muted">Analyzing…</span>
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 text-primary-600 animate-spin" />
+                      <span className="text-xs text-text-muted">Analyzing…</span>
+                    </div>
                   )}
                   {atsScore !== null && (
                     <div className="flex items-center gap-2">
@@ -452,6 +469,198 @@ export default function RightPanel({
                 onViewChange={onViewChange}
                 onSelectJobDescriptionId={onSelectJobDescriptionId}
               />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'suggestions' && (
+          <div className="h-full flex flex-col">
+            <div className="sticky top-0 z-10 border-b border-border-subtle bg-white/95 backdrop-blur-md px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-semibold text-text-primary">Improvement Suggestions</span>
+                  <span className="text-xs text-text-muted">
+                    Tips to increase your ATS match score
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+              {matchResult?.match_analysis ? (
+                <div className="space-y-6">
+                  {/* Score Summary */}
+                  {atsScore !== null && (
+                    <div className="bg-gradient-to-br from-primary-50 to-blue-50 rounded-xl p-6 border border-primary-100">
+                      <div className="flex items-center gap-4">
+                        <div className="relative flex-shrink-0">
+                          <svg viewBox="0 0 36 36" className="w-16 h-16 transform -rotate-90">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                            />
+                            <path
+                              className={atsScore >= 80 ? 'text-green-500' : atsScore >= 60 ? 'text-primary-600' : atsScore >= 40 ? 'text-yellow-500' : 'text-red-500'}
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${atsScore}, 100`}
+                              d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className={`text-lg font-bold ${atsScore >= 80 ? 'text-green-600' : atsScore >= 60 ? 'text-primary-700' : atsScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              {Math.round(atsScore)}%
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-base font-semibold text-text-primary mb-1">
+                            Current Match Score
+                          </h3>
+                          <p className="text-sm text-text-muted">
+                            {matchResult.match_analysis.match_count || 0} matched keywords, {matchResult.match_analysis.missing_count || 0} missing keywords
+                          </p>
+                          <div className="mt-2">
+                            <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                              atsScore >= 80 ? 'bg-green-100 text-green-700' :
+                              atsScore >= 60 ? 'bg-primary-100 text-primary-700' :
+                              atsScore >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {atsScore >= 80 ? 'Excellent' : atsScore >= 60 ? 'Strong' : atsScore >= 40 ? 'Fair' : 'Needs Work'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Missing Keywords */}
+                  {matchResult.match_analysis.missing_keywords && matchResult.match_analysis.missing_keywords.length > 0 && (
+                    <div className="bg-white rounded-xl border border-border-subtle p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="w-5 h-5 text-red-500" />
+                          <h3 className="text-sm font-semibold text-text-primary">
+                            Missing Keywords ({matchResult.match_analysis.missing_keywords.length})
+                          </h3>
+                        </div>
+                        <button
+                          onClick={() => setShowSuggestions(!showSuggestions)}
+                          className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform ${showSuggestions ? '' : '-rotate-90'}`} />
+                        </button>
+                      </div>
+                      {showSuggestions && (
+                        <div className="space-y-3">
+                          <p className="text-xs text-text-muted mb-3">
+                            Add these keywords to your resume to improve your match score:
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {matchResult.match_analysis.missing_keywords.map((keyword: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 border border-red-200 rounded-md hover:bg-red-100 transition-all duration-200"
+                              >
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Improvement Suggestions */}
+                  {atsSuggestions.length > 0 && (
+                    <div className="bg-white rounded-xl border border-border-subtle p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Lightbulb className="w-5 h-5 text-primary-600" />
+                        <h3 className="text-sm font-semibold text-text-primary">
+                          Improvement Tips ({atsSuggestions.length})
+                        </h3>
+                      </div>
+                      <div className="space-y-3">
+                        {atsSuggestions.map((suggestion: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="flex items-start gap-3 p-3 bg-primary-50/50 rounded-lg hover:bg-primary-50 transition-all duration-200"
+                          >
+                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center mt-0.5">
+                              <span className="text-xs font-semibold text-primary-700">{idx + 1}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {suggestion.category && (
+                                <div className="text-xs font-semibold text-primary-700 mb-1 uppercase tracking-wide">
+                                  {suggestion.category}
+                                </div>
+                              )}
+                              <p className="text-sm text-text-secondary leading-relaxed">
+                                {suggestion.suggestion || suggestion.text || suggestion}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Keyword Suggestions */}
+                  {matchResult.keyword_suggestions && Object.keys(matchResult.keyword_suggestions).length > 0 && (
+                    <div className="bg-white rounded-xl border border-border-subtle p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <CheckCircle2 className="w-5 h-5 text-primary-600" />
+                        <h3 className="text-sm font-semibold text-text-primary">
+                          Keyword Suggestions by Category
+                        </h3>
+                      </div>
+                      <div className="space-y-4">
+                        {Object.entries(matchResult.keyword_suggestions).map(([category, keywords]: [string, any]) => (
+                          <div key={category}>
+                            <h4 className="text-xs font-semibold text-text-primary mb-2 uppercase tracking-wide">
+                              {category}
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {(Array.isArray(keywords) ? keywords : []).map((keyword: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-primary-50 text-primary-700 border border-primary-200 rounded-md hover:bg-primary-100 transition-all duration-200"
+                                >
+                                  {keyword}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No suggestions message */}
+                  {(!matchResult.match_analysis.missing_keywords || matchResult.match_analysis.missing_keywords.length === 0) &&
+                   atsSuggestions.length === 0 &&
+                   (!matchResult.keyword_suggestions || Object.keys(matchResult.keyword_suggestions).length === 0) && (
+                    <div className="text-center py-12">
+                      <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                      <p className="text-sm font-medium text-text-primary mb-1">Great job!</p>
+                      <p className="text-xs text-text-muted">No specific suggestions at this time. Keep your resume updated.</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Lightbulb className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-sm text-text-secondary mb-1">No suggestions available</p>
+                    <p className="text-xs text-text-muted">Match your resume against a job description first</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

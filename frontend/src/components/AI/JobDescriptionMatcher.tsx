@@ -1544,7 +1544,7 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
     });
   }
   
-  // Get the overall score
+  // Get the overall score - use API score directly (single source of truth)
   const overallScore = enhancedATSResult.score || 0;
   
   // Calculate technical score (percentage of technical keywords matched)
@@ -2732,7 +2732,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         // Pass saved keywords and resume text to transformation
         const matchData = transformEnhancedATSResponse(enhancedATSData, jobDescription, extractedKeywords, resumeText);
         const normalizedMatchData = normalizeMatchResult(matchData);
-        const newScore = normalizedMatchData?.match_analysis?.similarity_score ?? null;
+        // Use API score directly as the single source of truth
+        const apiScore = enhancedATSData.score || null
+        const newScore = apiScore !== null ? Math.round(apiScore) : null;
+        
+        // Ensure match_analysis.similarity_score matches the API score
+        if (normalizedMatchData && normalizedMatchData.match_analysis && apiScore !== null) {
+          normalizedMatchData.match_analysis.similarity_score = apiScore
+        }
 
         setMatchResult(normalizedMatchData);
         

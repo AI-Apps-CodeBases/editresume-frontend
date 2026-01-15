@@ -37,7 +37,16 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
         request.state.firebase_auth_error = None
 
         token = self._extract_bearer_token(request)
-        decoded_token = verify_id_token(token) if token else None
+        decoded_token = None
+        if token:
+            try:
+                decoded_token = verify_id_token(token)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Error verifying Firebase token (network issue?): %s",
+                    exc,
+                )
+                request.state.firebase_auth_error = "verification_failed"
 
         if decoded_token:
             sanitized = sanitized_user_from_token(decoded_token)
@@ -56,7 +65,8 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
                         exc,
                     )
         elif token:
-            request.state.firebase_auth_error = "invalid_token"
+            if not request.state.firebase_auth_error:
+                request.state.firebase_auth_error = "invalid_token"
 
         if (
             self._requires_auth(request.url.path)
