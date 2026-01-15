@@ -8,6 +8,20 @@ import re
 logger = logging.getLogger(__name__)
 
 
+EMAIL_REGEX = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+
+
+def extract_relaxed_email(text: str) -> str:
+    """Extract email from text allowing spacing around separators."""
+    if not text:
+        return ""
+
+    normalized = re.sub(r"\s*@\s*", "@", text)
+    normalized = re.sub(r"([A-Za-z0-9])\s*\.\s*([A-Za-z0-9])", r"\1.\2", normalized)
+
+    match = EMAIL_REGEX.search(normalized)
+    return match.group() if match else ""
+
 def extract_pdf_text(file_content: bytes) -> tuple[str, list[str]]:
     """Extract text from PDF using multiple methods"""
     text = ""

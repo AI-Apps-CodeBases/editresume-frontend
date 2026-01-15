@@ -109,7 +109,7 @@ def extract_pdf_text_from_bytes(file_content: bytes) -> str:
 async def upload_and_parse_resume(file_content: bytes, filename: str, content_type: str | None = None) -> dict:
     """Upload and parse a resume file"""
     try:
-        from app.utils.resume_parsing import normalize_extracted_text
+        from app.utils.resume_parsing import extract_pdf_text, extract_relaxed_email, normalize_extracted_text
 
         file_type = filename.split(".")[-1].lower() if "." in filename else ""
 
@@ -146,7 +146,8 @@ async def upload_and_parse_resume(file_content: bytes, filename: str, content_ty
             logger.info("Processing as PDF")
             actual_type = "PDF"
             try:
-                text = extract_pdf_text_from_bytes(file_content)
+                text, methods = extract_pdf_text(file_content)
+                logger.info("PDF extraction methods used: %s", methods)
             except ValueError as pdf_error:
                 return {
                     "success": False,
@@ -174,6 +175,13 @@ async def upload_and_parse_resume(file_content: bytes, filename: str, content_ty
 
         logger.info("Using AI-powered parsing for better resume organization...")
         parsed_data = await parse_resume_with_ai(text)
+
+        # Post-process contact info with relaxed parsing for OCR/spacing artifacts
+        if isinstance(parsed_data, dict):
+            extracted_email = extract_relaxed_email(text)
+            parsed_email = str(parsed_data.get("email") or "").strip()
+            if extracted_email and (not parsed_email or " " in parsed_email or "@" not in parsed_email):
+                parsed_data["email"] = extracted_email
 
         logger.info(
             "AI parsing successful: text_length=%s, sections=%s, summary_len=%s",
