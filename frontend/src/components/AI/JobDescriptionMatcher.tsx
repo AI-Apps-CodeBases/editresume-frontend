@@ -5171,52 +5171,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         </div>
       )}
 
-      {/* Extension-style metadata display */}
-      {selectedJobMetadata && (
-        <div className="mb-4 bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 rounded-lg p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Metadata Card */}
-            <div className="space-y-2">
-              {selectedJobMetadata.title && (
-                <div className="flex items-center gap-1 mb-2">
-                  <span>📌</span>
-                  <strong className="text-gray-900 text-base">{selectedJobMetadata.title}</strong>
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                {selectedJobMetadata.company && (
-                  <div className="flex items-center gap-1">
-                    <span>🏢</span>
-                    <strong className="text-gray-900">{selectedJobMetadata.company}</strong>
-                  </div>
-                )}
-                {selectedJobMetadata.jobType && (
-                  <div className="flex items-center gap-1">
-                    <span>💼</span>
-                    <span className="text-gray-700">{selectedJobMetadata.jobType}</span>
-                  </div>
-                )}
-                {selectedJobMetadata.remoteStatus && (
-                  <div className="flex items-center gap-1">
-                    <span>🌐</span>
-                    <span className="text-gray-700">Work Type: {selectedJobMetadata.remoteStatus}</span>
-                  </div>
-                )}
-                {selectedJobMetadata.budget && (
-                  <div className="flex items-center gap-1">
-                    <span>💰</span>
-                    <span className="text-green-600 font-semibold">{selectedJobMetadata.budget}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Skills & Keywords */}
-            <div className="space-y-3">
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${shouldUseSingleColumnLayout ? 'lg:grid-cols-1' : 'xl:grid-cols-2'}`}>
         {/* Left Column: Job Description Input */}
@@ -5365,11 +5319,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </div>
                 )}
               </>
-            )}
-            {matchResult && currentJobDescriptionId && (
-              <div className="text-xs text-gray-500 text-center mb-2">
-                ✓ Analysis loaded from saved job
-              </div>
             )}
           </div>
 
