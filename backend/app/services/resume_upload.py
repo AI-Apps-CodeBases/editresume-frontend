@@ -109,6 +109,8 @@ def extract_pdf_text_from_bytes(file_content: bytes) -> str:
 async def upload_and_parse_resume(file_content: bytes, filename: str, content_type: str | None = None) -> dict:
     """Upload and parse a resume file"""
     try:
+        from app.utils.resume_parsing import normalize_extracted_text
+
         file_type = filename.split(".")[-1].lower() if "." in filename else ""
 
         logger.info(
@@ -159,6 +161,9 @@ async def upload_and_parse_resume(file_content: bytes, filename: str, content_ty
                 "success": False,
                 "error": f"Unsupported file type: {file_type}. Please upload PDF or DOCX.",
             }
+
+        text = normalize_extracted_text(text)
+        logger.info("Normalized extracted text length: %s", len(text))
 
         if not text.strip():
             logger.warning(f"No text extracted from {actual_type} file")
@@ -773,4 +778,3 @@ def detect_parameterization(text: str) -> dict[str, str]:
         variables["{{tech}}"] = found_tech[0]
 
     return variables
-

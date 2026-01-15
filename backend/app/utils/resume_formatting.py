@@ -7,6 +7,77 @@ import re
 from app.api.models import BulletParam
 
 
+MONTH_PATTERN = (
+    r"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?"
+)
+
+
+def _split_title_date(text: str) -> tuple[str, str]:
+    """Split a trailing date range from a title string."""
+    text = text.strip()
+    if not text:
+        return "", ""
+
+    month_range = re.compile(
+        rf"^(?P<title>.*?)(?:,?\s*(?P<date>(?:{MONTH_PATTERN})\s+\d{{4}}"
+        rf"\s*(?:[–-]\s*(?:Present|Current|(?:{MONTH_PATTERN})\s+\d{{4}}|\d{{4}}))?))$",
+        re.IGNORECASE,
+    )
+    year_range = re.compile(
+        r"^(?P<title>.*?)(?:,?\s*(?P<date>\d{4}\s*[–-]\s*(?:\d{4}|Present|Current)|\d{4}|Present|Current))$",
+        re.IGNORECASE,
+    )
+
+    for pattern in (month_range, year_range):
+        match = pattern.match(text)
+        if match:
+            title = (match.group("title") or "").rstrip(",-– ").strip()
+            date = (match.group("date") or "").strip()
+            return title, date
+
+    return text, ""
+
+
+def parse_work_experience_header(text: str) -> dict[str, str]:
+    """Parse work experience header into parts for export."""
+    header_text = text.replace("**", "").strip()
+    if not header_text:
+        return {"company": "", "location": "", "title": "", "date_range": ""}
+
+    if " / " in header_text:
+        parts = [part.strip() for part in header_text.split(" / ") if part.strip()]
+        if len(parts) >= 4:
+            return {
+                "company": parts[0],
+                "location": parts[1],
+                "title": parts[2],
+                "date_range": parts[3],
+            }
+        if len(parts) == 3:
+            return {
+                "company": parts[0],
+                "location": "",
+                "title": parts[1],
+                "date_range": parts[2],
+            }
+        if len(parts) == 2:
+            return {"company": parts[0], "location": "", "title": parts[1], "date_range": ""}
+
+    if " - " in header_text:
+        company, rest = header_text.split(" - ", 1)
+        title, date_range = _split_title_date(rest)
+        return {
+            "company": company.strip(),
+            "location": "",
+            "title": title,
+            "date_range": date_range,
+        }
+
+    title, date_range = _split_title_date(header_text)
+    return {"company": title, "location": "", "title": "", "date_range": date_range}
+
+
 def apply_replacements(text: str, replacements: dict[str, str]) -> str:
     """Apply variable replacements to text"""
     for key, value in replacements.items():
@@ -122,14 +193,11 @@ def format_work_experience_bullets(bullets: list[BulletParam], replacements: dic
             if current_company:
                 html_parts.append("</div>")
 
-            # Company header - new format: Company Name / Location / Title / Date Range
-            header_text = bullet_text.replace("**", "").strip()
-            parts = header_text.split(' / ')
-            # Support both old format (3 parts) and new format (4 parts)
-            company_name = parts[0] if parts else ''
-            location = parts[1] if len(parts) >= 4 else ''
-            title = parts[2] if len(parts) >= 4 else (parts[1] if len(parts) >= 2 else '')
-            date_range = parts[3] if len(parts) >= 4 else (parts[2] if len(parts) >= 3 else '')
+            header_parts = parse_work_experience_header(bullet_text)
+            company_name = header_parts["company"]
+            location = header_parts["location"]
+            title = header_parts["title"]
+            date_range = header_parts["date_range"]
 
             # Format: Line 1: Company Name / Location, Line 2: Title (left) Date Range (right)
             company_line = company_name
@@ -254,4 +322,3 @@ def format_regular_bullets(bullets: list[BulletParam], replacements: dict[str, s
                 html_parts.append(f"<li>{clean_text}</li>")
 
     return "\n".join(html_parts)
-

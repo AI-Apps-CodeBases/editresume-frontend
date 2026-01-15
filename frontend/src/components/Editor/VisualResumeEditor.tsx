@@ -25,6 +25,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { SortableContactFieldItem } from '@/features/resume/components/SortableContactFieldItem'
 import type { Bullet, CustomField, ResumeData, Section } from '@/features/resume/types'
 import { sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
+import { parseWorkExperienceHeader } from '@/utils/workExperienceParser'
 
 const normalizeId = (id: string | number | null | undefined) =>
   id === null || id === undefined ? '' : id.toString()
@@ -56,25 +57,13 @@ const isCompanyHeaderBullet = (bullet: Bullet) => {
   if (raw.startsWith('**') && raw.includes('**', 2)) return true
 
   const normalized = raw.replace(/^•\s*/, '')
-  const parts = normalized.split(' / ').map((part) => part.trim()).filter(Boolean)
-  if (parts.length < 2) return false
+  if (!normalized.includes(' / ') && !normalized.includes(' - ')) return false
 
-  const [companyPart, rolePart] = parts
-  if (!companyPart || !rolePart) return false
+  const parsed = parseWorkExperienceHeader(normalized)
+  if (!parsed.company) return false
+  if (!/[A-Za-z]/.test(parsed.company)) return false
 
-  const hasCompanyText = /[A-Za-z]/.test(companyPart)
-  const hasRoleText = /[A-Za-z]/.test(rolePart)
-  if (!hasCompanyText || !hasRoleText) return false
-
-  if (parts.length >= 3) {
-    const datePart = parts[parts.length - 1]
-    if (datePart) {
-      const hasDateHint = /(\d{4}|\b(?:present|current|past|ongoing)\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b)/i.test(datePart)
-      if (!hasDateHint) return false
-    }
-  }
-
-  return true
+  return Boolean(parsed.title || parsed.dateRange)
 }
 
 const partitionCompanyGroups = (bullets: Bullet[]) => {
@@ -3456,15 +3445,11 @@ export default function VisualResumeEditor({
                                     }).map((group, groupIdx) => {
                                       const headerBullet = group[0]
 
-                                      const headerText = headerBullet.text.replace(/\*\*/g, '').trim()
-                                      const parts = headerText.split(' / ')
-                                      // Support both old format (3 parts) and new format (4 parts)
-                                      // Old: Company Name / Job Title / Date Range
-                                      // New: Company Name / Location / Title / Date Range
-                                      const companyName = parts[0]?.trim() || 'Unknown Company'
-                                      const location = parts.length >= 4 ? parts[1]?.trim() : ''
-                                      const jobTitle = parts.length >= 4 ? parts[2]?.trim() : (parts[1]?.trim() || 'Unknown Role')
-                                      const dateRange = parts.length >= 4 ? parts[3]?.trim() : (parts[2]?.trim() || 'Unknown Date')
+                                      const headerParts = parseWorkExperienceHeader(headerBullet.text)
+                                      const companyName = headerParts.company || 'Unknown Company'
+                                      const location = headerParts.location
+                                      const jobTitle = headerParts.title
+                                      const dateRange = headerParts.dateRange
 
                                       const companyBullets: Bullet[] = group.slice(1)
                                       const uncheckedBulletCount = companyBullets.filter(bullet => bullet.params?.visible === false).length
@@ -5485,5 +5470,3 @@ function ModernContactField({
     </div>
   )
 }
-
-
