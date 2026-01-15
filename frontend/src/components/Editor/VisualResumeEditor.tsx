@@ -3488,6 +3488,7 @@ export default function VisualResumeEditor({
                                           onAIImprove={onAIImprove}
                                           flattenGroups={flattenGroups}
                                           getOrderedCompanyGroups={getOrderedCompanyGroups}
+                                          matchResult={matchResult}
                                         />
                                       )
                                     })}
@@ -3781,9 +3782,17 @@ export default function VisualResumeEditor({
                                         {/* AI Improve Button */}
                                         <button
                                           onClick={() => {
-                                            // Always open modal if jdKeywords exists (allows selection from multiple keyword sources)
-                                            // Only fallback to old improve function if jdKeywords is not available
-                                            if (jdKeywords) {
+                                            // Check if there are actual keywords available
+                                            const hasKeywords = jdKeywords && (
+                                              (jdKeywords.missing?.length ?? 0) > 0 ||
+                                              (jdKeywords.matching?.length ?? 0) > 0 ||
+                                              (jdKeywords.priority?.length ?? 0) > 0 ||
+                                              (jdKeywords.high_frequency?.length ?? 0) > 0 ||
+                                              (matchResult?.match_analysis?.missing_keywords?.length ?? 0) > 0 ||
+                                              (matchResult?.match_analysis?.matching_keywords?.length ?? 0) > 0
+                                            )
+
+                                            if (hasKeywords) {
                                               const cleanedText = (bullet.text || '').replace(/^[-•*]+\s*/, '').trim()
                                               setAiImproveContext({
                                                 sectionId: section.id,
@@ -3793,7 +3802,7 @@ export default function VisualResumeEditor({
                                               })
                                               setShowAIImproveModal(true)
                                             } else if (onAIImprove) {
-                                              // Fallback to old improve function when no JD keywords available
+                                              // Fallback to generic improve function when no JD keywords available
                                               ; (async () => {
                                                 try {
                                                   setIsAILoading(true)
@@ -3997,7 +4006,10 @@ export default function VisualResumeEditor({
                           const maxKeywords = relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords ? 30 : 60;
                           keywordsToShow = sortedByUsage.slice(0, maxKeywords);
 
-                          return filteredKeywords.length > 0 ? (
+                          const hasKeywords = filteredKeywords.length > 0
+                          const hasNoJDKeywords = (!jdKeywords && !matchResult) || (filteredKeywords.length === 0 && !isAnalyzingKeywords && keywordsToShow.length === 0)
+
+                          return hasKeywords ? (
                             filteredKeywords.map((keyword, idx) => {
                               const isSelected = selectedMissingKeywords.has(keyword);
                               const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
@@ -4031,15 +4043,42 @@ export default function VisualResumeEditor({
                               );
                             })
                           ) : (
-                            <p className="text-sm text-gray-500 text-center py-4">
-                              {isAnalyzingKeywords
-                                ? 'Analyzing bullet point to find relevant keywords...'
-                                : keywordsToShow.length > 0 
-                                  ? 'All available keywords are already used more than 6 times. Consider removing some instances before adding more.'
-                                  : relevantKeywords && relevantKeywords.size === 0
-                                    ? 'No relevant keywords found for this bullet point. Showing all available keywords.'
-                                    : 'No keywords available. Please match a job description first.'}
-                            </p>
+                            <div className="text-sm text-gray-500 text-center py-4">
+                              <p className="mb-3">
+                                {isAnalyzingKeywords
+                                  ? 'Analyzing bullet point to find relevant keywords...'
+                                  : keywordsToShow.length > 0 
+                                    ? 'All available keywords are already used more than 6 times. Consider removing some instances before adding more.'
+                                    : relevantKeywords && relevantKeywords.size === 0
+                                      ? 'No relevant keywords found for this bullet point. Showing all available keywords.'
+                                      : 'No keywords available. You can improve the bullet point generically without keywords.'}
+                              </p>
+                              {!isAnalyzingKeywords && hasNoJDKeywords && onAIImprove && (
+                                <button
+                                  onClick={async () => {
+                                    if (!aiImproveContext) return
+                                    try {
+                                      setIsAILoading(true)
+                                      const improvedText = await onAIImprove(aiImproveContext.currentText || '')
+                                      updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, improvedText)
+                                      setShowAIImproveModal(false)
+                                      setAiImproveContext(null)
+                                      setSelectedMissingKeywords(new Set())
+                                      setGeneratedBulletOptions([])
+                                      setRelevantKeywords(null)
+                                    } catch (error) {
+                                      console.error('AI improvement failed:', error)
+                                    } finally {
+                                      setIsAILoading(false)
+                                    }
+                                  }}
+                                  disabled={isAILoading}
+                                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                                >
+                                  {isAILoading ? 'Improving...' : '✨ Improve without Keywords'}
+                                </button>
+                              )}
+                            </div>
                           );
                         })()}
                       </div>
@@ -4578,7 +4617,8 @@ function SortableCompanyGroup({
   setShowAIImproveModal,
   onAIImprove,
   flattenGroups,
-  getOrderedCompanyGroups
+  getOrderedCompanyGroups,
+  matchResult
 }: {
   id: string
   uncheckedBulletCount: number
@@ -4609,6 +4649,7 @@ function SortableCompanyGroup({
   onAIImprove?: (text: string, context?: string) => Promise<string>
   flattenGroups: any
   getOrderedCompanyGroups: any
+  matchResult: any
 }) {
   const {
     attributes,
@@ -4980,7 +5021,17 @@ function SortableCompanyGroup({
                     <Tooltip text="AI Improve - Enhance with missing JD keywords" color="gray" position="top">
                       <button
                         onClick={() => {
-                          if (jdKeywords) {
+                          // Check if there are actual keywords available
+                          const hasKeywords = jdKeywords && (
+                            (jdKeywords.missing?.length ?? 0) > 0 ||
+                            (jdKeywords.matching?.length ?? 0) > 0 ||
+                            (jdKeywords.priority?.length ?? 0) > 0 ||
+                            (jdKeywords.high_frequency?.length ?? 0) > 0 ||
+                            (matchResult?.match_analysis?.missing_keywords?.length ?? 0) > 0 ||
+                            (matchResult?.match_analysis?.matching_keywords?.length ?? 0) > 0
+                          )
+
+                          if (hasKeywords) {
                             const cleanedText = (companyBullet.text || '').replace(/^[-•*]+\s*/, '').trim()
                             setAiImproveContext({
                               sectionId: section.id,
