@@ -419,43 +419,6 @@ export default function RightPanel({
                       <span className="text-xs text-text-muted">Analyzing…</span>
                     </div>
                   )}
-                  {atsScore !== null && (
-                    <div className="flex items-center gap-2">
-                      <div className="relative inline-flex h-11 w-11 items-center justify-center">
-                        <svg viewBox="0 0 36 36" className="h-11 w-11">
-                          <path
-                            className="text-gray-200"
-                            stroke="currentColor"
-                            strokeWidth="3"
-                            fill="none"
-                            d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
-                          />
-                          <path
-                            className={atsScore >= 80 ? 'text-green-500' : atsScore >= 60 ? 'text-blue-500' : atsScore >= 40 ? 'text-yellow-500' : 'text-red-500'}
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeWidth="3"
-                            fill="none"
-                            strokeDasharray={`${atsScore}, 100`}
-                            d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className={`text-sm font-bold ${atsScore >= 80 ? 'text-green-600' : atsScore >= 60 ? 'text-blue-600' : atsScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
-                            {Math.round(atsScore)}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="hidden sm:flex flex-col">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                          Match Score
-                        </span>
-                        <span className="text-xs text-gray-600">
-                          {atsScore >= 80 ? 'Excellent' : atsScore >= 60 ? 'Strong' : atsScore >= 40 ? 'Fair' : 'Needs Work'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -491,49 +454,22 @@ export default function RightPanel({
                   {/* Score Summary */}
                   {atsScore !== null && (
                     <div className="bg-gradient-to-br from-primary-50 to-blue-50 rounded-xl p-6 border border-primary-100">
-                      <div className="flex items-center gap-4">
-                        <div className="relative flex-shrink-0">
-                          <svg viewBox="0 0 36 36" className="w-16 h-16 transform -rotate-90">
-                            <path
-                              className="text-gray-200"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              fill="none"
-                              d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
-                            />
-                            <path
-                              className={atsScore >= 80 ? 'text-green-500' : atsScore >= 60 ? 'text-primary-600' : atsScore >= 40 ? 'text-yellow-500' : 'text-red-500'}
-                              stroke="currentColor"
-                              strokeLinecap="round"
-                              strokeWidth="3"
-                              fill="none"
-                              strokeDasharray={`${atsScore}, 100`}
-                              d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
-                            />
-                          </svg>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span className={`text-lg font-bold ${atsScore >= 80 ? 'text-green-600' : atsScore >= 60 ? 'text-primary-700' : atsScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
-                              {Math.round(atsScore)}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-base font-semibold text-text-primary mb-1">
-                            Current Match Score
-                          </h3>
-                          <p className="text-sm text-text-muted">
-                            {matchResult.match_analysis.match_count || 0} matched keywords, {matchResult.match_analysis.missing_count || 0} missing keywords
-                          </p>
-                          <div className="mt-2">
-                            <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                              atsScore >= 80 ? 'bg-green-100 text-green-700' :
-                              atsScore >= 60 ? 'bg-primary-100 text-primary-700' :
-                              atsScore >= 40 ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700'
-                            }`}>
-                              {atsScore >= 80 ? 'Excellent' : atsScore >= 60 ? 'Strong' : atsScore >= 40 ? 'Fair' : 'Needs Work'}
-                            </span>
-                          </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-text-primary mb-1">
+                          Current Match Score
+                        </h3>
+                        <p className="text-sm text-text-muted">
+                          {matchResult.match_analysis.match_count || 0} matched keywords, {matchResult.match_analysis.missing_count || 0} missing keywords
+                        </p>
+                        <div className="mt-2">
+                          <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                            atsScore >= 80 ? 'bg-green-100 text-green-700' :
+                            atsScore >= 60 ? 'bg-primary-100 text-primary-700' :
+                            atsScore >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {atsScore >= 80 ? 'Excellent' : atsScore >= 60 ? 'Strong' : atsScore >= 40 ? 'Fair' : 'Needs Work'}
+                          </span>
                         </div>
                       </div>
                     </div>
