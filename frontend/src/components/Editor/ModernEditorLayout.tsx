@@ -231,40 +231,6 @@ export default function ModernEditorLayout({
           {currentView === 'editor' ? (
             <div className="h-full overflow-y-auto bg-gradient-to-b from-primary-50/10 to-transparent px-4 sm:px-6 lg:px-8 relative">
 
-              <div className="hidden lg:block sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-border-subtle">
-                <div className="flex items-center justify-between px-6 py-3">
-                  <div className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                    Editor Actions
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {onExport && (
-                      <button
-                        onClick={() => onExport('pdf')}
-                        disabled={!resumeData.name || isExporting}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-all"
-                      >
-                        Export PDF
-                      </button>
-                    )}
-                    {onShareResume && (
-                      <button
-                        onClick={onShareResume}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border-subtle text-text-secondary hover:bg-primary-50/60 transition-all"
-                      >
-                        Share
-                      </button>
-                    )}
-                    {onSaveResume && isAuthenticated && (
-                      <button
-                        onClick={onSaveResume}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border-subtle text-text-secondary hover:bg-primary-50/60 transition-all"
-                      >
-                        Save
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
               <VisualResumeEditor
                 data={resumeData}
                 onChange={onResumeUpdate || (() => {})}

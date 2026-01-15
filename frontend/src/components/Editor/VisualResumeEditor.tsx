@@ -4740,13 +4740,6 @@ function SortableCompanyGroup({
               )}
             </button>
 
-            {/* Keyword Match Indicator - subtle */}
-            {hasKeywordMatch && (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-primary-100/50 text-primary-700 rounded-full text-xs font-medium flex-shrink-0 mt-0.5">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>{headerMatch.matchedKeywords.length}</span>
-              </div>
-            )}
 
             {/* Content */}
             <div className="flex-1 min-w-0">
