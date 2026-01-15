@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
-import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus } from 'lucide-react'
+import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus, Eye, EyeOff, LayoutDashboard } from 'lucide-react'
 
 interface TopNavigationBarProps {
   onNewResume?: () => void
@@ -23,6 +23,12 @@ interface TopNavigationBarProps {
   onRightPanelClick?: () => void
   focusMode?: boolean
   onFocusModeToggle?: () => void
+  resumeData?: {
+    sections?: Array<{ id: string; title: string }>
+    summary?: string
+  }
+  previewMode?: 'side-by-side' | 'fullscreen'
+  onPreviewModeToggle?: () => void
 }
 
 export default function TopNavigationBar({ 
@@ -42,6 +48,8 @@ export default function TopNavigationBar({
   onRightPanelClick,
   focusMode = false,
   onFocusModeToggle,
+  previewMode = 'side-by-side',
+  onPreviewModeToggle,
 }: TopNavigationBarProps) {
   const { user } = useAuth()
   const [showActionsMenu, setShowActionsMenu] = useState(false)
@@ -69,8 +77,8 @@ export default function TopNavigationBar({
   }, [showActionsMenu, showMobileActionsMenu])
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-md border-b border-border-subtle shadow-[0_4px_20px_rgba(15,23,42,0.08)]">
-      <div className="flex items-center justify-between h-14 px-4 sm:px-6">
+    <div className="fixed top-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-md border-b border-border-subtle shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
+      <div className="flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
         {/* Left: Logo + Mobile Menu */}
         <div className="flex items-center gap-2 sm:gap-3">
           <Tooltip text="Open navigation menu" color="gray" position="bottom">
@@ -98,6 +106,32 @@ export default function TopNavigationBar({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1 sm:gap-3 pr-3 sm:pr-6">
+          {/* Preview Mode Toggle - Desktop only */}
+          {onPreviewModeToggle && (
+            <Tooltip 
+              text={previewMode === 'side-by-side' ? 'Fullscreen Preview' : 'Side-by-Side Preview'} 
+              color="blue" 
+              position="bottom"
+            >
+              <button
+                onClick={onPreviewModeToggle}
+                className={`hidden sm:flex p-2.5 rounded-lg transition-all duration-200 touch-target ${
+                  previewMode === 'fullscreen'
+                    ? 'bg-primary-100 text-primary-700 hover:bg-primary-200'
+                    : 'text-text-muted hover:text-text-primary hover:bg-primary-50/50'
+                }`}
+                aria-label={previewMode === 'side-by-side' ? 'Fullscreen Preview' : 'Side-by-Side Preview'}
+              >
+                {previewMode === 'side-by-side' ? (
+                  <LayoutDashboard className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </Tooltip>
+          )}
+
+
           {/* Focus Mode Toggle */}
           {onFocusModeToggle && (
             <Tooltip text={focusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'} color="blue" position="bottom">
