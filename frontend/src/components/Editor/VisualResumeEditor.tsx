@@ -392,7 +392,6 @@ export default function VisualResumeEditor({
   const [selectedBullets, setSelectedBullets] = useState<Set<number>>(new Set());
   const [isAnalyzingKeywords, setIsAnalyzingKeywords] = useState(false);
   const [relevantKeywords, setRelevantKeywords] = useState<Set<string> | null>(null);
-  const hasCleanedDataRef = useRef(false); // Track if we've cleaned old HTML data
 
   // Collapsible sections state
   const [isTitleSectionOpen, setIsTitleSectionOpen] = useState(true);
@@ -1005,14 +1004,13 @@ export default function VisualResumeEditor({
   // This prevents hydration errors from old data that might have HTML stored
   // Only run once on initial mount, not on every data change
   useEffect(() => {
-    if (!hasCleanedDataRef.current && data.summary && (data.summary.includes('<') || data.summary.includes('&'))) {
+    if (data.summary && (data.summary.includes('<') || data.summary.includes('&'))) {
       const cleanedSummary = cleanTextContent(data.summary);
-      if (cleanedSummary !== data.summary) {
-        hasCleanedDataRef.current = true;
-        // Update only if different to avoid infinite loops
-        setTimeout(() => {
+      if (cleanedSummary && cleanedSummary !== data.summary) {
+        const timeoutId = setTimeout(() => {
           updateField('summary', cleanedSummary);
         }, 100);
+        return () => clearTimeout(timeoutId);
       }
     }
 
@@ -1951,7 +1949,8 @@ export default function VisualResumeEditor({
 
 
   const updateField = (field: keyof ResumeData, value: string) => {
-    onChange({ ...data, [field]: value })
+    const sanitizedValue = field === 'summary' ? cleanTextContent(value) : value;
+    onChange({ ...data, [field]: sanitizedValue })
   }
 
   const updateSection = (sectionId: string | number, updates: Partial<Section>) => {
