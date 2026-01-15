@@ -2706,7 +2706,7 @@ const EditorPageContent = () => {
             const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout for single bullet
             
             try {
-              const response = await fetch(`${config.apiBase}/api/openai/improve-bullet`, {
+              const response = await fetch(`${config.apiBase}/api/ai/openai/improve-bullet`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bullet: text, tone: 'professional' }),
