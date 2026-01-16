@@ -1,6 +1,7 @@
 {
   "port": 3100,
   "appPort": 3000,
+  "target": "https://staging.editresume.io",
   "autoPlugins": true,
   "plugins": []
 }

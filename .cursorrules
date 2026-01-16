@@ -73,6 +73,259 @@ Design System: Use a minimalist, modern SaaS aesthetic.
 - Visual Noise: Reduce heavy borders and solid background colors. 
 - Interactivity: Secondary actions (Delete, AI Assistant) should be hidden until hover.
 - Feedback: Use subtle underlines for keyword matching instead of solid red/green blocks.
+- Prevent desktop breakage when making mobile changes
+- Prevent mobile breakage when making desktop changes
+- Provide clear prompting guidelines
+- Include testing checklists
+- Define safe patterns to follow
+
+## Responsive Design Rules (CRITICAL - Prevent Desktop/Mobile Conflicts)
+
+### Breakpoint Standards
+- **Mobile**: `< 768px` (use `sm:` prefix for ≥640px, but mobile-first means base styles are mobile)
+- **Tablet**: `768px - 1024px` (use `md:` for ≥768px, `lg:` for ≥1024px)
+- **Desktop**: `≥ 1024px` (use `lg:` and `xl:` prefixes)
+- **Never use global CSS `@media` queries** - use Tailwind responsive utilities instead
+
+### Mobile-First Approach (MANDATORY)
+1. **Base styles = mobile styles** (no prefix)
+2. **Desktop overrides use `lg:` prefix** (≥1024px)
+3. **Always provide desktop override** when adding mobile styles
+4. **Never modify base styles without checking desktop impact**
+
+### When Making Mobile Changes
+1. **Before modifying mobile styles:**
+   - Search for all usages: `grep -r "className.*lg:" <file>`
+   - Check if component has desktop-specific styles
+   - Verify desktop breakpoint (≥1024px) won't be affected
+
+2. **Mobile style pattern (REQUIRED):**
+   ```tsx
+   // ✅ CORRECT - Mobile-first with explicit desktop override
+   <div className="
+     flex flex-col gap-2        // Mobile (base)
+     lg:flex-row lg:gap-4       // Desktop override
+     px-4 py-4                  // Mobile padding
+     lg:px-8 lg:py-6           // Desktop padding
+   ">
+   ```
+
+3. **NEVER do this:**
+   ```tsx
+   // ❌ WRONG - No desktop override
+   <div className="flex flex-col gap-2 px-4 py-4">
+   
+   // ❌ WRONG - Global CSS media query
+   @media (max-width: 768px) {
+     .my-class { ... }
+   }
+   
+   // ❌ WRONG - Mobile styles without desktop consideration
+   <div className="mobile-padding">  // What happens on desktop?
+   ```
+
+### When Making Desktop Changes
+1. **Before modifying desktop styles:**
+   - Check if mobile base styles exist
+   - Verify mobile breakpoint (<768px) won't be affected
+   - Ensure `lg:` prefixes are used (not `md:` for desktop)
+
+2. **Desktop style pattern (REQUIRED):**
+   ```tsx
+   // ✅ CORRECT - Desktop changes only affect ≥1024px
+   <div className="
+     flex flex-col gap-2        // Mobile (preserved)
+     lg:flex-row lg:gap-6       // Desktop (modified)
+   ">
+   ```
+
+3. **NEVER do this:**
+   ```tsx
+   // ❌ WRONG - Modifying base styles affects mobile
+   <div className="flex-row gap-6">  // Breaks mobile!
+   
+   // ❌ WRONG - Using wrong breakpoint
+   <div className="md:flex-row">  // md: is 768px, not desktop
+   ```
+
+### Global CSS Rules (AVOID)
+- **NEVER add new `@media` queries in `globals.css`**
+- **NEVER create mobile-only classes** without desktop equivalents
+- **If you must use global CSS**, always add corresponding desktop reset:
+  ```css
+  @media (max-width: 768px) {
+    .mobile-only-class { ... }
+  }
+  
+  @media (min-width: 769px) {
+    .mobile-only-class { 
+      /* Reset or override for desktop */
+    }
+  }
+  ```
+
+### Component Isolation Rules
+1. **Each component is responsible for its own responsive behavior**
+2. **Don't rely on parent container breakpoints** - be explicit
+3. **Use container queries for component-level responsiveness** when appropriate
+4. **Test at breakpoint boundaries**: 767px, 768px, 1023px, 1024px
+
+### Scale/Transform Rules
+- **Never use `scale-*` without `lg:` override**
+- **Always reset transforms on desktop:**
+  ```tsx
+  // ✅ CORRECT
+  <div className="scale-50 lg:scale-100">
+  
+  // ❌ WRONG
+  <div className="scale-50">  // Affects desktop!
+  ```
+
+### Visibility Rules
+- **Use `hidden lg:block` for desktop-only elements**
+- **Use `block lg:hidden` for mobile-only elements**
+- **Never use `display: none` in global CSS** without responsive consideration
+
+### Spacing/Padding Rules
+- **Always provide both mobile and desktop spacing:**
+  ```tsx
+  // ✅ CORRECT
+  <div className="px-4 py-4 lg:px-8 lg:py-6">
+  
+  // ❌ WRONG
+  <div className="px-4 py-4">  // No desktop spacing
+  ```
+
+### Grid/Flex Rules
+- **Mobile: single column, Desktop: multi-column**
+- **Always specify both:**
+  ```tsx
+  // ✅ CORRECT
+  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+  
+  // ❌ WRONG
+  <div className="grid grid-cols-2">  // Breaks mobile
+  ```
+
+### Testing Checklist (MANDATORY)
+Before completing responsive changes:
+1. ✅ Test at 375px (mobile)
+2. ✅ Test at 768px (tablet boundary)
+3. ✅ Test at 1024px (desktop boundary)
+4. ✅ Test at 1920px (large desktop)
+5. ✅ Verify no horizontal scroll on any breakpoint
+6. ✅ Check that desktop layout matches design
+7. ✅ Verify mobile layout matches design
+
+### Common Pitfalls to Avoid
+1. **Modifying base styles** without checking mobile impact
+2. **Using `md:` breakpoint** for desktop (should be `lg:`)
+3. **Forgetting desktop overrides** when adding mobile styles
+4. **Global CSS media queries** conflicting with Tailwind
+5. **Scale transforms** without desktop reset
+6. **Fixed positioning** without responsive consideration
+7. **Absolute positioning** breaking on different screen sizes
+
+### File-Specific Rules
+- **`globals.css`**: Only use for truly global styles, avoid responsive overrides
+- **Component files**: Use Tailwind responsive utilities directly
+- **Layout components**: Always test both mobile and desktop layouts
+
+## Prompting Best Practices
+
+### How to Prompt for Responsive Changes
+
+#### ✅ GOOD Prompts (Specific & Safe)
+```
+"Add mobile padding (px-4 py-4) to the header component, 
+ensuring desktop keeps existing padding (lg:px-8 lg:py-6)"
+```
+
+```
+"Make the sidebar hidden on mobile (hidden lg:block) 
+without affecting desktop visibility"
+```
+
+```
+"Change the grid to single column on mobile (grid-cols-1) 
+while keeping 2 columns on desktop (lg:grid-cols-2)"
+```
+
+#### ❌ BAD Prompts (Vague & Risky)
+```
+"Fix mobile layout"  // Too vague, might break desktop
+```
+
+```
+"Make it responsive"  // No specific breakpoints mentioned
+```
+
+```
+"Update the styles"  // Doesn't specify mobile vs desktop
+```
+
+### Prompt Structure Template
+When requesting responsive changes, use this structure:
+
+```
+[Action] [Component/Element] for [Breakpoint]:
+- Mobile (<768px): [specific change]
+- Desktop (≥1024px): [specific change or "keep existing"]
+- Test at: [specific breakpoints]
+```
+
+### Example Good Prompts
+
+1. **Mobile-specific change:**
+   ```
+   Add mobile menu button to TopNavigationBar:
+   - Mobile (<768px): Show hamburger menu (hidden lg:hidden)
+   - Desktop (≥1024px): Keep existing desktop menu (lg:flex)
+   - Test at: 375px, 768px, 1024px
+   ```
+
+2. **Desktop-specific change:**
+   ```
+   Increase sidebar width on desktop only:
+   - Mobile (<768px): Keep existing (no change)
+   - Desktop (≥1024px): Change from w-64 to w-80 (lg:w-80)
+   - Test at: 768px, 1024px, 1920px
+   ```
+
+3. **Both breakpoints:**
+   ```
+   Update spacing in DashboardLayout:
+   - Mobile (<768px): px-4 py-4
+   - Desktop (≥1024px): px-8 py-6 (lg:px-8 lg:py-6)
+   - Test at: 375px, 768px, 1024px
+   ```
+
+### Prompt Safety Keywords
+Include these keywords to ensure safety:
+- **"without affecting desktop"** - When making mobile changes
+- **"without affecting mobile"** - When making desktop changes
+- **"preserve existing [mobile/desktop] styles"** - When modifying one breakpoint
+- **"test at breakpoints"** - Always include this
+- **"use Tailwind responsive utilities"** - Avoid global CSS
+
+### AI Assistant Instructions
+When AI makes responsive changes, it should:
+1. **Always show both mobile and desktop classes** in the same code block
+2. **Explain which breakpoint each class targets**
+3. **Mention what was preserved** from existing code
+4. **Suggest testing at specific breakpoints**
+5. **Warn if global CSS is being modified**
+
+### Code Review Checklist for Responsive Changes
+When reviewing responsive code changes:
+- [ ] Both mobile and desktop styles are present
+- [ ] `lg:` prefixes used for desktop (not `md:`)
+- [ ] Base styles are mobile-first
+- [ ] No global CSS `@media` queries added
+- [ ] Scale/transform has desktop reset
+- [ ] Visibility classes are explicit (`hidden lg:block`)
+- [ ] Spacing provided for both breakpoints
+- [ ] Grid/flex layouts specified for both breakpoints
 
 ## Backend Feature Development Rules
 

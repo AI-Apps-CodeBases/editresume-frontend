@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
-import { FileEdit, Briefcase, FileText, Users, Palette } from 'lucide-react'
+import { FileEdit, Briefcase, FileText, Palette, ChevronDown, ChevronRight, Hash } from 'lucide-react'
 
 interface ModernLeftSidebarProps {
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
@@ -18,6 +18,11 @@ interface ModernLeftSidebarProps {
   onSignIn?: () => void
   isMobileDrawer?: boolean
   onCloseDrawer?: () => void
+  resumeData?: {
+    sections?: Array<{ id: string; title: string }>
+    summary?: string
+  }
+  onSectionClick?: (sectionId: string) => void
 }
 
 export default function ModernLeftSidebar({ 
@@ -32,11 +37,14 @@ export default function ModernLeftSidebar({
   onLogout,
   onSignIn,
   isMobileDrawer = false,
-  onCloseDrawer
+  onCloseDrawer,
+  resumeData,
+  onSectionClick
 }: ModernLeftSidebarProps) {
   const { user, isAuthenticated: authIsAuthenticated } = useAuth()
   const isAuthenticated = isAuthenticatedProp ?? authIsAuthenticated
   const [collapsed, setCollapsed] = useState(false)
+  const [sectionsExpanded, setSectionsExpanded] = useState(true)
 
   const handleCollapseToggle = () => {
     const newCollapsed = !collapsed
@@ -100,7 +108,7 @@ export default function ModernLeftSidebar({
     return (
       <div className="lg:hidden fixed inset-0 z-50">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCloseDrawer} />
-        <div className="absolute left-0 top-0 bottom-0 w-[85vw] max-w-sm bg-white shadow-[0_12px_48px_rgba(15,23,42,0.15)]">
+        <div className="absolute left-0 top-0 bottom-0 w-[72vw] max-w-xs bg-white shadow-[0_12px_48px_rgba(15,23,42,0.15)]">
           <div className="h-full flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-transparent">
               <h2 className="text-lg font-semibold text-text-primary">Menu</h2>
@@ -284,9 +292,9 @@ export default function ModernLeftSidebar({
   }
 
   return (
-    <div className="hidden lg:flex w-48 border-r border-border-subtle flex flex-col h-full bg-white/80 backdrop-blur-sm shadow-sm">
+    <div className="hidden lg:flex w-56 border-r border-border-subtle flex flex-col h-full bg-white/90 backdrop-blur-sm">
       {/* Header */}
-      <div className="p-4 border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-transparent">
+      <div className="p-4 border-b border-border-subtle bg-gradient-to-r from-primary-50/20 to-transparent">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider">Tools</h2>
           <Tooltip text="Collapse sidebar" color="gray" position="bottom">
@@ -303,7 +311,7 @@ export default function ModernLeftSidebar({
       </div>
 
       {/* Main Navigation */}
-      <div className="flex-1 overflow-y-auto py-3">
+      <div className="flex-1 overflow-y-auto py-3 custom-scrollbar">
         <div className="px-3 space-y-1">
           <div className="px-2 pt-1 pb-2">
             <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Workspace</p>
@@ -333,6 +341,59 @@ export default function ModernLeftSidebar({
               </button>
             )
           })}
+
+          {/* Resume Sections */}
+          {currentView === 'editor' && resumeData && (
+            <>
+              <div className="px-2 pt-4 pb-2">
+                <button
+                  onClick={() => setSectionsExpanded(!sectionsExpanded)}
+                  className="flex items-center gap-2 w-full text-[11px] font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary transition-colors"
+                >
+                  {sectionsExpanded ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
+                  <span>Sections</span>
+                  {(resumeData.sections?.length || 0) > 0 && (
+                    <span className="ml-auto text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full">
+                      {resumeData.sections?.length || 0}
+                    </span>
+                  )}
+                </button>
+              </div>
+              {sectionsExpanded && (
+                <div className="space-y-0.5 pl-3">
+                  {resumeData.summary && (
+                    <button
+                      onClick={() => onSectionClick?.('summary')}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-text-secondary hover:bg-primary-50/50 hover:text-primary-700 transition-all duration-200 group"
+                    >
+                      <Hash className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary-600 transition-colors" />
+                      <span className="truncate font-medium">Summary</span>
+                    </button>
+                  )}
+                  {resumeData.sections?.map((section) => (
+                    <button
+                      key={section.id}
+                      onClick={() => onSectionClick?.(section.id)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-text-secondary hover:bg-primary-50/50 hover:text-primary-700 transition-all duration-200 group"
+                    >
+                      <Hash className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary-600 transition-colors" />
+                      <span className="truncate font-medium">{section.title || 'Untitled'}</span>
+                    </button>
+                  ))}
+                  {(!resumeData.sections || resumeData.sections.length === 0) && !resumeData.summary && (
+                    <div className="px-2.5 py-2 text-xs text-text-muted italic">
+                      No sections yet
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
           <div className="px-2 pt-4 pb-2">
             <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Library</p>
           </div>

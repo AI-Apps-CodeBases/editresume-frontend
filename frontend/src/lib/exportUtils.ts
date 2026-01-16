@@ -328,6 +328,12 @@ export async function capturePreviewHTML(): Promise<string> {
     childrenCount: previewElement.children.length,
     innerHTML: previewElement.innerHTML.substring(0, 200)
   })
+
+  // Prefer capturing the full A4 page wrapper so export matches preview spacing
+  const pageWrapper = previewElement.closest('.a4-page-view') as HTMLElement | null
+  if (pageWrapper) {
+    previewElement = pageWrapper
+  }
   
   // Ensure the preview element is visible and scrolled into view
   previewElement.scrollIntoView({ behavior: 'instant', block: 'center' })
@@ -497,31 +503,6 @@ export async function capturePreviewHTML(): Promise<string> {
       throw new Error('Failed to capture resume content. Please try again.')
     }
     
-    // Remove max-width constraints to use full A4 width
-    function removeMaxWidthConstraints(element: HTMLElement): void {
-      let style = element.getAttribute('style') || ''
-      style = style
-        .replace(/max-width:\s*[^;]+/gi, '')
-        .replace(/maxWidth:\s*[^;]+/gi, '')
-        .trim()
-      if (style && !style.includes('width:')) {
-        style = `${style} width: 100%;`.trim()
-      } else if (!style.includes('width: 100%')) {
-        style = `${style} width: 100%;`.trim()
-      }
-      element.setAttribute('style', style)
-      
-      // Recursively process children
-      Array.from(element.children).forEach(child => {
-        if (child instanceof HTMLElement) {
-          removeMaxWidthConstraints(child)
-        }
-      })
-    }
-    
-    // Remove max-width from container and all children
-    removeMaxWidthConstraints(clone)
-    
     const html = `
 <!DOCTYPE html>
 <html>
@@ -548,24 +529,6 @@ export async function capturePreviewHTML(): Promise<string> {
       background: white;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
-    }
-    .preview-resume-container {
-      width: 100% !important;
-      max-width: none !important;
-      margin: 0 !important;
-      padding: 0.5cm !important;
-      background: white;
-      color: #000;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      box-sizing: border-box;
-    }
-    /* Remove any max-width constraints - use full A4 width */
-    * {
-      max-width: none !important;
-    }
-    .preview-resume-container * {
-      max-width: none !important;
     }
     /* Preserve all inline styles - don't override them */
     [style] {
@@ -692,4 +655,3 @@ export async function exportPreviewAsPDF(filename: string = 'resume.pdf', apiBas
     throw error
   }
 }
-
