@@ -136,7 +136,7 @@ export default function TemplateDesignPage({
 
   return (
     <div className="fixed inset-0 z-[110] bg-gradient-to-br from-primary-50/20 to-white flex flex-col">
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-2.5 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-border-subtle px-4 sm:px-6 py-2.5 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
@@ -162,7 +162,7 @@ export default function TemplateDesignPage({
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        <div className="w-full lg:w-[40%] h-[30%] lg:h-auto border-b lg:border-b-0 lg:border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto min-h-0">
+        <div className="w-full lg:w-[40%] h-[40%] lg:h-auto border-b lg:border-b-0 lg:border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto min-h-0">
           <TemplateCustomizer
             currentTemplateId={currentTemplate}
             config={config!}
@@ -173,7 +173,7 @@ export default function TemplateDesignPage({
           />
         </div>
 
-        <div className="flex-1 h-[70%] lg:h-auto overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-4 sm:p-6 lg:p-8 flex items-start justify-center min-h-0">
+        <div className="flex-1 h-[60%] lg:h-auto overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-3 sm:p-6 lg:p-8 flex items-start justify-center min-h-0">
           <div className="w-full max-w-4xl">
             <div className="mb-4 text-center">
               <h2 className="text-lg font-semibold text-text-primary mb-2">Live Preview</h2>

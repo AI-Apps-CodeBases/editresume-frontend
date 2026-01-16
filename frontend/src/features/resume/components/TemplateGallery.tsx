@@ -58,8 +58,8 @@ export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeDat
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Choose Template</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Choose Template</h3>
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value as any)}
@@ -73,7 +73,7 @@ export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeDat
         </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+      <div className="grid grid-cols-1 gap-3 p-2 sm:p-4">
         {filteredTemplates.map((template) => (
           <TemplateCard
             key={template.id}
@@ -183,7 +183,7 @@ function TemplateCard({
   return (
     <button
       onClick={onSelect}
-      className={`relative w-full p-3 rounded-lg border-2 text-left transition-all ${
+      className={`relative w-full p-4 rounded-lg border-2 text-left transition-all ${
         isSelected
           ? 'border-primary-500 bg-primary-50/30 shadow-lg'
           : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
@@ -199,12 +199,12 @@ function TemplateCard({
       
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1">
-          <h4 className="font-semibold text-gray-900 text-sm">{template.name}</h4>
-          <p className="text-xs text-gray-600 mt-0.5">{template.description}</p>
+          <h4 className="font-semibold text-gray-900 text-base">{template.name}</h4>
+          <p className="text-xs sm:text-sm text-gray-600 mt-0.5">{template.description}</p>
         </div>
       </div>
       
-      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden" style={{ height: '80px' }}>
+      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden h-28 sm:h-24">
         {getTemplateThumbnail(template.id)}
       </div>
       
