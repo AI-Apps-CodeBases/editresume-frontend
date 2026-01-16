@@ -210,7 +210,7 @@ export default function ModernEditorLayout({
         onShowHelp={onShowHelp}
       />
 
-      <div className="flex flex-1 overflow-hidden mt-14 min-h-0">
+      <div className="flex flex-1 overflow-hidden mt-14 h-[calc(100vh-3.5rem)]">
         <ModernLeftSidebar 
           onViewChange={onViewChange} 
           currentView={currentView}
@@ -233,16 +233,16 @@ export default function ModernEditorLayout({
           }}
         />
 
-        <div className={`flex-1 overflow-hidden transition-all duration-300 ease-in-out h-full min-h-0 ${
+        <div className={`flex-1 overflow-hidden transition-all duration-300 ease-in-out h-full ${
           focusMode || previewMode === 'fullscreen'
             ? 'flex justify-center' 
             : 'lg:flex-[60]'
         } ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
-          <div className={`w-full h-full min-h-0 transition-all duration-300 ease-in-out ${
+          <div className={`w-full h-full transition-all duration-300 ease-in-out ${
             focusMode || previewMode === 'fullscreen' ? 'max-w-[800px]' : ''
           }`}>
           {currentView === 'editor' ? (
-            <div className={`flex-1 min-h-0 overflow-y-auto bg-gradient-to-b from-primary-50/10 to-transparent px-1 sm:px-6 lg:px-8 relative ${
+            <div className={`h-full overflow-y-auto bg-gradient-to-b from-primary-50/10 to-transparent px-1 sm:px-6 lg:px-8 relative ${
               mobileEditorMode === 'match' ? 'hidden lg:block' : ''
             }`}>
               <div className="lg:hidden pt-3">

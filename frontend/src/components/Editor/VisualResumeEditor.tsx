@@ -453,6 +453,29 @@ export default function VisualResumeEditor({
       });
       return updated;
     });
+
+    // Open all company groups by default when sections change (e.g., on upload)
+    setOpenCompanyGroups(prev => {
+      const updated = new Set(prev);
+      let hasChanges = false;
+      
+      data.sections.forEach(section => {
+        if (section.title.toLowerCase().includes('experience') || section.title.toLowerCase().includes('work')) {
+          (section.bullets || []).forEach(bullet => {
+            if (isCompanyHeaderBullet(bullet)) {
+              const companyGroupId = `company-${bullet.id}`;
+              if (!updated.has(companyGroupId)) {
+                updated.add(companyGroupId);
+                hasChanges = true;
+              }
+            }
+          });
+        }
+      });
+      
+      // Only update if there are new company groups
+      return hasChanges ? updated : prev;
+    });
   }, [data.sections, data.summary]);
 
   // Reload keywords and match result when AI Improve modal opens, then analyze relevant keywords
@@ -2812,7 +2835,7 @@ export default function VisualResumeEditor({
 ;
 
   return (
-    <div className={`flex bg-gray-50 editor-layout ${hideSidebar ? 'h-full min-h-0' : 'min-h-screen'}`}>
+    <div className={`flex bg-gray-50 editor-layout ${hideSidebar ? 'h-full' : 'min-h-screen'}`}>
       {/* Left Sidebar - Hidden when used in ModernEditorLayout */}
       {!hideSidebar && (
         <div className="hidden lg:block sticky top-0 h-screen overflow-y-auto">
@@ -2831,7 +2854,7 @@ export default function VisualResumeEditor({
       )}
 
       {/* Main Content */}
-      <div className="flex-1 min-h-0" ref={editorRef}>
+      <div className="flex-1 h-full" ref={editorRef}>
         {/* Mobile Sidebar Toggle */}
         <div className="lg:hidden fixed top-4 left-4 z-40">
           <button
@@ -2864,7 +2887,7 @@ export default function VisualResumeEditor({
 
 
         {/* Resume Editor Canvas */}
-        <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 custom-scrollbar">
+        <div className="h-full overflow-y-auto bg-gray-50 custom-scrollbar">
           {/* Editor Toolbar */}
           <div ref={toolbarRef} className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-3 shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
             <div className="flex items-center justify-between">
