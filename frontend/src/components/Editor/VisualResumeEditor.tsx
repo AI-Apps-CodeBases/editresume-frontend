@@ -3665,7 +3665,7 @@ export default function VisualResumeEditor({
                                   return (
                                     <div
                                       key={bullet.id}
-                                      className={`group flex items-start gap-2 px-1 sm:px-2 py-1 rounded border border-transparent ${bullet.params?.visible === false ? 'opacity-70' : ''
+                                      className={`group flex items-start gap-1.5 sm:gap-2 px-1 sm:px-2 py-1 rounded border border-transparent ${bullet.params?.visible === false ? 'opacity-70' : ''
                                         }`}
                                     >
                                       <input
@@ -3721,7 +3721,7 @@ export default function VisualResumeEditor({
                                           })
                                         }}
                                         onClick={(e) => e.stopPropagation()}
-                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
+                                        className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer mt-2 flex-shrink-0"
                                         title={hasMatch ? `Matches JD keywords: ${bulletMatch.matchedKeywords.join(', ')}` : "Toggle bullet visibility in preview"}
                                       />
                                       <div className="flex-1 min-w-0">
@@ -5248,7 +5248,7 @@ function SortableSectionCard({
     >
       {/* Section Header */}
       <div
-        className={`flex items-center gap-3 px-2 sm:px-4 py-3 transition-all duration-200 ${
+        className={`flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-3 transition-all duration-200 ${
           isCollapsed ? 'border-b border-gray-100' : 'border-b border-gray-100'
         } ${!isEnabled ? 'opacity-60' : ''}`}
       >
