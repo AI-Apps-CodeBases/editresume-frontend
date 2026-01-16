@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import config from '@/lib/config';
 import LeftSidebar from './LeftSidebar'
 import AIWorkExperience from '@/components/AI/AIWorkExperience'
@@ -3851,7 +3852,7 @@ export default function VisualResumeEditor({
             </DndContext>
 
             {/* AI Improve Modal with Missing Keywords */}
-            {showAIImproveModal && aiImproveContext && (
+            {showAIImproveModal && aiImproveContext && typeof document !== 'undefined' && createPortal(
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4" onClick={() => {
                 setShowAIImproveModal(false);
                 setAiImproveContext(null);
@@ -4480,7 +4481,8 @@ export default function VisualResumeEditor({
                     )}
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
             {/* Add Section Buttons */}
