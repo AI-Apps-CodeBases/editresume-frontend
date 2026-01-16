@@ -2812,7 +2812,7 @@ export default function VisualResumeEditor({
 ;
 
   return (
-    <div className="flex bg-gray-50 min-h-screen editor-layout">
+    <div className={`flex bg-gray-50 editor-layout ${hideSidebar ? 'h-full min-h-0' : 'min-h-screen'}`}>
       {/* Left Sidebar - Hidden when used in ModernEditorLayout */}
       {!hideSidebar && (
         <div className="hidden lg:block sticky top-0 h-screen overflow-y-auto">
@@ -2831,7 +2831,7 @@ export default function VisualResumeEditor({
       )}
 
       {/* Main Content */}
-      <div className="flex-1" ref={editorRef}>
+      <div className="flex-1 min-h-0" ref={editorRef}>
         {/* Mobile Sidebar Toggle */}
         <div className="lg:hidden fixed top-4 left-4 z-40">
           <button
@@ -2864,7 +2864,7 @@ export default function VisualResumeEditor({
 
 
         {/* Resume Editor Canvas */}
-        <div className="h-full overflow-y-auto bg-gray-50 custom-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 custom-scrollbar">
           {/* Editor Toolbar */}
           <div ref={toolbarRef} className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-3 shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
             <div className="flex items-center justify-between">
