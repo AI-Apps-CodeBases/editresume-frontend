@@ -204,7 +204,7 @@ function TemplateCard({
         </div>
       </div>
       
-      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden h-28 sm:h-24">
+      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden h-28 sm:h-24 lg:h-20">
         {getTemplateThumbnail(template.id)}
       </div>
       
