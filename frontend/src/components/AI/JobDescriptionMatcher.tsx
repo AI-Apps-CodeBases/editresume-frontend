@@ -11,6 +11,8 @@ import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
 import { calculateEnhancedATSScore } from '@/lib/atsScoring.enhanced';
 import type { ExtensionKeywordData, LegacyATSScoreResult } from '@/lib/atsScoring.types';
+import type { ATSRuleEngineSummary } from '@/lib/atsRuleTypes';
+import ATSRuleImpact from '@/components/AI/ATSRuleImpact';
 import { useSavedJobs } from '@/features/jobs/hooks/useSavedJobs';
 import type { Job } from '@/features/jobs/types';
 
@@ -296,6 +298,7 @@ interface JobMatchResult {
   improvement_suggestions: ImprovementSuggestion[];
   applied_improvements?: ImprovementSuggestion[];
   score_improvement?: number;
+  rule_engine?: ATSRuleEngineSummary;
   analysis_summary: {
     overall_match: string;
     technical_match: string;
@@ -1596,6 +1599,7 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
   return {
     success: enhancedATSResult.success !== false,
     match_analysis,
+    rule_engine: enhancedATSResult.rule_engine ?? details.rule_engine ?? null,
     keyword_suggestions: {
       tfidf_suggestions: tfidfSuggestions, // Additional TF-IDF keywords similar to JD
     },
@@ -4287,6 +4291,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               )}
             </div>
           </div>
+
+          {/* Rule engine impact */}
+          {matchResult.rule_engine && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <ATSRuleImpact ruleEngine={matchResult.rule_engine} />
+            </div>
+          )}
 
           {/* Keywords to Improve ATS Score */}
           {(matchResult.match_analysis.missing_keywords.length > 0 || 

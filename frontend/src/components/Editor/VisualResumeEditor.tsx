@@ -1208,11 +1208,27 @@ export default function VisualResumeEditor({
     if (!text) return text;
 
     const countsToUse = calculatedKeywordUsageCounts;
-    const overusedKeywords = countsToUse && countsToUse.size > 0
-      ? Array.from(countsToUse.entries())
-          .filter(([_, count]) => count > threshold)
-          .map(([keyword, _]) => keyword)
-      : [];
+    const technicalKeywords = new Set<string>([
+      ...(matchResult?.match_analysis?.technical_matches || []),
+      ...(matchResult?.match_analysis?.technical_missing || []),
+    ]);
+    const priorityKeywords = new Set<string>(jdKeywords?.priority || []);
+    const getThresholdForKeyword = (keyword: string): number => {
+      if (priorityKeywords.has(keyword)) return 8;
+      // Prefer server-provided technical classification; otherwise fall back to heuristic.
+      if (technicalKeywords.has(keyword)) return 10;
+      const kwLower = keyword.toLowerCase();
+      if (/[0-9]/.test(kwLower) || /[\/\-_+#.]/.test(kwLower)) return 10;
+      // Default "common" threshold (was 10)
+      return 9;
+    };
+
+    const overusedKeywords =
+      countsToUse && countsToUse.size > 0
+        ? Array.from(countsToUse.entries())
+            .filter(([keyword, count]) => count > getThresholdForKeyword(keyword))
+            .map(([keyword, _]) => keyword)
+        : [];
 
     const hasMatches = matchedKeywords && matchedKeywords.length > 0;
     const hasOverused = overusedKeywords.length > 0;
@@ -1222,7 +1238,7 @@ export default function VisualResumeEditor({
     const parts: Array<React.ReactNode> = [];
     let lastIndex = 0;
 
-    type Match = { keyword: string; index: number; length: number; count: number; isOverused: boolean };
+    type Match = { keyword: string; index: number; length: number; count: number; isOverused: boolean; threshold: number };
     const allMatches: Match[] = [];
 
     // Collect matching keywords (green)
@@ -1248,7 +1264,8 @@ export default function VisualResumeEditor({
                 index: match.index,
                 length: match[0].length,
                 count: keywordCounts[keyword] || 1,
-                isOverused: false
+                isOverused: false,
+                threshold: getThresholdForKeyword(keyword)
               });
             }
           }
@@ -1264,6 +1281,7 @@ export default function VisualResumeEditor({
       sortedOverused.forEach(keyword => {
         const keywordLower = keyword.toLowerCase().trim();
         const count = countsToUse?.get(keyword) || 0;
+        const keywordThreshold = getThresholdForKeyword(keyword);
         try {
           const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
           const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1279,7 +1297,8 @@ export default function VisualResumeEditor({
                 index: match.index,
                 length: match[0].length,
                 count,
-                isOverused: true
+                isOverused: true,
+                threshold: keywordThreshold
               });
             }
           }
@@ -1335,7 +1354,7 @@ export default function VisualResumeEditor({
           parts.push(
             <Tooltip 
               key={`overused-${match.keyword}-${match.index}-${idx}`}
-              text={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+              text={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${match.threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
               color="red"
               position="top"
             >

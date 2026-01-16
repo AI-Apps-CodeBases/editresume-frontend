@@ -11,6 +11,10 @@ from app.services.ats.structure_analyzer import analyze_resume_structure as anal
 from app.services.ats.text_extractor import extract_text_from_resume as extract_text
 from app.services.ats.tfidf_calculator import calculate_tfidf_cosine_score as calculate_tfidf
 
+# Rule engine (deterministic post-processing rules)
+from app.services.ats.keyword_frequency_rules import KeywordFrequencyRule
+from app.services.ats.rule_engine import RuleEngine, RuleResult
+
 # Import extracted ATS modules
 from app.services.ats.text_extractor import extract_text_from_resume as extract_text
 from app.services.ats.structure_analyzer import analyze_resume_structure as analyze_structure
@@ -1082,6 +1086,16 @@ class EnhancedATSChecker:
         total_bonus = min(5, total_bonus)
         overall_score += total_bonus
 
+        # Apply deterministic rule engine adjustments (penalties/rewards)
+        rule_engine = RuleEngine()
+        rule_engine.register_rule(KeywordFrequencyRule())
+        rule_results = rule_engine.evaluate(
+            resume_text=resume_text,
+            extracted_keywords=extracted_keywords,
+        )
+        rule_adjustment = RuleEngine.sum_adjustments(rule_results)
+        overall_score = max(0, min(100, overall_score + rule_adjustment))
+
         # No artificial caps - allow scores to reach 95-100 with strong keyword matching
         # Scores are calculated directly from components without diminishing returns
 
@@ -1106,6 +1120,20 @@ class EnhancedATSChecker:
                 f"Add these important keywords from job description: {', '.join(top_missing)}"
             )
 
+        # Add rule-engine suggestions (e.g., keyword stuffing)
+        overused = sorted(
+            {
+                (kw if isinstance(kw, str) else "")
+                for rr in rule_results
+                if isinstance(rr, RuleResult) and rr.rule_name == "keyword_overuse"
+                for kw in (rr.affected_keywords or [])
+            }
+        )
+        if overused:
+            all_suggestions.append(
+                "Reduce repetition of overused keywords to avoid keyword stuffing penalties."
+            )
+
         return {
             "overall_score": min(100, max(0, int(overall_score))),
             "method": "industry_standard_tfidf",
@@ -1113,12 +1141,28 @@ class EnhancedATSChecker:
             "structure_analysis": structure_analysis,
             "formatting_analysis": formatting_analysis,
             "quality_analysis": quality_analysis,
+            "rule_engine": {
+                "adjustment": round(float(rule_adjustment), 2),
+                "results": [
+                    {
+                        "rule_name": rr.rule_name,
+                        "rule_type": rr.rule_type,
+                        "adjustment": rr.adjustment,
+                        "reason": rr.reason,
+                        "affected_keywords": rr.affected_keywords,
+                        "meta": rr.meta,
+                    }
+                    for rr in rule_results
+                    if isinstance(rr, RuleResult)
+                ],
+            },
             "score_breakdown": {
                 "tfidf_cosine_score": round(tfidf_score, 2),
                 "keyword_match_score": round(keyword_match_score, 2),
                 "section_score": section_score,
                 "formatting_score": formatting_score,
                 "quality_score": quality_score,
+                "rule_adjustment": round(float(rule_adjustment), 2),
                 "weights_used": {
                     "tfidf_weight": tfidf_weight,
                     "keyword_weight": keyword_weight,
