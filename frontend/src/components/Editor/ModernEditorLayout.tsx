@@ -267,10 +267,7 @@ export default function ModernEditorLayout({
                 </div>
               </div>
 
-              <div
-                className="origin-top lg:scale-100 scale-[0.5]"
-                style={{ transformOrigin: 'top left', width: '200%', marginLeft: 0 }}
-              >
+              <div className="origin-top-left lg:origin-top-left lg:scale-100 scale-[0.5] w-[200%] lg:w-full">
                 <VisualResumeEditor
                   data={resumeData}
                   onChange={onResumeUpdate || (() => {})}
