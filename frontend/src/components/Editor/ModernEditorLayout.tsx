@@ -101,6 +101,7 @@ export default function ModernEditorLayout({
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
   const [showLeftDrawer, setShowLeftDrawer] = useState(false)
   const [showRightDrawer, setShowRightDrawer] = useState(false)
+  const [mobileEditorMode, setMobileEditorMode] = useState<'editor' | 'match'>('editor')
   const [focusMode, setFocusMode] = useState(false)
   const [previewMode, setPreviewMode] = useState<'side-by-side' | 'fullscreen'>('side-by-side')
   const [matchScore, setMatchScore] = useState<number | null>(null)
@@ -173,6 +174,12 @@ export default function ModernEditorLayout({
     }
   }, [showLeftDrawer, showRightDrawer])
 
+  useEffect(() => {
+    if (mobileEditorMode === 'match' && activeRightTab !== 'job-description') {
+      setActiveRightTab('job-description')
+    }
+  }, [mobileEditorMode, activeRightTab])
+
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-primary-50/20 via-white to-primary-50/10">
       <TopNavigationBar 
@@ -189,7 +196,10 @@ export default function ModernEditorLayout({
         onSignIn={onSignIn}
         onShareResume={onShareResume}
         onMenuClick={() => setShowLeftDrawer(true)}
-        onRightPanelClick={() => setShowRightDrawer(true)}
+        onRightPanelClick={() => {
+          setMobileEditorMode('match')
+          setShowRightDrawer(false)
+        }}
         focusMode={focusMode}
         onFocusModeToggle={() => setFocusMode(!focusMode)}
         resumeData={resumeData}
@@ -229,7 +239,33 @@ export default function ModernEditorLayout({
             focusMode || previewMode === 'fullscreen' ? 'max-w-[800px]' : ''
           }`}>
           {currentView === 'editor' ? (
-            <div className="h-full overflow-y-auto bg-gradient-to-b from-primary-50/10 to-transparent px-4 sm:px-6 lg:px-8 relative">
+            <div className={`h-full overflow-y-auto bg-gradient-to-b from-primary-50/10 to-transparent px-4 sm:px-6 lg:px-8 relative ${
+              mobileEditorMode === 'match' ? 'hidden lg:block' : ''
+            }`}>
+              <div className="lg:hidden pt-3">
+                <div className="inline-flex items-center rounded-full border border-border-subtle bg-white/90 shadow-sm">
+                  <button
+                    onClick={() => setMobileEditorMode('editor')}
+                    className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                      mobileEditorMode === 'editor'
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Editor
+                  </button>
+                  <button
+                    onClick={() => setMobileEditorMode('match')}
+                    className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                      mobileEditorMode === 'match'
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Match JD
+                  </button>
+                </div>
+              </div>
 
               <VisualResumeEditor
                 data={resumeData}
@@ -259,6 +295,59 @@ export default function ModernEditorLayout({
               <ResumesView onBack={() => onViewChange?.('editor')} />
             </div>
           ) : null}
+          {currentView === 'editor' && (
+            <div className={`lg:hidden h-full overflow-hidden ${
+              mobileEditorMode === 'match' ? 'block' : 'hidden'
+            }`}>
+              <div className="h-full overflow-y-auto bg-white">
+                <div className="px-4 pt-3">
+                  <div className="inline-flex items-center rounded-full border border-border-subtle bg-white/90 shadow-sm">
+                    <button
+                      onClick={() => setMobileEditorMode('editor')}
+                      className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                        mobileEditorMode === 'editor'
+                          ? 'bg-primary-600 text-white shadow-sm'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      Editor
+                    </button>
+                    <button
+                      onClick={() => setMobileEditorMode('match')}
+                      className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                        mobileEditorMode === 'match'
+                          ? 'bg-primary-600 text-white shadow-sm'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      Match JD
+                    </button>
+                  </div>
+                </div>
+                <RightPanel 
+                  activeTab={activeRightTab} 
+                  onTabChange={setActiveRightTab}
+                  leftSidebarCollapsed={leftSidebarCollapsed}
+                  onResumeUpdate={onResumeUpdate}
+                  onAIImprove={onAIImprove}
+                  resumeData={resumeData}
+                  template={template}
+                  templateConfig={templateConfig}
+                  deepLinkedJD={deepLinkedJD}
+                  activeJobDescriptionId={activeJobDescriptionId}
+                  onViewChange={onViewChange}
+                  onSelectJobDescriptionId={onSelectJobDescriptionId}
+                  onMatchScoreChange={(score, analyzing) => {
+                    setMatchScore(score)
+                    setIsAnalyzing(analyzing)
+                  }}
+                  onExport={onExport}
+                  isExporting={isExporting}
+                  hasResumeName={!!resumeData.name}
+                />
+              </div>
+            </div>
+          )}
           </div>
         </div>
 
