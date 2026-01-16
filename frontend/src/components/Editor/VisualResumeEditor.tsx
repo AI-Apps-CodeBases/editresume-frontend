@@ -2910,7 +2910,7 @@ export default function VisualResumeEditor({
           )}
 
           {/* Resume Canvas */}
-          <div className="w-full max-w-full sm:max-w-4xl mx-auto py-6 px-2 sm:px-4">
+          <div className="w-full max-w-full sm:max-w-4xl mx-0 sm:mx-auto py-6 px-2 sm:px-4">
             {/* Candidate Name */}
             <div className="mb-4">
               <h1 
@@ -3665,7 +3665,7 @@ export default function VisualResumeEditor({
                                   return (
                                     <div
                                       key={bullet.id}
-                                      className={`group flex items-start gap-2 px-2 py-1 rounded border border-transparent ${bullet.params?.visible === false ? 'opacity-70' : ''
+                                      className={`group flex items-start gap-2 px-1 sm:px-2 py-1 rounded border border-transparent ${bullet.params?.visible === false ? 'opacity-70' : ''
                                         }`}
                                     >
                                       <input
@@ -3735,7 +3735,7 @@ export default function VisualResumeEditor({
                                                 const text = e.currentTarget.textContent || '';
                                                 updateBullet(section.id, bullet.id, text);
                                               }}
-                                              className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-2 py-1 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
+                                              className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
                                               style={{ 
                                                 position: 'relative', 
                                                 zIndex: 10,
@@ -3748,7 +3748,7 @@ export default function VisualResumeEditor({
                                             </div>
                                             {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                                               <div
-                                                className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-2 py-1 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                   }`}
                                                 data-highlight-overlay="true"
                                                 style={{
@@ -5248,7 +5248,7 @@ function SortableSectionCard({
     >
       {/* Section Header */}
       <div
-        className={`flex items-center gap-3 px-4 py-3 transition-all duration-200 ${
+        className={`flex items-center gap-3 px-2 sm:px-4 py-3 transition-all duration-200 ${
           isCollapsed ? 'border-b border-gray-100' : 'border-b border-gray-100'
         } ${!isEnabled ? 'opacity-60' : ''}`}
       >
@@ -5387,7 +5387,7 @@ function SortableSectionCard({
           isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[5000px] opacity-100'
         }`}
       >
-        <div className="px-4 py-4 border-t border-gray-50">
+        <div className="px-2 sm:px-4 py-4 border-t border-gray-50">
           {children}
         </div>
       </div>
