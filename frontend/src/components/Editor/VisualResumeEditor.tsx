@@ -1223,7 +1223,7 @@ export default function VisualResumeEditor({
       if (keywordText) {
         parts.push(
           <Tooltip key={`kw-${idx}-${match.index}`} text={`${match.keyword} (${match.count}x) - Matches job description`} color="green" position="top">
-            <span className="border-b-2 border-dotted border-green-500 text-green-700 cursor-help" title={`${match.keyword} (${match.count}x)`}>
+            <span className="border-b-2 border-green-500 text-green-700 cursor-help" title={`${match.keyword} (${match.count}x)`}>
               {keywordText}
             </span>
           </Tooltip>
@@ -1385,7 +1385,7 @@ export default function VisualResumeEditor({
               color="red"
               position="top"
             >
-              <span className="border-b-2 border-dotted border-red-500 text-red-700 cursor-help">
+              <span className="border-b-2 border-red-500 text-red-700 cursor-help">
                 {keywordText}
               </span>
             </Tooltip>
@@ -1398,7 +1398,7 @@ export default function VisualResumeEditor({
               color="green"
               position="top"
             >
-              <span className="border-b-2 border-dotted border-green-500 text-green-700 cursor-help">
+              <span className="border-b-2 border-green-500 text-green-700 cursor-help">
                 {keywordText}
               </span>
             </Tooltip>
@@ -1501,7 +1501,7 @@ export default function VisualResumeEditor({
           color="red"
           position="top"
         >
-          <span className="border-b-2 border-dotted border-red-500 text-red-700 cursor-help">
+          <span className="border-b-2 border-red-500 text-red-700 cursor-help">
             {text.substring(match.index, match.index + match.length)}
           </span>
         </Tooltip>
@@ -1601,7 +1601,7 @@ export default function VisualResumeEditor({
           const before = highlightedText.substring(0, index);
           const after = highlightedText.substring(index + matchText.length);
           highlightedText = before + 
-            `<span class="border-b-2 border-dotted border-green-500 text-green-700 cursor-help" title="JD Keyword: ${escapedKeywordAttr}">${escapedMatch}</span>` + 
+            `<span class="border-b-2 border-green-500 text-green-700 cursor-help" title="JD Keyword: ${escapedKeywordAttr}">${escapedMatch}</span>` + 
             after;
         });
       } catch (e) {
@@ -3196,7 +3196,7 @@ export default function VisualResumeEditor({
                                     shouldRehighlightRef.current = false;
                                   }, 300);
                                 }}
-                                className={`text-sm leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 transition-all duration-200 cursor-text border border-border-subtle relative z-10 ${
+                                className={`text-sm lg:text-[1.05rem] leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 transition-all duration-200 cursor-text border border-border-subtle relative z-10 ${
                                   ((jdKeywords?.matching?.length ?? 0) > 0 || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim()
                                     ? 'text-transparent group-focus-within:text-gray-700'
                                     : 'text-gray-700'
@@ -3210,7 +3210,7 @@ export default function VisualResumeEditor({
                                 const hasMatch = summaryMatches.matchedKeywords.length > 0;
                                 return (
                                   <div
-                                    className="text-sm leading-relaxed pointer-events-none absolute top-0 left-0 right-0 z-0 group-focus-within:opacity-0 transition-opacity text-gray-800"
+                                    className="text-sm lg:text-[1.05rem] leading-relaxed pointer-events-none absolute top-0 left-0 right-0 z-0 group-focus-within:opacity-0 transition-opacity text-gray-800"
                                     data-highlight-overlay="true"
                                     style={{
                                       position: 'absolute',
@@ -3736,7 +3736,7 @@ export default function VisualResumeEditor({
                                                 const text = e.currentTarget.textContent || '';
                                                 updateBullet(section.id, bullet.id, text);
                                               }}
-                                              className={`text-[0.96rem] leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
+                                              className={`text-[0.96rem] lg:text-[1.15rem] leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
                                               style={{ 
                                                 position: 'relative', 
                                                 zIndex: 10,
@@ -3749,7 +3749,7 @@ export default function VisualResumeEditor({
                                             </div>
                                             {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                                               <div
-                                                className={`text-[0.96rem] leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                className={`text-[0.96rem] lg:text-[1.15rem] leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                   }`}
                                                 data-highlight-overlay="true"
                                                 style={{
@@ -4916,7 +4916,7 @@ function SortableCompanyGroup({
                   key={companyBullet.id}
                   className={`group flex items-start gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
                     hasMatch && bulletMatch.matchedKeywords.length > 0
-                      ? 'bg-primary-50/30 border-l-2 border-primary-400/50'
+                      ? 'bg-green-50/60 border-l-2 border-green-400/60'
                       : 'hover:bg-gray-50/50 border-l-2 border-transparent'
                   } ${companyBullet.params?.visible === false ? 'opacity-60' : ''}`}
                 >
@@ -4970,7 +4970,7 @@ function SortableCompanyGroup({
                             const text = e.currentTarget.textContent || '';
                             updateBullet(section.id, companyBullet.id, text);
                           }}
-                          className={`text-sm leading-relaxed outline-none px-2 py-1 rounded-md transition-all duration-200 cursor-text ${
+                          className={`text-sm lg:text-[1.05rem] leading-relaxed outline-none px-2 py-1 rounded-md transition-all duration-200 cursor-text ${
                             companyBullet.params?.visible === false 
                               ? 'text-text-muted line-through opacity-60' 
                               : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) 
@@ -4989,7 +4989,12 @@ function SortableCompanyGroup({
                         </div>
                         {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                           <div
-                            className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-2 py-1 ${companyBullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                            className={`text-sm lg:text-[1.05rem] leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-2 py-1 ${
+                              companyBullet.params?.visible === false
+                                ? 'text-gray-400 line-through'
+                                : hasMatch && bulletMatch.matchedKeywords.length > 0
+                                  ? 'text-green-800'
+                                  : 'text-gray-800'
                               }`}
                             data-highlight-overlay="true"
                             style={{
