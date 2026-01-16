@@ -161,12 +161,17 @@ export default function PreviewPanel({
       }
       
       /* Responsive page view for constrained spaces */
+      .a4-pages-container.constrained {
+        width: 100%;
+        max-width: 100%;
+      }
       .a4-pages-container.constrained .a4-page-view {
         width: 100%;
-        max-width: min(8.27in, calc(100vw - 40px));
+        max-width: min(8.27in, 100%);
         min-height: auto;
         transform: scale(1);
         transform-origin: top center;
+        margin: 0 auto 20px auto;
       }
       
       /* Ensure page break indicators are visible in constrained mode */

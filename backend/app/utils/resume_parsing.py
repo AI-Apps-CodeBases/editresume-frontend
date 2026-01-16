@@ -8,6 +8,20 @@ import re
 logger = logging.getLogger(__name__)
 
 
+EMAIL_REGEX = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+
+
+def extract_relaxed_email(text: str) -> str:
+    """Extract email from text allowing spacing around separators."""
+    if not text:
+        return ""
+
+    normalized = re.sub(r"\s*@\s*", "@", text)
+    normalized = re.sub(r"([A-Za-z0-9])\s*\.\s*([A-Za-z0-9])", r"\1.\2", normalized)
+
+    match = EMAIL_REGEX.search(normalized)
+    return match.group() if match else ""
+
 def extract_pdf_text(file_content: bytes) -> tuple[str, list[str]]:
     """Extract text from PDF using multiple methods"""
     text = ""
@@ -160,13 +174,47 @@ def clean_extracted_text(text: str) -> str:
     text = re.sub(r"[ \t]+", " ", text)  # Multiple spaces to single
 
     # Remove common PDF artifacts
-    text = re.sub(r"[^\x00-\x7F]+", " ", text)  # Remove non-ASCII
     text = re.sub(r"\f", "\n", text)  # Form feeds to newlines
 
     # Clean up bullet points
     text = re.sub(r"[•·▪▫‣⁃]", "•", text)  # Normalize bullets
 
     return text.strip()
+
+
+def _collapse_spaced_letters(line: str) -> str:
+    """Collapse spaced letters like 'M E R T' -> 'MERT' within a line."""
+    def collapse_chunk(chunk: str) -> str:
+        return re.sub(
+            r"(?:\b[A-Za-z]\s){2,}[A-Za-z]\b",
+            lambda m: m.group(0).replace(" ", ""),
+            chunk,
+        )
+
+    # Split on large gaps to avoid merging words from different columns
+    parts = re.split(r" {2,}|\t+", line)
+    collapsed = [collapse_chunk(part) for part in parts]
+    return " ".join([p for p in collapsed if p])
+
+
+def _repair_hyphenation(text: str) -> str:
+    """Join words split by hyphenated line breaks."""
+    return re.sub(r"(\w)-\n(\w)", r"\1\2", text)
+
+
+def normalize_extracted_text(text: str) -> str:
+    """Normalize extracted text for downstream parsing."""
+    if not text:
+        return ""
+
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = _repair_hyphenation(text)
+    text = re.sub(r"^--- Page \d+ ---\s*$", "", text, flags=re.MULTILINE)
+
+    normalized_lines = [_collapse_spaced_letters(line) for line in text.split("\n")]
+    normalized = "\n".join(normalized_lines)
+    normalized = clean_extracted_text(normalized)
+    return normalized
 
 
 def parse_resume_with_regex(text: str) -> dict:
@@ -465,4 +513,3 @@ def parse_resume_with_regex(text: str) -> dict:
         "sections": sections,
         "detected_variables": {},
     }
-

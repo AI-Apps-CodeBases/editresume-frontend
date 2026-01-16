@@ -59,6 +59,7 @@ interface ModernEditorLayoutProps {
   onTemplatesClick?: () => void
   onShareResume?: () => void
   onSelectJobDescriptionId?: (id: number | null) => void
+  onShowHelp?: () => void
 }
 
 export default function ModernEditorLayout({
@@ -96,18 +97,61 @@ export default function ModernEditorLayout({
   onTemplatesClick,
   onShareResume,
   onSelectJobDescriptionId,
+  onShowHelp,
 }: ModernEditorLayoutProps) {
-  const [activeRightTab, setActiveRightTab] = useState<'preview' | 'job-description'>('preview')
+  const [activeRightTab, setActiveRightTab] = useState<'preview' | 'job-description' | 'suggestions'>('preview')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
   const [showLeftDrawer, setShowLeftDrawer] = useState(false)
   const [showRightDrawer, setShowRightDrawer] = useState(false)
+  const [mobileEditorMode, setMobileEditorMode] = useState<'editor' | 'match'>('editor')
   const [focusMode, setFocusMode] = useState(false)
+  const [previewMode, setPreviewMode] = useState<'side-by-side' | 'fullscreen'>('side-by-side')
+  const [matchScore, setMatchScore] = useState<number | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [matchResult, setMatchResult] = useState<any>(null)
 
   useEffect(() => {
     if (deepLinkedJD && activeRightTab !== 'job-description') {
       setActiveRightTab('job-description')
     }
   }, [deepLinkedJD])
+
+  // Load match result from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedMatchResult = localStorage.getItem('currentMatchResult')
+        if (savedMatchResult) {
+          setMatchResult(JSON.parse(savedMatchResult))
+        }
+      } catch (e) {
+        console.error('Failed to load match result:', e)
+      }
+    }
+  }, [])
+
+  // Listen for match result updates
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const savedMatchResult = localStorage.getItem('currentMatchResult')
+        if (savedMatchResult) {
+          setMatchResult(JSON.parse(savedMatchResult))
+        }
+      } catch (e) {
+        console.error('Failed to load match result:', e)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    // Also check periodically for same-tab updates
+    const interval = setInterval(handleStorageChange, 1000)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      clearInterval(interval)
+    }
+  }, [])
 
   useEffect(() => {
     const navbar = document.querySelector('header')
@@ -132,8 +176,14 @@ export default function ModernEditorLayout({
     }
   }, [showLeftDrawer, showRightDrawer])
 
+  useEffect(() => {
+    if (mobileEditorMode === 'match' && activeRightTab !== 'job-description') {
+      setActiveRightTab('job-description')
+    }
+  }, [mobileEditorMode, activeRightTab])
+
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-primary-50/30 via-white to-primary-50/20">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-primary-50/20 via-white to-primary-50/10">
       <TopNavigationBar 
         onNewResume={onNewResume}
         onSaveResume={onSaveResume}
@@ -148,9 +198,16 @@ export default function ModernEditorLayout({
         onSignIn={onSignIn}
         onShareResume={onShareResume}
         onMenuClick={() => setShowLeftDrawer(true)}
-        onRightPanelClick={() => setShowRightDrawer(true)}
+        onRightPanelClick={() => {
+          setMobileEditorMode('match')
+          setShowRightDrawer(false)
+        }}
         focusMode={focusMode}
         onFocusModeToggle={() => setFocusMode(!focusMode)}
+        resumeData={resumeData}
+        previewMode={previewMode}
+        onPreviewModeToggle={() => setPreviewMode(prev => prev === 'side-by-side' ? 'fullscreen' : 'side-by-side')}
+        onShowHelp={onShowHelp}
       />
 
       <div className="flex flex-1 overflow-hidden mt-14">
@@ -167,70 +224,72 @@ export default function ModernEditorLayout({
           onSignIn={onSignIn}
           isMobileDrawer={showLeftDrawer}
           onCloseDrawer={() => setShowLeftDrawer(false)}
+          resumeData={resumeData}
+          onSectionClick={(sectionId) => {
+            const element = document.querySelector(`[data-section-id="${sectionId}"]`)
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+          }}
         />
 
         <div className={`flex-1 overflow-hidden transition-all duration-300 ease-in-out h-full ${
-          focusMode 
+          focusMode || previewMode === 'fullscreen'
             ? 'flex justify-center' 
-            : 'lg:flex-[55]'
+            : 'lg:flex-[60]'
         } ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
           <div className={`w-full h-full transition-all duration-300 ease-in-out ${
-            focusMode ? 'max-w-[700px]' : ''
+            focusMode || previewMode === 'fullscreen' ? 'max-w-[800px]' : ''
           }`}>
           {currentView === 'editor' ? (
-            <div className="h-full overflow-y-auto bg-gradient-to-b from-primary-50/20 to-transparent">
-              <div className="hidden lg:block sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-border-subtle">
-                <div className="flex items-center justify-between px-4 py-2">
-                  <div className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                    Editor Actions
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {onExport && (
-                      <button
-                        onClick={() => onExport('pdf')}
-                        disabled={!resumeData.name || isExporting}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-all"
-                      >
-                        Export PDF
-                      </button>
-                    )}
-                    {onShareResume && (
-                      <button
-                        onClick={onShareResume}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border-subtle text-text-secondary hover:bg-primary-50/60 transition-all"
-                      >
-                        Share
-                      </button>
-                    )}
-                    {onSaveResume && isAuthenticated && (
-                      <button
-                        onClick={onSaveResume}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border-subtle text-text-secondary hover:bg-primary-50/60 transition-all"
-                      >
-                        Save
-                      </button>
-                    )}
-                  </div>
+            <div className={`h-full overflow-y-auto bg-gradient-to-b from-primary-50/10 to-transparent px-1 sm:px-6 lg:px-8 relative ${
+              mobileEditorMode === 'match' ? 'hidden lg:block' : ''
+            }`}>
+              <div className="lg:hidden pt-3">
+                <div className="inline-flex items-center rounded-full border border-border-subtle bg-white/90 shadow-sm">
+                  <button
+                    onClick={() => setMobileEditorMode('editor')}
+                    className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                      mobileEditorMode === 'editor'
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Editor
+                  </button>
+                  <button
+                    onClick={() => setMobileEditorMode('match')}
+                    className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                      mobileEditorMode === 'match'
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Match JD
+                  </button>
                 </div>
               </div>
-              <VisualResumeEditor
-                data={resumeData}
-                onChange={onResumeUpdate || (() => {})}
-                template={template}
-                onAddContent={onAddContent}
-                roomId={roomId}
-                onAddComment={onAddComment}
-                onResolveComment={onResolveComment}
-                onDeleteComment={onDeleteComment}
-                onCreateRoom={onCreateRoom}
-                onJoinRoom={onJoinRoom}
-                onLeaveRoom={onLeaveRoom}
-                isConnected={isConnected}
-                activeUsers={activeUsers}
-                onViewChange={onViewChange}
-                onAIImprove={onAIImprove}
-                hideSidebar={true}
-              />
+
+              <div className="origin-top-left lg:origin-top-left lg:scale-100 scale-[0.5] w-[200%] lg:w-full">
+                <VisualResumeEditor
+                  data={resumeData}
+                  onChange={onResumeUpdate || (() => {})}
+                  template={template}
+                  onAddContent={onAddContent}
+                  roomId={roomId}
+                  onAddComment={onAddComment}
+                  onResolveComment={onResolveComment}
+                  onDeleteComment={onDeleteComment}
+                  onCreateRoom={onCreateRoom}
+                  onJoinRoom={onJoinRoom}
+                  onLeaveRoom={onLeaveRoom}
+                  isConnected={isConnected}
+                  activeUsers={activeUsers}
+                  onViewChange={onViewChange}
+                  onAIImprove={onAIImprove}
+                  hideSidebar={true}
+                />
+              </div>
             </div>
           ) : currentView === 'jobs' ? (
             <div className="h-full overflow-y-auto">
@@ -241,15 +300,68 @@ export default function ModernEditorLayout({
               <ResumesView onBack={() => onViewChange?.('editor')} />
             </div>
           ) : null}
+          {currentView === 'editor' && (
+            <div className={`lg:hidden h-full overflow-hidden ${
+              mobileEditorMode === 'match' ? 'block' : 'hidden'
+            }`}>
+              <div className="h-full overflow-y-auto bg-white">
+                <div className="px-4 pt-3">
+                  <div className="inline-flex items-center rounded-full border border-border-subtle bg-white/90 shadow-sm">
+                    <button
+                      onClick={() => setMobileEditorMode('editor')}
+                      className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                        mobileEditorMode === 'editor'
+                          ? 'bg-primary-600 text-white shadow-sm'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      Editor
+                    </button>
+                    <button
+                      onClick={() => setMobileEditorMode('match')}
+                      className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                        mobileEditorMode === 'match'
+                          ? 'bg-primary-600 text-white shadow-sm'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      Match JD
+                    </button>
+                  </div>
+                </div>
+                <RightPanel 
+                  activeTab={activeRightTab} 
+                  onTabChange={setActiveRightTab}
+                  leftSidebarCollapsed={leftSidebarCollapsed}
+                  onResumeUpdate={onResumeUpdate}
+                  onAIImprove={onAIImprove}
+                  resumeData={resumeData}
+                  template={template}
+                  templateConfig={templateConfig}
+                  deepLinkedJD={deepLinkedJD}
+                  activeJobDescriptionId={activeJobDescriptionId}
+                  onViewChange={onViewChange}
+                  onSelectJobDescriptionId={onSelectJobDescriptionId}
+                  onMatchScoreChange={(score, analyzing) => {
+                    setMatchScore(score)
+                    setIsAnalyzing(analyzing)
+                  }}
+                  onExport={onExport}
+                  isExporting={isExporting}
+                  hasResumeName={!!resumeData.name}
+                />
+              </div>
+            </div>
+          )}
           </div>
         </div>
 
         {currentView === 'editor' && (
           <>
             <div className={`hidden lg:block overflow-hidden h-full transition-all duration-300 ease-in-out ${
-              focusMode 
+              focusMode || previewMode === 'fullscreen'
                 ? 'w-0 opacity-0 pointer-events-none overflow-hidden' 
-                : 'lg:flex-[45] opacity-100'
+                : 'lg:flex-[40] opacity-100'
             }`}>
               <RightPanel 
                 activeTab={activeRightTab} 
@@ -264,6 +376,13 @@ export default function ModernEditorLayout({
                 activeJobDescriptionId={activeJobDescriptionId}
                 onViewChange={onViewChange}
                 onSelectJobDescriptionId={onSelectJobDescriptionId}
+                onMatchScoreChange={(score, analyzing) => {
+                  setMatchScore(score)
+                  setIsAnalyzing(analyzing)
+                }}
+                onExport={onExport}
+                isExporting={isExporting}
+                hasResumeName={!!resumeData.name}
               />
             </div>
             
@@ -298,6 +417,13 @@ export default function ModernEditorLayout({
                         deepLinkedJD={deepLinkedJD}
                         activeJobDescriptionId={activeJobDescriptionId}
                         onViewChange={onViewChange}
+                        onMatchScoreChange={(score, analyzing) => {
+                          setMatchScore(score)
+                          setIsAnalyzing(analyzing)
+                        }}
+                        onExport={onExport}
+                        isExporting={isExporting}
+                        hasResumeName={!!resumeData.name}
                       />
                     </div>
                   </div>

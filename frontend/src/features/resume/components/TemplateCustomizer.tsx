@@ -38,15 +38,15 @@ export function TemplateCustomizer({
 
   return (
     <div className="h-full flex flex-col bg-white/95 backdrop-blur-sm">
-      <div className="border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-purple-50/30 p-4">
-        <h2 className="text-xl font-bold text-text-primary mb-2">Template & Design</h2>
-        <p className="text-sm text-text-muted">Choose templates and customize appearance</p>
+      <div className="border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-purple-50/30 p-3 sm:p-4">
+        <h2 className="text-lg sm:text-xl font-bold text-text-primary mb-1.5">Template & Design</h2>
+        <p className="text-xs sm:text-sm text-text-muted">Choose templates and customize appearance</p>
       </div>
 
       <div className="flex border-b border-border-subtle bg-gradient-to-r from-primary-50/20 to-transparent">
         <button
           onClick={() => setActiveTab('templates')}
-          className={`px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+          className={`px-4 py-3 text-sm font-medium transition-all duration-200 ${
             activeTab === 'templates'
               ? 'bg-white border-b-2 border-primary-500 text-primary-700 shadow-sm'
               : 'text-text-muted hover:text-text-primary hover:bg-primary-50/50'
@@ -56,7 +56,7 @@ export function TemplateCustomizer({
         </button>
         <button
           onClick={() => setActiveTab('customize')}
-          className={`px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+          className={`px-4 py-3 text-sm font-medium transition-all duration-200 ${
             activeTab === 'customize'
               ? 'bg-white border-b-2 border-primary-500 text-primary-700 shadow-sm'
               : 'text-text-muted hover:text-text-primary hover:bg-primary-50/50'
@@ -66,7 +66,7 @@ export function TemplateCustomizer({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4">
         {activeTab === 'templates' && (
           <TemplateGallery 
             currentTemplateId={currentTemplateId} 

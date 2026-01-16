@@ -1,21 +1,13 @@
 'use client'
-import { SearchIcon, AlertIcon, RocketIcon, DocumentIcon } from '@/components/Icons'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useCallback, useState, useRef } from 'react'
+import { useCallback } from 'react'
 import UploadResume from '@/components/Editor/UploadResume'
-import { ResumeAutomationFlow } from '@/features/resume-automation/components/ResumeAutomationFlow'
 import { deduplicateSections, sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
-import { Brain, Sparkles, Search, AlertTriangle, Rocket } from 'lucide-react'
-
-const quickActions = [
-  { icon: Brain, title: 'Match Job Description', description: 'Upload JD and tailor in minutes.', href: '/editor?view=jobs' },
-]
+import { Sparkles, Search, AlertTriangle, Rocket } from 'lucide-react'
 
 export default function UploadPage() {
   const router = useRouter()
-  const [automationOpenSignal, setAutomationOpenSignal] = useState<number | undefined>(undefined)
-  const automationSignalRef = useRef(0)
 
   const handleUploadSuccess = useCallback(
     (data: any) => {
@@ -97,8 +89,6 @@ export default function UploadPage() {
       </div>
 
       <main className="relative w-full flex flex-col gap-20 px-[10%] py-12 lg:py-20">
-        <ResumeAutomationFlow hideJobList hideHeader openSignal={automationOpenSignal} />
-        
         {/* Hero Section */}
         <section className="relative">
           <div className="text-center space-y-6 mb-12">
@@ -116,88 +106,32 @@ export default function UploadPage() {
             <p className="max-w-2xl mx-auto text-xl text-slate-600 leading-relaxed">
               Import from PDF or DOCX, keep every structured section, and unlock <span className="font-semibold text-primary-700">ATS-aware diagnostics</span> the moment it lands in the editor.
             </p>
-
           </div>
 
           {/* Main Upload Area */}
-          <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:items-start">
-            {/* Left Side - Upload Component */}
-            <div className="order-2 lg:order-1">
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-3xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-                <div className="relative rounded-3xl border border-border-subtle bg-white/95 backdrop-blur-md p-8 shadow-[0_20px_60px_rgba(15,23,42,0.15)]">
-                  <div className="mb-6 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-600 mb-2">Upload Resume</p>
-                      <h2 className="text-2xl font-bold text-slate-900">Bring your resume into edit mode</h2>
-                    </div>
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200">
-                      <span className="text-xs font-semibold text-primary-700">PDF</span>
-                      <span className="text-primary-300">·</span>
-                      <span className="text-xs font-semibold text-primary-700">DOCX</span>
-                    </div>
+          <div className="max-w-2xl mx-auto">
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-primary-400 via-purple-400 to-blue-400 rounded-3xl blur-lg opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+              <div className="relative rounded-3xl border border-border-subtle bg-white/95 backdrop-blur-md p-8 shadow-[0_20px_60px_rgba(15,23,42,0.15)]">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-600 mb-2">Upload Resume</p>
+                    <h2 className="text-2xl font-bold text-slate-900">Bring your resume into edit mode</h2>
                   </div>
-                  <UploadResume variant="modal" onUploadSuccess={handleUploadSuccess} />
-                  <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-purple-50/50 border border-blue-100">
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" />
-                        Smart parsing:
-                      </span> We retain layouts, sections, and bullet hierarchy. No formatting nightmares—just a clean editor ready for collaboration.
-                    </p>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200">
+                    <span className="text-xs font-semibold text-primary-700">PDF</span>
+                    <span className="text-primary-300">·</span>
+                    <span className="text-xs font-semibold text-primary-700">DOCX</span>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Right Side - Quick Actions */}
-            <div className="order-1 lg:order-2 space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h3>
-                <div className="grid gap-4">
-                  {quickActions.map((item, index) => (
-                    <Link
-                      key={item.title}
-                      href={item.href}
-                      className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-white/95 backdrop-blur-sm p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-1 surface-card"
-                    >
-
-                      <div className="relative flex items-start gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                          {typeof item.icon === 'string' ? item.icon : <item.icon className="w-6 h-6 text-primary-600" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 mb-1">{item.title}</div>
-                          <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
-                        </div>
-                        <div className="flex-shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors">
-                          →
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      automationSignalRef.current += 1
-                      setAutomationOpenSignal(automationSignalRef.current)
-                    }}
-                    className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-white/95 backdrop-blur-sm p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-1 text-left w-full surface-card"
-                  >
-
-                    <div className="relative flex items-start gap-4">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <Sparkles className="w-6 h-6 text-primary-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 mb-1">Generate Resume</div>
-                        <p className="text-sm text-slate-600 leading-relaxed">Generate resume from job in minutes.</p>
-                      </div>
-                      <div className="flex-shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors">
-                        →
-                      </div>
-                    </div>
-                  </button>
+                <UploadResume variant="modal" onUploadSuccess={handleUploadSuccess} />
+                <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-purple-50/50 border border-blue-100">
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      Smart parsing:
+                    </span> We retain layouts, sections, and bullet hierarchy. No formatting nightmares—just a clean editor ready for collaboration.
+                  </p>
                 </div>
               </div>
             </div>
