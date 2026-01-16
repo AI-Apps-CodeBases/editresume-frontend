@@ -233,7 +233,7 @@ export default function ModernEditorLayout({
         <div className={`flex-1 overflow-hidden transition-all duration-300 ease-in-out h-full ${
           focusMode || previewMode === 'fullscreen'
             ? 'flex justify-center' 
-            : 'lg:flex-[55]'
+            : 'lg:flex-[70]'
         } ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
           <div className={`w-full h-full transition-all duration-300 ease-in-out ${
             focusMode || previewMode === 'fullscreen' ? 'max-w-[800px]' : ''
@@ -358,7 +358,7 @@ export default function ModernEditorLayout({
             <div className={`hidden lg:block overflow-hidden h-full transition-all duration-300 ease-in-out ${
               focusMode || previewMode === 'fullscreen'
                 ? 'w-0 opacity-0 pointer-events-none overflow-hidden' 
-                : 'lg:flex-[45] opacity-100'
+                : 'lg:flex-[30] opacity-100'
             }`}>
               <RightPanel 
                 activeTab={activeRightTab} 
