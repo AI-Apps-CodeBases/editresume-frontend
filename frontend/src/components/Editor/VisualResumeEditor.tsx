@@ -3735,7 +3735,7 @@ export default function VisualResumeEditor({
                                                 const text = e.currentTarget.textContent || '';
                                                 updateBullet(section.id, bullet.id, text);
                                               }}
-                                              className={`text-sm leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
+                                              className={`text-[0.96rem] leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
                                               style={{ 
                                                 position: 'relative', 
                                                 zIndex: 10,
@@ -3748,7 +3748,7 @@ export default function VisualResumeEditor({
                                             </div>
                                             {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                                               <div
-                                                className={`text-sm leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                className={`text-[0.96rem] leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                   }`}
                                                 data-highlight-overlay="true"
                                                 style={{
@@ -3777,7 +3777,7 @@ export default function VisualResumeEditor({
                                       </div>
 
                                       {/* Action Buttons on the Right */}
-                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                         {/* AI Improve Button */}
                                         <button
                                           onClick={() => {
@@ -4847,7 +4847,7 @@ function SortableCompanyGroup({
         </div>
 
             {/* Actions - visible on hover */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
               <Tooltip text="AI Assistant - Generate work experience content" color="gray" position="top">
                 <button
                   onClick={() => {
@@ -5016,7 +5016,7 @@ function SortableCompanyGroup({
                   </div>
 
                   {/* Actions - visible on hover */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <Tooltip text="AI Improve - Enhance with missing JD keywords" color="gray" position="top">
                       <button
                         onClick={() => {
