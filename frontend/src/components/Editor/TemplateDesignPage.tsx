@@ -161,8 +161,8 @@ export default function TemplateDesignPage({
         </button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-[40%] border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <div className="w-full lg:w-[40%] h-[30%] lg:h-auto border-b lg:border-b-0 lg:border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto min-h-0">
           <TemplateCustomizer
             currentTemplateId={currentTemplate}
             config={config!}
@@ -173,7 +173,7 @@ export default function TemplateDesignPage({
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-8 flex items-start justify-center">
+        <div className="flex-1 h-[70%] lg:h-auto overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-4 sm:p-6 lg:p-8 flex items-start justify-center min-h-0">
           <div className="w-full max-w-4xl">
             <div className="mb-4 text-center">
               <h2 className="text-lg font-semibold text-text-primary mb-2">Live Preview</h2>
