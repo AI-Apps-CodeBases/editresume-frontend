@@ -246,6 +246,16 @@ function mapKeywordsToSections(
   resumeContent: ReturnType<typeof extractResumeContent>
 ): KeywordSectionMapping[] {
   const mappings: KeywordSectionMapping[] = [];
+  
+  // Section priority order: skills (1.0) > experience (0.9) > summary (0.6) > others
+  // This ensures keywords in higher-weighted sections are prioritized when duplicates exist
+  const sectionPriority: Record<string, number> = {
+    skills: 3,
+    experience: 2,
+    summary: 1,
+    education: 0,
+    projects: 0,
+  };
 
   keywords.forEach((kw) => {
     const keyword = kw.keyword.toLowerCase();
@@ -257,23 +267,40 @@ function mapKeywordsToSections(
 
     const sectionCounts: Record<string, number> = {};
 
-    if (pattern.test(resumeContent.skills)) {
-      sectionCounts['skills'] = (resumeContent.skills.match(pattern) || []).length;
+    // Check all sections and count occurrences
+    // Order matters: check higher-priority sections first
+    if (resumeContent.skills && pattern.test(resumeContent.skills)) {
+      const matches = resumeContent.skills.match(pattern);
+      sectionCounts['skills'] = matches ? matches.length : 0;
     }
-    if (pattern.test(resumeContent.experience)) {
-      sectionCounts['experience'] = (resumeContent.experience.match(pattern) || []).length;
+    if (resumeContent.experience && pattern.test(resumeContent.experience)) {
+      const matches = resumeContent.experience.match(pattern);
+      sectionCounts['experience'] = matches ? matches.length : 0;
     }
-    if (pattern.test(resumeContent.summary)) {
-      sectionCounts['summary'] = (resumeContent.summary.match(pattern) || []).length;
+    if (resumeContent.summary && pattern.test(resumeContent.summary)) {
+      const matches = resumeContent.summary.match(pattern);
+      sectionCounts['summary'] = matches ? matches.length : 0;
     }
-    if (pattern.test(resumeContent.education)) {
-      sectionCounts['education'] = (resumeContent.education.match(pattern) || []).length;
+    if (resumeContent.education && pattern.test(resumeContent.education)) {
+      const matches = resumeContent.education.match(pattern);
+      sectionCounts['education'] = matches ? matches.length : 0;
     }
-    if (pattern.test(resumeContent.projects)) {
-      sectionCounts['projects'] = (resumeContent.projects.match(pattern) || []).length;
+    if (resumeContent.projects && pattern.test(resumeContent.projects)) {
+      const matches = resumeContent.projects.match(pattern);
+      sectionCounts['projects'] = matches ? matches.length : 0;
     }
 
-    Object.entries(sectionCounts).forEach(([section, count]) => {
+    // If keyword appears in multiple sections, prioritize higher-weighted sections
+    // Sort sections by priority (highest first)
+    const sectionsWithKeyword = Object.entries(sectionCounts)
+      .filter(([_, count]) => count > 0)
+      .sort(([sectionA], [sectionB]) => 
+        (sectionPriority[sectionB] || 0) - (sectionPriority[sectionA] || 0)
+      );
+
+    // Add mappings for all sections where keyword appears
+    // This allows the scoring algorithm to properly weight keywords based on section
+    sectionsWithKeyword.forEach(([section, count]) => {
       mappings.push({
         keyword: kw.keyword,
         section,
@@ -470,16 +497,17 @@ function calculateKeywordCoverage(
   const coverage = (matchingKeywords.length / totalKeywords) * 100;
 
   const sectionWeights: Record<string, number> = {
-    skills: 1.0,
-    experience: 0.9,
-    summary: 0.6, // Balanced weight with 5-keyword cap to prevent excessive summary impact
+    skills: 2.0, // Doubled from 1.0 to make skills placement matter significantly more
+    experience: 1.5, // Increased from 0.9 to reward experience section keywords
+    summary: 0.4, // Reduced from 0.6 to minimize summary-only keyword impact
     education: 0.4,
     projects: 0.4,
   };
 
   // Cap summary keywords to prevent over-weighting from summary-only keyword additions
-  // Increased from 5 to 20 to allow more keywords from summary to contribute
-  const MAX_SUMMARY_KEYWORDS = 20;
+  // Reduced from 20 to 8 to prevent summary from dominating keyword coverage
+  // This forces more keywords into experience/skills sections where they're weighted higher
+  const MAX_SUMMARY_KEYWORDS = 8;
   const summaryKeywordMappings = keywordMappings.filter(m => m.section === 'summary');
   const otherMappings = keywordMappings.filter(m => m.section !== 'summary');
   
@@ -495,8 +523,45 @@ function calculateKeywordCoverage(
     }
   }
   
-  // Combine capped summary mappings with other section mappings
-  const processedMappings = [...cappedSummaryMappings, ...otherMappings];
+  // When a keyword appears in multiple sections, prioritize the highest-weighted section
+  // This prevents double-counting and ensures proper weighting
+  const keywordSectionMap = new Map<string, { section: string; occurrences: number; weight: number }>();
+  
+  // First, collect all mappings and prioritize by section weight
+  [...cappedSummaryMappings, ...otherMappings].forEach((mapping) => {
+    const keywordLower = mapping.keyword.toLowerCase();
+    const sectionWeight = sectionWeights[mapping.section] || 0.5;
+    const keywordWeight = matchingKeywords.find(kw => 
+      kw.keyword.toLowerCase() === keywordLower
+    )?.weight || 5;
+    
+    const existing = keywordSectionMap.get(keywordLower);
+    
+    // If keyword already mapped, keep the one with higher section weight
+    // This prioritizes skills (1.0) > experience (0.9) > summary (0.6)
+    if (!existing || sectionWeight > existing.weight) {
+      keywordSectionMap.set(keywordLower, {
+        section: mapping.section,
+        occurrences: mapping.occurrences,
+        weight: sectionWeight,
+      });
+    }
+  });
+  
+  // Convert back to processed mappings array
+  const processedMappings: KeywordSectionMapping[] = [];
+  keywordSectionMap.forEach((value, keyword) => {
+    // Find original keyword case
+    const originalKeyword = matchingKeywords.find(kw => 
+      kw.keyword.toLowerCase() === keyword
+    )?.keyword || keyword;
+    
+    processedMappings.push({
+      keyword: originalKeyword,
+      section: value.section,
+      occurrences: value.occurrences,
+    });
+  });
 
   let weightedScore = 0;
   let totalWeight = 0;
@@ -511,6 +576,7 @@ function calculateKeywordCoverage(
     const cappedOccurrences = Math.min(mapping.occurrences, 5);
     
     // Calculate base contribution
+    // Skills and experience keywords contribute more than summary keywords
     const contribution = sectionWeight * keywordWeight * cappedOccurrences;
     weightedScore += contribution;
     totalWeight += keywordWeight;
@@ -533,8 +599,8 @@ function calculateKeywordCoverage(
   });
 
   // Calculate base score with improved keyword contribution
-  // Increased max from 27 to 40 to allow higher scores with more keywords
-  const baseScore = totalWeight > 0 ? (weightedScore / totalWeight) * 40 : 0;
+  // Increased max from 55 to 60 to ensure skills/experience improvements show clearly
+  const baseScore = totalWeight > 0 ? (weightedScore / totalWeight) * 60 : 0;
   
   // Apply bonus for keyword occurrences - each occurrence contributes meaningfully
   // Calculate bonus based on total occurrences
@@ -564,8 +630,72 @@ function calculateKeywordCoverage(
   // Add bonus (ensures minimum 2 points per occurrence, max 5 points)
   finalScore = finalScore + bonusToAdd;
   
-  // Cap keyword coverage score at 40 (increased from 27)
-  finalScore = Math.min(40, finalScore);
+  // PLACEMENT BONUS: Reward keywords in skills/experience sections significantly
+  // This ensures adding keywords to skills/experience shows clear score increases
+  // even when those keywords already exist in summary
+  let placementBonus = 0;
+  const skillsKeywords = new Set<string>();
+  const experienceKeywords = new Set<string>();
+  const summaryKeywords = new Set<string>();
+  
+  // Track keywords by section from ALL mappings (not just processed ones)
+  // This allows us to detect when keywords appear in multiple sections
+  keywordMappings.forEach(mapping => {
+    const keywordLower = mapping.keyword.toLowerCase();
+    if (mapping.section === 'skills') {
+      skillsKeywords.add(keywordLower);
+    } else if (mapping.section === 'experience') {
+      experienceKeywords.add(keywordLower);
+    } else if (mapping.section === 'summary') {
+      summaryKeywords.add(keywordLower);
+    }
+  });
+  
+  // Bonus for keywords in skills section: +0.5 points per keyword (capped at 10)
+  // This rewards having keywords in skills, even if they're also in summary
+  placementBonus += Math.min(10, skillsKeywords.size * 0.5);
+  
+  // Bonus for keywords in experience section: +0.3 points per keyword (capped at 8)
+  placementBonus += Math.min(8, experienceKeywords.size * 0.3);
+  
+  finalScore = finalScore + placementBonus;
+  
+  // MULTI-SECTION BONUS: Enhanced to reward keywords appearing in both summary AND skills/experience
+  // This encourages distributing keywords across sections (depth of experience)
+  const keywordsInMultipleSections = new Map<string, Set<string>>();
+  keywordMappings.forEach(mapping => {
+    const keywordLower = mapping.keyword.toLowerCase();
+    if (!keywordsInMultipleSections.has(keywordLower)) {
+      keywordsInMultipleSections.set(keywordLower, new Set());
+    }
+    keywordsInMultipleSections.get(keywordLower)!.add(mapping.section);
+  });
+  
+  let multiSectionBonus = 0;
+  keywordsInMultipleSections.forEach((sections, keyword) => {
+    const hasSummary = sections.has('summary');
+    const hasSkills = sections.has('skills');
+    const hasExperience = sections.has('experience');
+    
+    // Enhanced bonus for keywords in summary+skills: +1 point per keyword
+    if (hasSummary && hasSkills) {
+      multiSectionBonus += 1.0;
+    }
+    // Enhanced bonus for keywords in summary+experience: +0.7 points per keyword
+    else if (hasSummary && hasExperience) {
+      multiSectionBonus += 0.7;
+    }
+    // Smaller bonus for other multi-section combinations
+    else if (sections.size >= 2) {
+      multiSectionBonus += (sections.size - 1) * 0.3;
+    }
+  });
+  // Cap multi-section bonus at 12 points to prevent over-scoring while still rewarding distribution
+  multiSectionBonus = Math.min(12, multiSectionBonus);
+  finalScore = finalScore + multiSectionBonus;
+  
+  // Cap keyword coverage score at 60 (increased from 55 to allow more growth with placement bonuses)
+  finalScore = Math.min(60, finalScore);
 
   return {
     score: Math.round(finalScore * 100) / 100,
@@ -790,6 +920,38 @@ export function calculateEnhancedATSScore(
     resumeContent
   );
 
+  // Debug logging for keyword detection (can be enabled via localStorage or env)
+  const DEBUG_ATS_SCORING = typeof window !== 'undefined' && 
+    (localStorage.getItem('DEBUG_ATS_SCORING') === 'true' || 
+     process.env.NODE_ENV === 'development');
+  
+  if (DEBUG_ATS_SCORING) {
+    const keywordBySection = new Map<string, string[]>();
+    keywordMappings.forEach(m => {
+      if (!keywordBySection.has(m.section)) {
+        keywordBySection.set(m.section, []);
+      }
+      keywordBySection.get(m.section)!.push(`${m.keyword} (${m.occurrences}x)`);
+    });
+    
+    console.log('[ATS Scoring Debug]', {
+      keywordMappings: {
+        summary: keywordBySection.get('summary') || [],
+        skills: keywordBySection.get('skills') || [],
+        experience: keywordBySection.get('experience') || [],
+        education: keywordBySection.get('education') || [],
+        projects: keywordBySection.get('projects') || [],
+      },
+      resumeSections: {
+        summaryLength: resumeContent.summary.length,
+        skillsLength: resumeContent.skills.length,
+        experienceLength: resumeContent.experience.length,
+      },
+      matchingKeywords: normalizedData.matchingKeywords.length,
+      missingKeywords: normalizedData.missingKeywords.length,
+    });
+  }
+
   const skillsMatch = calculateSkillsMatch(normalizedData.technicalKeywords, resumeContent);
   const experienceRelevance = calculateExperienceRelevance(resumeContent, jobDescription);
   const keywordCoverage = calculateKeywordCoverage(
@@ -801,6 +963,9 @@ export function calculateEnhancedATSScore(
   const atsCompatibility = calculateATSCompatibility(resumeContent);
 
   // Calculate scores from other categories (non-keyword contributions)
+  // These components contribute independently and are not limited by keyword coverage
+  // This ensures improvements in skills/experience sections show score increases even when
+  // keyword coverage is already optimized from summary improvements
   const nonKeywordScore = Math.round(
     skillsMatch.score +
     experienceRelevance.score +
@@ -808,13 +973,30 @@ export function calculateEnhancedATSScore(
     atsCompatibility.score
   );
 
-  // Allow keyword coverage to contribute fully - no artificial cap
-  // Scores can reach 100 with strong keyword matching
+  // Allow keyword coverage to contribute fully - increased cap from 40 to 55
+  // This provides more room for keyword improvements across all sections
   const cappedKeywordScore = keywordCoverage.score;
 
+  // Calculate total score
+  // Theoretical max: 40 (skills) + 30 (experience) + 55 (keywords) + 10 (education) + 5 (ATS) = 140
+  // Capped at 100 to maintain 0-100 scale, but increased keyword coverage cap ensures
+  // improvements in bullet points/skills can still increase the score
   const totalScore = Math.round(
     nonKeywordScore + cappedKeywordScore
   );
+
+  // Debug logging for score breakdown
+  if (DEBUG_ATS_SCORING) {
+    console.log('[ATS Scoring Debug] Score Breakdown:', {
+      skillsMatch: skillsMatch.score,
+      experienceRelevance: experienceRelevance.score,
+      keywordCoverage: keywordCoverage.score,
+      education: education.score,
+      atsCompatibility: atsCompatibility.score,
+      nonKeywordScore,
+      totalScore: Math.min(100, Math.max(0, totalScore)),
+    });
+  }
 
   const recommendations = generateRecommendations(
     normalizedData.technicalKeywords,
@@ -822,13 +1004,15 @@ export function calculateEnhancedATSScore(
     resumeContent
   );
 
-  // Total score can go up to 100, but keyword improvements are capped at 95
+  // Total score can go up to 100
+  // With increased keyword coverage cap (55) and reduced summary keyword cap (8),
+  // improvements in skills/experience sections will now properly increase the score
   return {
     totalScore: Math.min(100, Math.max(0, totalScore)),
     breakdown: {
       skillsMatch: { ...skillsMatch, max: 40 },
       experienceRelevance: { ...experienceRelevance, max: 30 },
-      keywordCoverage: { ...keywordCoverage, max: 40 },
+      keywordCoverage: { ...keywordCoverage, max: 60 },
       education: { ...education, max: 10 },
       atsCompatibility: { ...atsCompatibility, max: 5 },
     },
