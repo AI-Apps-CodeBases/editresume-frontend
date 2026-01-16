@@ -1,5 +1,4 @@
 import config from '@/lib/config'
-import { auth } from '@/lib/firebaseClient'
 
 export interface LinkedInAuthResponse {
   auth_url: string
@@ -43,20 +42,6 @@ class LinkedInService {
 
   private async getAuthToken(): Promise<string | null> {
     if (typeof window === 'undefined') return null
-    
-    try {
-      const currentUser = auth.currentUser
-      if (currentUser) {
-        const token = await currentUser.getIdToken()
-        if (token) {
-          localStorage.setItem('authToken', token)
-          return token
-        }
-      }
-    } catch (error) {
-      console.error('Failed to get auth token:', error)
-    }
-    
     const token = localStorage.getItem('authToken')
     return token
   }

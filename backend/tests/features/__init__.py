@@ -1,2 +1,0 @@
-"""Feature-level tests package."""
-

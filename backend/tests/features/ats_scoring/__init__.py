@@ -1,2 +1,0 @@
-"""ATS scoring feature tests."""
-

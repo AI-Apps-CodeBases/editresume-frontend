@@ -1254,27 +1254,11 @@ export default function VisualResumeEditor({
     if (!text) return text;
 
     const countsToUse = calculatedKeywordUsageCounts;
-    const technicalKeywords = new Set<string>([
-      ...(matchResult?.match_analysis?.technical_matches || []),
-      ...(matchResult?.match_analysis?.technical_missing || []),
-    ]);
-    const priorityKeywords = new Set<string>(jdKeywords?.priority || []);
-    const getThresholdForKeyword = (keyword: string): number => {
-      if (priorityKeywords.has(keyword)) return 8;
-      // Prefer server-provided technical classification; otherwise fall back to heuristic.
-      if (technicalKeywords.has(keyword)) return 10;
-      const kwLower = keyword.toLowerCase();
-      if (/[0-9]/.test(kwLower) || /[\/\-_+#.]/.test(kwLower)) return 10;
-      // Default "common" threshold (was 10)
-      return 9;
-    };
-
-    const overusedKeywords =
-      countsToUse && countsToUse.size > 0
-        ? Array.from(countsToUse.entries())
-            .filter(([keyword, count]) => count > getThresholdForKeyword(keyword))
-            .map(([keyword, _]) => keyword)
-        : [];
+    const overusedKeywords = countsToUse && countsToUse.size > 0
+      ? Array.from(countsToUse.entries())
+          .filter(([_, count]) => count > threshold)
+          .map(([keyword, _]) => keyword)
+      : [];
 
     const hasMatches = matchedKeywords && matchedKeywords.length > 0;
     const hasOverused = overusedKeywords.length > 0;
@@ -1284,7 +1268,7 @@ export default function VisualResumeEditor({
     const parts: Array<React.ReactNode> = [];
     let lastIndex = 0;
 
-    type Match = { keyword: string; index: number; length: number; count: number; isOverused: boolean; threshold: number };
+    type Match = { keyword: string; index: number; length: number; count: number; isOverused: boolean };
     const allMatches: Match[] = [];
 
     // Collect matching keywords (green)
@@ -1310,8 +1294,7 @@ export default function VisualResumeEditor({
                 index: match.index,
                 length: match[0].length,
                 count: keywordCounts[keyword] || 1,
-                isOverused: false,
-                threshold: getThresholdForKeyword(keyword)
+                isOverused: false
               });
             }
           }
@@ -1327,7 +1310,6 @@ export default function VisualResumeEditor({
       sortedOverused.forEach(keyword => {
         const keywordLower = keyword.toLowerCase().trim();
         const count = countsToUse?.get(keyword) || 0;
-        const keywordThreshold = getThresholdForKeyword(keyword);
         try {
           const hasSpecialChars = /[\/\-_]/g.test(keywordLower);
           const escaped = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1343,8 +1325,7 @@ export default function VisualResumeEditor({
                 index: match.index,
                 length: match[0].length,
                 count,
-                isOverused: true,
-                threshold: keywordThreshold
+                isOverused: true
               });
             }
           }
@@ -1400,7 +1381,7 @@ export default function VisualResumeEditor({
           parts.push(
             <Tooltip 
               key={`overused-${match.keyword}-${match.index}-${idx}`}
-              text={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${match.threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
+              text={`Overused keyword: "${match.keyword}" appears ${match.count} times (threshold: ${threshold}). Consider removing some instances to avoid keyword stuffing penalty.`}
               color="red"
               position="top"
             >
@@ -3215,7 +3196,7 @@ export default function VisualResumeEditor({
                                     shouldRehighlightRef.current = false;
                                   }, 300);
                                 }}
-                                className={`text-[0.63rem] lg:text-[0.756rem] leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 transition-all duration-200 cursor-text border border-border-subtle relative z-10 ${
+                                className={`text-sm lg:text-[1.05rem] leading-relaxed min-h-[100px] px-3 py-2 rounded-lg outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 transition-all duration-200 cursor-text border border-border-subtle relative z-10 ${
                                   ((jdKeywords?.matching?.length ?? 0) > 0 || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && data.summary && data.summary.trim()
                                     ? 'text-transparent group-focus-within:text-gray-700'
                                     : 'text-gray-700'
@@ -3229,7 +3210,7 @@ export default function VisualResumeEditor({
                                 const hasMatch = summaryMatches.matchedKeywords.length > 0;
                                 return (
                                   <div
-                                    className="text-[0.63rem] lg:text-[0.756rem] leading-relaxed pointer-events-none absolute top-0 left-0 right-0 z-0 group-focus-within:opacity-0 transition-opacity text-gray-800"
+                                    className="text-sm lg:text-[1.05rem] leading-relaxed pointer-events-none absolute top-0 left-0 right-0 z-0 group-focus-within:opacity-0 transition-opacity text-gray-800"
                                     data-highlight-overlay="true"
                                     style={{
                                       position: 'absolute',
@@ -3755,7 +3736,7 @@ export default function VisualResumeEditor({
                                                 const text = e.currentTarget.textContent || '';
                                                 updateBullet(section.id, bullet.id, text);
                                               }}
-                                              className={`text-[0.63rem] lg:text-[0.756rem] leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
+                                              className={`text-[0.96rem] lg:text-[1.15rem] leading-relaxed outline-none hover:bg-primary-50/50 focus:bg-primary-50/50 focus:ring-2 focus:ring-primary-500/20 rounded-lg transition-all duration-200 cursor-text px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-text-muted line-through' : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) ? 'text-transparent group-focus-within:text-text-secondary' : 'text-text-secondary'}`}
                                               style={{ 
                                                 position: 'relative', 
                                                 zIndex: 10,
@@ -3768,7 +3749,7 @@ export default function VisualResumeEditor({
                                             </div>
                                             {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                                               <div
-                                                className={`text-[0.63rem] lg:text-[0.756rem] leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
+                                                className={`text-[0.96rem] lg:text-[1.15rem] leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-1 sm:px-2 py-1 ${bullet.params?.visible === false ? 'text-gray-400 line-through' : 'text-gray-800'
                                                   }`}
                                                 data-highlight-overlay="true"
                                                 style={{
@@ -3965,16 +3946,50 @@ export default function VisualResumeEditor({
                           
                           let keywordsList = Array.from(uniqueKeywords.values());
                           
-                          // Filter by relevant keywords if AI analysis completed and found relevant keywords
-                          let keywordsToFilter = keywordsList;
+                          // When we have relevant keywords, prioritize showing ALL of them (at least 5-6)
+                          let filteredKeywords: string[] = [];
+                          let keywordsToShow: string[] = [];
+                          
                           if (relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords) {
-                            keywordsToFilter = keywordsList.filter((kw: string) => {
-                              return relevantKeywords.has(kw);
+                            // Show ALL relevant keywords directly from the API response
+                            // Convert Set to Array - these are the keywords the AI found for THIS bullet
+                            const relevantKeywordsArray = Array.from(relevantKeywords);
+                            
+                            // Sort relevant keywords by usage count (least used first) for better UX
+                            const sortedRelevant = relevantKeywordsArray.sort((a, b) => {
+                              const countA = calculatedKeywordUsageCounts?.get(a) || 0;
+                              const countB = calculatedKeywordUsageCounts?.get(b) || 0;
+                              return countA - countB;
+                            });
+                            
+                            // Show ALL relevant keywords (don't filter by usage count for relevant keywords)
+                            // This ensures we show at least 5-6 keywords as requested
+                            filteredKeywords = sortedRelevant;
+                            
+                            // If we have more than 15 relevant keywords, limit to top 15 (sorted by usage)
+                            if (filteredKeywords.length > 15) {
+                              filteredKeywords = filteredKeywords.slice(0, 15);
+                            }
+                          } else {
+                            // No relevant keywords - show all keywords filtered by usage count
+                            const sortedByUsage = keywordsList.sort((a, b) => {
+                              const countA = calculatedKeywordUsageCounts?.get(a) || 0;
+                              const countB = calculatedKeywordUsageCounts?.get(b) || 0;
+                              return countA - countB;
+                            });
+                            
+                            const maxKeywords = 60;
+                            keywordsToShow = sortedByUsage.slice(0, maxKeywords);
+                            
+                            // Filter out keywords used more than 6 times (only for non-relevant keywords)
+                            filteredKeywords = keywordsToShow.filter((keyword) => {
+                              const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
+                              return usageCount < 7;
                             });
                           }
                           
                           // Sort by usage count (least used first) to prioritize unused keywords
-                          const sortedByUsage = keywordsToFilter.sort((a, b) => {
+                          const sortedByUsage = keywordsList.sort((a, b) => {
                             const countA = calculatedKeywordUsageCounts?.get(a) || 0;
                             const countB = calculatedKeywordUsageCounts?.get(b) || 0;
                             // If we have relevant keywords, prioritize those
@@ -3989,29 +4004,7 @@ export default function VisualResumeEditor({
                           
                           // If we have relevant keywords, show all of them (up to 30), otherwise show up to 60
                           const maxKeywords = relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords ? 30 : 60;
-                          let keywordsToShow = sortedByUsage.slice(0, maxKeywords);
-
-                          // Filter out keywords used more than 3 times
-                          let filteredKeywords = keywordsToShow.filter((keyword) => {
-                            const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
-                            return usageCount < 4;
-                          });
-
-                          // If we filtered by relevant keywords but all were filtered out (used >3 times), fall back to all keywords
-                          if (filteredKeywords.length === 0 && relevantKeywords && relevantKeywords.size > 0 && !isAnalyzingKeywords && keywordsToFilter.length > 0) {
-                            // Fall back to showing all available keywords (not just relevant ones)
-                            const fallbackSorted = keywordsList.sort((a, b) => {
-                              const countA = calculatedKeywordUsageCounts?.get(a) || 0;
-                              const countB = calculatedKeywordUsageCounts?.get(b) || 0;
-                              return countA - countB;
-                            });
-                            const fallbackToShow = fallbackSorted.slice(0, 60);
-                            filteredKeywords = fallbackToShow.filter((keyword) => {
-                              const usageCount = calculatedKeywordUsageCounts?.get(keyword) || 0;
-                              return usageCount < 4;
-                            });
-                            keywordsToShow = fallbackToShow;
-                          }
+                          keywordsToShow = sortedByUsage.slice(0, maxKeywords);
 
                           const hasKeywords = filteredKeywords.length > 0
                           const hasNoJDKeywords = (!jdKeywords && !matchResult) || (filteredKeywords.length === 0 && !isAnalyzingKeywords && keywordsToShow.length === 0)
@@ -4050,15 +4043,42 @@ export default function VisualResumeEditor({
                               );
                             })
                           ) : (
-                            <p className="text-sm text-gray-500 text-center py-4">
-                              {isAnalyzingKeywords
-                                ? 'Analyzing bullet point to find relevant keywords...'
-                                : keywordsToShow.length > 0 
-                                  ? 'All available keywords are already used more than 3 times. Consider removing some instances before adding more.'
-                                  : relevantKeywords && relevantKeywords.size === 0
-                                    ? 'No relevant keywords found for this bullet point. Showing all available keywords.'
-                                    : 'No keywords available. Please match a job description first.'}
-                            </p>
+                            <div className="text-sm text-gray-500 text-center py-4">
+                              <p className="mb-3">
+                                {isAnalyzingKeywords
+                                  ? 'Analyzing bullet point to find relevant keywords...'
+                                  : keywordsToShow.length > 0 
+                                    ? 'All available keywords are already used more than 6 times. Consider removing some instances before adding more.'
+                                    : relevantKeywords && relevantKeywords.size === 0
+                                      ? 'No relevant keywords found for this bullet point. Showing all available keywords.'
+                                      : 'No keywords available. You can improve the bullet point generically without keywords.'}
+                              </p>
+                              {!isAnalyzingKeywords && hasNoJDKeywords && onAIImprove && (
+                                <button
+                                  onClick={async () => {
+                                    if (!aiImproveContext) return
+                                    try {
+                                      setIsAILoading(true)
+                                      const improvedText = await onAIImprove(aiImproveContext.currentText || '')
+                                      updateBullet(aiImproveContext.sectionId, aiImproveContext.bulletId, improvedText)
+                                      setShowAIImproveModal(false)
+                                      setAiImproveContext(null)
+                                      setSelectedMissingKeywords(new Set())
+                                      setGeneratedBulletOptions([])
+                                      setRelevantKeywords(null)
+                                    } catch (error) {
+                                      console.error('AI improvement failed:', error)
+                                    } finally {
+                                      setIsAILoading(false)
+                                    }
+                                  }}
+                                  disabled={isAILoading}
+                                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                                >
+                                  {isAILoading ? 'Improving...' : '✨ Improve without Keywords'}
+                                </button>
+                              )}
+                            </div>
                           );
                         })()}
                       </div>
@@ -4950,7 +4970,7 @@ function SortableCompanyGroup({
                             const text = e.currentTarget.textContent || '';
                             updateBullet(section.id, companyBullet.id, text);
                           }}
-                          className={`text-[0.63rem] lg:text-[0.756rem] leading-relaxed outline-none px-2 py-1 rounded-md transition-all duration-200 cursor-text ${
+                          className={`text-sm lg:text-[1.05rem] leading-relaxed outline-none px-2 py-1 rounded-md transition-all duration-200 cursor-text ${
                             companyBullet.params?.visible === false 
                               ? 'text-text-muted line-through opacity-60' 
                               : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) 
@@ -4969,7 +4989,7 @@ function SortableCompanyGroup({
                         </div>
                         {((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && (
                           <div
-                            className={`text-[0.63rem] lg:text-[0.756rem] leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-2 py-1 ${
+                            className={`text-sm lg:text-[1.05rem] leading-relaxed pointer-events-none absolute inset-0 z-0 group-focus-within:opacity-0 transition-opacity px-2 py-1 ${
                               companyBullet.params?.visible === false
                                 ? 'text-gray-400 line-through'
                                 : hasMatch && bulletMatch.matchedKeywords.length > 0

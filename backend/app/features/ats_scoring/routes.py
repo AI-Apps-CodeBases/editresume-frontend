@@ -245,7 +245,6 @@ async def get_enhanced_ats_score(
             "score": result.get("score", 0),
             "suggestions": result.get("suggestions", []),
             "details": result.get("details", {}),
-            "rule_engine": (result.get("details", {}) or {}).get("rule_engine"),
             "ai_improvements": result.get("ai_improvements", []),
             "method": result.get("method", "comprehensive"),
             "message": f"Enhanced ATS compatibility score: {result.get('score', 0)}/100",
@@ -258,7 +257,6 @@ async def get_enhanced_ats_score(
             "score": 0,
             "suggestions": ["Unable to analyze resume. Please check your content."],
             "details": {},
-            "rule_engine": None,
             "ai_improvements": [],
             "error": str(e),
         }

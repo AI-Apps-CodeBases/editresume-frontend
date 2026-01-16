@@ -11,8 +11,6 @@ import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
 import { calculateEnhancedATSScore } from '@/lib/atsScoring.enhanced';
 import type { ExtensionKeywordData, LegacyATSScoreResult } from '@/lib/atsScoring.types';
-import type { ATSRuleEngineSummary } from '@/lib/atsRuleTypes';
-import ATSRuleImpact from '@/components/AI/ATSRuleImpact';
 import { useSavedJobs } from '@/features/jobs/hooks/useSavedJobs';
 import type { Job } from '@/features/jobs/types';
 import { 
@@ -310,7 +308,6 @@ interface JobMatchResult {
   improvement_suggestions: ImprovementSuggestion[];
   applied_improvements?: ImprovementSuggestion[];
   score_improvement?: number;
-  rule_engine?: ATSRuleEngineSummary;
   analysis_summary: {
     overall_match: string;
     technical_match: string;
@@ -1611,7 +1608,6 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
   return {
     success: enhancedATSResult.success !== false,
     match_analysis,
-    rule_engine: enhancedATSResult.rule_engine ?? details.rule_engine ?? null,
     keyword_suggestions: {
       tfidf_suggestions: tfidfSuggestions, // Additional TF-IDF keywords similar to JD
     },
@@ -4824,31 +4820,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 })()}
               </div>
 
-          {/* Rule engine impact */}
-          {matchResult.rule_engine && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-              <ATSRuleImpact ruleEngine={matchResult.rule_engine} />
-            </div>
-          )}
-
-          {/* Keywords to Improve ATS Score */}
-          {(matchResult.match_analysis.missing_keywords.length > 0 || 
-            (matchResult.match_analysis.matching_keywords && matchResult.match_analysis.matching_keywords.length > 0) ||
-            technicalKeywordOptions.length > 0 || 
-            (matchResult.keyword_suggestions?.tfidf_suggestions?.length || 0) > 0) && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    Keywords to Improve ATS Score
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    Select keywords to add to your resume
-                  </p>
-                </div>
-                {selectedKeywords.size > 0 && (
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                    <Tooltip text="Generate AI-powered bullet points using the selected keywords and add them to your work experience" color="blue" position="bottom">
+              {/* Floating Action Button */}
+              {selectedKeywords.size > 0 && (
+                <div className="sticky bottom-0 mt-4 pt-4 bg-white border-t border-gray-200 -mx-4 -mb-4 px-4 pb-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Tooltip text="Generate AI-powered bullet points using the selected keywords and add them to your work experience" color="blue" position="top">
                       <button
                         onClick={async () => {
                           const workExpSections = resumeData.sections.filter((s: any) =>

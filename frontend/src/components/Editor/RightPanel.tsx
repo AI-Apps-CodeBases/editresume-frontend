@@ -414,7 +414,10 @@ export default function RightPanel({
                 </div>
                 <div className="flex items-center gap-4">
                   {isAnalyzing && (
-                    <span className="text-xs text-text-muted">Analyzing…</span>
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 text-primary-600 animate-spin" />
+                      <span className="text-xs text-text-muted">Analyzing…</span>
+                    </div>
                   )}
                 </div>
               </div>
