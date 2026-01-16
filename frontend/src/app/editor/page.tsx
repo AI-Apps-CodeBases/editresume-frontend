@@ -14,6 +14,7 @@ import PreviewPanel from '@/components/Resume/PreviewPanel'
 import GlobalReplacements from '@/components/AI/GlobalReplacements'
 import TemplateSelector from '@/components/Resume/TemplateSelector'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
+import OnboardingSlideshow from '@/components/OnboardingSlideshow'
 import ModernEditorLayout from '@/components/Editor/ModernEditorLayout'
 import EnhancedATSScoreWidget from '@/components/AI/EnhancedATSScoreWidget'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
@@ -110,6 +111,7 @@ const EditorPageContent = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [showExportUpgradePrompt, setShowExportUpgradePrompt] = useState(false)
   const [exportUpgradeData, setExportUpgradeData] = useState<{
     currentUsage: number
@@ -1205,6 +1207,23 @@ const EditorPageContent = () => {
       setCurrentView('editor')
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    
+    const showOnboardingParam = searchParams.get('showOnboarding')
+    const isMobile = window.innerWidth < 768
+    if (showOnboardingParam === 'true' && !isMobile) {
+      setShowOnboarding(true)
+      const url = new URL(window.location.href)
+      url.searchParams.delete('showOnboarding')
+      router.replace(url.pathname + url.search)
+    } else if (showOnboardingParam === 'true' && isMobile) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('showOnboarding')
+      router.replace(url.pathname + url.search)
+    }
+  }, [searchParams, router])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -2774,6 +2793,11 @@ const EditorPageContent = () => {
         onTemplatesClick={handleTemplatesClick}
         onShareResume={() => setShowShareResume(true)}
         onSelectJobDescriptionId={handleSelectJobDescriptionId}
+        onShowHelp={() => {
+          if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+            setShowOnboarding(true)
+          }
+        }}
       />
 
       {/* Modals */}
@@ -2781,6 +2805,63 @@ const EditorPageContent = () => {
         <AuthModal
           isOpen={showAuthModal}
           onClose={() => setShowAuthModal(false)}
+        />
+      )}
+
+      {showOnboarding && (
+        <OnboardingSlideshow
+          onComplete={() => {
+            setShowOnboarding(false)
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('hasSeenOnboarding', 'true')
+              
+              const notification = document.createElement('div')
+              notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-primary-600 to-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md'
+              notification.style.opacity = '0'
+              notification.style.transform = 'translateX(100%)'
+              notification.innerHTML = `
+                <div class="flex items-center gap-3">
+                  <div class="text-2xl">👋</div>
+                  <div>
+                    <div class="font-bold text-lg">Welcome!</div>
+                    <div class="text-sm mt-1 text-white/90">Upload your resume to get started</div>
+                  </div>
+                  <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-white/70 text-xl font-bold transition-colors">×</button>
+                </div>
+              `
+              document.body.appendChild(notification)
+              requestAnimationFrame(() => {
+                notification.style.transition = 'all 0.3s ease-out'
+                notification.style.opacity = '1'
+                notification.style.transform = 'translateX(0)'
+              })
+              setTimeout(() => {
+                if (notification.parentElement) {
+                  notification.style.opacity = '0'
+                  notification.style.transform = 'translateX(100%)'
+                  setTimeout(() => notification.remove(), 300)
+                }
+              }, 3000)
+              
+              setTimeout(() => {
+                const uploadButton = document.getElementById('upload-resume-button')
+                if (uploadButton) {
+                  uploadButton.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  uploadButton.focus()
+                  uploadButton.classList.add('ring-2', 'ring-primary-500', 'ring-offset-2')
+                  setTimeout(() => {
+                    uploadButton.classList.remove('ring-2', 'ring-primary-500', 'ring-offset-2')
+                  }, 3000)
+                }
+              }, 100)
+            }
+          }}
+          onSkip={() => {
+            setShowOnboarding(false)
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('hasSeenOnboarding', 'true')
+            }
+          }}
         />
       )}
 

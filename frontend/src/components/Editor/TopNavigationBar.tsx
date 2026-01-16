@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
-import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus, Eye, EyeOff, LayoutDashboard } from 'lucide-react'
+import { Sparkles, Save, Upload, Link as LinkIcon, FileText, Zap, Focus, Eye, EyeOff, LayoutDashboard, HelpCircle } from 'lucide-react'
 
 interface TopNavigationBarProps {
   onNewResume?: () => void
@@ -29,6 +29,7 @@ interface TopNavigationBarProps {
   }
   previewMode?: 'side-by-side' | 'fullscreen'
   onPreviewModeToggle?: () => void
+  onShowHelp?: () => void
 }
 
 export default function TopNavigationBar({ 
@@ -50,6 +51,7 @@ export default function TopNavigationBar({
   onFocusModeToggle,
   previewMode = 'side-by-side',
   onPreviewModeToggle,
+  onShowHelp,
 }: TopNavigationBarProps) {
   const { user } = useAuth()
   const [showActionsMenu, setShowActionsMenu] = useState(false)
@@ -147,10 +149,24 @@ export default function TopNavigationBar({
             </Tooltip>
           )}
 
+          {/* Help Button */}
+          {onShowHelp && (
+            <Tooltip text="How to Use - View tutorial" color="gray" position="bottom">
+              <button
+                onClick={onShowHelp}
+                className="p-2.5 rounded-lg transition-all duration-200 touch-target text-text-muted hover:text-text-primary hover:bg-primary-50/50"
+                aria-label="How to Use"
+              >
+                <HelpCircle className="w-5 h-5" />
+              </button>
+            </Tooltip>
+          )}
+
           {/* Upload Resume Button - Visible on desktop */}
           {onUploadResume && (
             <Tooltip text="Upload an existing resume file (PDF, DOCX) to edit" color="gray" position="bottom">
               <button
+                id="upload-resume-button"
                 onClick={onUploadResume}
                 className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target"
               >
