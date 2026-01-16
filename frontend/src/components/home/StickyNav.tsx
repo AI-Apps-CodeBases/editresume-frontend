@@ -59,12 +59,6 @@ export default function StickyNav() {
             Job Saver
           </Link>
           <Link
-            href="/onboarding"
-            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            Onboarding
-          </Link>
-          <Link
             href="/#pricing"
             className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >

@@ -2,12 +2,14 @@
 
 import { Suspense } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useResumeAccess } from '@/hooks/useResumeAccess'
 import FloatingUIPreview from './FloatingUIPreview'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
 
 export default function HeroSection() {
+  const router = useRouter()
   const { launchEditor, promptLogin, authModalProps, authModalKey } = useResumeAccess()
 
   return (
@@ -87,7 +89,7 @@ export default function HeroSection() {
                 className="flex flex-wrap items-center gap-4 mb-4"
               >
                 <button
-                  onClick={() => launchEditor('new')}
+                  onClick={() => router.push('/editor?new=true&showOnboarding=true')}
                   className="relative group inline-flex items-center justify-center gap-3 px-8 py-4 bg-primary-600 text-white rounded-xl font-semibold text-lg shadow-[0_8px_30px_rgba(15,98,254,0.4)] hover:shadow-[0_12px_40px_rgba(15,98,254,0.5)] transition-all duration-300 hover:-translate-y-0.5"
                 >
                   <span className="relative z-10">Get Started for Free</span>
