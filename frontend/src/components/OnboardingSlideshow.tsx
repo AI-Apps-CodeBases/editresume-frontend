@@ -53,10 +53,12 @@ const steps = [
 interface OnboardingSlideshowProps {
   onComplete?: () => void
   onSkip?: () => void
+  onDisable?: () => void
 }
 
-export default function OnboardingSlideshow({ onComplete, onSkip }: OnboardingSlideshowProps) {
+export default function OnboardingSlideshow({ onComplete, onSkip, onDisable }: OnboardingSlideshowProps) {
   const [currentStep, setCurrentStep] = useState(0)
+  const [dontShowAgain, setDontShowAgain] = useState(false)
 
   const nextStep = () => {
     if (currentStep < steps.length - 1) {
@@ -67,6 +69,9 @@ export default function OnboardingSlideshow({ onComplete, onSkip }: OnboardingSl
   }
 
   const handleSkip = () => {
+    if (dontShowAgain && onDisable) {
+      onDisable()
+    }
     if (onSkip) {
       onSkip()
     }
@@ -86,15 +91,28 @@ export default function OnboardingSlideshow({ onComplete, onSkip }: OnboardingSl
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="relative w-full max-w-6xl max-h-[90vh] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col">
         {(onSkip || onComplete) && (
-          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-3">
             {onSkip && (
-              <button
-                onClick={handleSkip}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                aria-label="Skip"
-              >
-                Skip
-              </button>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={dontShowAgain}
+                    onChange={(e) => setDontShowAgain(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 focus:ring-2 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-600 group-hover:text-slate-800 select-none">
+                    Don't show again
+                  </span>
+                </label>
+                <button
+                  onClick={handleSkip}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                  aria-label="Skip"
+                >
+                  Skip
+                </button>
+              </div>
             )}
             <button
               onClick={onSkip || onComplete}

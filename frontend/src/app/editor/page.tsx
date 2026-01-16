@@ -1211,6 +1211,9 @@ const EditorPageContent = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return
     
+    const onboardingDisabled = localStorage.getItem('onboardingDisabled') === 'true'
+    if (onboardingDisabled) return
+    
     const showOnboardingParam = searchParams.get('showOnboarding')
     const isMobile = window.innerWidth < 768
     if (showOnboardingParam === 'true' && !isMobile) {
@@ -2860,6 +2863,11 @@ const EditorPageContent = () => {
             setShowOnboarding(false)
             if (typeof window !== 'undefined') {
               localStorage.setItem('hasSeenOnboarding', 'true')
+            }
+          }}
+          onDisable={() => {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('onboardingDisabled', 'true')
             }
           }}
         />

@@ -516,11 +516,6 @@ body {
       @apply max-w-full;
     }
 
-    /* Touch-friendly interactions */
-    .touch-target {
-      @apply min-h-[44px] min-w-[44px];
-    }
-
     .mobile-button {
       @apply py-3 px-4 text-base;
     }
@@ -535,28 +530,92 @@ body {
       font-size: 16px !important;
     }
 
-  /* Mobile navigation */
-  .mobile-nav {
-    @apply fixed bottom-0 left-0 right-0 bg-white border-t z-40;
+    /* Mobile navigation */
+    .mobile-nav {
+      @apply fixed bottom-0 left-0 right-0 bg-white border-t z-40;
+    }
+
+    .mobile-nav-item {
+      @apply flex-1 flex flex-col items-center py-2 text-xs;
+    }
+
+    /* Safe area support for mobile devices */
+    .safe-area-inset-bottom {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .safe-area-inset-top {
+      padding-top: env(safe-area-inset-top);
+    }
   }
 
-  .mobile-nav-item {
-    @apply flex-1 flex flex-col items-center py-2 text-xs;
+  /* Desktop resets and overrides */
+  @media (min-width: 769px) {
+    .editor-layout {
+      @apply flex-row;
+    }
+
+    .mobile-preview-hidden {
+      @apply block;
+    }
+
+    .mobile-padding {
+      @apply px-8 py-6;
+    }
+
+    .mobile-text {
+      @apply text-base;
+    }
+
+    .mobile-heading {
+      @apply text-2xl;
+    }
+
+    .mobile-editor-grid {
+      @apply grid-cols-2;
+    }
+
+    .mobile-preview-bottom {
+      @apply order-1 mt-0;
+    }
+
+    .mobile-editor-full {
+      @apply order-1;
+    }
+
+    .mobile-header {
+      @apply flex-row gap-4;
+    }
+
+    .mobile-header-buttons {
+      @apply flex-nowrap gap-2;
+    }
+
+    .mobile-header-button {
+      @apply text-sm px-4 py-2;
+    }
+
+    .mobile-preview-controls {
+      @apply flex-row gap-4;
+    }
+
+    .mobile-button {
+      @apply py-2 px-6 text-sm;
+    }
+
+    .mobile-form {
+      @apply space-y-6;
+    }
+
+    .mobile-input {
+      @apply text-sm py-2 px-4;
+      font-size: inherit !important;
+    }
   }
 
-  /* Safe area support for mobile devices */
-  .safe-area-inset-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .safe-area-inset-top {
-    padding-top: env(safe-area-inset-top);
-  }
-
-  /* Better touch targets */
+  /* Touch-friendly interactions - global utility */
   .touch-target {
-    min-height: 44px;
-    min-width: 44px;
+    @apply min-h-[44px] min-w-[44px];
   }
 }
 
@@ -574,7 +633,6 @@ body {
       @apply order-1;
     }
   }
-}
 
 @layer base {
   @keyframes fadeIn {
