@@ -267,24 +267,29 @@ export default function ModernEditorLayout({
                 </div>
               </div>
 
-              <VisualResumeEditor
-                data={resumeData}
-                onChange={onResumeUpdate || (() => {})}
-                template={template}
-                onAddContent={onAddContent}
-                roomId={roomId}
-                onAddComment={onAddComment}
-                onResolveComment={onResolveComment}
-                onDeleteComment={onDeleteComment}
-                onCreateRoom={onCreateRoom}
-                onJoinRoom={onJoinRoom}
-                onLeaveRoom={onLeaveRoom}
-                isConnected={isConnected}
-                activeUsers={activeUsers}
-                onViewChange={onViewChange}
-                onAIImprove={onAIImprove}
-                hideSidebar={true}
-              />
+              <div
+                className="origin-top lg:scale-100 scale-[0.5]"
+                style={{ transformOrigin: 'top center', width: '200%' }}
+              >
+                <VisualResumeEditor
+                  data={resumeData}
+                  onChange={onResumeUpdate || (() => {})}
+                  template={template}
+                  onAddContent={onAddContent}
+                  roomId={roomId}
+                  onAddComment={onAddComment}
+                  onResolveComment={onResolveComment}
+                  onDeleteComment={onDeleteComment}
+                  onCreateRoom={onCreateRoom}
+                  onJoinRoom={onJoinRoom}
+                  onLeaveRoom={onLeaveRoom}
+                  isConnected={isConnected}
+                  activeUsers={activeUsers}
+                  onViewChange={onViewChange}
+                  onAIImprove={onAIImprove}
+                  hideSidebar={true}
+                />
+              </div>
             </div>
           ) : currentView === 'jobs' ? (
             <div className="h-full overflow-y-auto">

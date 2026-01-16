@@ -4347,7 +4347,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
                   <div className="relative" ref={actionsDropdownRef}>
                     <button
                       onClick={() => setShowActionsDropdown(!showActionsDropdown)}
