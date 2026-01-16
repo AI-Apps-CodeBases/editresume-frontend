@@ -4360,6 +4360,13 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                       </div>
                     )}
                   </div>
+                  <button
+                    onClick={() => setIsMinimized(!isMinimized)}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                    aria-label={isMinimized ? 'Expand panel' : 'Minimize panel'}
+                  >
+                    {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
+                  </button>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
                   <div className="relative" ref={actionsDropdownRef}>
