@@ -41,15 +41,6 @@ export default function ExtensionPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
             </a>
-            <Link
-              href="/onboarding"
-              className="inline-flex items-center gap-2 px-6 py-3 border-2 border-border-subtle text-text-primary rounded-lg hover:border-primary-600 hover:text-primary-600 transition-colors font-semibold text-base"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              Extension Guide
-            </Link>
             <p className="text-sm text-text-muted">
               One-click installation • Free • No account required to install
             </p>

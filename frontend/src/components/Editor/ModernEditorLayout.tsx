@@ -59,6 +59,7 @@ interface ModernEditorLayoutProps {
   onTemplatesClick?: () => void
   onShareResume?: () => void
   onSelectJobDescriptionId?: (id: number | null) => void
+  onShowHelp?: () => void
 }
 
 export default function ModernEditorLayout({
@@ -96,6 +97,7 @@ export default function ModernEditorLayout({
   onTemplatesClick,
   onShareResume,
   onSelectJobDescriptionId,
+  onShowHelp,
 }: ModernEditorLayoutProps) {
   const [activeRightTab, setActiveRightTab] = useState<'preview' | 'job-description' | 'suggestions'>('preview')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
@@ -205,6 +207,7 @@ export default function ModernEditorLayout({
         resumeData={resumeData}
         previewMode={previewMode}
         onPreviewModeToggle={() => setPreviewMode(prev => prev === 'side-by-side' ? 'fullscreen' : 'side-by-side')}
+        onShowHelp={onShowHelp}
       />
 
       <div className="flex flex-1 overflow-hidden mt-14">
