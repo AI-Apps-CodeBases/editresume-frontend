@@ -633,7 +633,6 @@ body {
       @apply order-1;
     }
   }
-}
 
 @layer base {
   @keyframes fadeIn {
