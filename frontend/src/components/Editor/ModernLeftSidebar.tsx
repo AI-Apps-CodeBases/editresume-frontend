@@ -108,7 +108,7 @@ export default function ModernLeftSidebar({
     return (
       <div className="lg:hidden fixed inset-0 z-50">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCloseDrawer} />
-        <div className="absolute left-0 top-0 bottom-0 w-[85vw] max-w-sm bg-white shadow-[0_12px_48px_rgba(15,23,42,0.15)]">
+        <div className="absolute left-0 top-0 bottom-0 w-[72vw] max-w-xs bg-white shadow-[0_12px_48px_rgba(15,23,42,0.15)]">
           <div className="h-full flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-gradient-to-r from-primary-50/30 to-transparent">
               <h2 className="text-lg font-semibold text-text-primary">Menu</h2>

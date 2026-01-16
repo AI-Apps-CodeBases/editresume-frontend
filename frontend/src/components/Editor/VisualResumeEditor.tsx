@@ -2833,16 +2833,15 @@ export default function VisualResumeEditor({
       <div className="flex-1" ref={editorRef}>
         {/* Mobile Sidebar Toggle */}
         <div className="lg:hidden fixed top-4 left-4 z-40">
-          <Tooltip text="Open navigation menu" color="gray" position="bottom">
-            <button
-              onClick={() => {/* TODO: Add mobile sidebar toggle */ }}
-              className="surface-card rounded-xl p-3 hover:shadow-glow transition-all duration-200 hover:-translate-y-0.5"
-            >
-              <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          </Tooltip>
+          <button
+            onClick={() => {/* TODO: Add mobile sidebar toggle */ }}
+            className="surface-card rounded-xl p-3 hover:shadow-glow transition-all duration-200 hover:-translate-y-0.5"
+            aria-label="Open navigation menu"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
         </div>
 
         {/* AI Loading Indicator */}

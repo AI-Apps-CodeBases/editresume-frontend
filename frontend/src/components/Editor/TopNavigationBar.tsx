@@ -81,17 +81,15 @@ export default function TopNavigationBar({
       <div className="flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
         {/* Left: Logo + Mobile Menu */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <Tooltip text="Open navigation menu" color="gray" position="bottom">
-            <button
-              onClick={onMenuClick}
-              className="lg:hidden p-2.5 hover:bg-primary-50/50 rounded-lg touch-target transition-all duration-200"
-              aria-label="Menu"
-            >
-              <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          </Tooltip>
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2.5 hover:bg-primary-50/50 rounded-lg touch-target transition-all duration-200"
+            aria-label="Menu"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
           <Link href="/" className="flex items-center -ml-0">
             <Image 
               src="/logo.jpg" 
