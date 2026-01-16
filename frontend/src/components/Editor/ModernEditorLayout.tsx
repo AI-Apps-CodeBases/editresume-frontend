@@ -239,7 +239,7 @@ export default function ModernEditorLayout({
             focusMode || previewMode === 'fullscreen' ? 'max-w-[800px]' : ''
           }`}>
           {currentView === 'editor' ? (
-            <div className={`h-full overflow-y-auto bg-gradient-to-b from-primary-50/10 to-transparent px-1 sm:px-6 lg:px-8 relative ${
+            <div className={`h-full overflow-y-auto overflow-x-hidden bg-gradient-to-b from-primary-50/10 to-transparent px-1 sm:px-6 lg:px-8 relative ${
               mobileEditorMode === 'match' ? 'hidden lg:block' : ''
             }`}>
               <div className="lg:hidden pt-3">
@@ -267,10 +267,7 @@ export default function ModernEditorLayout({
                 </div>
               </div>
 
-              <div
-                className="origin-top lg:scale-100 scale-[0.5]"
-                style={{ transformOrigin: 'top center', width: '200%' }}
-              >
+              <div className="w-full">
                 <VisualResumeEditor
                   data={resumeData}
                   onChange={onResumeUpdate || (() => {})}
