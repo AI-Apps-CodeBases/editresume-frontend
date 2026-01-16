@@ -46,6 +46,7 @@ export default function TemplateDesignPage({
   onClose,
 }: Props) {
   const [localConfig, setLocalConfig] = useState<TemplateConfig | null>(templateConfig || null)
+  const [mobileMode, setMobileMode] = useState<'templates' | 'preview'>('templates')
 
   useEffect(() => {
     if (templateConfig) {
@@ -136,7 +137,7 @@ export default function TemplateDesignPage({
 
   return (
     <div className="fixed inset-0 z-[110] bg-gradient-to-br from-primary-50/20 to-white flex flex-col">
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-border-subtle px-6 py-2.5 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-border-subtle px-4 sm:px-6 py-2.5 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
@@ -161,8 +162,35 @@ export default function TemplateDesignPage({
         </button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-[40%] border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <div className="lg:hidden px-4 pt-3">
+          <div className="inline-flex items-center rounded-full border border-border-subtle bg-white/90 shadow-sm">
+            <button
+              onClick={() => setMobileMode('templates')}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                mobileMode === 'templates'
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Templates & Customize
+            </button>
+            <button
+              onClick={() => setMobileMode('preview')}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                mobileMode === 'preview'
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Preview
+            </button>
+          </div>
+        </div>
+
+        <div className={`w-full lg:w-[40%] border-b lg:border-b-0 lg:border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto min-h-0 ${
+          mobileMode === 'preview' ? 'hidden lg:block' : ''
+        }`}>
           <TemplateCustomizer
             currentTemplateId={currentTemplate}
             config={config!}
@@ -173,21 +201,28 @@ export default function TemplateDesignPage({
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-8 flex items-start justify-center">
+        <div className={`flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-3 sm:p-6 lg:p-8 flex items-start justify-center min-h-0 ${
+          mobileMode === 'templates' ? 'hidden lg:flex' : ''
+        }`}>
           <div className="w-full max-w-4xl">
             <div className="mb-4 text-center">
               <h2 className="text-lg font-semibold text-text-primary mb-2">Live Preview</h2>
               <p className="text-xs text-text-muted">See your changes in real-time</p>
             </div>
             <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card overflow-visible">
-              <PreviewPanel
-                key={`preview-${currentTemplate}-${JSON.stringify(config?.layout?.twoColumnLeft || [])}-${JSON.stringify(config?.layout?.twoColumnRight || [])}`}
-                data={resumeData}
-                replacements={{}}
-                template={currentTemplate as any}
-                templateConfig={config}
-                constrained={false}
-              />
+              <div
+                className="origin-top lg:scale-100 scale-[0.9]"
+                style={{ transformOrigin: 'top center', width: '111%' }}
+              >
+                <PreviewPanel
+                  key={`preview-${currentTemplate}-${JSON.stringify(config?.layout?.twoColumnLeft || [])}-${JSON.stringify(config?.layout?.twoColumnRight || [])}`}
+                  data={resumeData}
+                  replacements={{}}
+                  template={currentTemplate as any}
+                  templateConfig={config}
+                  constrained={false}
+                />
+              </div>
             </div>
           </div>
         </div>

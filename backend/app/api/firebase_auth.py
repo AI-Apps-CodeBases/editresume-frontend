@@ -27,8 +27,17 @@ class SessionResponse(BaseModel):
 def require_firebase_user(request: Request) -> dict[str, Any]:
     user = getattr(request.state, "firebase_user", None)
     if not user:
+        auth_error = getattr(request.state, "firebase_auth_error", None)
+        error_detail = "Unauthorized"
+        if auth_error == "verification_failed":
+            error_detail = (
+                "Authentication failed due to network connectivity issues. "
+                "Please check your internet connection and try again. "
+                "If the problem persists, the service may be temporarily unavailable."
+            )
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=error_detail
         )
     return user
 

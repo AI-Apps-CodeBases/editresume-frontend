@@ -48,7 +48,7 @@ def _load_service_account_info() -> dict[str, Any] | None:
     return None
 
 
-def _initialize_firebase_with_timeout(cred, options, timeout: int = 10) -> firebase_admin.App | None:
+def _initialize_firebase_with_timeout(cred, options, timeout: int = 5) -> firebase_admin.App | None:
     """Initialize Firebase with timeout to prevent hanging on network issues.
     Reduced to 10s to fail fast and avoid blocking API requests."""
     result = [None]
@@ -136,8 +136,8 @@ def get_firebase_app() -> firebase_admin.App | None:
         if settings.firebase_project_id:
             options["projectId"] = settings.firebase_project_id
 
-        # Use timeout wrapper to prevent hanging (reduced to 10s to fail fast)
-        app = _initialize_firebase_with_timeout(cred, options, timeout=10)
+        # Use timeout wrapper to prevent hanging (reduced to 5s to fail fast)
+        app = _initialize_firebase_with_timeout(cred, options, timeout=5)
         if app:
             logger.info("Firebase Admin SDK initialized successfully")
             return app
@@ -183,10 +183,17 @@ def get_firestore_client() -> firestore.Client | None:
 def verify_id_token(id_token: str) -> dict[str, Any] | None:
     app = get_firebase_app()
     if not app:
-        logger.warning("verify_id_token called without configured Firebase app.")
+        logger.warning("verify_id_token called without configured Firebase app. This may be due to network connectivity issues to oauth2.googleapis.com.")
         return None
     try:
         return firebase_auth.verify_id_token(id_token, app=app)
+    except (google_auth_exceptions.TransportError, google_auth_exceptions.RefreshError) as exc:
+        logger.warning(
+            "Firebase ID token verification failed due to network error: %s. "
+            "This may indicate connectivity issues to oauth2.googleapis.com.",
+            exc
+        )
+        return None
     except firebase_exceptions.FirebaseError as exc:
         logger.warning("Firebase ID token verification error: %s", exc)
         return None

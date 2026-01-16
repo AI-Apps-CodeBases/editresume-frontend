@@ -1,8 +1,3 @@
-export interface AutoGenerateRequest {
-  jobId: number
-  sourceResumeIds: number[]
-}
-
 export interface ParsedBullet {
   id?: string
   text: string
@@ -26,6 +21,15 @@ export interface ParsedResumeData {
   sections?: ParsedSection[]
 }
 
+
+export interface ATSScore {
+  overall_score: number
+  keyword_match: number
+  experience_relevance: number
+  skills_coverage: number
+  suggestions: string[]
+}
+
 export interface GeneratedResume {
   id: number
   name?: string | null
@@ -46,14 +50,6 @@ export interface GeneratedVersion {
   resume_data: Record<string, unknown>
   created_at?: string | null
   change_summary?: string | null
-}
-
-export interface ATSScore {
-  overall_score: number
-  keyword_match: number
-  experience_relevance: number
-  skills_coverage: number
-  suggestions: string[]
 }
 
 export interface GenerationInsights {

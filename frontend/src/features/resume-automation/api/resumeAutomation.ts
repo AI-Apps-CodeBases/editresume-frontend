@@ -3,11 +3,6 @@
 import config from '@/lib/config'
 import { getAuthHeadersAsync } from '@/lib/auth'
 import type {
-  AutoGenerateRequest,
-  AutoGenerateResponse,
-  GeneratedResume,
-  GeneratedVersion,
-  ATSScore,
   ExtractedJobKeywords,
   ParsedResumeData,
 } from '../types'
@@ -31,29 +26,6 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
   }
   return (await response.json()) as T
 }
-
-export async function autoGenerateResume(
-  payload: AutoGenerateRequest
-): Promise<AutoGenerateResponse> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  Object.assign(headers, await getAuthHeadersAsync())
-
-  const url = new URL('/api/resumes/auto-generate', baseUrl)
-  const response = await fetch(url.toString(), {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-    body: JSON.stringify({
-      job_id: payload.jobId,
-      source_resume_ids: payload.sourceResumeIds,
-    }),
-  })
-  return handleResponse<AutoGenerateResponse>(response)
-}
-
-export type { AutoGenerateResponse, GeneratedResume, GeneratedVersion, ATSScore }
 
 export async function extractJobKeywords(
   jobDescription: string

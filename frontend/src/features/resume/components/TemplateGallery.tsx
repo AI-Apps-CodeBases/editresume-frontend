@@ -58,8 +58,8 @@ export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeDat
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Choose Template</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Choose Template</h3>
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value as any)}
@@ -73,7 +73,7 @@ export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeDat
         </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-2 sm:p-4">
         {filteredTemplates.map((template) => (
           <TemplateCard
             key={template.id}
@@ -204,7 +204,7 @@ function TemplateCard({
         </div>
       </div>
       
-      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden" style={{ height: '80px' }}>
+      <div className="mb-2 bg-white rounded border border-gray-200 overflow-hidden h-24 sm:h-24 lg:h-16 xl:h-14">
         {getTemplateThumbnail(template.id)}
       </div>
       

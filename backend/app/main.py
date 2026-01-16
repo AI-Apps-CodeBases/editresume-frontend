@@ -44,6 +44,7 @@ from app.core.dependencies import (
     OPENAI_API_KEY,
     openai_client,
 )
+from app.core.service_factory import get_improvement_agent_service
 from app.core.logging import setup_logging
 from app.features.ai import router as ai_feature_router
 from app.features.analytics import router as analytics_router
@@ -166,11 +167,43 @@ async def get_openai_status_legacy():
 
 # OpenAI improve-bullet endpoint (legacy route compatibility)
 @app.post("/api/openai/improve-bullet")
-async def improve_bullet_legacy(payload: dict):
-    """Legacy OpenAI improve-bullet endpoint - redirects to /api/ai/openai/improve-bullet"""
-    from app.api.ai import improve_bullet
+async def improve_bullet_legacy(
+    payload: dict, improvement_agent_service=Depends(get_improvement_agent_service)
+):
+    """
+    Legacy OpenAI improve-bullet endpoint - uses the improvement agent directly.
+    This preserves backward compatibility for clients calling /api/openai/improve-bullet.
+    """
     from app.api.models import ImproveBulletPayload
-    return await improve_bullet(ImproveBulletPayload(**payload))
+
+    try:
+        if not improvement_agent_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Improvement service is not available.",
+            )
+
+        parsed_payload = ImproveBulletPayload(**payload)
+        result = await improvement_agent_service.improve_bullet(
+            bullet=parsed_payload.bullet,
+            context=parsed_payload.context,
+            tone=parsed_payload.tone,
+        )
+
+        return {
+            "success": True,
+            "original": parsed_payload.bullet,
+            "improved": result["improved_bullet"],
+            "tokens_used": result.get("tokens_used", 0),
+            "tone": parsed_payload.tone,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(
+            f"OpenAI improve bullet legacy error: {str(e)}", exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Failed to improve bullet")
 
 
 # Match endpoints - registered directly due to non-standard prefix

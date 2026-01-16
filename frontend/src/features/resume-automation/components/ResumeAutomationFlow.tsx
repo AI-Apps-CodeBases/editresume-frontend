@@ -4,14 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { SavedJobsList } from '@/features/jobs/components/SavedJobsList'
-import { AutoGenerateButton } from './AutoGenerateButton'
 import { JobSelectionModal } from './JobSelectionModal'
 import { ResumeSelectionModal } from './ResumeSelectionModal'
-import { GenerationProgress } from './GenerationProgress'
-import { GeneratedResumePreview } from './GeneratedResumePreview'
-import { TailoredResumeReview } from './TailoredResumeReview'
-import { ATSScoreCard } from './ATSScoreCard'
-import { OptimizationSuggestions } from './OptimizationSuggestions'
 import { useTailorAutomationState } from '../hooks/useTailorAutomationState'
 
 interface ResumeAutomationFlowProps {
@@ -36,7 +30,6 @@ export function ResumeAutomationFlow({
     resumeOptions,
     resumeLoading,
     resumeError,
-    generationResult,
     jobs,
     jobsLoading,
     jobsError,
@@ -54,44 +47,8 @@ export function ResumeAutomationFlow({
     handleParseResumeFile,
     handleRequestResumeUpload,
     handleRequestJobParse,
-    generation,
   } = useTailorAutomationState({ openSignal, router })
 
-  const [showReview, setShowReview] = useState(false)
-
-  // Reset review when new generation starts
-  useEffect(() => {
-    if (stage === 'progress' || stage === 'idle') {
-      setShowReview(false)
-    }
-  }, [stage])
-
-  const summaryCard = useMemo(() => {
-    if (!generationResult) return null
-    if (showReview) {
-      return (
-        <TailoredResumeReview
-          result={generationResult}
-          onOpenEditor={handleOpenEditor}
-          onBack={() => setShowReview(false)}
-        />
-      )
-    }
-    return (
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <GeneratedResumePreview
-          resume={generationResult.resume}
-          atsScore={generationResult.ats_score}
-          insights={generationResult.insights}
-          onOpenEditor={() => setShowReview(true)}
-        />
-        <div className="space-y-6">
-          <ATSScoreCard score={generationResult.ats_score} />
-          <OptimizationSuggestions result={generationResult} />
-        </div>
-      </div>
-    )
-  }, [generationResult, handleOpenEditor, showReview])
 
   return (
     <div className="space-y-8">
@@ -108,21 +65,10 @@ export function ResumeAutomationFlow({
               Compare JD keywords, patch gaps, and boost ATS before exporting or editing further.
             </p>
           </div>
-          <AutoGenerateButton onClick={openJobModal} />
         </div>
       )}
 
-      {stage === 'progress' && <GenerationProgress steps={generation.steps} />}
-
-      {stage === 'completed' && summaryCard}
-
-      {stage === 'idle' && generation.error && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-600">
-          {generation.error}
-        </div>
-      )}
-
-      {stage === 'idle' && !generationResult && !hideJobList && (
+      {stage === 'idle' && !hideJobList && (
         <div>
           <header className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
@@ -173,7 +119,7 @@ export function ResumeAutomationFlow({
         onParseResumeFile={handleParseResumeFile}
       />
 
-      {selectedJob && stage !== 'completed' && (
+      {selectedJob && (
         <div className="text-xs text-slate-400">
           Target job: {selectedJobTitle}
           {selectedJobDescription ? ' — keywords loaded for tailoring' : ''}
