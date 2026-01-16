@@ -268,8 +268,8 @@ export default function ModernEditorLayout({
               </div>
 
               <div
-                className="origin-top lg:scale-100 scale-[0.85]"
-                style={{ transformOrigin: 'top left', width: '118%' }}
+                className="origin-top lg:scale-100 scale-[0.5]"
+                style={{ transformOrigin: 'top center', width: '200%' }}
               >
                 <VisualResumeEditor
                   data={resumeData}
