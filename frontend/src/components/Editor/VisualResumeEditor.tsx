@@ -2910,7 +2910,7 @@ export default function VisualResumeEditor({
           )}
 
           {/* Resume Canvas */}
-          <div className="max-w-4xl mx-auto py-6 px-4">
+          <div className="w-full max-w-full sm:max-w-4xl mx-auto py-6 px-2 sm:px-4">
             {/* Candidate Name */}
             <div className="mb-4">
               <h1 
