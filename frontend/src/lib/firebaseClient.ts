@@ -1,13 +1,15 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app'
 import { getAuth, Auth } from 'firebase/auth'
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+function getFirebaseConfig() {
+  return {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  }
 }
 
 let app: FirebaseApp | null = null
@@ -24,9 +26,22 @@ function getAppInstance(): FirebaseApp {
     throw new Error('Firebase can only be initialized in the browser')
   }
 
+  const firebaseConfig = getFirebaseConfig()
+  
   if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    console.warn('Firebase configuration is missing. Check environment variables.')
-    throw new Error('Firebase configuration is incomplete')
+    console.error('Firebase configuration is missing. Check environment variables.')
+    console.error('Missing variables:', {
+      apiKey: !firebaseConfig.apiKey ? 'MISSING' : 'SET',
+      projectId: !firebaseConfig.projectId ? 'MISSING' : 'SET',
+      authDomain: !firebaseConfig.authDomain ? 'MISSING' : 'SET',
+    })
+    console.error('Current values:', {
+      apiKey: firebaseConfig.apiKey ? `${firebaseConfig.apiKey.substring(0, 10)}...` : undefined,
+      projectId: firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain,
+    })
+    console.error('Make sure NEXT_PUBLIC_FIREBASE_* variables are set and restart the dev server')
+    throw new Error('Firebase configuration is incomplete. Restart the dev server after setting environment variables.')
   }
 
   app = getApps().length ? getApp() : initializeApp(firebaseConfig)
