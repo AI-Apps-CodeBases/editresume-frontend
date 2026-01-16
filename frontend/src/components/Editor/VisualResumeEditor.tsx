@@ -1223,7 +1223,7 @@ export default function VisualResumeEditor({
       if (keywordText) {
         parts.push(
           <Tooltip key={`kw-${idx}-${match.index}`} text={`${match.keyword} (${match.count}x) - Matches job description`} color="green" position="top">
-            <span className="border-b-2 border-dotted border-green-500 text-green-700 cursor-help" title={`${match.keyword} (${match.count}x)`}>
+            <span className="border-b-2 border-green-500 text-green-700 cursor-help" title={`${match.keyword} (${match.count}x)`}>
               {keywordText}
             </span>
           </Tooltip>
@@ -1385,7 +1385,7 @@ export default function VisualResumeEditor({
               color="red"
               position="top"
             >
-              <span className="border-b-2 border-dotted border-red-500 text-red-700 cursor-help">
+              <span className="border-b-2 border-red-500 text-red-700 cursor-help">
                 {keywordText}
               </span>
             </Tooltip>
@@ -1398,7 +1398,7 @@ export default function VisualResumeEditor({
               color="green"
               position="top"
             >
-              <span className="border-b-2 border-dotted border-green-500 text-green-700 cursor-help">
+              <span className="border-b-2 border-green-500 text-green-700 cursor-help">
                 {keywordText}
               </span>
             </Tooltip>
@@ -1501,7 +1501,7 @@ export default function VisualResumeEditor({
           color="red"
           position="top"
         >
-          <span className="border-b-2 border-dotted border-red-500 text-red-700 cursor-help">
+          <span className="border-b-2 border-red-500 text-red-700 cursor-help">
             {text.substring(match.index, match.index + match.length)}
           </span>
         </Tooltip>
@@ -1601,7 +1601,7 @@ export default function VisualResumeEditor({
           const before = highlightedText.substring(0, index);
           const after = highlightedText.substring(index + matchText.length);
           highlightedText = before + 
-            `<span class="border-b-2 border-dotted border-green-500 text-green-700 cursor-help" title="JD Keyword: ${escapedKeywordAttr}">${escapedMatch}</span>` + 
+            `<span class="border-b-2 border-green-500 text-green-700 cursor-help" title="JD Keyword: ${escapedKeywordAttr}">${escapedMatch}</span>` + 
             after;
         });
       } catch (e) {
