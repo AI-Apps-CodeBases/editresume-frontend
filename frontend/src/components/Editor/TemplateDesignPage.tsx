@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { TemplateCustomizer } from '@/features/resume/components'
 import { templateRegistry } from '@/features/resume/templates'
 import PreviewPanel from '@/components/Resume/PreviewPanel'
 import type { TemplateConfig } from '@/features/resume/templates/types'
+import { FileText, ChevronDown, Loader2 } from 'lucide-react'
+import Tooltip from '@/components/Shared/Tooltip'
 
 interface Props {
   resumeData: {
@@ -35,6 +37,9 @@ interface Props {
   onTemplateChange: (templateId: string) => void
   onTemplateConfigUpdate: (config: TemplateConfig) => void
   onClose: () => void
+  onExport?: (format: 'pdf' | 'docx') => void
+  isExporting?: boolean
+  hasResumeName?: boolean
 }
 
 export default function TemplateDesignPage({
@@ -44,9 +49,14 @@ export default function TemplateDesignPage({
   onTemplateChange,
   onTemplateConfigUpdate,
   onClose,
+  onExport,
+  isExporting = false,
+  hasResumeName = false,
 }: Props) {
   const [localConfig, setLocalConfig] = useState<TemplateConfig | null>(templateConfig || null)
   const [mobileMode, setMobileMode] = useState<'templates' | 'preview'>('templates')
+  const [showExportDropdown, setShowExportDropdown] = useState(false)
+  const exportDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (templateConfig) {
@@ -135,6 +145,26 @@ export default function TemplateDesignPage({
 
   const config = localConfig || templateRegistry.find((t) => t.id === currentTemplate)?.defaultConfig
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
+        setShowExportDropdown(false)
+      }
+    }
+
+    if (showExportDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showExportDropdown])
+
+  const handleExportClick = (format: 'pdf' | 'docx') => {
+    if (onExport) {
+      onExport(format)
+    }
+    setShowExportDropdown(false)
+  }
+
   return (
     <div className="fixed inset-0 z-[110] bg-gradient-to-br from-primary-50/20 to-white flex flex-col">
       <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-border-subtle px-4 sm:px-6 py-2.5 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
@@ -205,9 +235,56 @@ export default function TemplateDesignPage({
           mobileMode === 'templates' ? 'hidden lg:flex' : ''
         }`}>
           <div className="w-full max-w-4xl">
-            <div className="mb-4 text-center">
-              <h2 className="text-lg font-semibold text-text-primary mb-2">Live Preview</h2>
-              <p className="text-xs text-text-muted">See your changes in real-time</p>
+            <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-center flex-1">
+                <h2 className="text-lg font-semibold text-text-primary mb-2">Live Preview</h2>
+                <p className="text-xs text-text-muted">See your changes in real-time</p>
+              </div>
+              {onExport && (
+                <div className="relative" ref={exportDropdownRef}>
+                  <Tooltip text="Export resume" color="gray" position="bottom">
+                    <button
+                      onClick={() => setShowExportDropdown(!showExportDropdown)}
+                      disabled={isExporting || !hasResumeName}
+                      className="px-4 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm hover:shadow-md button-primary"
+                      style={{ background: 'var(--gradient-accent)' }}
+                    >
+                      {isExporting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Exporting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4" />
+                          <span>Export</span>
+                          <ChevronDown className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </Tooltip>
+                  {showExportDropdown && !isExporting && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-[0_12px_40px_rgba(15,23,42,0.12)] border border-border-subtle py-2 z-50 backdrop-blur-sm animate-fade-in">
+                      <button
+                        onClick={() => handleExportClick('pdf')}
+                        disabled={!hasResumeName}
+                        className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FileText className="w-4 h-4 text-primary-600" />
+                        <span className="font-medium">Export as PDF</span>
+                      </button>
+                      <button
+                        onClick={() => handleExportClick('docx')}
+                        disabled={!hasResumeName}
+                        className="w-full px-4 py-2.5 text-left text-sm text-text-secondary hover:bg-primary-50/50 transition-all duration-200 flex items-center gap-2 rounded-lg mx-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FileText className="w-4 h-4 text-primary-600" />
+                        <span className="font-medium">Export as DOCX</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card overflow-visible">
               <div

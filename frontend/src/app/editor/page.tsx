@@ -2748,6 +2748,9 @@ const EditorPageContent = () => {
           url.searchParams.delete('view')
           window.history.pushState({}, '', url.toString())
         }}
+        onExport={handleExportForLayout}
+        isExporting={isExporting}
+        hasResumeName={!!resumeData.name}
       />
     )
   }

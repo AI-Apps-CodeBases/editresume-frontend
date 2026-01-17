@@ -1,13 +1,12 @@
 'use client'
 import React, { useState, useRef, useCallback, useEffect } from 'react'
-import EnhancedPreviewPanel from './EnhancedPreviewPanel'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
 import config from '@/lib/config'
 import Tooltip from '@/components/Shared/Tooltip'
-import { Eye, FileText as FileTextIcon, CheckCircle2, Loader2, Lightbulb, XCircle, ChevronDown } from 'lucide-react'
+import { FileText as FileTextIcon, CheckCircle2, Loader2, Lightbulb, XCircle, ChevronDown } from 'lucide-react'
 
 
-type RightPanelTab = 'preview' | 'job-description' | 'suggestions'
+type RightPanelTab = 'job-description' | 'suggestions'
 
 interface RightPanelProps {
   activeTab?: RightPanelTab
@@ -45,7 +44,7 @@ interface RightPanelProps {
 }
 
 export default function RightPanel({ 
-  activeTab = 'preview', 
+  activeTab = 'job-description', 
   onTabChange,
   leftSidebarCollapsed = false,
   onResumeUpdate,
@@ -101,85 +100,7 @@ export default function RightPanel({
       setIsAnalyzing(true)
       onMatchScoreChange?.(atsScore, true)
     try {
-      // Extract text from live preview only if already on 'live' tab
-      // Don't switch tabs automatically - preserve user's current view
-      let previewText = '';
-      let previewExtractionSuccess = false;
-      
-      // Only try to extract preview text if we're already on the 'preview' tab
-      if (activeTab === 'preview') {
-        try {
-          // Wait for preview container to be ready with retry mechanism
-          const maxRetries = 3;
-          let retryCount = 0;
-          let previewContainer = null;
-          
-          while (retryCount < maxRetries && !previewContainer) {
-            // Wait progressively longer on each retry
-            await new Promise(resolve => setTimeout(resolve, 100 + (retryCount * 50)));
-            
-            // Find the preview container in the DOM
-            previewContainer = document.querySelector('.preview-resume-container[data-preview-container]') || 
-                             document.querySelector('.preview-resume-container');
-            
-            // Check if container has meaningful content
-            if (previewContainer) {
-              const hasContent = previewContainer.textContent && previewContainer.textContent.trim().length > 50;
-              if (!hasContent) {
-                previewContainer = null; // Reset and retry
-              }
-            }
-            
-            retryCount++;
-          }
-          
-          if (previewContainer) {
-            // Clone to avoid modifying the original
-            const clone = previewContainer.cloneNode(true) as HTMLElement;
-            
-            // Remove non-text elements (buttons, inputs, page breaks, etc.)
-            clone.querySelectorAll(
-              'button, input, .no-print, .page-break-marker, .page-break-label, .page-number, .page-layout-indicator, [style*="display: none"], [style*="display:none"]'
-            ).forEach(el => el.remove());
-            
-            // Remove elements with display: none from computed styles
-            Array.from(clone.querySelectorAll('*')).forEach(el => {
-              try {
-                const computed = window.getComputedStyle(el);
-                if (computed.display === 'none' || computed.visibility === 'hidden') {
-                  el.remove();
-                }
-              } catch (e) {
-                // Skip if element is not in DOM
-              }
-            });
-            
-            // Extract text content
-            previewText = clone.innerText || clone.textContent || '';
-            
-            // Clean up extra whitespace but preserve structure
-            previewText = previewText
-              .replace(/\s+/g, ' ')  // Multiple spaces to single
-              .replace(/\n\s*\n/g, '\n')  // Multiple newlines to single
-              .trim();
-              
-            if (previewText.length > 50) {
-              previewExtractionSuccess = true;
-              console.log(`📄 Extracted preview text length: ${previewText.length}`);
-            } else {
-              console.warn('Preview container found but text content too short:', previewText.length);
-            }
-          }
-        } catch (e) {
-          console.warn('Failed to extract preview text, falling back to resume data:', e);
-        }
-      } else {
-        // Not on 'live' tab - will use resume_data extraction (backend handles this)
-        console.log('Not on live tab, using resume_data for ATS score calculation');
-      }
-
-      // Always prepare resume_data for backend (backend will use resume_text if available, otherwise extract from resume_data)
-      // This ensures consistency - if preview extraction fails, backend can still extract from resume_data
+      // Backend will extract text from resume_data
       const cleanedResumeData = {
         name: resumeData.name || '',
         title: resumeData.title || '',
@@ -231,8 +152,7 @@ export default function RightPanel({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resume_text: previewExtractionSuccess ? previewText : undefined,  // Send extracted preview text if available
-          resume_data: cleanedResumeData,  // Always send resume_data for consistency (backend will use resume_text if available, otherwise extract from resume_data)
+          resume_data: cleanedResumeData,  // Backend will extract text from resume_data
           job_description: jobDescriptionToUse,
           target_role: '',
           industry: '',
@@ -321,7 +241,6 @@ export default function RightPanel({
   }, [calculateATSScore])
 
   const tabs = [
-    { id: 'preview' as const, label: 'Preview', icon: Eye },
     { id: 'job-description' as const, label: 'Match JD', icon: FileTextIcon },
     { id: 'suggestions' as const, label: 'Suggestions', icon: Lightbulb },
   ]
@@ -341,8 +260,8 @@ export default function RightPanel({
           <Tooltip 
             key={tab.id}
             text={
-              tab.id === 'preview' ? 'Live preview of your resume' :
-              'Match your resume against a job description'
+              tab.id === 'job-description' ? 'Match your resume against a job description' :
+              'Tips to increase your ATS match score'
             }
             color="blue"
             position="bottom"
@@ -364,44 +283,6 @@ export default function RightPanel({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {activeTab === 'preview' && (
-          <div className="flex-1 overflow-hidden">
-            {resumeData && (resumeData.name || resumeData.sections?.length > 0) ? (
-              <EnhancedPreviewPanel
-                key={`preview-${template}-${JSON.stringify(resumeData?.sections?.map(s => s.id))}`}
-                data={{
-                  ...resumeData,
-                  name: resumeData.name || '',
-                  title: resumeData.title || '',
-                  email: resumeData.email || '',
-                  phone: resumeData.phone || '',
-                  location: resumeData.location || '',
-                  summary: resumeData.summary || '',
-                  sections: (resumeData.sections || []).map(section => ({
-                    ...section,
-                    bullets: section.bullets || [],
-                  })),
-                  fieldsVisible: (resumeData as any).fieldsVisible || {},
-                }}
-                replacements={{}}
-                template={template}
-                templateConfig={templateConfig}
-                onExport={onExport}
-                isExporting={isExporting}
-                hasResumeName={hasResumeName}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full p-4 bg-slate-50">
-                <div className="text-center">
-                  <FileTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-sm text-text-secondary mb-1">No resume data</p>
-                  <p className="text-xs text-text-muted">Start editing to see live preview</p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {activeTab === 'job-description' && resumeData && (
           <div className="h-full flex flex-col">
             <div className="sticky top-0 z-10 border-b border-border-subtle bg-white/95 backdrop-blur-md px-6 py-4">

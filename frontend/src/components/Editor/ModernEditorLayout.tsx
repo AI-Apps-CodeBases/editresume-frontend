@@ -99,7 +99,7 @@ export default function ModernEditorLayout({
   onSelectJobDescriptionId,
   onShowHelp,
 }: ModernEditorLayoutProps) {
-  const [activeRightTab, setActiveRightTab] = useState<'preview' | 'job-description' | 'suggestions'>('preview')
+  const [activeRightTab, setActiveRightTab] = useState<'job-description' | 'suggestions'>('job-description')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
   const [showLeftDrawer, setShowLeftDrawer] = useState(false)
   const [showRightDrawer, setShowRightDrawer] = useState(false)
