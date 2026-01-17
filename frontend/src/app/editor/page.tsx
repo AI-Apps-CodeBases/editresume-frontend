@@ -82,40 +82,98 @@ const normalizeSectionsForState = (sections: any[]) => {
   const sorted = sortSectionsByDefaultOrder(deduplicated)
   
   // POST-PROCESSING: Fix bullets that are in wrong sections
-  // Move work experience bullets from Skills section to Work Experience section
+  // Move work experience bullets from Skills, Projects, Core Skills sections to Work Experience section
   const workExpBulletsToMove: any[] = []
+  
+  // First, find Work Experience section to get company headers
+  const workExpSection = sorted.find(section => {
+    const sectionTitle = (section.title || '').toLowerCase()
+    return sectionTitle === 'work experience' || 
+           sectionTitle.includes('work experience') ||
+           sectionTitle.includes('professional experience') ||
+           sectionTitle.includes('employment')
+  })
+  
+  // Extract company names from Work Experience section headers
+  const companyNames = new Set<string>()
+  if (workExpSection) {
+    workExpSection.bullets.forEach((bullet: any) => {
+      const bulletText = (bullet.text || '').trim()
+      if (bulletText.startsWith('**') && bulletText.endsWith('**') && bulletText.includes('/')) {
+        // Extract company name (first part before /)
+        const parts = bulletText.replace(/\*\*/g, '').split('/')
+        if (parts.length > 0) {
+          const companyName = parts[0].trim().toLowerCase()
+          companyNames.add(companyName)
+        }
+      }
+    })
+  }
+  
   const fixedSections = sorted.map(section => {
     const sectionTitle = (section.title || '').toLowerCase()
     const isSkillsSection = sectionTitle === 'skills' || sectionTitle.includes('skill')
+    const isProjectsSection = sectionTitle === 'projects' || sectionTitle.includes('project')
     const isWorkExpSection = sectionTitle === 'work experience' || 
                               sectionTitle.includes('work experience') ||
                               sectionTitle.includes('professional experience') ||
                               sectionTitle.includes('employment')
     
-    // If this is Skills section, check for work experience bullets
-    if (isSkillsSection) {
+    // Skip Work Experience section - we'll process it separately
+    if (isWorkExpSection) {
+      return section
+    }
+    
+    // Check Skills and Projects sections for work experience bullets
+    if (isSkillsSection || isProjectsSection) {
       const workExpBullets: any[] = []
-      const skillBullets: any[] = []
+      const otherBullets: any[] = []
       
       section.bullets.forEach((bullet: any) => {
         const bulletText = (bullet.text || '').trim()
+        if (!bulletText) {
+          otherBullets.push(bullet)
+          return
+        }
+        
         // Remove bullet point prefix if present
         const cleanText = bulletText.replace(/^[•\-\*]\s*/, '').toLowerCase()
         
-        // Check if bullet is a work experience bullet (action verb + describes what was done)
-        const actionVerbs = ['automated', 'designed', 'built', 'worked', 'used', 'deployed', 
-                            'managed', 'implemented', 'developed', 'created', 'configured',
-                            'migrated', 'utilized', 'authored', 'installed', 'controlled',
-                            'enhanced', 'advanced', 'applied', 'maintained', 'optimized',
-                            'improved', 'led', 'delivered', 'executed', 'achieved']
-        const isWorkExpBullet = actionVerbs.some(verb => 
-          cleanText.startsWith(verb)
-        ) && bulletText.length > 30 // Work experience bullets are usually longer
+        // Check 1: Is it a company header? (format: **Company / Role / Date**)
+        const isCompanyHeader = bulletText.startsWith('**') && 
+                                bulletText.endsWith('**') && 
+                                bulletText.includes('/')
         
-        if (isWorkExpBullet) {
-          workExpBullets.push(bullet)
+        if (isCompanyHeader) {
+          // Extract company name and check if it exists in Work Experience section
+          const parts = bulletText.replace(/\*\*/g, '').split('/')
+          if (parts.length > 0) {
+            const companyName = parts[0].trim().toLowerCase()
+            // If this company exists in Work Experience, it's a work experience entry
+            if (companyNames.has(companyName)) {
+              workExpBullets.push(bullet)
+            } else {
+              otherBullets.push(bullet)
+            }
+          } else {
+            otherBullets.push(bullet)
+          }
         } else {
-          skillBullets.push(bullet)
+          // Check 2: Is it a work experience bullet? (action verb + describes what was done)
+          const actionVerbs = ['automated', 'designed', 'built', 'worked', 'used', 'deployed', 
+                              'managed', 'implemented', 'developed', 'created', 'configured',
+                              'migrated', 'utilized', 'authored', 'installed', 'controlled',
+                              'enhanced', 'advanced', 'applied', 'maintained', 'optimized',
+                              'improved', 'led', 'delivered', 'executed', 'achieved']
+          const isWorkExpBullet = actionVerbs.some(verb => 
+            cleanText.startsWith(verb)
+          ) && bulletText.length > 30 // Work experience bullets are usually longer
+          
+          if (isWorkExpBullet) {
+            workExpBullets.push(bullet)
+          } else {
+            otherBullets.push(bullet)
+          }
         }
       })
       
@@ -124,17 +182,17 @@ const normalizeSectionsForState = (sections: any[]) => {
         workExpBulletsToMove.push(...workExpBullets)
       }
       
-      // Return Skills section without work experience bullets
+      // Return section without work experience bullets
       return {
         ...section,
-        bullets: skillBullets
+        bullets: otherBullets
       }
     }
     
     return section
   })
   
-  // Find Work Experience section and add moved bullets
+  // Find Work Experience section and add moved bullets in correct order (under correct company)
   const updatedSections = fixedSections.map(section => {
     const sectionTitle = (section.title || '').toLowerCase()
     const isWorkExpSection = sectionTitle === 'work experience' || 
@@ -143,19 +201,93 @@ const normalizeSectionsForState = (sections: any[]) => {
                               sectionTitle.includes('employment')
     
     if (isWorkExpSection && workExpBulletsToMove.length > 0) {
-      // Add separator if needed
-      const bullets = [...section.bullets]
-      if (bullets.length > 0 && bullets[bullets.length - 1]?.text?.trim() !== '') {
-        bullets.push({
-          id: `${section.id}-sep-${Date.now()}`,
-          text: '',
-          params: {}
-        })
+      // Group moved bullets by company name
+      const bulletsByCompany = new Map<string, any[]>()
+      const orphanBullets: any[] = []
+      let currentCompanyInMoved: string | null = null
+      
+      workExpBulletsToMove.forEach(bullet => {
+        const bulletText = (bullet.text || '').trim()
+        if (bulletText.startsWith('**') && bulletText.endsWith('**') && bulletText.includes('/')) {
+          // Company header - extract company name
+          const parts = bulletText.replace(/\*\*/g, '').split('/')
+          if (parts.length > 0) {
+            currentCompanyInMoved = parts[0].trim().toLowerCase()
+            if (!bulletsByCompany.has(currentCompanyInMoved)) {
+              bulletsByCompany.set(currentCompanyInMoved, [])
+            }
+            bulletsByCompany.get(currentCompanyInMoved)!.push(bullet)
+          }
+        } else if (currentCompanyInMoved && bulletText !== '') {
+          // Regular bullet - add to current company group
+          if (!bulletsByCompany.has(currentCompanyInMoved)) {
+            bulletsByCompany.set(currentCompanyInMoved, [])
+          }
+          bulletsByCompany.get(currentCompanyInMoved)!.push(bullet)
+        } else if (bulletText !== '') {
+          // Orphan bullet (no company header before it)
+          orphanBullets.push(bullet)
+        }
+      })
+      
+      // Reconstruct Work Experience bullets: existing + moved (grouped by company)
+      const existingBullets = [...section.bullets]
+      const finalBullets: any[] = []
+      let currentCompany: string | null = null
+      
+      existingBullets.forEach((bullet) => {
+        const bulletText = (bullet.text || '').trim()
+        const isCompanyHeader = bulletText.startsWith('**') && 
+                                bulletText.endsWith('**') && 
+                                bulletText.includes('/')
+        
+        if (isCompanyHeader) {
+          // Extract company name
+          const parts = bulletText.replace(/\*\*/g, '').split('/')
+          if (parts.length > 0) {
+            currentCompany = parts[0].trim().toLowerCase()
+          }
+          
+          finalBullets.push(bullet)
+          
+          // Add moved bullets for this company if any (skip duplicate header)
+          if (currentCompany && bulletsByCompany.has(currentCompany)) {
+            const companyBullets = bulletsByCompany.get(currentCompany)!
+            companyBullets.forEach((movedBullet) => {
+              const movedText = (movedBullet.text || '').trim()
+              // Skip if it's a duplicate header
+              if (movedText.startsWith('**') && movedText.endsWith('**')) {
+                return
+              }
+              finalBullets.push(movedBullet)
+            })
+            bulletsByCompany.delete(currentCompany)
+          }
+        } else {
+          finalBullets.push(bullet)
+        }
+      })
+      
+      // Add any remaining company groups that weren't in existing bullets
+      bulletsByCompany.forEach((bullets) => {
+        finalBullets.push(...bullets)
+      })
+      
+      // Add orphan bullets at the end
+      if (orphanBullets.length > 0) {
+        if (finalBullets.length > 0 && finalBullets[finalBullets.length - 1]?.text?.trim() !== '') {
+          finalBullets.push({
+            id: `${section.id}-sep-${Date.now()}`,
+            text: '',
+            params: {}
+          })
+        }
+        finalBullets.push(...orphanBullets)
       }
-      // Add work experience bullets that were in Skills section
+      
       return {
         ...section,
-        bullets: [...bullets, ...workExpBulletsToMove]
+        bullets: finalBullets
       }
     }
     
