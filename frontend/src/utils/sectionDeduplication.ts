@@ -21,6 +21,8 @@ export function normalizeSectionTitle(title: string): string {
   const normalized = title.toLowerCase().trim()
   
   // Semantic mapping for section titles
+  // REMOVED "Additional Skills" and "Core Skills" from mapping to preserve separate sections
+  // Only merge truly identical sections (e.g. "Skills" and "skills")
   const semanticMap: Record<string, string> = {
     "work experience": "work experience",
     "professional experience": "work experience",
@@ -34,12 +36,9 @@ export function normalizeSectionTitle(title: string): string {
     "project experience": "projects",
     "project": "projects",
     "projects": "projects",
-    "technical skills": "skills",
-    "core competencies": "skills",
-    "competencies": "skills",
-    "expertise": "skills",
-    "skill": "skills",
-    "skills": "skills",
+    // REMOVED: "technical skills", "core competencies", "competencies", "expertise", "skill" → "skills"
+    // This prevents "Additional Skills" and "Core Skills" from being merged
+    "skills": "skills", // Only exact "skills" matches
     "education & training": "education",
     "academic background": "education",
     "educational background": "education",
@@ -123,29 +122,18 @@ export function deduplicateSections(sections: Section[]): Section[] {
         const bulletLower = bulletText.toLowerCase()
         
         // Skip empty bullets and exact duplicates (case-insensitive)
+        // REMOVED near-duplicate check - it was too aggressive and causing bullets to be lost
+        // Only check for exact duplicates to preserve all content (including company headers)
         if (bulletText && !existingBulletTexts.has(bulletLower)) {
-          // Check for near-duplicates (similarity check)
-          let isDuplicate = false
-          for (const existingText of existingBulletTexts) {
-            // If one contains the other or vice versa with high overlap, consider duplicate
-            if ((bulletLower.includes(existingText) || existingText.includes(bulletLower)) &&
-                Math.abs(bulletLower.length - existingText.length) < Math.max(bulletLower.length, existingText.length) * 0.2) {
-              isDuplicate = true
-              break
-            }
-          }
-          
-          if (!isDuplicate) {
-            existingBulletTexts.add(bulletLower)
-            existingSection.bullets.push({
-              id: `${existingSection.id}-${bulletIndex}`,
-              text: bulletText,
-              params: (typeof bullet === 'object' && bullet !== null && 'params' in bullet
-                ? bullet.params
-                : undefined) || {}
-            })
-            bulletIndex++
-          }
+          existingBulletTexts.add(bulletLower)
+          existingSection.bullets.push({
+            id: `${existingSection.id}-${bulletIndex}`,
+            text: bulletText,
+            params: (typeof bullet === 'object' && bullet !== null && 'params' in bullet
+              ? bullet.params
+              : undefined) || {}
+          })
+          bulletIndex++
         }
       }
       
