@@ -3,7 +3,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useCallback } from 'react'
 import UploadResume from '@/components/Editor/UploadResume'
-import { deduplicateSections, sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
 import { Sparkles, Search, AlertTriangle, Rocket } from 'lucide-react'
 
 export default function UploadPage() {
@@ -11,11 +10,8 @@ export default function UploadPage() {
 
   const handleUploadSuccess = useCallback(
     (data: any) => {
-      // Use professional deduplication utility
-      const sections = Array.isArray(data?.sections) ? data.sections : []
-      const deduplicatedSections = deduplicateSections(sections)
-      const sortedSections = sortSectionsByDefaultOrder(deduplicatedSections)
-      
+      // Pass raw sections to editor - let normalizeSectionsForState handle deduplication
+      // This avoids double processing that can lose bullets
       const normalizedResume = {
         name: data?.name || '',
         title: data?.title || '',
@@ -23,7 +19,7 @@ export default function UploadPage() {
         phone: data?.phone || '',
         location: data?.location || '',
         summary: data?.summary || '',
-        sections: sortedSections,
+        sections: Array.isArray(data?.sections) ? data.sections : [], // Pass raw sections
       }
 
       if (typeof window !== 'undefined') {
