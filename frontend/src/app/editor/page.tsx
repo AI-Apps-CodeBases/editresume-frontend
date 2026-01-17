@@ -81,61 +81,81 @@ const normalizeSectionsForState = (sections: any[]) => {
   const deduplicated = deduplicateSections(sections)
   const sorted = sortSectionsByDefaultOrder(deduplicated)
   
-  // POST-PROCESSING: Fix bullets that are in wrong sections
-  // Move work experience bullets from Skills section to Work Experience section
+  // COMPREHENSIVE POST-PROCESSING: Fix bullets that are in wrong sections
+  // This handles ALL cases: Skills, Projects, Core Skills, Additional Skills, etc.
+  // PERMANENT FIX: Works for all resumes without code changes per resume
   const workExpBulletsToMove: any[] = []
+  
   const fixedSections = sorted.map(section => {
     const sectionTitle = (section.title || '').toLowerCase()
-    const isSkillsSection = sectionTitle === 'skills' || sectionTitle.includes('skill')
     const isWorkExpSection = sectionTitle === 'work experience' || 
                               sectionTitle.includes('work experience') ||
                               sectionTitle.includes('professional experience') ||
                               sectionTitle.includes('employment')
     
-    // If this is Skills section, check for work experience bullets
-    if (isSkillsSection) {
-      const workExpBullets: any[] = []
-      const skillBullets: any[] = []
-      
-      section.bullets.forEach((bullet: any) => {
-        const bulletText = (bullet.text || '').trim()
-        // Remove bullet point prefix if present
-        const cleanText = bulletText.replace(/^[•\-\*]\s*/, '').toLowerCase()
-        
-        // Check if bullet is a work experience bullet (action verb + describes what was done)
-        const actionVerbs = ['automated', 'designed', 'built', 'worked', 'used', 'deployed', 
-                            'managed', 'implemented', 'developed', 'created', 'configured',
-                            'migrated', 'utilized', 'authored', 'installed', 'controlled',
-                            'enhanced', 'advanced', 'applied', 'maintained', 'optimized',
-                            'improved', 'led', 'delivered', 'executed', 'achieved']
-        const isWorkExpBullet = actionVerbs.some(verb => 
-          cleanText.startsWith(verb)
-        ) && bulletText.length > 30 // Work experience bullets are usually longer
-        
-        if (isWorkExpBullet) {
-          workExpBullets.push(bullet)
-        } else {
-          skillBullets.push(bullet)
-        }
-      })
-      
-      // Store work experience bullets to move them later
-      if (workExpBullets.length > 0) {
-        workExpBulletsToMove.push(...workExpBullets)
-      }
-      
-      // Return Skills section without work experience bullets
-      return {
-        ...section,
-        bullets: skillBullets
-      }
+    // Skip Work Experience section - we'll process it separately
+    if (isWorkExpSection) {
+      return section
     }
     
-    return section
+    // Check ALL other sections for work experience bullets
+    const workExpBullets: any[] = []
+    const otherBullets: any[] = []
+    
+    section.bullets.forEach((bullet: any) => {
+      const bulletText = (bullet.text || '').trim()
+      if (!bulletText) {
+        otherBullets.push(bullet)
+        return
+      }
+      
+      // Remove bullet point prefix if present
+      const cleanText = bulletText.replace(/^[•\-\*]\s*/, '').toLowerCase()
+      
+      // Check 1: Is it a company header? (format: **Company / Role / Date**)
+      const isCompanyHeader = bulletText.startsWith('**') && 
+                              bulletText.endsWith('**') && 
+                              bulletText.includes('/') &&
+                              (bulletText.includes('Engineer') || 
+                               bulletText.includes('Developer') || 
+                               bulletText.includes('Manager') || 
+                               bulletText.includes('SRE') ||
+                               bulletText.includes('Analyst') ||
+                               bulletText.includes('Architect') ||
+                               /\d{4}/.test(bulletText)) // Contains year
+      
+      // Check 2: Is it a work experience bullet? (action verb + describes what was done)
+      const actionVerbs = ['automated', 'designed', 'built', 'worked', 'used', 'deployed', 
+                          'managed', 'implemented', 'developed', 'created', 'configured',
+                          'migrated', 'utilized', 'authored', 'installed', 'controlled',
+                          'enhanced', 'advanced', 'applied', 'maintained', 'optimized',
+                          'improved', 'led', 'delivered', 'executed', 'achieved',
+                          'established', 'coordinated', 'supervised', 'directed']
+      const isWorkExpBullet = actionVerbs.some(verb => 
+        cleanText.startsWith(verb)
+      ) && bulletText.length > 30 // Work experience bullets are usually longer
+      
+      if (isCompanyHeader || isWorkExpBullet) {
+        workExpBullets.push(bullet)
+      } else {
+        otherBullets.push(bullet)
+      }
+    })
+    
+    // Store work experience bullets to move them later
+    if (workExpBullets.length > 0) {
+      workExpBulletsToMove.push(...workExpBullets)
+    }
+    
+    // Return section without work experience bullets
+    return {
+      ...section,
+      bullets: otherBullets
+    }
   })
   
   // Find Work Experience section and add moved bullets
-  const updatedSections = fixedSections.map(section => {
+  let updatedSections = fixedSections.map(section => {
     const sectionTitle = (section.title || '').toLowerCase()
     const isWorkExpSection = sectionTitle === 'work experience' || 
                               sectionTitle.includes('work experience') ||
@@ -152,10 +172,117 @@ const normalizeSectionsForState = (sections: any[]) => {
           params: {}
         })
       }
-      // Add work experience bullets that were in Skills section
+      // Add work experience bullets that were in wrong sections
       return {
         ...section,
         bullets: [...bullets, ...workExpBulletsToMove]
+      }
+    }
+    
+    return section
+  })
+  
+  // Sort work experience bullets by date (most recent first)
+  updatedSections = updatedSections.map(section => {
+    const sectionTitle = (section.title || '').toLowerCase()
+    const isWorkExpSection = sectionTitle === 'work experience' || 
+                              sectionTitle.includes('work experience') ||
+                              sectionTitle.includes('professional experience') ||
+                              sectionTitle.includes('employment')
+    
+    if (isWorkExpSection) {
+      // Group bullets by company (company header + following bullets)
+      const companyGroups: Array<{ header: any, bullets: any[], endDate: Date }> = []
+      let currentGroup: { header: any, bullets: any[], endDate: Date } | null = null
+      
+      section.bullets.forEach((bullet: any) => {
+        const bulletText = (bullet.text || '').trim()
+        const isCompanyHeader = bulletText.startsWith('**') && 
+                                bulletText.endsWith('**') && 
+                                bulletText.includes('/')
+        
+        if (isCompanyHeader) {
+          // Save previous group
+          if (currentGroup) {
+            companyGroups.push(currentGroup)
+          }
+          
+          // Extract date from header (format: **Company / Role / Date Range**)
+          // Try multiple date formats
+          const dateMatch = bulletText.match(/(\d{4})\s*[-–—]\s*(\d{4}|Recent|Present|Current)/i) ||
+                           bulletText.match(/(\w+\s+\d{4})\s*[-–—]\s*(\w+\s+\d{4}|Recent|Present|Current)/i) ||
+                           bulletText.match(/(\d{1,2}\/\d{4})\s*[-–—]\s*(\d{1,2}\/\d{4}|Recent|Present|Current)/i)
+          let endDate = new Date(0) // Default to oldest
+          
+          if (dateMatch) {
+            const endDateStr = dateMatch[2]?.toLowerCase()
+            if (endDateStr === 'recent' || endDateStr === 'present' || endDateStr === 'current') {
+              endDate = new Date() // Most recent
+            } else if (dateMatch[2] && /\d{4}/.test(dateMatch[2])) {
+              const yearMatch = dateMatch[2].match(/\d{4}/)
+              if (yearMatch) {
+                const year = parseInt(yearMatch[0])
+                const monthMatch = dateMatch[2].match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i)
+                if (monthMatch) {
+                  const monthMap: Record<string, number> = {
+                    'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
+                    'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
+                  }
+                  endDate = new Date(year, monthMap[monthMatch[0].toLowerCase()] || 0)
+                } else {
+                  endDate = new Date(year, 11, 31) // End of year
+                }
+              }
+            }
+          }
+          
+          // Start new group
+          currentGroup = {
+            header: bullet,
+            bullets: [],
+            endDate
+          }
+        } else if (currentGroup && bulletText !== '') {
+          // Add bullet to current group
+          currentGroup.bullets.push(bullet)
+        } else if (!currentGroup && bulletText !== '') {
+          // Orphan bullet (no company header) - create a group for it
+          currentGroup = {
+            header: null,
+            bullets: [bullet],
+            endDate: new Date(0)
+          }
+        }
+      })
+      
+      // Save last group
+      if (currentGroup) {
+        companyGroups.push(currentGroup)
+      }
+      
+      // Sort groups by end date (most recent first)
+      companyGroups.sort((a, b) => b.endDate.getTime() - a.endDate.getTime())
+      
+      // Reconstruct bullets array with sorted groups
+      const sortedBullets: any[] = []
+      companyGroups.forEach((group, groupIdx) => {
+        if (group.header) {
+          sortedBullets.push(group.header)
+        }
+        sortedBullets.push(...group.bullets)
+        // Add separator between groups (except last)
+        if (groupIdx < companyGroups.length - 1 && group.bullets.length > 0) {
+          sortedBullets.push({
+            id: `${section.id}-sep-${Date.now()}-${groupIdx}`,
+            text: '',
+            params: {}
+          })
+        }
+      })
+      
+      return {
+        ...section,
+        bullets: sortedBullets
       }
     }
     
