@@ -287,20 +287,62 @@ CRITICAL RULES FOR WORK EXPERIENCE:
 2. Tasks/achievements MUST start with "• " (bullet point)
 3. Separate different jobs with empty string ""
 4. Extract complete date ranges (e.g., "Jan 2020 - Dec 2022" or "2020-2022")
-5. Include ALL jobs from the resume
+5. Include ALL jobs from the resume - DO NOT SKIP ANY COMPANY
+6. For EACH company, extract ALL bullet points listed under that company
+7. If a company has no bullet points (new job), still include the company header
+8. DO NOT combine bullets from different companies - keep them separate with empty string separator
+9. Preserve the exact order of companies as they appear in the resume
+
+CRITICAL RULES FOR EDUCATION:
+1. Extract ALL education entries (degrees, certifications, courses)
+2. Include: Degree/Diploma name, Institution name, Year/Graduation date
+3. Include GPA, honors, or academic achievements if mentioned
+4. Format: "Degree, Institution, Year" or "Degree at Institution (Year)"
+5. If multiple degrees, list them all in bullets
+
+CRITICAL RULES FOR SKILLS:
+1. Extract ALL skills mentioned in the resume
+2. Preserve skill categories if present (e.g., "Container Orchestration: Kubernetes")
+3. Include technical skills, soft skills, languages, tools, platforms
+4. If skills are in a table or list format, convert to bullet points
+5. DO NOT combine different skill categories - preserve original structure
+
+CRITICAL RULES FOR PROJECTS:
+1. Extract ALL projects mentioned (personal, academic, professional)
+2. Include: Project name, description, technologies used, outcomes
+3. Preserve all bullet points under each project
+4. Format project headers similar to work experience: **Project Name / Role / Date** (if dates available)
+
+CRITICAL RULES FOR CERTIFICATIONS:
+1. Extract ALL certifications, licenses, and credentials
+2. Include: Certification name, issuing organization, date (if available)
+3. Format: "Certification Name, Issuing Organization, Date" or "Certification Name (Date)"
+
+CRITICAL RULES FOR AWARDS/HONORS:
+1. Extract ALL awards, honors, recognitions
+2. Include: Award name, organization, date (if available)
+3. Preserve any descriptions or achievements mentioned
+
+CRITICAL RULES FOR ALL SECTIONS:
+1. DO NOT skip any section that appears in the resume
+2. DO NOT combine different sections - keep them separate
+3. Preserve exact wording - do not paraphrase or summarize
+4. Include ALL bullet points under each section
+5. If a section has no content, still include it with empty bullets array
+6. Maintain the order of sections as they appear in the resume
 
 OTHER RULES:
-6. Identify ALL sections (Education, Skills, Projects, Certifications, Awards, etc.)
-7. Preserve important details (dates, technologies, metrics, achievements)
-8. If something is missing (like phone or email), leave it as empty string
-9. Professional summary MUST be an exact copy of the resume's Professional Summary section without rewording
-10. Every skill listed in the resume must appear in the JSON output exactly as written (split into multiple bullets if needed)
-11. Return ONLY valid JSON, no markdown code blocks
-12. This may be a MULTI-PAGE resume - extract ALL information from ALL pages
-13. Include everything: all work experience, education, skills, projects, certifications
+7. Identify ALL sections (Work Experience, Education, Skills, Projects, Certifications, Awards, Honors, Publications, Languages, Volunteer Work, etc.)
+8. Preserve important details (dates, technologies, metrics, achievements)
+9. If something is missing (like phone or email), leave it as empty string
+10. Professional summary MUST be an exact copy of the resume's Professional Summary section without rewording
+11. Every skill listed in the resume must appear in the JSON output exactly as written (split into multiple bullets if needed)
+12. Return ONLY valid JSON, no markdown code blocks
+13. This may be a MULTI-PAGE resume - extract ALL information from ALL pages
+14. Include everything: all work experience, education, skills, projects, certifications, awards, honors, publications, languages, volunteer work
 
 Resume Text (Full Content):
-{text[:12000]}
+{text[:25000]}
 """
 
         # For very long resumes, use higher token limit
@@ -476,7 +518,7 @@ Resume Text (Full Content):
         final_sections = []
         for idx, section in enumerate(normalized_sections):
             section_title = section.get("title") or f"Section {idx + 1}"
-            
+
             bullets: list[dict] = []
             for bullet_idx, entry in enumerate(section.get("bullets", [])):
                 bullet_text = str(entry.get("text", "")).strip()
@@ -489,14 +531,14 @@ Resume Text (Full Content):
                             "params": bullet_params,
                         }
                     )
-            
+
             final_sections.append({
-                "id": str(idx),
-                "title": section_title,
-                "bullets": bullets,
-                "params": section.get("params") or {},
+                    "id": str(idx),
+                    "title": section_title,
+                    "bullets": bullets,
+                    "params": section.get("params") or {},
             })
-        
+
         parsed_data["sections"] = final_sections
 
         parsed_data.setdefault("detected_variables", {})
