@@ -80,10 +80,8 @@ const mapTemplateId = (oldId: string): string => {
 const normalizeSectionsForState = (sections: any[]) => {
   const deduplicated = deduplicateSections(sections)
   const sorted = sortSectionsByDefaultOrder(deduplicated)
-  return sorted.map((section, sectionIdx) => ({
-    id: section.id || `section-${sectionIdx}-${Date.now()}`,
-    title: section.title,
-    bullets: (section.bullets || []).map((bullet: any, bulletIdx: number) => {
+  return sorted.map((section, sectionIdx) => {
+    const processedBullets = (section.bullets || []).map((bullet: any, bulletIdx: number) => {
       // Handle different bullet formats
       let bulletText = ''
       let bulletParams: any = {}
@@ -99,7 +97,7 @@ const normalizeSectionsForState = (sections: any[]) => {
       if (!bulletText) return null
       
       // Preserve params types
-      const normalizedParams = bulletParams ? Object.fromEntries(
+      const normalizedParams: Record<string, any> = bulletParams ? Object.fromEntries(
         Object.entries(bulletParams).map(([k, v]) => {
           // Preserve boolean, number, and array types
           if (typeof v === 'boolean' || typeof v === 'number') {
@@ -115,12 +113,18 @@ const normalizeSectionsForState = (sections: any[]) => {
       ) : {}
       
       return {
-        id: bullet?.id || `${section.id || `section-${sectionIdx}`}-bullet-${bulletIdx}-${Date.now()}`,
+        id: String(bullet?.id || `${section.id || `section-${sectionIdx}`}-bullet-${bulletIdx}-${Date.now()}`),
         text: bulletText,
-        params: normalizedParams
+        params: normalizedParams as Record<string, string>
       }
-    }).filter((b: any) => b !== null) // Remove null entries
-  }))
+    }).filter((b: any): b is { id: string; text: string; params: Record<string, string> } => b !== null)
+    
+    return {
+      id: section.id || `section-${sectionIdx}-${Date.now()}`,
+      title: section.title,
+      bullets: processedBullets
+    }
+  })
 }
 
 const EditorPageContent = () => {
