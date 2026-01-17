@@ -80,7 +80,89 @@ const mapTemplateId = (oldId: string): string => {
 const normalizeSectionsForState = (sections: any[]) => {
   const deduplicated = deduplicateSections(sections)
   const sorted = sortSectionsByDefaultOrder(deduplicated)
-  return sorted.map(section => ({
+  
+  // POST-PROCESSING: Fix bullets that are in wrong sections
+  // Move work experience bullets from Skills section to Work Experience section
+  const workExpBulletsToMove: any[] = []
+  const fixedSections = sorted.map(section => {
+    const sectionTitle = (section.title || '').toLowerCase()
+    const isSkillsSection = sectionTitle === 'skills' || sectionTitle.includes('skill')
+    const isWorkExpSection = sectionTitle === 'work experience' || 
+                              sectionTitle.includes('work experience') ||
+                              sectionTitle.includes('professional experience') ||
+                              sectionTitle.includes('employment')
+    
+    // If this is Skills section, check for work experience bullets
+    if (isSkillsSection) {
+      const workExpBullets: any[] = []
+      const skillBullets: any[] = []
+      
+      section.bullets.forEach((bullet: any) => {
+        const bulletText = (bullet.text || '').trim()
+        // Remove bullet point prefix if present
+        const cleanText = bulletText.replace(/^[•\-\*]\s*/, '').toLowerCase()
+        
+        // Check if bullet is a work experience bullet (action verb + describes what was done)
+        const actionVerbs = ['automated', 'designed', 'built', 'worked', 'used', 'deployed', 
+                            'managed', 'implemented', 'developed', 'created', 'configured',
+                            'migrated', 'utilized', 'authored', 'installed', 'controlled',
+                            'enhanced', 'advanced', 'applied', 'maintained', 'optimized',
+                            'improved', 'led', 'delivered', 'executed', 'achieved']
+        const isWorkExpBullet = actionVerbs.some(verb => 
+          cleanText.startsWith(verb)
+        ) && bulletText.length > 30 // Work experience bullets are usually longer
+        
+        if (isWorkExpBullet) {
+          workExpBullets.push(bullet)
+        } else {
+          skillBullets.push(bullet)
+        }
+      })
+      
+      // Store work experience bullets to move them later
+      if (workExpBullets.length > 0) {
+        workExpBulletsToMove.push(...workExpBullets)
+      }
+      
+      // Return Skills section without work experience bullets
+      return {
+        ...section,
+        bullets: skillBullets
+      }
+    }
+    
+    return section
+  })
+  
+  // Find Work Experience section and add moved bullets
+  const updatedSections = fixedSections.map(section => {
+    const sectionTitle = (section.title || '').toLowerCase()
+    const isWorkExpSection = sectionTitle === 'work experience' || 
+                              sectionTitle.includes('work experience') ||
+                              sectionTitle.includes('professional experience') ||
+                              sectionTitle.includes('employment')
+    
+    if (isWorkExpSection && workExpBulletsToMove.length > 0) {
+      // Add separator if needed
+      const bullets = [...section.bullets]
+      if (bullets.length > 0 && bullets[bullets.length - 1]?.text?.trim() !== '') {
+        bullets.push({
+          id: `${section.id}-sep-${Date.now()}`,
+          text: '',
+          params: {}
+        })
+      }
+      // Add work experience bullets that were in Skills section
+      return {
+        ...section,
+        bullets: [...bullets, ...workExpBulletsToMove]
+      }
+    }
+    
+    return section
+  })
+  
+  return updatedSections.map(section => ({
     id: section.id,
     title: section.title,
     bullets: section.bullets.map(bullet => ({

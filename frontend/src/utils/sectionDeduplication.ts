@@ -57,7 +57,7 @@ export function normalizeSectionTitle(title: string): string {
   for (const [variant, canonical] of Object.entries(semanticMap)) {
     // Case-insensitive exact match only - no partial matches
     if (normalized === variant) {
-      return canonical
+        return canonical
     }
   }
   
@@ -123,15 +123,15 @@ export function deduplicateSections(sections: Section[]): Section[] {
         // REMOVED near-duplicate check - it was too aggressive and causing bullets to be lost
         // Only check for exact duplicates to preserve all content (including company headers)
         if (bulletText && !existingBulletTexts.has(bulletLower)) {
-          existingBulletTexts.add(bulletLower)
-          existingSection.bullets.push({
-            id: `${existingSection.id}-${bulletIndex}`,
-            text: bulletText,
-            params: (typeof bullet === 'object' && bullet !== null && 'params' in bullet
-              ? bullet.params
-              : undefined) || {}
-          })
-          bulletIndex++
+            existingBulletTexts.add(bulletLower)
+            existingSection.bullets.push({
+              id: `${existingSection.id}-${bulletIndex}`,
+              text: bulletText,
+              params: (typeof bullet === 'object' && bullet !== null && 'params' in bullet
+                ? bullet.params
+                : undefined) || {}
+            })
+            bulletIndex++
         }
       }
       

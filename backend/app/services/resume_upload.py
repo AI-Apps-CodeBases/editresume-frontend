@@ -292,6 +292,9 @@ CRITICAL RULES FOR WORK EXPERIENCE:
 7. If a company has no bullet points (new job), still include the company header
 8. DO NOT combine bullets from different companies - keep them separate with empty string separator
 9. Preserve the exact order of companies as they appear in the resume
+10. CRITICAL: Work experience bullets are ACTION-BASED sentences (e.g., "Automated infrastructure...", "Designed system...", "Built application...")
+11. CRITICAL: DO NOT put work experience bullets in Skills section - they belong ONLY in Work Experience section
+12. CRITICAL: If a bullet describes WHAT YOU DID (action verb + object), it's work experience, NOT a skill
 
 CRITICAL RULES FOR EDUCATION:
 1. Extract ALL education entries (degrees, certifications, courses)
@@ -306,6 +309,11 @@ CRITICAL RULES FOR SKILLS:
 3. Include technical skills, soft skills, languages, tools, platforms
 4. If skills are in a table or list format, convert to bullet points
 5. DO NOT combine different skill categories - preserve original structure
+6. CRITICAL: Skills are TECHNOLOGY/TOOL NAMES or CATEGORIES, NOT action sentences
+7. CRITICAL: If text describes an ACTION (e.g., "Automated provisioning...", "Designed infrastructure..."), it's work experience, NOT a skill
+8. CRITICAL: Skills section should contain: technology names (Kubernetes, Docker, AWS), tool names (Jenkins, Terraform), or categories (Container Orchestration: Kubernetes)
+9. CRITICAL: DO NOT put work experience achievements in Skills section - they belong in Work Experience section
+10. CRITICAL: If unsure whether something is a skill or work experience, check: Does it start with an action verb and describe what was done? If YES, it's work experience. If NO, it's a skill.
 
 CRITICAL RULES FOR PROJECTS:
 1. Extract ALL projects mentioned (personal, academic, professional)
