@@ -274,6 +274,20 @@ CRITICAL PARSING RULES FOR APP-EXPORTED RESUMES:
 11. Don't paraphrase or shorten content - extract exactly as written
 12. Group content into logical sections but preserve all bullet points
 
+CRITICAL SECTION PARSING RULES (MOST IMPORTANT - FOLLOW THESE STRICTLY):
+1. Identify section titles in the resume (e.g., "WORK EXPERIENCE", "PROJECTS", "SKILLS", "EDUCATION", "CERTIFICATIONS")
+2. When you see a section title (e.g., "PROJECTS"), ALL bullet points that follow belong to that section
+3. Continue adding bullets to that section until you encounter the NEXT section title
+4. DO NOT move bullets from one section to another based on content - use ONLY section titles to determine boundaries
+5. If resume has "WORK EXPERIENCE" title, all bullets under it (including all company names) go to Work Experience section
+6. If resume has "PROJECTS" title, all bullets under it go to Projects section - DO NOT include work experience content
+7. If resume has "SKILLS" title, all bullets under it go to Skills section
+8. Section boundaries are determined by section TITLES in the resume, NOT by content analysis
+9. DO NOT put work experience content (company names) in Projects section just because it looks like a project
+10. DO NOT put projects content in Work Experience section just because it has dates or looks like work
+11. Follow the resume's section structure EXACTLY as it appears - respect section title boundaries
+12. If a section title appears in the resume, create that section and put ALL following content in it until next title
+
 SPECIAL ATTENTION TO:
 - Quantified achievements (percentages, numbers, metrics)
 - Technical skills and tools (AWS, Kubernetes, Docker, Jenkins, etc.)
@@ -295,6 +309,10 @@ CRITICAL RULES FOR WORK EXPERIENCE:
 10. CRITICAL: Work experience bullets are ACTION-BASED sentences (e.g., "Automated infrastructure...", "Designed system...", "Built application...")
 11. CRITICAL: DO NOT put work experience bullets in Skills section - they belong ONLY in Work Experience section
 12. CRITICAL: If a bullet describes WHAT YOU DID (action verb + object), it's work experience, NOT a skill
+13. CRITICAL: Only extract content that appears under a "WORK EXPERIENCE", "EXPERIENCE", "EMPLOYMENT", or "PROFESSIONAL EXPERIENCE" section title
+14. CRITICAL: If you see "WORK EXPERIENCE" title in resume, ALL bullets under it (including ALL company names) go to Work Experience section
+15. CRITICAL: DO NOT put work experience content in Projects section - follow the resume's section title boundaries
+16. CRITICAL: If there's no "WORK EXPERIENCE" section title but you see company names with dates, they still go to Work Experience section
 
 CRITICAL RULES FOR EDUCATION:
 1. Extract ALL education entries (degrees, certifications, courses)
@@ -320,6 +338,12 @@ CRITICAL RULES FOR PROJECTS:
 2. Include: Project name, description, technologies used, outcomes
 3. Preserve all bullet points under each project
 4. Format project headers similar to work experience: **Project Name / Role / Date** (if dates available)
+5. CRITICAL: Only extract content that appears under a "PROJECTS" or "PROJECT" section title in the resume
+6. CRITICAL: If there's no "PROJECTS" section title in the resume, do NOT create a Projects section
+7. CRITICAL: DO NOT put work experience entries (company names like "Omnicell Inc", "Microsoft", etc.) in Projects section
+8. CRITICAL: If you see "PROJECTS" title, only content under that title goes to Projects section - stop at next section title
+9. CRITICAL: If you see "WORK EXPERIENCE" title, everything under it goes to Work Experience, NOT Projects
+10. CRITICAL: Follow section title boundaries - do NOT mix work experience and projects based on content similarity
 
 CRITICAL RULES FOR CERTIFICATIONS:
 1. Extract ALL certifications, licenses, and credentials
