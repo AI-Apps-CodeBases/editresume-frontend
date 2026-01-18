@@ -269,10 +269,12 @@ CRITICAL PARSING RULES FOR APP-EXPORTED RESUMES:
 6. Maintain project descriptions with all details
 7. Extract contact information from header (name, email, phone, location)
 8. Handle multi-page content by combining everything
-9. If you see patterns like "reduced deployment time by 30%" repeated, keep each instance
-10. For DevOps/Engineering resumes, preserve all technical details and metrics
-11. Don't paraphrase or shorten content - extract exactly as written
-12. Group content into logical sections but preserve all bullet points
+9. CRITICAL: If you see the same bullet point or content repeated at page boundaries (e.g., at the end of one page and start of next), extract it ONLY ONCE - do not duplicate content that spans pages
+10. If you see patterns like "reduced deployment time by 30%" repeated, only keep it if it appears in different contexts (different companies/jobs), otherwise treat as duplicate from page boundary
+11. For DevOps/Engineering resumes, preserve all technical details and metrics
+12. Don't paraphrase or shorten content - extract exactly as written
+13. Group content into logical sections but preserve all bullet points
+14. When content appears to continue from one page to another, merge it into a single entry rather than creating duplicates
 
 CRITICAL SECTION PARSING RULES (MOST IMPORTANT - FOLLOW THESE STRICTLY):
 1. Identify section titles in the resume (e.g., "WORK EXPERIENCE", "PROJECTS", "SKILLS", "EDUCATION", "CERTIFICATIONS")
@@ -545,31 +547,68 @@ Resume Text (Full Content):
                         }
                     )
 
-        # Normalize sections - ensure proper format but don't deduplicate
-        # Frontend will handle deduplication to preserve all sections and bullets
+        # Normalize sections and deduplicate bullets that appear at page boundaries
         final_sections = []
+        seen_bullets_all_sections: dict[str, set[str]] = {}
+        
         for idx, section in enumerate(normalized_sections):
             section_title = section.get("title") or f"Section {idx + 1}"
+            section_title_lower = section_title.lower()
+            
+            # Get or create set for this section's normalized title
+            if section_title_lower not in seen_bullets_all_sections:
+                seen_bullets_all_sections[section_title_lower] = set()
+            seen_bullets = seen_bullets_all_sections[section_title_lower]
 
             bullets: list[dict] = []
+            bullet_counter = 0
+            
             for bullet_idx, entry in enumerate(section.get("bullets", [])):
                 bullet_text = str(entry.get("text", "")).strip()
-                if bullet_text:  # Only add non-empty bullets
-                    bullet_params = entry.get("params") or {}
-                    bullets.append(
-                        {
-                            "id": f"{idx}-{bullet_idx}",
-                            "text": bullet_text,
-                            "params": bullet_params,
-                        }
-                    )
+                if not bullet_text:
+                    continue
+                    
+                bullet_text_lower = bullet_text.lower()
+                
+                # Check for exact duplicates
+                if bullet_text_lower in seen_bullets:
+                    logger.info(f"Skipping duplicate bullet in '{section_title}': {bullet_text[:50]}...")
+                    continue
+                
+                # Check for near-duplicates (one contains the other with high similarity)
+                is_duplicate = False
+                for seen_text in seen_bullets:
+                    # If one is contained in the other and lengths are similar (within 20% difference)
+                    if (bullet_text_lower in seen_text or seen_text in bullet_text_lower):
+                        len_diff = abs(len(bullet_text_lower) - len(seen_text))
+                        max_len = max(len(bullet_text_lower), len(seen_text))
+                        if max_len > 0 and (len_diff / max_len) < 0.2:
+                            is_duplicate = True
+                            logger.info(f"Skipping near-duplicate bullet in '{section_title}': {bullet_text[:50]}...")
+                            break
+                
+                if is_duplicate:
+                    continue
+                
+                # Add to seen set and bullets list
+                seen_bullets.add(bullet_text_lower)
+                bullet_params = entry.get("params") or {}
+                bullets.append(
+                    {
+                        "id": f"{idx}-{bullet_counter}",
+                        "text": bullet_text,
+                        "params": bullet_params,
+                    }
+                )
+                bullet_counter += 1
 
-            final_sections.append({
+            if bullets:  # Only add section if it has bullets
+                final_sections.append({
                     "id": str(idx),
                     "title": section_title,
                     "bullets": bullets,
                     "params": section.get("params") or {},
-            })
+                })
 
         parsed_data["sections"] = final_sections
 
