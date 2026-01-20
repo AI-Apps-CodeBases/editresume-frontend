@@ -34,7 +34,21 @@ async def parse_with_vision(
     try:
         model = getattr(settings, 'openai_model_vision', 'gpt-4o')
         
-        # Process each page
+        # Process all pages in parallel for faster parsing
+        logger.info(f"Processing {len(vision_pages)} pages in parallel with vision")
+        page_tasks = [
+            _process_page_with_vision(
+                page_data['image_base64'],
+                model,
+                page_data['page_num']
+            )
+            for page_data in vision_pages
+        ]
+        
+        # Wait for all pages to complete in parallel
+        page_results = await asyncio.gather(*page_tasks, return_exceptions=True)
+        
+        # Merge results from all pages
         all_sections = []
         contact_info = {
             'name': '',
@@ -45,15 +59,12 @@ async def parse_with_vision(
         }
         summary = ''
         
-        for page_data in vision_pages:
-            page_num = page_data['page_num']
-            image_base64 = page_data['image_base64']
-            
-            logger.info(f"Processing page {page_num} with vision")
-            
-            result = await _process_page_with_vision(image_base64, model, page_num)
-            
-            # Merge results
+        for idx, result in enumerate(page_results):
+            if isinstance(result, Exception):
+                logger.error(f"Error processing page {idx + 1}: {result}")
+                continue
+                
+            # Merge contact info (use first non-empty value)
             if result.get('name') and not contact_info['name']:
                 contact_info['name'] = result.get('name', '')
             if result.get('title') and not contact_info['title']:
