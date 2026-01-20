@@ -299,7 +299,7 @@ async def upload_resume(file: UploadFile = File(...)):
     from fastapi.responses import JSONResponse
 
     try:
-    contents = await file.read()
+        contents = await file.read()
         filename = file.filename or "unknown"
         
         result = await parse_resume(contents, filename)
