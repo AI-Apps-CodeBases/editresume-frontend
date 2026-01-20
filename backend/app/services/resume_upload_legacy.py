@@ -6,10 +6,12 @@ import asyncio
 import functools
 import json
 import logging
+import os
 import re
 from io import BytesIO
 
-from app.core.openai_client import OPENAI_MAX_TOKENS, USE_AI_PARSER, openai_client
+from app.core.openai_client import USE_AI_PARSER, openai_client
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -379,14 +381,13 @@ Resume Text (Full Content):
 {text[:25000]}
 """
 
-        # For very long resumes, use higher token limit
+        # Use configured max tokens from environment (read directly from settings)
         resume_length = len(text)
-        max_tokens_for_resume = (
-            min(4000, OPENAI_MAX_TOKENS) if resume_length > 8000 else OPENAI_MAX_TOKENS
-        )
+        max_tokens_for_resume = settings.openai_max_tokens or 2000
 
         logger.info(
-            f"Parsing resume: {resume_length} characters, using {max_tokens_for_resume} max tokens"
+            f"Parsing resume: {resume_length} characters, using {max_tokens_for_resume} max tokens "
+            f"(configured: {settings.openai_max_tokens}, env: {os.getenv('OPENAI_MAX_TOKENS', 'not set')})"
         )
 
         headers = {
@@ -403,7 +404,7 @@ Resume Text (Full Content):
                 },
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.3,
+            "temperature": 0.1,
             "max_tokens": max_tokens_for_resume,
         }
 

@@ -5,14 +5,7 @@ import type { TemplateConfig } from '@/features/resume/templates/types'
 import { FileText, ChevronDown, Loader2 } from 'lucide-react'
 import Tooltip from '@/components/Shared/Tooltip'
 import dynamic from 'next/dynamic'
-
-const TemplateCustomizer = dynamic(
-  () => import('@/features/resume/components/TemplateCustomizer').then((mod) => ({ default: mod.TemplateCustomizer })).catch((err) => {
-    console.error('Failed to load TemplateCustomizer:', err)
-    return { default: () => <div className="p-4 text-red-500">Failed to load template customizer</div> }
-  }),
-  { ssr: false, loading: () => <div className="p-4">Loading...</div> }
-)
+import { TemplateCustomizer } from '@/features/resume/components/TemplateCustomizer'
 
 const PreviewPanel = dynamic(() => import('@/components/Resume/PreviewPanel'), {
   ssr: false,
@@ -87,30 +80,30 @@ export default function TemplateDesignPage({
 
   useEffect(() => {
     const loadTemplateConfig = async () => {
-      if (templateConfig) {
-        setLocalConfig(prev => {
-          // If we have local state with twoColumnLeft/Right, preserve it when templateConfig updates
-          if (prev && (prev.layout.twoColumnLeft || prev.layout.twoColumnRight)) {
-            return {
-              ...templateConfig,
-              layout: {
-                ...templateConfig.layout,
-                twoColumnLeft: prev.layout.twoColumnLeft ?? templateConfig.layout.twoColumnLeft,
-                twoColumnRight: prev.layout.twoColumnRight ?? templateConfig.layout.twoColumnRight,
-              }
+    if (templateConfig) {
+      setLocalConfig(prev => {
+        // If we have local state with twoColumnLeft/Right, preserve it when templateConfig updates
+        if (prev && (prev.layout.twoColumnLeft || prev.layout.twoColumnRight)) {
+          return {
+            ...templateConfig,
+            layout: {
+              ...templateConfig.layout,
+              twoColumnLeft: prev.layout.twoColumnLeft ?? templateConfig.layout.twoColumnLeft,
+              twoColumnRight: prev.layout.twoColumnRight ?? templateConfig.layout.twoColumnRight,
             }
           }
-          return templateConfig
-        })
-      } else {
+        }
+        return templateConfig
+      })
+    } else {
         if (!templateRegistryCache) {
           templateRegistryCache = await getTemplateRegistry()
         }
         const template = templateRegistryCache.find((t: any) => t.id === currentTemplate)
-        if (template) {
-          setLocalConfig(template.defaultConfig)
-        }
+      if (template) {
+        setLocalConfig(template.defaultConfig)
       }
+    }
     }
     loadTemplateConfig()
   }, [templateConfig, currentTemplate])
@@ -178,7 +171,7 @@ export default function TemplateDesignPage({
     }
   }
 
-  const [config, setConfigState] = useState<TemplateConfig | null>(localConfig || null)
+  const [configState, setConfigState] = useState<TemplateConfig | null>(localConfig || null)
   
   useEffect(() => {
     const loadConfig = async () => {
@@ -272,14 +265,14 @@ export default function TemplateDesignPage({
           mobileMode === 'preview' ? 'hidden lg:block' : ''
         }`}>
           {configState ? (
-            <TemplateCustomizer
-              currentTemplateId={currentTemplate}
+          <TemplateCustomizer
+            currentTemplateId={currentTemplate}
               config={configState}
-              onTemplateChange={handleTemplateChange}
-              onConfigUpdate={handleConfigUpdate}
-              onResetConfig={handleResetConfig}
-              resumeData={resumeData}
-            />
+            onTemplateChange={handleTemplateChange}
+            onConfigUpdate={handleConfigUpdate}
+            onResetConfig={handleResetConfig}
+            resumeData={resumeData}
+          />
           ) : (
             <div className="p-4 text-center text-text-secondary">
               <p>Loading template configuration...</p>

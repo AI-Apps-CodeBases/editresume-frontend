@@ -157,8 +157,8 @@ CRITICAL RULES:
                 ]
             }
         ],
-        "temperature": 0.3,
-        "max_tokens": 4000,
+        "temperature": 0.1,
+        "max_tokens": settings.openai_max_tokens,
     }
     
     httpx_client = get_httpx_client()

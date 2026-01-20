@@ -59,7 +59,8 @@ async def _detect_structure(
     headers = layout_data.get('headers', [])
     
     # Build structured text with position hints
-    structured_text = text[:15000]  # Limit for API
+    # Use larger limit to capture full resume content (was 15000, now 50000)
+    structured_text = text[:50000]
     
     prompt = f"""Given this resume text with preserved structure, analyze it step by step.
 
@@ -85,7 +86,7 @@ Return ONLY valid JSON (no markdown code blocks):
 
     model = getattr(settings, 'openai_model_text', 'gpt-4o-mini')
     
-    response = await _call_openai(prompt, model, temperature=0.3)
+    response = await _call_openai(prompt, model, temperature=0.1)
     
     # Clean and parse JSON
     response_text = response.strip()
@@ -347,7 +348,7 @@ Rules:
     try:
         # Add timeout to individual API call
         response = await asyncio.wait_for(
-            _call_openai(prompt, model, temperature=0.3, max_tokens=4000),
+            _call_openai(prompt, model, temperature=0.1, max_tokens=settings.openai_max_tokens),
             timeout=45.0  # 45 second timeout for this call
         )
     except asyncio.TimeoutError:
@@ -401,7 +402,7 @@ Return JSON array:
 Return ONLY valid JSON (no markdown code blocks)."""
 
     model = getattr(settings, 'openai_model_text', 'gpt-4o-mini')
-    response = await _call_openai(prompt, model, temperature=0.3)
+    response = await _call_openai(prompt, model, temperature=0.1)
     
     try:
         response_text = response.strip()
@@ -442,7 +443,7 @@ Return JSON array:
 Return ONLY valid JSON (no markdown code blocks)."""
 
     model = getattr(settings, 'openai_model_text', 'gpt-4o-mini')
-    response = await _call_openai(prompt, model, temperature=0.3)
+    response = await _call_openai(prompt, model, temperature=0.1)
     
     try:
         response_text = response.strip()
@@ -474,7 +475,7 @@ Return JSON array:
 Return ONLY valid JSON (no markdown code blocks)."""
 
     model = getattr(settings, 'openai_model_text', 'gpt-4o-mini')
-    response = await _call_openai(prompt, model, temperature=0.3)
+    response = await _call_openai(prompt, model, temperature=0.1)
     
     try:
         response_text = response.strip()
@@ -512,7 +513,7 @@ async def _extract_generic_section(
     return []
 
 
-async def _call_openai(prompt: str, model: str, temperature: float = 0.3, max_tokens: int = 2000) -> str:
+async def _call_openai(prompt: str, model: str, temperature: float = 0.1, max_tokens: int = 2000) -> str:
     """Call OpenAI API and return response text."""
     if not openai_client:
         raise ValueError("OpenAI client not available")

@@ -101,7 +101,7 @@ export default function UploadPage() {
           
           const storageKey = `uploadedResume:${uploadToken}`
           window.sessionStorage.setItem(storageKey, JSON.stringify(payload))
-          
+
           // Verify it was stored
           const verifyStored = window.sessionStorage.getItem(storageKey)
           if (verifyStored) {
