@@ -114,7 +114,7 @@ Return JSON with this exact structure:
             "title": "section name",
             "type": "experience" | "education" | "skills" | "projects" | "summary" | "other",
             "bullets": [
-                "**Company Name / Job Title / Start Date - End Date**",
+                "**Company Name / Job Title / Start Date - End Date**" or "**Company Name / Job Title / Date Range**" if dates missing,
                 "• Achievement or task",
                 "• Another achievement"
             ]
@@ -124,10 +124,11 @@ Return JSON with this exact structure:
 
 CRITICAL RULES:
 1. Preserve exact wording - do not paraphrase
-2. For work experience: Format as "**Company / Title / Dates**" followed by bullets with "• "
+2. For work experience: Identify by COMPANY NAME and JOB TITLE. Format as "**Company / Title / Dates**" if dates present, or "**Company / Title / Date Range**" if dates missing. Dates are OPTIONAL - do not skip entries without dates.
 3. Extract ALL sections visible on this page
 4. Maintain section boundaries based on headers in the image
-5. Return ONLY valid JSON, no markdown code blocks"""
+5. Include ALL work experience entries even if they lack dates - identify them by company name + job title only
+6. Return ONLY valid JSON, no markdown code blocks"""
 
     headers = {
         "Authorization": f"Bearer {openai_client['api_key']}",

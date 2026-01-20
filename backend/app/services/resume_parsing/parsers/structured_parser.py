@@ -224,14 +224,32 @@ async def _extract_content(
                     if isinstance(entry, dict):
                         company = entry.get('company', '')
                         title = entry.get('title', '')
+                        location = entry.get('location', '')
                         dates = entry.get('dates', {})
+                        
+                        # Handle dates - they're optional
                         if isinstance(dates, dict):
-                            date_str = f"{dates.get('start', '')} - {dates.get('end', 'Present')}"
+                            start_date = dates.get('start', '').strip()
+                            end_date = dates.get('end', '').strip()
+                            if start_date or end_date:
+                                if end_date:
+                                    date_str = f"{start_date} - {end_date}" if start_date else end_date
+                                else:
+                                    date_str = start_date
+                            else:
+                                date_str = 'Date Range'  # Placeholder if dates missing
                         else:
-                            date_str = str(dates)
+                            date_str = str(dates) if dates else 'Date Range'
+                        
+                        # Format header with or without location
+                        if location:
+                            header_text = f"**{company} / {location} / {title} / {date_str}**"
+                        else:
+                            header_text = f"**{company} / {title} / {date_str}**"
+                        
                         bullets.append({
                             'id': f"{section_idx}-{entry_idx}-0",
-                            'text': f"**{company} / {title} / {date_str}**",
+                            'text': header_text,
                             'params': {}
                         })
                         for bullet_idx, bullet_text in enumerate(entry.get('bullets', []), 1):
@@ -327,7 +345,7 @@ Return JSON:
     "sections": {{
         "Section Title": {{
             "type": "experience" | "education" | "skills" | "other",
-            "entries": [{{"company": "...", "title": "...", "dates": {{"start": "...", "end": "..."}}, "bullets": ["..."]}}],
+            "entries": [{{"company": "...", "title": "...", "location": "..." or "", "dates": {{"start": "..." or "", "end": "..." or ""}}, "bullets": ["..."]}}],
             "skills": ["skill1", "skill2"],
             "text": "content for other sections"
         }}
@@ -338,7 +356,7 @@ Rules:
 - Extract exactly as written, no paraphrasing
 - CRITICAL: Extract professional summary/objective from the header area (usually at the top after name/title)
 - If you see "Summary", "Professional Summary", "Objective", "Profile", or similar section, extract ALL text from that section into the "summary" field
-- For experience: company, title, dates, all bullets
+- For experience: Identify by COMPANY NAME + JOB TITLE. Dates are OPTIONAL - include if found, but extract entries even without dates. Include all bullets.
 - For education: institution, degree, field, year
 - For skills: list all skills
 - Return ONLY valid JSON, no markdown"""
@@ -381,6 +399,8 @@ async def _extract_experience_section(
     """Extract work experience entries."""
     prompt = f"""Extract work experience entries from this resume section.
 
+CRITICAL: Identify work experience based on COMPANY NAME and JOB TITLE only. Date ranges are optional - include them if present, but do not skip entries that lack dates.
+
 Resume Text:
 {text[:10000]}
 
@@ -392,12 +412,18 @@ Return JSON array:
         {{
             "company": "Company Name",
             "title": "Job Title",
-            "location": "City, State",
-            "dates": {{"start": "Month Year", "end": "Month Year" | "Present"}},
+            "location": "City, State" or "",
+            "dates": {{"start": "Month Year" or "", "end": "Month Year" | "Present" | ""}},
             "bullets": ["achievement 1", "achievement 2"]
         }}
     ]
 }}
+
+IMPORTANT RULES:
+- Identify work experience entries by looking for COMPANY NAME followed by JOB TITLE
+- Dates are OPTIONAL - include if found, but extract entries even without dates
+- Include ALL bullets under each company/job title combination
+- If dates are missing, use empty strings: {{"start": "", "end": ""}}
 
 Return ONLY valid JSON (no markdown code blocks)."""
 
