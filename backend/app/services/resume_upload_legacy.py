@@ -6,6 +6,7 @@ import asyncio
 import functools
 import json
 import logging
+import os
 import re
 from io import BytesIO
 
@@ -241,7 +242,10 @@ Return a JSON object with this exact structure:
         "",
         "**Another Company / Job Title / Start Date - End Date**",
         "• Achievement at this company",
-        "• Another task or responsibility"
+        "• Another task or responsibility",
+        "",
+        "**Company Without Dates / Job Title / Date Range**",
+        "• Achievement even if dates are missing"
       ]
     }},
     {{
@@ -300,22 +304,25 @@ SPECIAL ATTENTION TO:
 - Work experience entries with exact dates and roles
 
 CRITICAL RULES FOR WORK EXPERIENCE:
-1. Company/Job line MUST be: **Company Name / Job Title / Date Range** (with ** for bold)
-2. Tasks/achievements MUST start with "• " (bullet point)
-3. Separate different jobs with empty string ""
-4. Extract complete date ranges (e.g., "Jan 2020 - Dec 2022" or "2020-2022")
-5. Include ALL jobs from the resume - DO NOT SKIP ANY COMPANY
-6. For EACH company, extract ALL bullet points listed under that company
-7. If a company has no bullet points (new job), still include the company header
-8. DO NOT combine bullets from different companies - keep them separate with empty string separator
-9. Preserve the exact order of companies as they appear in the resume
-10. CRITICAL: Work experience bullets are ACTION-BASED sentences (e.g., "Automated infrastructure...", "Designed system...", "Built application...")
-11. CRITICAL: DO NOT put work experience bullets in Skills section - they belong ONLY in Work Experience section
-12. CRITICAL: If a bullet describes WHAT YOU DID (action verb + object), it's work experience, NOT a skill
-13. CRITICAL: Only extract content that appears under a "WORK EXPERIENCE", "EXPERIENCE", "EMPLOYMENT", or "PROFESSIONAL EXPERIENCE" section title
-14. CRITICAL: If you see "WORK EXPERIENCE" title in resume, ALL bullets under it (including ALL company names) go to Work Experience section
-15. CRITICAL: DO NOT put work experience content in Projects section - follow the resume's section title boundaries
-16. CRITICAL: If there's no "WORK EXPERIENCE" section title but you see company names with dates, they still go to Work Experience section
+1. Identify work experience by COMPANY NAME and JOB TITLE only. Date ranges are OPTIONAL.
+2. Company/Job line format: **Company Name / Job Title / Date Range** (if dates present) OR **Company Name / Job Title** (if dates missing)
+3. If dates are missing, use "Date Range" as placeholder: **Company Name / Job Title / Date Range**
+4. DO NOT skip work experience entries just because they lack dates - identify them by company name + job title
+5. Tasks/achievements MUST start with "• " (bullet point)
+6. Separate different jobs with empty string ""
+7. Extract date ranges if present (e.g., "Jan 2020 - Dec 2022" or "2020-2022"), but do not require them
+8. Include ALL jobs from the resume - DO NOT SKIP ANY COMPANY even if dates are missing
+9. For EACH company, extract ALL bullet points listed under that company
+10. If a company has no bullet points (new job), still include the company header
+11. DO NOT combine bullets from different companies - keep them separate with empty string separator
+12. Preserve the exact order of companies as they appear in the resume
+13. CRITICAL: Work experience bullets are ACTION-BASED sentences (e.g., "Automated infrastructure...", "Designed system...", "Built application...")
+14. CRITICAL: DO NOT put work experience bullets in Skills section - they belong ONLY in Work Experience section
+15. CRITICAL: If a bullet describes WHAT YOU DID (action verb + object), it's work experience, NOT a skill
+16. CRITICAL: Only extract content that appears under a "WORK EXPERIENCE", "EXPERIENCE", "EMPLOYMENT", or "PROFESSIONAL EXPERIENCE" section title
+17. CRITICAL: If you see "WORK EXPERIENCE" title in resume, ALL bullets under it (including ALL company names) go to Work Experience section
+18. CRITICAL: DO NOT put work experience content in Projects section - follow the resume's section title boundaries
+19. CRITICAL: If there's no "WORK EXPERIENCE" section title but you see company names with job titles, they still go to Work Experience section (dates not required)
 
 CRITICAL RULES FOR EDUCATION:
 1. Extract ALL education entries (degrees, certifications, courses)
@@ -385,7 +392,8 @@ Resume Text (Full Content):
         max_tokens_for_resume = settings.openai_max_tokens or 2000
 
         logger.info(
-            f"Parsing resume: {resume_length} characters, using {max_tokens_for_resume} max tokens"
+            f"Parsing resume: {resume_length} characters, using {max_tokens_for_resume} max tokens "
+            f"(configured: {settings.openai_max_tokens}, env: {os.getenv('OPENAI_MAX_TOKENS', 'not set')})"
         )
 
         headers = {
@@ -402,7 +410,7 @@ Resume Text (Full Content):
                 },
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.3,
+            "temperature": 0.1,
             "max_tokens": max_tokens_for_resume,
         }
 

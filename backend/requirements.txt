@@ -18,6 +18,8 @@ lxml==5.1.0
 # Industry-standard resume parsing libraries
 PyMuPDF==1.23.8
 docx2txt==0.8
+pdf2image>=1.16.0
+Pillow>=10.0.0
 # ATS Checker dependencies - TF-IDF enabled for industry-standard scoring
 scikit-learn==1.3.2
 # spacy==3.6.1  # Optional: Advanced NLP features (has fallback if not installed)

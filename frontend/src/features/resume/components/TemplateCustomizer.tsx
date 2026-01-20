@@ -1,9 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
+import dynamic from 'next/dynamic'
 import { TemplateConfig } from '../templates/types'
-import { TemplateGallery } from './TemplateGallery'
 import { CustomizationControls } from './CustomizationControls'
+
+const TemplateGallery = dynamic(() => import('./TemplateGallery').then((mod) => ({ default: mod.TemplateGallery })), {
+  ssr: false,
+  loading: () => <div className="p-4">Loading templates...</div>
+})
 
 interface Props {
   currentTemplateId: string
