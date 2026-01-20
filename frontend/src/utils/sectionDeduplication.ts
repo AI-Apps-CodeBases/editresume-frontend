@@ -18,7 +18,12 @@ export interface Section {
  * Handles variations like "Work Experience" vs "Experience" vs "Professional Experience"
  */
 export function normalizeSectionTitle(title: string): string {
-  const normalized = title.toLowerCase().trim()
+  let normalized = title.toLowerCase().trim()
+  // Normalize common "continued" suffixes to avoid duplicate sections across pages
+  normalized = normalized.replace(/\s*\(.*?(continued|cont\.?).*?\)\s*$/g, '')
+  normalized = normalized.replace(/\s*[-:]*\s*(continued|cont\.?)\s*$/g, '')
+  normalized = normalized.replace(/\s*(page|pg)\s*\d+\s*$/g, '')
+  normalized = normalized.replace(/\s+/g, ' ').trim()
   
   // Semantic mapping for section titles
   // REMOVED all skills-related mappings to preserve "Additional Skills", "Core Skills", "Technical Skills" as separate sections

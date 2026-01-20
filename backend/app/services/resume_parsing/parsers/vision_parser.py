@@ -15,6 +15,16 @@ from app.core.openai_client import get_httpx_client, openai_client
 logger = logging.getLogger(__name__)
 
 
+def _normalize_section_title(title: str) -> str:
+    normalized = title.lower().strip()
+    # Normalize common "continued" suffixes to avoid duplicates across pages
+    normalized = re.sub(r"\s*\(.*?(continued|cont\.?).*?\)\s*$", "", normalized)
+    normalized = re.sub(r"\s*[-:]*\s*(continued|cont\.?)\s*$", "", normalized)
+    normalized = re.sub(r"\s*(page|pg)\s*\d+\s*$", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
 async def parse_with_vision(
     vision_pages: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -90,11 +100,14 @@ async def parse_with_vision(
             # Merge sections (avoid duplicates)
             for section in result.get('sections', []):
                 # Normalize section title for matching
-                section_title_lower = section['title'].lower().strip()
+                section_title_lower = _normalize_section_title(section.get('title', ''))
                 
                 # Check if section already exists (case-insensitive)
                 existing = next(
-                    (s for s in all_sections if s['title'].lower().strip() == section_title_lower),
+                    (
+                        s for s in all_sections
+                        if _normalize_section_title(s.get('title', '')) == section_title_lower
+                    ),
                     None
                 )
                 if existing:
