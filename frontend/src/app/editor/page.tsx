@@ -167,28 +167,31 @@ const normalizeSectionsForState = (sections: any[]) => {
     return section
   })
   
-  return updatedSections.map(section => ({
-    id: section.id,
-    title: section.title,
-    bullets: section.bullets.map(bullet => ({
-      id: bullet.id,
-      text: bullet.text,
-      params: bullet.params ? Object.fromEntries(
-        Object.entries(bullet.params).map(([k, v]) => {
-          // Preserve boolean, number, and array types
-          if (typeof v === 'boolean' || typeof v === 'number') {
-            return [k, v]
-          }
-          // Preserve arrays (like generatedKeywords)
-          if (Array.isArray(v)) {
-            return [k, v]
-          }
-          // Convert other types to string
-          return [k, String(v)]
-        })
-      ) : {}
-    }))
-  }))
+  return updatedSections.map((section, sectionIndex) => {
+    const sectionId = `section-${sectionIndex}`
+    return {
+      id: sectionId,
+      title: section.title,
+      bullets: section.bullets.map((bullet, bulletIndex) => ({
+        id: `${sectionId}-${bulletIndex}`,
+        text: bullet.text,
+        params: bullet.params ? Object.fromEntries(
+          Object.entries(bullet.params).map(([k, v]) => {
+            // Preserve boolean, number, and array types
+            if (typeof v === 'boolean' || typeof v === 'number') {
+              return [k, v]
+            }
+            // Preserve arrays (like generatedKeywords)
+            if (Array.isArray(v)) {
+              return [k, v]
+            }
+            // Convert other types to string
+            return [k, String(v)]
+          })
+        ) : {}
+      }))
+    }
+  })
 }
 
 const EditorPageContent = () => {

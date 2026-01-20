@@ -25,6 +25,31 @@ def _normalize_section_title(title: str) -> str:
     return normalized
 
 
+def _assign_unique_ids(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized_sections: list[dict[str, Any]] = []
+    for section_idx, section in enumerate(sections):
+        section_id = f"section-{section_idx}"
+        bullets = []
+        for bullet_idx, bullet in enumerate(section.get("bullets", [])):
+            if isinstance(bullet, dict):
+                text = bullet.get("text", "")
+                params = bullet.get("params", {}) or {}
+            else:
+                text = str(bullet)
+                params = {}
+            bullets.append({
+                "id": f"{section_id}-{bullet_idx}",
+                "text": text,
+                "params": params
+            })
+        normalized_sections.append({
+            **section,
+            "id": section_id,
+            "bullets": bullets
+        })
+    return normalized_sections
+
+
 async def parse_with_vision(
     vision_pages: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -142,7 +167,9 @@ async def parse_with_vision(
             f"Vision parsing complete: {len(all_sections)} sections, "
             f"{sum(len(s.get('bullets', [])) for s in all_sections)} total bullets"
         )
-        
+
+        all_sections = _assign_unique_ids(all_sections)
+
         return {
             **contact_info,
             'summary': summary,
