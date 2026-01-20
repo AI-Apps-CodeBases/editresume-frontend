@@ -295,12 +295,93 @@ async def export_docx(
 @router.post("/upload")
 async def upload_resume(file: UploadFile = File(...)):
     """Upload and parse resume file"""
-    from app.services.resume_upload import upload_and_parse_resume
+    from app.services.resume_parsing import parse_resume
+    from fastapi.responses import JSONResponse
 
-    contents = await file.read()
-    return await upload_and_parse_resume(
-        contents, file.filename or "unknown", file.content_type
-    )
+    try:
+        contents = await file.read()
+        filename = file.filename or "unknown"
+        
+        result = await parse_resume(contents, filename)
+        
+        if not result.get('success'):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": result.get('error', 'Failed to parse resume'),
+                    "details": result.get('metadata', {}).get('issues', [])
+                }
+            )
+        
+        confidence = result.get('metadata', {}).get('confidence_score', 0.0)
+        resume_data = result.get('data', {})
+        
+        # Ensure data has required fields with defaults
+        if not resume_data:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "No data extracted from resume. Please try a different file format.",
+                }
+            )
+        
+        # Validate that we have at least name or sections
+        has_name = bool(resume_data.get('name', '').strip())
+        has_sections = bool(resume_data.get('sections'))
+        
+        if not has_name and not has_sections:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "Could not extract meaningful content from resume. The file might be empty or in an unsupported format.",
+                }
+            )
+        
+        if confidence >= 0.6:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "data": resume_data,
+                    "raw_text": result.get('raw_text', ''),
+                    "debug": {
+                        "confidence": confidence,
+                        "parsing_method": result.get('metadata', {}).get('parsing_method', 'unknown'),
+                        "complexity_score": result.get('metadata', {}).get('complexity_score', 0.0),
+                        "processing_time_ms": result.get('metadata', {}).get('processing_time_ms', 0)
+                    }
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "warning": "Resume parsed with low confidence. Please review.",
+                    "data": resume_data,
+                    "raw_text": result.get('raw_text', ''),
+                    "debug": {
+                        "confidence": confidence,
+                        "parsing_method": result.get('metadata', {}).get('parsing_method', 'unknown'),
+                        "complexity_score": result.get('metadata', {}).get('complexity_score', 0.0),
+                        "processing_time_ms": result.get('metadata', {}).get('processing_time_ms', 0),
+                        "issues": result.get('metadata', {}).get('issues', [])
+                    }
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"Upload error: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": str(e)
+            }
+        )
 
 
 @router.post("/export/html-to-pdf")

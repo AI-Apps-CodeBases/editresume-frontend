@@ -141,7 +141,28 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
       if (result.success) {
         console.log('✅ Upload successful! File processed:', file.name)
         console.log('📋 Extracted data:', result.data)
+        
+        // Validate data before processing
+        if (!result.data) {
+          setError('Upload succeeded but no data was extracted. Please try again or use manual entry.')
+          return
+        }
+        
+        const hasName = result.data.name && result.data.name.trim()
+        const hasSections = result.data.sections && Array.isArray(result.data.sections) && result.data.sections.length > 0
+        
+        if (!hasName && !hasSections) {
+          setError('Upload succeeded but no meaningful content was extracted. The file might be empty or in an unsupported format.')
+          return
+        }
+        
         console.log('📤 Calling onUploadSuccess with uploaded resume data')
+        console.log('📊 Data summary:', {
+          name: result.data.name,
+          sectionsCount: result.data.sections?.length || 0,
+          hasEmail: !!result.data.email,
+          hasPhone: !!result.data.phone
+        })
         onUploadSuccess(result.data)
       } else {
         const errorMsg = result.error || 'Upload failed'

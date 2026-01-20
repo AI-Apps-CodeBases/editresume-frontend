@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { templateRegistry, TemplateRegistryEntry } from '../templates/registry'
+import { useState, useEffect } from 'react'
+import type { TemplateRegistryEntry } from '../templates/registry'
 import { TemplatePreview } from './TemplatePreview'
 
 interface Props {
@@ -22,12 +22,33 @@ interface Props {
   }
 }
 
+let templateRegistryCache: TemplateRegistryEntry[] | null = null
+
+async function loadTemplateRegistry(): Promise<TemplateRegistryEntry[]> {
+  if (templateRegistryCache) {
+    return templateRegistryCache
+  }
+  try {
+    const module = await import('../templates/registry')
+    templateRegistryCache = module.templateRegistry || []
+    return templateRegistryCache
+  } catch (error) {
+    console.error('Failed to load template registry:', error)
+    return []
+  }
+}
+
 export function TemplateGallery({ currentTemplateId, onSelectTemplate, resumeData }: Props) {
   const [filter, setFilter] = useState<'all' | 'traditional' | 'modern' | 'creative' | 'ats-friendly'>('all')
+  const [templates, setTemplates] = useState<TemplateRegistryEntry[]>([])
+
+  useEffect(() => {
+    loadTemplateRegistry().then(setTemplates)
+  }, [])
 
   const filteredTemplates = filter === 'all'
-    ? templateRegistry
-    : templateRegistry.filter(t => t.category === filter)
+    ? templates
+    : templates.filter(t => t.category === filter)
 
   const sampleResumeData = resumeData || {
     name: 'John Doe',

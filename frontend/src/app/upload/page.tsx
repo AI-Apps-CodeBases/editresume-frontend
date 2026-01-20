@@ -11,10 +11,24 @@ export default function UploadPage() {
 
   const handleUploadSuccess = useCallback(
     (data: any) => {
+      console.log('📥 handleUploadSuccess called with data:', data)
+      console.log('📊 Data validation:', {
+        hasName: !!data?.name,
+        hasSections: !!data?.sections,
+        sectionsCount: data?.sections?.length || 0,
+        sectionsPreview: data?.sections?.slice(0, 2).map((s: any) => ({ title: s.title, bullets: s.bullets?.length || 0 }))
+      })
+      
       // Use professional deduplication utility
       const sections = Array.isArray(data?.sections) ? data.sections : []
       const deduplicatedSections = deduplicateSections(sections)
       const sortedSections = sortSectionsByDefaultOrder(deduplicatedSections)
+      
+      console.log('📋 Sections processing:', {
+        original: sections.length,
+        afterDedup: deduplicatedSections.length,
+        afterSort: sortedSections.length
+      })
       
       const normalizedResume = {
         name: data?.name || '',
@@ -24,6 +38,19 @@ export default function UploadPage() {
         location: data?.location || '',
         summary: data?.summary || '',
         sections: sortedSections,
+      }
+
+      console.log('✅ Normalized resume:', {
+        name: normalizedResume.name,
+        sectionsCount: normalizedResume.sections.length,
+        hasEmail: !!normalizedResume.email
+      })
+      
+      // Validate we have at least some content
+      if (!normalizedResume.name && normalizedResume.sections.length === 0) {
+        console.error('❌ ERROR: No content extracted from resume!')
+        alert('No content could be extracted from the resume. Please try a different file or use manual entry.')
+        return
       }
 
       if (typeof window !== 'undefined') {
@@ -66,9 +93,26 @@ export default function UploadPage() {
           }
           
           console.log('💾 Storing uploaded resume in sessionStorage:', uploadToken)
-          window.sessionStorage.setItem(`uploadedResume:${uploadToken}`, JSON.stringify(payload))
+          console.log('📦 Payload to store:', {
+            resumeName: payload.resume.name,
+            resumeSections: payload.resume.sections.length,
+            template: payload.template
+          })
+          
+          const storageKey = `uploadedResume:${uploadToken}`
+          window.sessionStorage.setItem(storageKey, JSON.stringify(payload))
+          
+          // Verify it was stored
+          const verifyStored = window.sessionStorage.getItem(storageKey)
+          if (verifyStored) {
+            console.log('✅ Verified: Resume stored successfully in sessionStorage')
+          } else {
+            console.error('❌ ERROR: Resume was NOT stored in sessionStorage!')
+          }
 
-          router.push(`/editor?resumeUpload=1&uploadToken=${uploadToken}`)
+          const editorUrl = `/editor?resumeUpload=1&uploadToken=${uploadToken}`
+          console.log('🚀 Redirecting to editor:', editorUrl)
+          router.push(editorUrl)
           return
         } catch (error) {
           console.error('Failed to cache uploaded resume payload:', error)

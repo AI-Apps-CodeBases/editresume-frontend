@@ -54,8 +54,13 @@ const NewResumeWizard = dynamic(() => import('@/components/Editor/NewResumeWizar
   ssr: false,
 })
 
-const TemplateDesignPage = dynamic(() => import('@/components/Editor/TemplateDesignPage'), {
+const TemplateDesignPage = dynamic(() => import('@/components/Editor/TemplateDesignPage').catch((err) => {
+  console.error('Failed to load TemplateDesignPage:', err)
+  // Return a fallback component
+  return { default: () => <div className="p-4 text-red-500">Failed to load template page. Please refresh.</div> }
+}), {
   ssr: false,
+  loading: () => <div className="p-4">Loading templates...</div>
 })
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { useUndoRedo } from '@/hooks/useUndoRedo'

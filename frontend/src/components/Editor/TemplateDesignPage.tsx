@@ -1,12 +1,39 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { TemplateCustomizer } from '@/features/resume/components'
-import { templateRegistry } from '@/features/resume/templates'
-import PreviewPanel from '@/components/Resume/PreviewPanel'
 import type { TemplateConfig } from '@/features/resume/templates/types'
 import { FileText, ChevronDown, Loader2 } from 'lucide-react'
 import Tooltip from '@/components/Shared/Tooltip'
+import dynamic from 'next/dynamic'
+
+const TemplateCustomizer = dynamic(
+  () => import('@/features/resume/components/TemplateCustomizer').then((mod) => ({ default: mod.TemplateCustomizer })).catch((err) => {
+    console.error('Failed to load TemplateCustomizer:', err)
+    return { default: () => <div className="p-4 text-red-500">Failed to load template customizer</div> }
+  }),
+  { ssr: false, loading: () => <div className="p-4">Loading...</div> }
+)
+
+const PreviewPanel = dynamic(() => import('@/components/Resume/PreviewPanel'), {
+  ssr: false,
+  loading: () => <div className="p-4">Loading preview...</div>
+})
+
+// Lazy load templateRegistry to avoid webpack circular dependency issues
+let templateRegistryCache: any = null
+const getTemplateRegistry = async () => {
+  if (templateRegistryCache) {
+    return templateRegistryCache
+  }
+  try {
+    const module = await import('@/features/resume/templates/registry')
+    templateRegistryCache = module.templateRegistry || []
+    return templateRegistryCache
+  } catch (error) {
+    console.error('Failed to load template registry:', error)
+    return []
+  }
+}
 
 interface Props {
   resumeData: {
@@ -59,27 +86,33 @@ export default function TemplateDesignPage({
   const exportDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (templateConfig) {
-      setLocalConfig(prev => {
-        // If we have local state with twoColumnLeft/Right, preserve it when templateConfig updates
-        if (prev && (prev.layout.twoColumnLeft || prev.layout.twoColumnRight)) {
-          return {
-            ...templateConfig,
-            layout: {
-              ...templateConfig.layout,
-              twoColumnLeft: prev.layout.twoColumnLeft ?? templateConfig.layout.twoColumnLeft,
-              twoColumnRight: prev.layout.twoColumnRight ?? templateConfig.layout.twoColumnRight,
+    const loadTemplateConfig = async () => {
+      if (templateConfig) {
+        setLocalConfig(prev => {
+          // If we have local state with twoColumnLeft/Right, preserve it when templateConfig updates
+          if (prev && (prev.layout.twoColumnLeft || prev.layout.twoColumnRight)) {
+            return {
+              ...templateConfig,
+              layout: {
+                ...templateConfig.layout,
+                twoColumnLeft: prev.layout.twoColumnLeft ?? templateConfig.layout.twoColumnLeft,
+                twoColumnRight: prev.layout.twoColumnRight ?? templateConfig.layout.twoColumnRight,
+              }
             }
           }
+          return templateConfig
+        })
+      } else {
+        if (!templateRegistryCache) {
+          templateRegistryCache = await getTemplateRegistry()
         }
-        return templateConfig
-      })
-    } else {
-      const template = templateRegistry.find((t) => t.id === currentTemplate)
-      if (template) {
-        setLocalConfig(template.defaultConfig)
+        const template = templateRegistryCache.find((t: any) => t.id === currentTemplate)
+        if (template) {
+          setLocalConfig(template.defaultConfig)
+        }
       }
     }
+    loadTemplateConfig()
   }, [templateConfig, currentTemplate])
 
   const handleConfigUpdate = (updates: Partial<TemplateConfig>) => {
@@ -126,24 +159,41 @@ export default function TemplateDesignPage({
     onTemplateConfigUpdate(newConfig)
   }
 
-  const handleResetConfig = () => {
-    const template = templateRegistry.find((t) => t.id === currentTemplate)
+  const handleResetConfig = async () => {
+    const registry = await getTemplateRegistry()
+    const template = registry.find((t: any) => t.id === currentTemplate)
     if (template) {
       setLocalConfig(template.defaultConfig)
       onTemplateConfigUpdate(template.defaultConfig)
     }
   }
 
-  const handleTemplateChange = (templateId: string) => {
+  const handleTemplateChange = async (templateId: string) => {
     onTemplateChange(templateId)
-    const template = templateRegistry.find((t) => t.id === templateId)
+    const registry = await getTemplateRegistry()
+    const template = registry.find((t: any) => t.id === templateId)
     if (template) {
       setLocalConfig(template.defaultConfig)
       onTemplateConfigUpdate(template.defaultConfig)
     }
   }
 
-  const config = localConfig || templateRegistry.find((t) => t.id === currentTemplate)?.defaultConfig
+  const [config, setConfigState] = useState<TemplateConfig | null>(localConfig || null)
+  
+  useEffect(() => {
+    const loadConfig = async () => {
+      if (localConfig) {
+        setConfigState(localConfig)
+      } else {
+        const registry = await getTemplateRegistry()
+        const template = registry.find((t: any) => t.id === currentTemplate)
+        if (template) {
+          setConfigState(template.defaultConfig)
+        }
+      }
+    }
+    loadConfig()
+  }, [localConfig, currentTemplate])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -221,14 +271,20 @@ export default function TemplateDesignPage({
         <div className={`w-full lg:w-[40%] border-b lg:border-b-0 lg:border-r border-border-subtle bg-white/95 backdrop-blur-sm overflow-y-auto min-h-0 ${
           mobileMode === 'preview' ? 'hidden lg:block' : ''
         }`}>
-          <TemplateCustomizer
-            currentTemplateId={currentTemplate}
-            config={config!}
-            onTemplateChange={handleTemplateChange}
-            onConfigUpdate={handleConfigUpdate}
-            onResetConfig={handleResetConfig}
-            resumeData={resumeData}
-          />
+          {configState ? (
+            <TemplateCustomizer
+              currentTemplateId={currentTemplate}
+              config={configState}
+              onTemplateChange={handleTemplateChange}
+              onConfigUpdate={handleConfigUpdate}
+              onResetConfig={handleResetConfig}
+              resumeData={resumeData}
+            />
+          ) : (
+            <div className="p-4 text-center text-text-secondary">
+              <p>Loading template configuration...</p>
+            </div>
+          )}
         </div>
 
         <div className={`flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-3 sm:p-6 lg:p-8 flex items-start justify-center min-h-0 ${
@@ -292,11 +348,11 @@ export default function TemplateDesignPage({
                 style={{ transformOrigin: 'top center', width: '111%' }}
               >
                 <PreviewPanel
-                  key={`preview-${currentTemplate}-${JSON.stringify(config?.layout?.twoColumnLeft || [])}-${JSON.stringify(config?.layout?.twoColumnRight || [])}`}
+                  key={`preview-${currentTemplate}-${JSON.stringify(configState?.layout?.twoColumnLeft || [])}-${JSON.stringify(configState?.layout?.twoColumnRight || [])}`}
                   data={resumeData}
                   replacements={{}}
                   template={currentTemplate as any}
-                  templateConfig={config}
+                  templateConfig={configState}
                   constrained={false}
                 />
               </div>
