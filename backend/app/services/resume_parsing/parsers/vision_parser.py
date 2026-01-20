@@ -45,8 +45,16 @@ async def parse_with_vision(
             for page_data in vision_pages
         ]
         
-        # Wait for all pages to complete in parallel
-        page_results = await asyncio.gather(*page_tasks, return_exceptions=True)
+        # Wait for all pages to complete in parallel with timeout
+        # Each page gets 90 seconds (reduced from 120), total should be ~90s for all pages
+        try:
+            page_results = await asyncio.wait_for(
+                asyncio.gather(*page_tasks, return_exceptions=True),
+                timeout=90.0
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Vision parsing timed out after 90 seconds processing {len(vision_pages)} pages")
+            raise
         
         # Merge results from all pages
         all_sections = []
@@ -81,16 +89,46 @@ async def parse_with_vision(
             
             # Merge sections (avoid duplicates)
             for section in result.get('sections', []):
-                # Check if section already exists
+                # Normalize section title for matching
+                section_title_lower = section['title'].lower().strip()
+                
+                # Check if section already exists (case-insensitive)
                 existing = next(
-                    (s for s in all_sections if s['title'].lower() == section['title'].lower()),
+                    (s for s in all_sections if s['title'].lower().strip() == section_title_lower),
                     None
                 )
                 if existing:
-                    # Merge bullets
-                    existing['bullets'].extend(section['bullets'])
+                    # Merge bullets and deduplicate
+                    existing_bullet_texts = {
+                        bullet['text'].strip().lower() 
+                        for bullet in existing['bullets'] 
+                        if bullet.get('text', '').strip()
+                    }
+                    
+                    duplicate_count = 0
+                    for bullet in section.get('bullets', []):
+                        bullet_text = bullet.get('text', '').strip()
+                        if bullet_text:
+                            bullet_lower = bullet_text.lower()
+                            # Only add if not duplicate (case-insensitive)
+                            if bullet_lower not in existing_bullet_texts:
+                                existing['bullets'].append(bullet)
+                                existing_bullet_texts.add(bullet_lower)
+                            else:
+                                duplicate_count += 1
+                    
+                    if duplicate_count > 0:
+                        logger.debug(
+                            f"Merged section '{section['title']}': "
+                            f"skipped {duplicate_count} duplicate bullets"
+                        )
                 else:
                     all_sections.append(section)
+        
+        logger.info(
+            f"Vision parsing complete: {len(all_sections)} sections, "
+            f"{sum(len(s.get('bullets', [])) for s in all_sections)} total bullets"
+        )
         
         return {
             **contact_info,
