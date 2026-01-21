@@ -6,14 +6,17 @@ export const getAuthHeaders = (): Record<string, string> => {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-export const getAuthHeadersAsync = async (): Promise<Record<string, string>> => {
+export const getAuthHeadersAsync = async (forceRefresh = false): Promise<Record<string, string>> => {
   if (typeof window === 'undefined') return {}
   
   try {
     const currentUser = auth.currentUser
     if (currentUser) {
-      const token = await currentUser.getIdToken()
-      return { Authorization: `Bearer ${token}` }
+      const token = await currentUser.getIdToken(forceRefresh)
+      if (token) {
+        localStorage.setItem('authToken', token)
+        return { Authorization: `Bearer ${token}` }
+      }
     }
   } catch (error) {
     console.error('Failed to get auth token:', error)
