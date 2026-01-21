@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import TopNavigationBar from './TopNavigationBar'
 import ModernLeftSidebar from './ModernLeftSidebar'
 import VisualResumeEditor from './VisualResumeEditor'
@@ -7,6 +7,7 @@ import RightPanel from './RightPanel'
 import JobsView from './JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 import Tooltip from '@/components/Shared/Tooltip'
+import config from '@/lib/config'
 
 interface ModernEditorLayoutProps {
   resumeData: {
@@ -109,6 +110,8 @@ export default function ModernEditorLayout({
   const [matchScore, setMatchScore] = useState<number | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [matchResult, setMatchResult] = useState<any>(null)
+  const [mobileATSScore, setMobileATSScore] = useState<number | null>(null)
+  const [isMobileAnalyzing, setIsMobileAnalyzing] = useState(false)
 
   useEffect(() => {
     if (deepLinkedJD && activeRightTab !== 'job-description') {
@@ -182,6 +185,154 @@ export default function ModernEditorLayout({
     }
   }, [mobileEditorMode, activeRightTab])
 
+  // Calculate ATS score for mobile gauge
+  const calculateMobileATSScore = useCallback(async () => {
+    if (!resumeData || (!resumeData.name && !resumeData.sections?.length)) {
+      setMobileATSScore(null)
+      return
+    }
+
+    setIsMobileAnalyzing(true)
+    try {
+      const cleanedResumeData = {
+        name: resumeData.name || '',
+        title: resumeData.title || '',
+        email: resumeData.email || '',
+        phone: resumeData.phone || '',
+        location: resumeData.location || '',
+        summary: resumeData.summary || '',
+        sections: (resumeData.sections || []).map((section: any) => ({
+          id: section.id,
+          title: section.title,
+          bullets: (section.bullets || [])
+            .filter((bullet: any) => bullet?.params?.visible !== false)
+            .map((bullet: any) => ({
+              id: bullet.id,
+              text: bullet.text,
+              params: bullet.params || {}
+            }))
+        }))
+      }
+
+      let jobDescriptionToUse = deepLinkedJD || ''
+      let extractedKeywordsToUse = null
+      if (!jobDescriptionToUse && typeof window !== 'undefined') {
+        const savedJD = localStorage.getItem('deepLinkedJD')
+        if (savedJD) {
+          jobDescriptionToUse = savedJD
+        }
+      }
+      if (typeof window !== 'undefined') {
+        const savedKeywords = localStorage.getItem('extractedKeywords')
+        if (savedKeywords) {
+          try {
+            extractedKeywordsToUse = JSON.parse(savedKeywords)
+          } catch (e) {
+            console.error('Failed to parse extracted keywords:', e)
+          }
+        }
+      }
+
+      const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resume_data: cleanedResumeData,
+          job_description: jobDescriptionToUse,
+          target_role: '',
+          industry: '',
+          extracted_keywords: extractedKeywordsToUse || undefined
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to calculate ATS score')
+      }
+
+      const data = await response.json()
+      const newScore = data.score || null
+      setMobileATSScore(newScore)
+    } catch (error) {
+      console.error('Error calculating mobile ATS score:', error)
+      setMobileATSScore(null)
+    } finally {
+      setIsMobileAnalyzing(false)
+    }
+  }, [resumeData, deepLinkedJD])
+
+  // Load score from match result first, then recalculate
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedMatchResult = localStorage.getItem('currentMatchResult')
+        if (savedMatchResult) {
+          const matchResult = JSON.parse(savedMatchResult)
+          const matchScore = matchResult?.match_analysis?.similarity_score
+          if (matchScore !== null && matchScore !== undefined && !isNaN(matchScore)) {
+            const roundedScore = Math.round(matchScore)
+            setMobileATSScore(roundedScore)
+            const timeout = setTimeout(() => {
+              calculateMobileATSScore()
+            }, 2000)
+            return () => clearTimeout(timeout)
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load match result score:', e)
+      }
+    }
+
+    const timeout = setTimeout(() => {
+      calculateMobileATSScore()
+    }, 1000)
+
+    return () => clearTimeout(timeout)
+  }, [calculateMobileATSScore])
+
+  // Listen for match result updates
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const savedMatchResult = localStorage.getItem('currentMatchResult')
+        if (savedMatchResult) {
+          const matchResult = JSON.parse(savedMatchResult)
+          const matchScore = matchResult?.match_analysis?.similarity_score
+          if (matchScore !== null && matchScore !== undefined && !isNaN(matchScore)) {
+            setMobileATSScore(Math.round(matchScore))
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load match result score:', e)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    const interval = setInterval(handleStorageChange, 1000)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      clearInterval(interval)
+    }
+  }, [])
+
+  const getScoreColor = (score?: number | null) => {
+    if (score === null || score === undefined) return 'text-gray-500'
+    if (score >= 80) return 'text-green-600'
+    if (score >= 60) return 'text-yellow-600'
+    if (score >= 40) return 'text-orange-600'
+    return 'text-red-600'
+  }
+
+  const getScoreRing = (score?: number | null) => {
+    const safeScore = Number.isFinite(score) && score !== null ? Math.max(0, Math.min(100, score!)) : 0
+    return {
+      strokeClass: getScoreColor(score).replace('text-', 'stroke-'),
+      safeScore
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-primary-50/20 via-white to-primary-50/10">
       <TopNavigationBar 
@@ -245,7 +396,7 @@ export default function ModernEditorLayout({
             <div className={`h-full overflow-y-auto bg-gradient-to-b from-primary-50/10 to-transparent px-1 sm:px-6 lg:px-8 relative ${
               mobileEditorMode === 'match' ? 'hidden lg:block' : ''
             }`}>
-              <div className="lg:hidden pt-3">
+              <div className="lg:hidden pt-3 pb-3">
                 <div className="inline-flex items-center rounded-full border border-border-subtle bg-white/90 shadow-sm">
                   <button
                     onClick={() => setMobileEditorMode('editor')}
@@ -269,6 +420,67 @@ export default function ModernEditorLayout({
                   </button>
                 </div>
               </div>
+
+              {mobileATSScore !== null && (
+                <div className="lg:hidden fixed top-20 right-4 z-40">
+                  <div className="bg-white/95 backdrop-blur-sm border border-border-subtle rounded-lg px-2.5 py-2 shadow-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="relative w-12 h-12">
+                        <svg viewBox="0 0 36 36" className="w-12 h-12 transform -rotate-90">
+                          <circle
+                            className="text-gray-200"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            fill="none"
+                            cx="18"
+                            cy="18"
+                            r="15"
+                          />
+                          {(() => {
+                            const ring = getScoreRing(mobileATSScore)
+                            return (
+                              <circle
+                                className={ring.strokeClass.replace('stroke-', 'text-')}
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeWidth="2.5"
+                                fill="none"
+                                strokeDasharray={`${(mobileATSScore / 100) * 94.2}, 94.2`}
+                                cx="18"
+                                cy="18"
+                                r="15"
+                              />
+                            )
+                          })()}
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          {isMobileAnalyzing ? (
+                            <div className="w-3 h-3 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <span className={`text-xs font-bold ${getScoreColor(mobileATSScore)}`}>
+                              {mobileATSScore}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                          ATS
+                        </div>
+                        <p className="text-[10px] text-gray-600 leading-tight">
+                          {mobileATSScore >= 80
+                            ? 'Excellent'
+                            : mobileATSScore >= 60
+                              ? 'Strong'
+                              : mobileATSScore >= 40
+                                ? 'Fair'
+                                : 'Needs Work'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="origin-top-left lg:origin-top-left lg:scale-100 scale-[0.5] w-[200%] lg:w-full">
                 <VisualResumeEditor

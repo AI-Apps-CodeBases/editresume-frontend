@@ -280,7 +280,7 @@ export default function TemplateDesignPage({
           )}
         </div>
 
-        <div className={`flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/20 to-white p-3 sm:p-6 lg:p-8 flex items-start justify-center min-h-0 ${
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-br from-primary-50/20 to-white p-3 sm:p-6 lg:p-8 flex items-start justify-center min-h-0 ${
           mobileMode === 'templates' ? 'hidden lg:flex' : ''
         }`}>
           <div className="w-full max-w-4xl">
@@ -335,18 +335,15 @@ export default function TemplateDesignPage({
                 </div>
               )}
             </div>
-            <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card overflow-visible">
-              <div
-                className="origin-top lg:scale-100 scale-[0.9]"
-                style={{ transformOrigin: 'top center', width: '111%' }}
-              >
+            <div className="bg-white rounded-lg shadow-[0_20px_60px_rgba(15,23,42,0.12)] p-2 surface-card overflow-hidden w-full">
+              <div className="w-full overflow-x-hidden">
                 <PreviewPanel
                   key={`preview-${currentTemplate}-${JSON.stringify(configState?.layout?.twoColumnLeft || [])}-${JSON.stringify(configState?.layout?.twoColumnRight || [])}`}
                   data={resumeData}
                   replacements={{}}
                   template={currentTemplate as any}
                   templateConfig={configState}
-                  constrained={false}
+                  constrained={true}
                 />
               </div>
             </div>
