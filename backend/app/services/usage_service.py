@@ -28,7 +28,7 @@ FEATURE_TYPES = {
 # Usage limits per tier (only enforced when NEXT_PUBLIC_PREMIUM_MODE=true)
 USAGE_LIMITS = {
     "guest": {
-        "exports": {"monthly": 1},
+        "exports": {"monthly": 3},
         "ai_improvements": {"session": 3},
         "ats_scores": {"daily": float("inf")},  # ATS scoring is always free
         "cover_letters": {"monthly": 0},

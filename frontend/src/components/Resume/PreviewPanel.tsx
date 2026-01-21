@@ -77,7 +77,7 @@ export default function PreviewPanel({
         width: 8.27in;
         height: 11.69in;
         background: white;
-        margin: 0 auto 20px auto;
+        margin: 0 auto 2px auto;
         padding: 0.5cm;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         position: relative;
@@ -145,7 +145,7 @@ export default function PreviewPanel({
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 20px;
+        padding: 8px;
         background: #f3f4f6;
         min-height: 100vh;
         width: 100%;
@@ -155,7 +155,7 @@ export default function PreviewPanel({
       /* Responsive container for constrained spaces */
       .a4-pages-container.constrained {
         min-height: auto;
-        padding: 10px;
+        padding: 4px;
         max-width: 100%;
         overflow-x: hidden;
       }
@@ -171,7 +171,7 @@ export default function PreviewPanel({
         min-height: auto;
         transform: scale(1);
         transform-origin: top center;
-        margin: 0 auto 20px auto;
+        margin: 0 auto 2px auto;
       }
       
       /* Ensure page break indicators are visible in constrained mode */
@@ -195,7 +195,7 @@ export default function PreviewPanel({
       @media (max-width: 640px) {
         .a4-pages-container.constrained .a4-page-view {
           transform: scale(0.8);
-          margin-bottom: 10px;
+          margin-bottom: 2px;
         }
       }
       
@@ -323,16 +323,28 @@ export default function PreviewPanel({
       if (measureRef.current) {
         const height = measureRef.current.scrollHeight
         setContentHeight(height)
-        // Account for padding (0.5cm top + 0.5cm bottom = ~38px)
-        const usableHeight = A4_PAGE_HEIGHT_PX - 76
-        const pages = Math.max(1, Math.ceil(height / usableHeight))
+        // Use the same padding calculation as rendering
+        const pageMargin = templateConfig?.spacing?.pageMargin || 24
+        const paddingPx = pageMargin * 0.5 * 2
+        const usableHeight = A4_PAGE_HEIGHT_PX - paddingPx
+        // Calculate pages with a small buffer to ensure all content is visible
+        const calculatedPages = height / usableHeight
+        const pages = Math.max(1, Math.ceil(calculatedPages + 0.1))
         setPageCount(pages)
       }
     }
     
     // Measure after a short delay to ensure content is rendered
     const timeoutId = setTimeout(measure, 100)
-    return () => clearTimeout(timeoutId)
+    // Also re-measure after content fully loads
+    const timeoutId2 = setTimeout(measure, 500)
+    // Re-measure when window resizes
+    window.addEventListener('resize', measure)
+    return () => {
+      clearTimeout(timeoutId)
+      clearTimeout(timeoutId2)
+      window.removeEventListener('resize', measure)
+    }
   }, [data, templateConfig, template, replacements])
 
   // Live-only PreviewPanel; page-level controls handle mode

@@ -22,6 +22,19 @@ export default function UploadPage() {
         sections: Array.isArray(data?.sections) ? data.sections : [], // Pass raw sections
       }
 
+      console.log('✅ Normalized resume:', {
+        name: normalizedResume.name,
+        sectionsCount: normalizedResume.sections.length,
+        hasEmail: !!normalizedResume.email
+      })
+      
+      // Validate we have at least some content
+      if (!normalizedResume.name && normalizedResume.sections.length === 0) {
+        console.error('❌ ERROR: No content extracted from resume!')
+        alert('No content could be extracted from the resume. Please try a different file or use manual entry.')
+        return
+      }
+
       if (typeof window !== 'undefined') {
         try {
           // Clear ALL cached resume data before uploading
@@ -62,9 +75,26 @@ export default function UploadPage() {
           }
           
           console.log('💾 Storing uploaded resume in sessionStorage:', uploadToken)
-          window.sessionStorage.setItem(`uploadedResume:${uploadToken}`, JSON.stringify(payload))
+          console.log('📦 Payload to store:', {
+            resumeName: payload.resume.name,
+            resumeSections: payload.resume.sections.length,
+            template: payload.template
+          })
+          
+          const storageKey = `uploadedResume:${uploadToken}`
+          window.sessionStorage.setItem(storageKey, JSON.stringify(payload))
 
-          router.push(`/editor?resumeUpload=1&uploadToken=${uploadToken}`)
+          // Verify it was stored
+          const verifyStored = window.sessionStorage.getItem(storageKey)
+          if (verifyStored) {
+            console.log('✅ Verified: Resume stored successfully in sessionStorage')
+          } else {
+            console.error('❌ ERROR: Resume was NOT stored in sessionStorage!')
+          }
+
+          const editorUrl = `/editor?resumeUpload=1&uploadToken=${uploadToken}`
+          console.log('🚀 Redirecting to editor:', editorUrl)
+          router.push(editorUrl)
           return
         } catch (error) {
           console.error('Failed to cache uploaded resume payload:', error)

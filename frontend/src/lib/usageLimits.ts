@@ -27,7 +27,7 @@ export interface PlanLimits {
 
 export const USAGE_LIMITS: Record<PlanTier, PlanLimits> = {
   guest: {
-    exports: { monthly: 1 },
+    exports: { monthly: 3 },
     ai_improvements: { session: 3 },
     ats_scores: { daily: null },
     cover_letters: { monthly: 0 },

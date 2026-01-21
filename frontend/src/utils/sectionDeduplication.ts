@@ -18,9 +18,16 @@ export interface Section {
  * Handles variations like "Work Experience" vs "Experience" vs "Professional Experience"
  */
 export function normalizeSectionTitle(title: string): string {
-  const normalized = title.toLowerCase().trim()
+  let normalized = title.toLowerCase().trim()
+  // Normalize common "continued" suffixes to avoid duplicate sections across pages
+  normalized = normalized.replace(/\s*\(.*?(continued|cont\.?).*?\)\s*$/g, '')
+  normalized = normalized.replace(/\s*[-:]*\s*(continued|cont\.?)\s*$/g, '')
+  normalized = normalized.replace(/\s*(page|pg)\s*\d+\s*$/g, '')
+  normalized = normalized.replace(/\s+/g, ' ').trim()
   
   // Semantic mapping for section titles
+  // REMOVED all skills-related mappings to preserve "Additional Skills", "Core Skills", "Technical Skills" as separate sections
+  // Only merge truly identical sections (e.g. "Skills" and "skills" - exact match only)
   const semanticMap: Record<string, string> = {
     "work experience": "work experience",
     "professional experience": "work experience",
@@ -34,11 +41,7 @@ export function normalizeSectionTitle(title: string): string {
     "project experience": "projects",
     "project": "projects",
     "projects": "projects",
-    "technical skills": "skills",
-    "core competencies": "skills",
-    "competencies": "skills",
-    "expertise": "skills",
-    "skill": "skills",
+    // Only exact "skills" matches - "Additional Skills", "Core Skills" will NOT match
     "skills": "skills",
     "education & training": "education",
     "academic background": "education",
@@ -53,14 +56,13 @@ export function normalizeSectionTitle(title: string): string {
     "awards": "awards",
   }
   
-  // Check if any semantic mapping applies
+  // STRICT matching: only exact match (case-insensitive)
+  // This prevents "Additional Skills" from matching "skills"
+  // But allows "Skills" and "skills" to be merged
   for (const [variant, canonical] of Object.entries(semanticMap)) {
-    if (normalized === variant || normalized.includes(variant)) {
-      // Check if the variant is at word boundaries
-      const regex = new RegExp(`\\b${variant}\\b`, 'i')
-      if (regex.test(normalized)) {
+    // Case-insensitive exact match only - no partial matches
+    if (normalized === variant) {
         return canonical
-      }
     }
   }
   
@@ -123,19 +125,9 @@ export function deduplicateSections(sections: Section[]): Section[] {
         const bulletLower = bulletText.toLowerCase()
         
         // Skip empty bullets and exact duplicates (case-insensitive)
+        // REMOVED near-duplicate check - it was too aggressive and causing bullets to be lost
+        // Only check for exact duplicates to preserve all content (including company headers)
         if (bulletText && !existingBulletTexts.has(bulletLower)) {
-          // Check for near-duplicates (similarity check)
-          let isDuplicate = false
-          for (const existingText of existingBulletTexts) {
-            // If one contains the other or vice versa with high overlap, consider duplicate
-            if ((bulletLower.includes(existingText) || existingText.includes(bulletLower)) &&
-                Math.abs(bulletLower.length - existingText.length) < Math.max(bulletLower.length, existingText.length) * 0.2) {
-              isDuplicate = true
-              break
-            }
-          }
-          
-          if (!isDuplicate) {
             existingBulletTexts.add(bulletLower)
             existingSection.bullets.push({
               id: `${existingSection.id}-${bulletIndex}`,
@@ -145,7 +137,6 @@ export function deduplicateSections(sections: Section[]): Section[] {
                 : undefined) || {}
             })
             bulletIndex++
-          }
         }
       }
       

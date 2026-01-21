@@ -66,6 +66,15 @@ class Settings(BaseSettings):
         default=None, env="LINKEDIN_REDIRECT_URI"
     )
 
+    # Resume Parsing Settings
+    use_vision_parser: bool = Field(default=True, env="USE_VISION_PARSER")
+    complexity_threshold: float = Field(default=0.5, env="COMPLEXITY_THRESHOLD")
+    min_confidence_score: float = Field(default=0.6, env="MIN_CONFIDENCE_SCORE")
+    openai_model_text: str = Field(default="gpt-4o-mini", env="OPENAI_MODEL_TEXT")
+    openai_model_vision: str = Field(default="gpt-4o", env="OPENAI_MODEL_VISION")
+    max_parsing_time_seconds: int = Field(default=60, env="MAX_PARSING_TIME_SECONDS")
+    enable_legacy_parser: bool = Field(default=True, env="ENABLE_LEGACY_PARSER")
+
     model_config = SettingsConfigDict(
         case_sensitive=False,
         env_file=".env",

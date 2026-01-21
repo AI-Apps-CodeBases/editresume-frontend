@@ -42,7 +42,7 @@ if OPENAI_API_KEY and OPENAI_API_KEY != "sk-your-openai-api-key-here":
             "httpx_client": get_httpx_client(),  # Add async client
         }
         logger.info(
-            f"OpenAI client initialized successfully with model: {OPENAI_MODEL}"
+            f"OpenAI client initialized successfully with model: {OPENAI_MODEL}, max_tokens: {OPENAI_MAX_TOKENS}"
         )
     except Exception as e:
         logger.error(f"Failed to initialize OpenAI client: {e}")

@@ -54,8 +54,13 @@ const NewResumeWizard = dynamic(() => import('@/components/Editor/NewResumeWizar
   ssr: false,
 })
 
-const TemplateDesignPage = dynamic(() => import('@/components/Editor/TemplateDesignPage'), {
+const TemplateDesignPage = dynamic(() => import('@/components/Editor/TemplateDesignPage').catch((err) => {
+  console.error('Failed to load TemplateDesignPage:', err)
+  // Return a fallback component
+  return { default: () => <div className="p-4 text-red-500">Failed to load template page. Please refresh.</div> }
+}), {
   ssr: false,
+  loading: () => <div className="p-4">Loading templates...</div>
 })
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
@@ -80,49 +85,155 @@ const mapTemplateId = (oldId: string): string => {
 const normalizeSectionsForState = (sections: any[]) => {
   const deduplicated = deduplicateSections(sections)
   const sorted = sortSectionsByDefaultOrder(deduplicated)
-  return sorted.map((section, sectionIdx) => {
+  // --- Normalize bullets and section types ---
+  // Step 1: process bullets to ensure correct shape (text, params, id)
+  const normalizedSections = sorted.map((section, sectionIdx) => {
     const processedBullets = (section.bullets || []).map((bullet: any, bulletIdx: number) => {
-      // Handle different bullet formats
+      // Support both string and object forms for legacy compatibility
       let bulletText = ''
       let bulletParams: any = {}
-      
+      let bulletId = bullet?.id
+
       if (typeof bullet === 'string') {
         bulletText = bullet.trim()
       } else if (bullet && typeof bullet === 'object') {
         bulletText = String(bullet.text || '').trim()
         bulletParams = bullet.params || {}
+        bulletId = bullet.id
       }
-      
-      // Only include non-empty bullets
+
+      // Filter out empty bullets
       if (!bulletText) return null
-      
-      // Preserve params types
-      const normalizedParams: Record<string, any> = bulletParams ? Object.fromEntries(
-        Object.entries(bulletParams).map(([k, v]) => {
-          // Preserve boolean, number, and array types
-          if (typeof v === 'boolean' || typeof v === 'number') {
-            return [k, v]
-          }
-          // Preserve arrays (like generatedKeywords)
-          if (Array.isArray(v)) {
-            return [k, v]
-          }
-          // Convert other types to string
-          return [k, String(v)]
-        })
-      ) : {}
-      
+
+      // Ensure param types
+      const normalizedParams: Record<string, any> = bulletParams
+        ? Object.fromEntries(
+            Object.entries(bulletParams).map(([k, v]) => {
+              if (typeof v === 'boolean' || typeof v === 'number') {
+                return [k, v]
+              }
+              if (Array.isArray(v)) {
+                return [k, v]
+              }
+              return [k, String(v)]
+            })
+          )
+        : {}
+
       return {
-        id: String(bullet?.id || `${section.id || `section-${sectionIdx}`}-bullet-${bulletIdx}-${Date.now()}`),
+        id: String(bulletId || `${section.id || `section-${sectionIdx}`}-bullet-${bulletIdx}-${Date.now()}`),
         text: bulletText,
-        params: normalizedParams as Record<string, string>
+        params: normalizedParams,
       }
-    }).filter((b: any): b is { id: string; text: string; params: Record<string, string> } => b !== null)
-    
+    }).filter((b: any): b is { id: string; text: string; params: Record<string, any> } => b !== null)
+
     return {
+      ...section,
       id: section.id || `section-${sectionIdx}-${Date.now()}`,
+      bullets: processedBullets,
+    }
+  })
+
+  // --- POST-PROCESSING: Move miscategorized work experience bullets from Skills to Work Experience ---
+
+  // Identify and extract such bullets from Skills
+  const workExpBulletsToMove: any[] = []
+  const fixedSections = normalizedSections.map(section => {
+    const sectionTitle = (section.title || '').toLowerCase()
+    const isSkillsSection = sectionTitle === 'skills' || sectionTitle.includes('skill')
+
+    if (isSkillsSection) {
+      const workExpBullets: any[] = []
+      const skillBullets: any[] = []
+
+      section.bullets.forEach((bullet: any) => {
+        const bulletText = (bullet.text || '').trim()
+        // Remove bullet list prefix
+        const cleanText = bulletText.replace(/^[•\-\*]\s*/, '').toLowerCase()
+        // List of typical "work experience" verbs
+        const actionVerbs = [
+          'automated', 'designed', 'built', 'worked', 'used', 'deployed',
+          'managed', 'implemented', 'developed', 'created', 'configured',
+          'migrated', 'utilized', 'authored', 'installed', 'controlled',
+          'enhanced', 'advanced', 'applied', 'maintained', 'optimized',
+          'improved', 'led', 'delivered', 'executed', 'achieved'
+        ]
+        const isWorkExpBullet = actionVerbs.some(verb =>
+          cleanText.startsWith(verb)
+        ) && bulletText.length > 30 // Heuristic: work exp bullets are usually sentences
+
+        if (isWorkExpBullet) {
+          workExpBullets.push(bullet)
+        } else {
+          skillBullets.push(bullet)
+        }
+      })
+
+      if (workExpBullets.length > 0) {
+        workExpBulletsToMove.push(...workExpBullets)
+      }
+
+      // Return updated skills section (with skill bullets only)
+      return {
+        ...section,
+        bullets: skillBullets
+      }
+    }
+    return section
+  })
+
+  // Place extracted bullets at end of "Work Experience"/similar section (with separator if applicable)
+  const updatedSections = fixedSections.map(section => {
+    const sectionTitle = (section.title || '').toLowerCase()
+    const isWorkExpSection =
+      sectionTitle === 'work experience' ||
+      sectionTitle.includes('work experience') ||
+      sectionTitle.includes('professional experience') ||
+      sectionTitle.includes('employment')
+
+    if (isWorkExpSection && workExpBulletsToMove.length > 0) {
+      const bullets = [...section.bullets]
+
+      if (bullets.length > 0 && bullets[bullets.length - 1]?.text?.trim() !== '') {
+        bullets.push({
+          id: `${section.id}-sep-${Date.now()}`,
+          text: '',
+          params: {}
+        })
+      }
+
+      return {
+        ...section,
+        bullets: [...bullets, ...workExpBulletsToMove]
+      }
+    }
+
+    return section
+  })
+
+  // Final normalization: ensure consistent bullet IDs and params
+  return updatedSections.map((section, sectionIndex) => {
+    const sectionId = section.id || `section-${sectionIndex}`
+    return {
+      id: sectionId,
       title: section.title,
-      bullets: processedBullets
+      bullets: (section.bullets || []).map((bullet: any, bulletIndex: number) => ({
+        id: String(bullet?.id || `${sectionId}-${bulletIndex}`),
+        text: bullet.text,
+        params: bullet.params
+          ? Object.fromEntries(
+              Object.entries(bullet.params).map(([k, v]) => {
+                if (typeof v === 'boolean' || typeof v === 'number') {
+                  return [k, v]
+                }
+                if (Array.isArray(v)) {
+                  return [k, v]
+                }
+                return [k, String(v)]
+              })
+            )
+          : {}
+      }))
     }
   })
 }
@@ -2689,6 +2800,9 @@ const EditorPageContent = () => {
           url.searchParams.delete('view')
           window.history.pushState({}, '', url.toString())
         }}
+        onExport={handleExportForLayout}
+        isExporting={isExporting}
+        hasResumeName={!!resumeData.name}
       />
     )
   }
