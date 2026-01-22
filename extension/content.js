@@ -257,37 +257,7 @@
         jobId = jobIdMatch[1];
       }
       
-      // Priority 1: Look for actual Easy Apply buttons/links with direct hrefs
-      const allButtons = document.querySelectorAll('button, a');
-      for (const btn of allButtons) {
-        const text = btn.textContent?.trim() || '';
-        const ariaLabel = btn.getAttribute('aria-label') || '';
-        const isEasyApply = (text.toLowerCase().includes('easy apply') || ariaLabel.toLowerCase().includes('easy apply')) && 
-            !text.toLowerCase().includes('save') && !text.toLowerCase().includes('follow');
-        
-        if (isEasyApply) {
-          // Direct link with /jobs/apply/ - highest priority
-          if (btn.tagName === 'A' && btn.href && btn.href.includes('/jobs/apply/')) {
-            return btn.href.split('?')[0].split('#')[0];
-          }
-          // Check data attributes for apply URL
-          if (btn.dataset.href && btn.dataset.href.includes('/jobs/apply/')) {
-            return btn.dataset.href.split('?')[0].split('#')[0];
-          }
-          // Check for data-apply-url or similar attributes
-          const applyUrlAttr = btn.getAttribute('data-apply-url') || btn.getAttribute('data-href') || btn.getAttribute('href');
-          if (applyUrlAttr && applyUrlAttr.includes('/jobs/apply/')) {
-            return applyUrlAttr.split('?')[0].split('#')[0];
-          }
-          // Check parent link
-          const parentLink = btn.closest('a');
-          if (parentLink && parentLink.href && parentLink.href.includes('/jobs/apply/')) {
-            return parentLink.href.split('?')[0].split('#')[0];
-          }
-        }
-      }
-      
-      // Priority 2: Try multiple selectors for Easy Apply button
+      // Try multiple selectors for Easy Apply button - prioritize actual Easy Apply buttons
       const selectors = [
         // Easy Apply specific buttons
         'button[aria-label*="Easy Apply" i]',
@@ -311,8 +281,38 @@
         '.jobs-s-apply button',
         '.jobs-s-apply a',
         'button[data-tracking-control-name="public_jobs_topcard_apply"]',
-        'a[data-tracking-control-name="public_jobs_topcard_apply"]'
+        'a[data-tracking-control-name="public_jobs_topcard_apply"]',
+        // Look for buttons with "Easy Apply" text
+        'button:has-text("Easy Apply")',
+        'a:has-text("Easy Apply")'
       ];
+      
+      // First, try to find buttons/links with "Easy Apply" text
+      const allButtons = document.querySelectorAll('button, a');
+      for (const btn of allButtons) {
+        const text = btn.textContent?.trim() || '';
+        const ariaLabel = btn.getAttribute('aria-label') || '';
+        if ((text.toLowerCase().includes('easy apply') || ariaLabel.toLowerCase().includes('easy apply')) && 
+            !text.toLowerCase().includes('save') && !text.toLowerCase().includes('follow')) {
+          // Check if it's a link
+          if (btn.tagName === 'A' && btn.href) {
+            if (btn.href.includes('/jobs/apply/') || btn.href.includes('linkedin.com')) {
+              return btn.href.split('?')[0];
+            }
+          }
+          // Check if button has data attributes
+          if (btn.dataset.href) {
+            return btn.dataset.href.split('?')[0];
+          }
+          // Check parent for link
+          const parentLink = btn.closest('a');
+          if (parentLink && parentLink.href) {
+            if (parentLink.href.includes('/jobs/apply/') || parentLink.href.includes('linkedin.com')) {
+              return parentLink.href.split('?')[0];
+            }
+          }
+        }
+      }
       
       for (const sel of selectors) {
         try {
@@ -320,9 +320,9 @@
           if (el) {
             // Check if it's a link with direct href
             if (el.tagName === 'A' && el.href) {
-              // If href contains /jobs/apply/, use it directly
+              // If href contains /jobs/apply/, use it directly (preserve full URL)
               if (el.href.includes('/jobs/apply/')) {
-                return el.href.split('?')[0].split('#')[0];
+                return el.href; // Keep full URL with any params
               }
               // If it's a different LinkedIn URL, try to extract job ID from it
               const hrefMatch = el.href.match(/\/jobs\/view\/(\d+)/);
@@ -336,8 +336,8 @@
               // Check if button has a link as child or sibling
               const link = el.querySelector('a[href*="/jobs/apply/"]') || 
                           el.parentElement?.querySelector('a[href*="/jobs/apply/"]');
-              if (link && link.href && link.href.includes('/jobs/apply/')) {
-                return link.href.split('?')[0].split('#')[0];
+              if (link && link.href) {
+                return link.href; // Keep full URL
               }
               
               // Try to find link in parent container
@@ -347,7 +347,7 @@
                             container.querySelector('a[href*="linkedin.com/jobs"]');
                 if (link && link.href) {
                   if (link.href.includes('/jobs/apply/')) {
-                    return link.href.split('?')[0].split('#')[0];
+                    return link.href; // Keep full URL
                   }
                   const hrefMatch = link.href.match(/\/jobs\/view\/(\d+)/);
                   if (hrefMatch) {
@@ -357,14 +357,11 @@
               }
               
               // Check data attributes
-              if (el.dataset.href && el.dataset.href.includes('/jobs/apply/')) {
-                return el.dataset.href.split('?')[0].split('#')[0];
-              }
-              
-              // Check for data-apply-url attribute
-              const applyUrl = el.getAttribute('data-apply-url');
-              if (applyUrl && applyUrl.includes('/jobs/apply/')) {
-                return applyUrl.split('?')[0].split('#')[0];
+              if (el.dataset.href) {
+                const dataUrl = el.dataset.href;
+                if (dataUrl.includes('/jobs/apply/')) {
+                  return dataUrl; // Keep full URL
+                }
               }
               
               // Check onclick handler for actual URL
@@ -373,7 +370,7 @@
                   const onclickStr = el.onclick.toString();
                   const urlMatch = onclickStr.match(/['"](https?:\/\/[^'"]*\/jobs\/apply\/[^'"]*)['"]/);
                   if (urlMatch) {
-                    return urlMatch[1].split('?')[0].split('#')[0];
+                    return urlMatch[1]; // Keep full URL
                   }
                 } catch (e) {
                   // Ignore onclick parsing errors
@@ -422,7 +419,7 @@
       const allApplyLinks = document.querySelectorAll('a[href*="apply"], a[href*="jobs"]');
       for (const link of allApplyLinks) {
         if (link.href.includes('/jobs/apply/')) {
-          return link.href.split('?')[0].split('#')[0];
+          return link.href.split('?')[0];
         }
         const match = link.href.match(/\/jobs\/view\/(\d+)/);
         if (match) {
@@ -1039,21 +1036,6 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Failed to save');
         setStatus(`Saved ✓ (id: ${data.id})`);
-        
-        // Signal to app that JD was saved via chrome.storage
-        // appBridge.js (running on editresume.io) will poll this and write to localStorage
-        if (data.id) {
-          try {
-            const signalData = {
-              jobId: data.id,
-              timestamp: Date.now(),
-              source: 'extension'
-            };
-            chrome.storage.local.set({ extensionSavedJobId: signalData });
-          } catch (e) {
-            console.warn('Failed to signal saved JD to app:', e);
-          }
-        }
         // Job saved successfully - no navigation needed
       } catch (e) {
         setStatus('Error: ' + e.message);

@@ -1126,30 +1126,28 @@ function updateMetadata(metadata) {
     html += '</div>';
   }
 
-  // Technical Skills
+  // Technical Skills - limit to top 8 and group by category if possible
   if (metadata.skills && metadata.skills.length > 0) {
+    const topSkills = metadata.skills.slice(0, 8);
     html += `
       <div>
         <div class="metadata-section-title">
           <span>⚙️</span> Technical Skills
         </div>
-        <div class="metadata-chips">
-          ${metadata.skills.map(skill => `<span class="metadata-chip chip-skills">${escapeHtml(skill)}</span>`).join('')}
-        </div>
+        ${renderTagsByCategory(topSkills) || renderTags(topSkills, 8, true)}
       </div>
     `;
   }
 
-  // Top Keywords
+  // Top Keywords - limit to top 8
   if (metadata.keywords && metadata.keywords.length > 0) {
+    const topKeywords = metadata.keywords.slice(0, 8);
     html += `
       <div>
         <div class="metadata-section-title">
           <span>📊</span> Top Keywords
         </div>
-        <div class="metadata-chips">
-          ${metadata.keywords.map(keyword => `<span class="metadata-chip chip-keywords">${escapeHtml(keyword)}</span>`).join('')}
-        </div>
+        ${renderTags(topKeywords, 8)}
       </div>
     `;
   }
@@ -1206,32 +1204,196 @@ async function loadSavedJDs() {
   }
 }
 
+function getScoreClass(score) {
+  if (!score) return 'low';
+  if (score < 50) return 'low';
+  if (score < 75) return 'medium';
+  return 'high';
+}
+
+function renderScoreBadge(score) {
+  if (!score && score !== 0) return '';
+  const scoreClass = getScoreClass(score);
+  
+  return `
+    <div class="score-badge ${scoreClass}" title="ATS Match Score: ${score}%">
+      <div class="score-value">${score}%</div>
+    </div>
+  `;
+}
+
+function categorizeSkill(skill) {
+  const lower = skill.toLowerCase();
+  if (lower.includes('aws') || lower.includes('azure') || lower.includes('gcp') || lower.includes('cloud') || lower.includes('kubernetes') || lower.includes('docker') || lower.includes('terraform')) {
+    return 'Cloud';
+  }
+  if (lower.includes('python') || lower.includes('javascript') || lower.includes('typescript') || lower.includes('java') || lower.includes('go') || lower.includes('rust') || lower.includes('c++') || lower.includes('ruby') || lower.includes('php') || lower.includes('swift') || lower.includes('kotlin')) {
+    return 'Languages';
+  }
+  if (lower.includes('react') || lower.includes('vue') || lower.includes('angular') || lower.includes('node') || lower.includes('express') || lower.includes('django') || lower.includes('flask') || lower.includes('spring')) {
+    return 'Frameworks';
+  }
+  if (lower.includes('git') || lower.includes('jenkins') || lower.includes('ci/cd') || lower.includes('github') || lower.includes('gitlab') || lower.includes('jira') || lower.includes('confluence')) {
+    return 'Tools';
+  }
+  if (lower.includes('sql') || lower.includes('postgres') || lower.includes('mysql') || lower.includes('mongodb') || lower.includes('redis') || lower.includes('database')) {
+    return 'Database';
+  }
+  return null;
+}
+
+function renderTags(tags, maxVisible = 8, isHighPriority = false, isMatched = false) {
+  if (!tags || tags.length === 0) return '<div class="tags-container"></div>';
+  
+  const visible = tags.slice(0, maxVisible);
+  const remaining = tags.length - maxVisible;
+  const containerId = `tags-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  let html = visible.map(tag => {
+    const tagClass = isHighPriority || isMatched ? 'tag tag-high-priority' : 'tag';
+    return `<span class="${tagClass}">${escapeHtml(tag)}</span>`;
+  }).join('');
+  
+  let result = `<div class="tags-container" id="${containerId}">${html}</div>`;
+  
+  if (remaining > 0) {
+    result += `<button class="expand-tags-btn" onclick="const container = document.getElementById('${containerId}'); if (container) { container.classList.add('expanded'); this.remove(); }">... +${remaining} more</button>`;
+  }
+  
+  return result;
+}
+
+function renderTagsByCategory(skills) {
+  if (!skills || skills.length === 0) return '';
+  
+  const categories = {};
+  const uncategorized = [];
+  
+  skills.forEach(skill => {
+    const category = categorizeSkill(skill);
+    if (category) {
+      if (!categories[category]) {
+        categories[category] = [];
+      }
+      categories[category].push(skill);
+    } else {
+      uncategorized.push(skill);
+    }
+  });
+  
+  // If we have categorized items, show them grouped
+  const hasCategories = Object.keys(categories).length > 0;
+  
+  if (!hasCategories) {
+    return renderTags(skills, 8, true, true);
+  }
+  
+  let html = '';
+  const categoryOrder = ['Languages', 'Frameworks', 'Cloud', 'Database', 'Tools'];
+  
+  categoryOrder.forEach(cat => {
+    if (categories[cat] && categories[cat].length > 0) {
+      html += `
+        <div class="tag-category">
+          <div class="tag-category-title">${cat}</div>
+          ${renderTags(categories[cat], 8, true, true)}
+        </div>
+      `;
+    }
+  });
+  
+  if (uncategorized.length > 0) {
+    html += renderTags(uncategorized, 8, true, true);
+  }
+  
+  return html;
+}
+
+function renderJobDetail(jd, fullData) {
+  if (!fullData) return '';
+  
+  const skills = extractSkills(fullData.content || '');
+  const atsKw = extractATSKeywords(fullData.content || '');
+  const topKw = extractTopKeywords(fullData.content || '');
+  const allKeywords = [...new Set([...atsKw, ...topKw])];
+  
+  // Get top 8 most relevant (prioritize skills, then ATS keywords, then general keywords)
+  const topMatches = [...skills, ...atsKw.slice(0, 5), ...topKw.slice(0, 3)].slice(0, 8);
+  const missingSkills = allKeywords.filter(kw => !topMatches.includes(kw)).slice(0, 8);
+  
+  // Check if we have categorized skills data
+  const hasCategorizedSkills = skills.length > 0;
+  
+  return `
+    <div class="job-detail">
+      <div class="detail-section">
+        <div class="detail-section-title">Top Matches</div>
+        ${hasCategorizedSkills ? renderTagsByCategory(topMatches) : renderTags(topMatches, 8, true, true)}
+      </div>
+      ${missingSkills.length > 0 ? `
+      <div class="detail-section">
+        <div class="detail-section-title">Missing Skills</div>
+        ${renderTags(missingSkills, 8, false, false)}
+      </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+let expandedJobId = null;
+let jobDetailsCache = {};
+
 function renderSavedList(list) {
   const container = document.getElementById('savedList');
   if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state">No saved jobs yet</div>';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-text">No saved jobs yet</div>
+      </div>
+    `;
     return;
   }
+  
   container.innerHTML = list.slice(0, 20).map(jd => {
-    const scoreInfo = jd.last_match ? `<div class="saved-item-score">Score: ${jd.last_match.score}%</div>` : '';
-    const isActive = currentJdId === jd.id ? 'active' : '';
+    const score = jd.last_match ? jd.last_match.score : null;
+    const isExpanded = expandedJobId === jd.id;
+    const scoreBadge = renderScoreBadge(score);
+    const detail = isExpanded && jobDetailsCache[jd.id] 
+      ? renderJobDetail(jd, jobDetailsCache[jd.id])
+      : '';
+    
     return `
-      <div class="saved-item ${isActive}" data-id="${jd.id}">
-        <div class="saved-item-title">${escapeHtml(jd.title || 'Untitled')}</div>
-        <div class="saved-item-company">${escapeHtml(jd.company || 'Unknown Company')}</div>
-        ${scoreInfo}
+      <div class="job-card ${isExpanded ? 'expanded' : ''}" data-id="${jd.id}">
+        <div class="job-card-header">
+          <div class="job-card-content">
+            <div class="job-card-title">${escapeHtml(jd.title || 'Untitled')}</div>
+            <div class="job-card-company">${escapeHtml(jd.company || 'Unknown Company')}</div>
+          </div>
+          ${scoreBadge}
+        </div>
+        ${detail}
       </div>
     `;
   }).join('');
 
-  container.querySelectorAll('.saved-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      const id = parseInt(item.dataset.id);
+  container.querySelectorAll('.job-card').forEach(card => {
+    card.addEventListener('click', async (e) => {
+      if (e.target.classList.contains('expand-tags-btn')) return;
+      
+      const id = parseInt(card.dataset.id);
       const jd = savedJDs.find(j => j.id === id);
-      if (jd) {
-        currentJdId = id;
-        renderSavedList(savedJDs); // Re-render to show active state
-
+      if (!jd) return;
+      
+      if (expandedJobId === id) {
+        expandedJobId = null;
+        renderSavedList(savedJDs);
+        return;
+      }
+      
+      expandedJobId = id;
+      
+      if (!jobDetailsCache[id]) {
         try {
           const token = await ensureAuthToken({ silent: true });
           if (!token) {
@@ -1246,29 +1408,14 @@ function renderSavedList(list) {
           });
           if (res.ok) {
             const full = await res.json();
-            const locationText = full.location || '';
-            const workType = full.work_type || extractWorkType(full.content || '', locationText);
-            const jobType = full.job_type || extractJobType(full.content || '');
-
-            // Combine ATS keywords with general keywords
-            const atsKw = extractATSKeywords(full.content || '');
-            const topKw = extractTopKeywords(full.content || '');
-            const combinedKw = [...new Set([...atsKw, ...topKw])];
-
-            const metadata = {
-              title: full.title,
-              company: full.company,
-              jobType: jobType,
-              remoteStatus: workType,
-              budget: extractBudget(full.content || ''),
-              keywords: combinedKw,
-              skills: extractSkills(full.content || ''),
-            };
-            updateMetadata(metadata);
+            jobDetailsCache[id] = full;
+            renderSavedList(savedJDs);
           }
         } catch (e) {
           console.error('Failed to load JD:', e);
         }
+      } else {
+        renderSavedList(savedJDs);
       }
     });
   });
@@ -1282,7 +1429,7 @@ function updateAuthStatus(hasToken) {
     if (saveForm) saveForm.style.display = 'none';
   } else {
     if (signInSection) signInSection.style.display = 'none';
-    if (saveForm) saveForm.style.display = 'flex';
+    if (saveForm) saveForm.style.display = 'block';
   }
 }
 
@@ -1678,6 +1825,8 @@ async function saveJobDescription() {
         created_at: new Date().toISOString()
       });
       renderSavedList(savedJDs);
+      // Switch to Saved Jobs tab
+      switchTab('saved');
     }, 300);
 
     // Clear status after showing success
@@ -1691,9 +1840,80 @@ async function saveJobDescription() {
   }
 }
 
+async function autoFillFromCurrentTab() {
+  try {
+    const tabId = await getActiveTabId();
+    if (!tabId) {
+      setSaveStatus('No active tab found', 'error');
+      return;
+    }
+    
+    let res;
+    try {
+      res = await chrome.tabs.sendMessage(tabId, { type: 'GET_JOB_DATA' });
+    } catch (e) {
+      res = null;
+    }
+
+    let job;
+    if (res && res.ok) {
+      job = res.job;
+    } else {
+      job = await extractViaScript(tabId);
+    }
+
+    if (job && (job.title || job.content)) {
+      const titleInput = document.getElementById('saveTitle');
+      const companyInput = document.getElementById('saveCompany');
+      const urlInput = document.getElementById('saveUrl');
+      
+      if (titleInput) titleInput.value = job.title || '';
+      if (companyInput) {
+        const sanitizedCompany = cleanCompanyName(job.company || '');
+        companyInput.value = sanitizedCompany;
+      }
+      if (urlInput) urlInput.value = job.url || '';
+      
+      setSaveStatus('Auto-filled from current tab', 'success');
+      setTimeout(() => setSaveStatus('', ''), 2000);
+    } else {
+      setSaveStatus('Could not extract job data from current tab', 'error');
+    }
+  } catch (e) {
+    console.error('Auto-fill error:', e);
+    setSaveStatus('Error auto-filling: ' + e.message, 'error');
+  }
+}
+
+function switchTab(tabName) {
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.classList.remove('active');
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add('active');
+    }
+  });
+  
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.remove('active');
+    if (content.id === `tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`) {
+      content.classList.add('active');
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const signInBtn = document.getElementById('signInBtn');
-  const refreshBtn = document.getElementById('refreshSaved');
+  const autoFillBtn = document.getElementById('autoFillBtn');
+  
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      switchTab(tab.dataset.tab);
+    });
+  });
+  
+  if (autoFillBtn) {
+    autoFillBtn.addEventListener('click', autoFillFromCurrentTab);
+  }
 
   // Migration disabled - respect user's saved settings
   // const current = await chrome.storage.sync.get({ appBase: 'https://editresume.io' });
@@ -1753,10 +1973,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', loadSavedJDs);
-  }
-
   // Save button handler
   const saveBtn = document.getElementById('saveBtn');
   if (saveBtn) {
@@ -1790,25 +2006,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.getElementById('saveUrl').value = job.url || '';
         }
 
-        // Update metadata
-        const locationText = job.location || '';
-        const workType = job.workType || extractWorkType(job.content || '', locationText);
-
-        // Combine ATS keywords with general keywords
-        const atsKw = extractATSKeywords(job.content || '');
-        const topKw = extractTopKeywords(job.content || '');
-        const combinedKw = [...new Set([...atsKw, ...topKw])];
-
-        const metadata = {
-          title: job.title,
-          company: sanitizedCompany,
-          jobType: job.jobType || extractJobType(job.content || ''),
-          remoteStatus: workType,
-          budget: extractBudget(job.content || ''),
-          keywords: combinedKw,
-          skills: extractSkills(job.content || ''),
-        };
-        updateMetadata(metadata);
+        // Switch to Add New tab if form is visible
+        const saveForm = document.getElementById('saveForm');
+        if (saveForm && saveForm.style.display !== 'none') {
+          switchTab('add');
+        }
       }
     }
   } catch (_) { }
