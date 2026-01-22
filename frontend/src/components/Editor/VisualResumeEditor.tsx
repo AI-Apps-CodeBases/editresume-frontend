@@ -3600,7 +3600,7 @@ export default function VisualResumeEditor({
                                             </span>
                                             {((hasKeywordMatch && skillMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) && bullet.params?.visible !== false && (
                                               <span
-                                                className="absolute top-0 left-0 right-0 pointer-events-none z-0 group-focus-within:opacity-0 transition-opacity"
+                                                className="absolute top-0 left-0 right-0 pointer-events-none z-0 transition-opacity"
                                                 style={{
                                                   position: 'absolute',
                                                   top: 0,
@@ -3732,6 +3732,8 @@ export default function VisualResumeEditor({
                                               contentEditable
                                               suppressContentEditableWarning
                                               spellCheck={false}
+                                              data-bullet-id={bullet.id}
+                                              data-section-id={section.id}
                                               onBlur={(e) => {
                                                 const text = e.currentTarget.textContent || '';
                                                 updateBullet(section.id, bullet.id, text);
@@ -4966,6 +4968,8 @@ function SortableCompanyGroup({
                           contentEditable
                           suppressContentEditableWarning
                           spellCheck={false}
+                          data-bullet-id={companyBullet.id}
+                          data-section-id={section.id}
                           onBlur={(e) => {
                             const text = e.currentTarget.textContent || '';
                             updateBullet(section.id, companyBullet.id, text);
@@ -4974,7 +4978,7 @@ function SortableCompanyGroup({
                             companyBullet.params?.visible === false 
                               ? 'text-text-muted line-through opacity-60' 
                               : ((hasMatch && bulletMatch.matchedKeywords.length > 0) || (calculatedKeywordUsageCounts && calculatedKeywordUsageCounts.size > 0)) 
-                              ? 'text-transparent group-focus-within:text-text-secondary group-hover:text-text-secondary' 
+                              ? 'text-transparent group-focus-within:text-text-secondary' 
                               : 'text-text-secondary hover:bg-gray-50/50 focus:bg-gray-50/50 focus:ring-2 focus:ring-primary-500/20'
                           }`}
                           style={{ 

@@ -981,20 +981,21 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         quality_score = quality_analysis["score"]
 
-        # Keyword matching is 50-60% of the score (primary factor)
-        # Higher weight for better keyword matches to reward improvements
-        if keyword_match_score >= 85:
+        # Keyword matching weight - increased for 100% matches to guarantee 90+ score
+        if keyword_match_score >= 99:
+            keyword_weight = 0.75  # 75% weight when keywords are 100% (ensures 90+ score)
+            tfidf_weight = 0.12
+            section_weight = 0.08
+            formatting_weight = 0.03
+            quality_weight = 0.02
+        elif keyword_match_score >= 85:
             keyword_weight = 0.60  # Higher weight for strong keyword matches
-        else:
-            keyword_weight = 0.50  # Standard weight for lower matches
-
-        # Distribute remaining weight among other components
-        if keyword_match_score >= 85:
             tfidf_weight = 0.20
             section_weight = 0.12
             formatting_weight = 0.05
             quality_weight = 0.03
         else:
+            keyword_weight = 0.50  # Standard weight for lower matches
             tfidf_weight = 0.25
             section_weight = 0.15
             formatting_weight = 0.07
@@ -1081,6 +1082,12 @@ class EnhancedATSChecker:
         # Apply total bonus cap: maximum 5 points from all bonuses combined (increased from 3)
         total_bonus = min(5, total_bonus)
         overall_score += total_bonus
+
+        # Guarantee minimum 90 score when keywords match 100% (or very close to 100%)
+        # Check for >= 98 to catch cases where it's 99.9% (displays as 100%)
+        if keyword_match_score >= 98:
+            # Ensure at least 90 when keywords match 98% or higher (displays as 100%)
+            overall_score = max(90, overall_score)
 
         # No artificial caps - allow scores to reach 95-100 with strong keyword matching
         # Scores are calculated directly from components without diminishing returns

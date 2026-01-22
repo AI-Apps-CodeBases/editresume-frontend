@@ -3368,6 +3368,14 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               localStorage.setItem('lastATSScore', newScore.toString())
             }
             
+            // Update refs to prevent auto-update useEffect from triggering another recalculation
+            // This ensures the score doesn't reset when onResumeUpdate triggers resumeData prop change
+            const updatedSignature = computeResumeSignature(updatedResume);
+            lastCommittedResumeHashRef.current = updatedSignature;
+            if (nextScore !== null) {
+              previousScoreRef.current = nextScore;
+            }
+            
             // Notify parent component of updated match result
             if (onMatchResult && normalizedMatchData) {
               onMatchResult(normalizedMatchData);
@@ -3451,6 +3459,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       setIsCalculatingATS,
       setUpdatedATSScore,
       setSelectedKeywords,
+      computeResumeSignature,
+      currentATSScore,
+      onMatchResult,
     ]
   );
 
