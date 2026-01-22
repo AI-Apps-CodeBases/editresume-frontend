@@ -62,6 +62,16 @@ interface Props {
   onBack: () => void
 }
 
+const resolveApplyLink = (easyApplyUrl?: string, jobUrl?: string) => {
+  if (easyApplyUrl) {
+    if (easyApplyUrl.includes('/jobs/apply/') && jobUrl && jobUrl.includes('/jobs/view/')) {
+      return jobUrl
+    }
+    return easyApplyUrl
+  }
+  return jobUrl || ''
+}
+
 async function fetchWithRetry<T>(
   fn: (attempt: number) => Promise<T>,
   maxRetries = 3,
@@ -415,6 +425,7 @@ export default function JobsView({ onBack }: Props) {
                         bestMatch?.score ?? (typeof scoreSnapshot?.overall_score === 'number' ? scoreSnapshot.overall_score : null)
                       const scoreColors = getATSScoreColor(overallScore)
                       const isDropdownOpen = openDropdownId === jd.id
+                      const applyLink = resolveApplyLink(jd.easy_apply_url, jd.url)
 
                       return (
                         <tr 
@@ -473,10 +484,10 @@ export default function JobsView({ onBack }: Props) {
                                   {jd.company}
                                 </div>
                               )}
-                              {(jd.easy_apply_url || jd.url) && (
+                              {applyLink && (
                                 <div className="mt-1.5">
                                   <a
-                                    href={jd.easy_apply_url || jd.url}
+                                    href={applyLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}

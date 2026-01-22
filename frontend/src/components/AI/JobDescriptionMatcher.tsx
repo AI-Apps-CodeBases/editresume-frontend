@@ -580,6 +580,16 @@ const prettifyKeyword = (keyword: string) => {
   return trimmed.replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
+const resolveApplyLink = (easyApplyUrl?: string, jobUrl?: string) => {
+  if (easyApplyUrl) {
+    if (easyApplyUrl.includes('/jobs/apply/') && jobUrl && jobUrl.includes('/jobs/view/')) {
+      return jobUrl;
+    }
+    return easyApplyUrl;
+  }
+  return jobUrl || '';
+};
+
 interface JobMetadata {
   title?: string;
   company?: string;
@@ -1719,7 +1729,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const { showAlert } = useModal();
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [selectedJobMetadata, setSelectedJobMetadata] = useState<JobMetadata | null>(null);
-  const [currentJDInfo, setCurrentJDInfo] = useState<{ company?: string, title?: string, easy_apply_url?: string } | null>(null);
+  const [currentJDInfo, setCurrentJDInfo] = useState<{ company?: string, title?: string, easy_apply_url?: string, url?: string } | null>(null);
   const [extractedKeywords, setExtractedKeywords] = useState<any>(null);
   const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
   const [keywordComparison, setKeywordComparison] = useState<{matched: string[], missing: string[]} | null>(null);
@@ -4152,7 +4162,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             setCurrentJDInfo({
               company: jd.company || '',
               title: jd.title || '',
-              easy_apply_url: jd.easy_apply_url || ''
+              easy_apply_url: jd.easy_apply_url || '',
+              url: jd.url || ''
             });
             setSelectedJobMetadata((prev) => mergeMetadata(prev, {
               title: jd.title || undefined,
@@ -5282,17 +5293,20 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
       {/* Easy Apply Button - Always visible when JD is loaded */}
       <div className="p-3 sm:p-6">
-      {currentJDInfo?.easy_apply_url && (
+      {resolveApplyLink(currentJDInfo?.easy_apply_url || selectedJobMetadata?.easy_apply_url, currentJDInfo?.url) && (
         <div className="mb-4 flex items-center justify-end">
           <Tooltip text="Apply to this job directly on LinkedIn with one click" color="blue" position="left">
             <a
-              href={currentJDInfo.easy_apply_url}
+              href={resolveApplyLink(currentJDInfo?.easy_apply_url || selectedJobMetadata?.easy_apply_url, currentJDInfo?.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3 bg-[#0077b5] hover:bg-[#006399] text-white text-base font-semibold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center gap-2"
               onClick={(e) => {
                 e.stopPropagation();
-                window.open(currentJDInfo.easy_apply_url, '_blank');
+                const applyLink = resolveApplyLink(currentJDInfo?.easy_apply_url || selectedJobMetadata?.easy_apply_url, currentJDInfo?.url);
+                if (applyLink) {
+                  window.open(applyLink, '_blank');
+                }
               }}
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -5481,17 +5495,18 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         <span className="text-lg">🏢</span>
                         <span className="text-base font-semibold text-gray-700">{selectedJobMetadata?.company}</span>
                       </div>
-                      {currentJDInfo?.easy_apply_url && (
+                      {resolveApplyLink(currentJDInfo?.easy_apply_url || selectedJobMetadata?.easy_apply_url, currentJDInfo?.url) && (
                         <Tooltip text="Apply to this job directly on LinkedIn with one click" color="blue" position="top">
                           <a
-                            href={currentJDInfo?.easy_apply_url}
+                            href={resolveApplyLink(currentJDInfo?.easy_apply_url || selectedJobMetadata?.easy_apply_url, currentJDInfo?.url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-4 py-2 bg-[#0077b5] hover:bg-[#006399] text-white text-sm font-semibold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center gap-2"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (currentJDInfo?.easy_apply_url) {
-                                window.open(currentJDInfo.easy_apply_url, '_blank');
+                              const applyLink = resolveApplyLink(currentJDInfo?.easy_apply_url || selectedJobMetadata?.easy_apply_url, currentJDInfo?.url);
+                              if (applyLink) {
+                                window.open(applyLink, '_blank');
                               }
                             }}
                           >

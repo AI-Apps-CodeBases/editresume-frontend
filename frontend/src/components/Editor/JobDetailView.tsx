@@ -86,6 +86,16 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected', icon: XIcon, color: 'bg-red-100 text-red-700' },
 ]
 
+const resolveApplyLink = (easyApplyUrl?: string, jobUrl?: string) => {
+  if (easyApplyUrl) {
+    if (easyApplyUrl.includes('/jobs/apply/') && jobUrl && jobUrl.includes('/jobs/view/')) {
+      return jobUrl
+    }
+    return easyApplyUrl
+  }
+  return jobUrl || ''
+}
+
 
 export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const { user, isAuthenticated } = useAuth()
@@ -840,6 +850,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
   const highFrequencyList = buildHighFrequencyList(job?.high_frequency_keywords)
   const priorityKeywordsList = buildPriorityKeywords(job?.priority_keywords)
+  const applyLink = resolveApplyLink(job?.easy_apply_url, job?.url)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
@@ -878,11 +889,11 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                         <span className="text-base text-gray-600">{job.location}</span>
                       </>
                     )}
-                    {(job.easy_apply_url || job.url) && (
+                    {applyLink && (
                       <>
                         <span className="text-gray-400">•</span>
                         <a
-                          href={job.easy_apply_url || job.url}
+                          href={applyLink}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-base text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
@@ -1009,15 +1020,15 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                       <label className="text-sm font-semibold text-gray-600">Job Type</label>
                       <p className="text-gray-900">{job.job_type || 'N/A'}</p>
                     </div>
-                    {(job.easy_apply_url || job.url) && (
+                    {(applyLink || job.url) && (
                       <div>
                         <label className="text-sm font-semibold text-gray-600">
-                          {job.easy_apply_url ? 'Apply Link' : 'Job URL'}
+                          {applyLink ? 'Apply Link' : 'Job URL'}
                         </label>
                         <div className="flex flex-col gap-2 mt-1">
-                          {job.easy_apply_url && (
+                          {applyLink && (
                             <a
-                              href={job.easy_apply_url}
+                              href={applyLink}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1.5"
@@ -1028,7 +1039,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                               Apply on LinkedIn
                             </a>
                           )}
-                          {job.url && (
+                          {job.url && job.url !== applyLink && (
                             <a
                               href={job.url}
                               target="_blank"
@@ -2173,4 +2184,3 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     </div>
   )
 }
-
