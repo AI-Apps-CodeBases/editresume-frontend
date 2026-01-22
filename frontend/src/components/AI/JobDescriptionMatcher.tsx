@@ -22,6 +22,7 @@ import {
   Search, 
   CheckCircle2,
   ArrowUp,
+  ArrowDown,
   X,
   Info
 } from 'lucide-react';
@@ -1971,7 +1972,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         
         // Restore ATS score
         const score = normalized?.match_analysis?.similarity_score ?? null;
-        setCurrentATSScore(roundScoreValue(score));
+        const roundedScore = roundScoreValue(score);
+        setCurrentATSScore(roundedScore);
+        if (roundedScore !== null) {
+          previousScoreRef.current = roundedScore;
+        }
         
         // Restore keywords
         const jdKeywords = {
@@ -2150,6 +2155,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [isCalculatingATS, setIsCalculatingATS] = useState(false);
   const [previousATSScore, setPreviousATSScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
   // Restore match result when job description or component mounts
   useEffect(() => {
@@ -2167,7 +2173,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         
         // Restore ATS score
         const score = normalized?.match_analysis?.similarity_score ?? null;
-        setCurrentATSScore(roundScoreValue(score));
+        const roundedScore = roundScoreValue(score);
+        setCurrentATSScore(roundedScore);
+        if (roundedScore !== null) {
+          previousScoreRef.current = roundedScore;
+        }
       }
     } catch (e) {
       console.error('Failed to restore match result:', e);
@@ -2804,6 +2814,33 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           normalizedMatchData.match_analysis.similarity_score = apiScore
         }
 
+        // Track score change BEFORE updating state
+        // Use ref to get the most recent score value (avoids closure issues)
+        const previousScore = roundScoreValue(previousScoreRef.current ?? currentATSScore);
+        const nextScore = roundScoreValue(newScore);
+        
+        // Calculate change if we have both previous and next scores
+        if (previousScore !== null && nextScore !== null && previousScore !== nextScore) {
+          const change = nextScore - previousScore;
+          setScoreChange(change);
+          setPreviousATSScore(previousScore);
+          previousScoreRef.current = nextScore; // Update ref for next comparison
+
+          // Clear score change indicator after 5 seconds
+          setTimeout(() => {
+            setScoreChange(null);
+            setPreviousATSScore(null);
+          }, 5000);
+        } else if (previousScore === null && nextScore !== null) {
+          // First score, no change to show
+          setScoreChange(null);
+          setPreviousATSScore(null);
+          previousScoreRef.current = nextScore; // Store for next time
+        } else if (nextScore !== null) {
+          // Score unchanged, but update ref
+          previousScoreRef.current = nextScore;
+        }
+
         setMatchResult(normalizedMatchData);
         
         // Store the new score for next calculation
@@ -2811,28 +2848,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           localStorage.setItem('lastATSScore', newScore.toString())
         }
 
-        // Track score change using functional update to get current value
-        setCurrentATSScore((prevScore) => {
-          const previousRounded = roundScoreValue(prevScore);
-          const nextRounded = roundScoreValue(newScore);
-
-          if (previousRounded !== null && nextRounded !== null) {
-            const change = nextRounded - previousRounded;
-            setScoreChange(change !== 0 ? change : null);
-            setPreviousATSScore(previousRounded);
-
-            // Clear score change indicator after 5 seconds
-            setTimeout(() => {
-              setScoreChange(null);
-              setPreviousATSScore(null);
-            }, 5000);
-          } else if (previousRounded === null && nextRounded !== null) {
-            setPreviousATSScore(null);
-            setScoreChange(null);
-          }
-
-          return nextRounded;
-        });
+        // Update current score
+        setCurrentATSScore(nextScore);
 
         // Update localStorage - store with JD ID for persistence
         if (typeof window !== 'undefined') {
@@ -2897,6 +2914,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const resumeChangeTimerRef = useRef<number | null>(null);
   const lastCommittedResumeHashRef = useRef<string | null>(computeResumeSignature(resumeData));
   const pendingResumeHashRef = useRef<string | null>(null);
+  const previousScoreRef = useRef<number | null>(null);
   const [isATSUpdatePending, setIsATSUpdatePending] = useState(false);
 
   // Auto-update ATS score when resume data changes (only if JD is selected)
@@ -3319,8 +3337,31 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             const matchData = transformEnhancedATSResponse(enhancedATSData, jobDescription);
             const normalizedMatchData = normalizeMatchResult(matchData);
             const newScore = roundScoreValue(matchData.match_analysis?.similarity_score);
+            
+            // Track score change BEFORE updating state
+            // Use ref to get the most recent score value (avoids closure issues)
+            const previousScore = roundScoreValue(previousScoreRef.current ?? currentATSScore);
+            const nextScore = roundScoreValue(newScore);
+            
+            // Calculate change if we have both previous and next scores
+            if (previousScore !== null && nextScore !== null && previousScore !== nextScore) {
+              const change = nextScore - previousScore;
+              setScoreChange(change);
+              setPreviousATSScore(previousScore);
+              previousScoreRef.current = nextScore; // Update ref for next comparison
+
+              // Clear score change indicator after 5 seconds
+              setTimeout(() => {
+                setScoreChange(null);
+                setPreviousATSScore(null);
+              }, 5000);
+            } else if (nextScore !== null) {
+              previousScoreRef.current = nextScore; // Store for next time
+            }
+            
             setUpdatedATSScore(newScore);
             setMatchResult(normalizedMatchData);
+            setCurrentATSScore(nextScore);
             
             // Store the new score for next calculation
             if (newScore !== null && typeof window !== 'undefined') {
@@ -4199,8 +4240,33 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       // Pass saved keywords and resume text to transformation (ensures consistent use of extension keywords)
       const rawResult = transformEnhancedATSResponse(enhancedATSResult, jobDescription, extractedKeywords, resumeText);
       const normalizedResult = normalizeMatchResult(rawResult);
+      const newScore = roundScoreValue(normalizedResult?.match_analysis?.similarity_score ?? null);
+      
+      // Track score change for initial analysis (only if there was a previous score)
+      // Use ref to get the most recent score value (avoids closure issues)
+      const previousScore = roundScoreValue(previousScoreRef.current ?? currentATSScore);
+      if (previousScore !== null && newScore !== null && previousScore !== newScore) {
+        const change = newScore - previousScore;
+        setScoreChange(change);
+        setPreviousATSScore(previousScore);
+        previousScoreRef.current = newScore; // Update ref for next comparison
+
+        // Clear score change indicator after 5 seconds
+        setTimeout(() => {
+          setScoreChange(null);
+          setPreviousATSScore(null);
+        }, 5000);
+      } else {
+        // Initial analysis or no change - clear any previous change indicator
+        setScoreChange(null);
+        setPreviousATSScore(null);
+        if (newScore !== null) {
+          previousScoreRef.current = newScore; // Store for next time
+        }
+      }
+      
       setMatchResult(normalizedResult);
-      setCurrentATSScore(normalizedResult?.match_analysis?.similarity_score ?? null);
+      setCurrentATSScore(newScore);
       setSelectedKeywords(new Set());
       const metadataFromText = deriveJobMetadataFromText(jobDescription);
       setSelectedJobMetadata((prev) => mergeMetadata(prev, metadataFromText));
@@ -4381,13 +4447,96 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               </div>
 
-              {/* Score Breakdown - Explain why 100% keywords ≠ 100% score */}
+              {/* ATS Score Gauge - Visual display */}
+              {overallATSScore !== null && (
+                <div className="pt-3 border-t border-gray-100">
+                  <div className="flex items-center justify-center gap-6">
+                    <div className="flex flex-col items-center">
+                      <div className="relative w-24 h-24 mb-3">
+                        <svg viewBox="0 0 36 36" className="w-24 h-24 transform -rotate-90">
+                          <circle
+                            className="text-gray-200"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            fill="none"
+                            cx="18"
+                            cy="18"
+                            r="15"
+                          />
+                          <circle
+                            className={getScoreColor(overallATSScore).replace('text-', 'stroke-')}
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeWidth="3"
+                            fill="none"
+                            strokeDasharray={`${(overallATSScore / 100) * 94.2}, 94.2`}
+                            cx="18"
+                            cy="18"
+                            r="15"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="flex flex-col items-center">
+                            <span className={`text-xl font-bold ${getScoreColor(overallATSScore)}`}>
+                              {overallATSScore}%
+                            </span>
+                            {scoreChange !== null && scoreChange !== 0 && (
+                              <span
+                                className={`text-xs font-semibold mt-0.5 flex items-center gap-0.5 animate-pulse ${
+                                  scoreChange > 0 ? 'text-green-600' : 'text-red-600'
+                                }`}
+                              >
+                                {scoreChange > 0 ? (
+                                  <>
+                                    <ArrowUp className="w-3 h-3" />
+                                    <span>+{Math.abs(scoreChange)}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ArrowDown className="w-3 h-3" />
+                                    <span>{scoreChange}</span>
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                          ATS Score
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          {overallATSScore >= 80
+                            ? 'Excellent'
+                            : overallATSScore >= 60
+                              ? 'Strong'
+                              : overallATSScore >= 40
+                                ? 'Fair'
+                                : 'Needs Work'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Score Breakdown - Collapsible detailed breakdown */}
               {matchResult?.score_breakdown && (
                 <div className="pt-3 border-t border-gray-100">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    Score Breakdown
-                  </div>
-                  <div className="space-y-1.5 text-xs">
+                  <button
+                    onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
+                    className="flex items-center justify-between w-full text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 hover:text-gray-700 transition-colors"
+                  >
+                    <span>Score Breakdown</span>
+                    {showScoreBreakdown ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+                  {showScoreBreakdown && (
+                    <div className="space-y-1.5 text-xs">
                     {(() => {
                       const breakdown = matchResult.score_breakdown;
                       const weights = breakdown.weights_used || {};
@@ -4448,7 +4597,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                         </>
                       );
                     })()}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
