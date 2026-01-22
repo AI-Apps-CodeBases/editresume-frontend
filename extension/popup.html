@@ -2,414 +2,521 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body { 
         width: 750px; 
         max-height: 700px; 
         padding: 0; 
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        background: #f9fafb;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        background: #fafafa;
         overflow-y: auto;
+        color: #0f172a;
+        display: flex;
+        flex-direction: column;
       }
+      
+      /* Header */
       .header {
-        background: white;
-        border-bottom: 1px solid #e5e7eb;
-        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.95);
+        border-bottom: 1px solid #e2e8f0;
+        padding: 16px 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         position: sticky;
         top: 0;
-        z-index: 10;
+        z-index: 100;
+        backdrop-filter: blur(8px);
       }
-      .header h2 {
-        font-size: 16px;
-        font-weight: 700;
-        color: #111827;
+      .header-logo {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
+        font-size: 16px;
+        font-weight: 700;
+        color: #0f172a;
+        letter-spacing: -0.01em;
       }
-      .header a {
-        font-size: 12px;
-        color: #6b7280;
-        text-decoration: none;
+      .header-logo img {
+        width: 24px;
+        height: 24px;
       }
-      .content {
-        padding: 16px;
-        display: grid;
-        grid-template-columns: 280px 1fr;
-        gap: 16px;
-      }
-      .saved-jobs-section {
-        border-right: 1px solid #e5e7eb;
-        padding-right: 16px;
+      .header-settings {
+        width: 32px;
+        height: 32px;
         display: flex;
-        flex-direction: column;
-        gap: 16px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #64748b;
       }
+      .header-settings:hover {
+        background: #f1f5f9;
+        color: #475569;
+      }
+      .header-settings svg {
+        width: 18px;
+        height: 18px;
+      }
+      
+      /* Tabs */
+      .tabs-container {
+        padding: 0 24px;
+        border-bottom: 1px solid #e2e8f0;
+        background: white;
+        position: sticky;
+        top: 65px;
+        z-index: 90;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        padding: 8px 0;
+      }
+      .tab {
+        flex: 1;
+        padding: 10px 16px;
+        border: none;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 600;
+        color: #64748b;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.2s;
+        font-family: inherit;
+        position: relative;
+      }
+      .tab:hover {
+        background: #f8fafc;
+        color: #475569;
+      }
+      .tab.active {
+        color: #4f46e5;
+        background: #f1f5f9;
+      }
+      .tab.active::after {
+        content: '';
+        position: absolute;
+        bottom: -9px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #4f46e5;
+        border-radius: 2px 2px 0 0;
+      }
+      
+      /* Content */
+      .content {
+        flex: 1;
+        padding: 24px;
+        overflow-y: auto;
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      
+      /* Sign In Section */
+      .sign-in-section {
+        padding: 32px 24px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 24px;
+      }
+      .sign-in-icon {
+        font-size: 32px;
+        margin-bottom: 12px;
+      }
+      .sign-in-title {
+        font-weight: 600;
+        color: #92400e;
+        margin-bottom: 8px;
+        font-size: 16px;
+      }
+      .sign-in-desc {
+        font-size: 13px;
+        color: #78350f;
+        margin-bottom: 20px;
+        font-weight: 500;
+      }
+      
+      /* Form (Add New Tab) */
       .save-form {
         background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
       }
       .save-form-title {
         font-weight: 600;
-        font-size: 14px;
-        color: #374151;
-        margin-bottom: 4px;
+        font-size: 16px;
+        color: #0f172a;
+        margin-bottom: 20px;
+        letter-spacing: -0.01em;
       }
-      .save-form input,
-      .save-form textarea {
+      .save-form input {
         width: 100%;
-        padding: 6px 8px;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
-        font-size: 12px;
+        padding: 12px 16px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 13px;
         font-family: inherit;
+        background: white;
+        color: #0f172a;
+        transition: all 0.2s;
+        margin-bottom: 12px;
       }
-      .save-form input:focus,
-      .save-form textarea:focus {
+      .save-form input:focus {
         outline: none;
-        border-color: #2563eb;
-        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
       }
-      .save-form textarea {
-        min-height: 60px;
-        resize: vertical;
+      .save-form input::placeholder {
+        color: #94a3b8;
       }
-      .save-form button {
-        padding: 8px 12px;
-        border: none;
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 12px;
+      .auto-fill-btn {
+        width: 100%;
+        padding: 10px 16px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: white;
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 500;
         cursor: pointer;
         transition: all 0.2s;
+        margin-bottom: 16px;
+        font-family: inherit;
+      }
+      .auto-fill-btn:hover {
+        background: #f8fafc;
+        border-color: #4f46e5;
+        color: #4f46e5;
       }
       .save-form button.btn-save {
-        background: #2563eb;
+        width: 100%;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        background: #4f46e5;
         color: white;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
       }
       .save-form button.btn-save:hover {
-        background: #1d4ed8;
+        background: #4338ca;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
       }
       .save-form button.btn-save:disabled {
-        background: #9ca3af;
+        background: #cbd5e1;
         cursor: not-allowed;
+        color: #94a3b8;
+        transform: none;
       }
       .save-status {
-        font-size: 11px;
-        padding: 4px 8px;
-        border-radius: 4px;
-        margin-top: 4px;
+        font-size: 12px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-top: 12px;
+        font-weight: 500;
       }
       .save-status.success {
-        background: #d1fae5;
-        color: #065f46;
+        background: #dcfce7;
+        color: #166534;
       }
       .save-status.error {
         background: #fee2e2;
         color: #991b1b;
       }
-      .saved-jobs-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-      }
-      .saved-jobs-header label {
-        font-weight: 600;
-        font-size: 14px;
-        color: #374151;
-      }
-      .metadata-section {
+      
+      /* Job Cards (Saved Jobs Tab) */
+      .saved-list {
         display: flex;
         flex-direction: column;
         gap: 12px;
-      }
-      .saved-list {
-        max-height: 300px;
+        max-height: 500px;
         overflow-y: auto;
       }
-      .saved-item {
-        padding: 10px;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        margin-bottom: 8px;
+      .job-card {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
         cursor: pointer;
         transition: all 0.2s;
-        background: white;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
       }
-      .saved-item:hover {
-        border-color: #2563eb;
-        background: #eff6ff;
+      .job-card:hover {
+        border-color: #4f46e5;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transform: translateY(-1px);
       }
-      .saved-item.active {
-        border-color: #2563eb;
-        background: #eff6ff;
+      .job-card.expanded {
+        border-color: #4f46e5;
         border-width: 2px;
       }
-      .saved-item-title {
-        font-weight: 600;
-        font-size: 13px;
-        color: #111827;
-        margin-bottom: 4px;
-      }
-      .saved-item-company {
-        font-size: 12px;
-        color: #6b7280;
-        margin-bottom: 4px;
-      }
-      .saved-item-score {
-        font-size: 11px;
-        color: #059669;
-        font-weight: 600;
-      }
-      .empty-state {
-        text-align: center;
-        padding: 24px;
-        color: #9ca3af;
-        font-size: 13px;
-      }
-      .metadata-card {
-        background: linear-gradient(to right, #eff6ff, #f3e8ff);
-        border-left: 4px solid #2563eb;
-        border-radius: 8px;
-        padding: 20px;
-      }
-      .metadata-title {
+      .job-card-header {
         display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
       }
-      .metadata-title-icon {
-        font-size: 20px;
+      .job-card-content {
+        flex: 1;
+        min-width: 0;
       }
-      .metadata-title-text {
-        font-size: 18px;
-        font-weight: 700;
-        color: #111827;
-      }
-      .metadata-company {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 16px;
-      }
-      .metadata-company-icon {
-        font-size: 16px;
-      }
-      .metadata-company-text {
-        font-size: 16px;
+      .job-card-title {
         font-weight: 600;
-        color: #374151;
-      }
-      .metadata-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin-bottom: 16px;
-      }
-      .metadata-item {
-        background: white;
-        border-radius: 8px;
-        padding: 12px;
-        border: 1px solid #e5e7eb;
-      }
-      .metadata-item-label {
-        display: flex;
-        align-items: center;
-        gap: 6px;
+        font-size: 14px;
+        color: #0f172a;
         margin-bottom: 6px;
+        letter-spacing: -0.01em;
+        line-height: 1.4;
       }
-      .metadata-item-label-icon {
-        font-size: 14px;
-      }
-      .metadata-item-label-text {
-        font-size: 10px;
-        font-weight: 600;
-        color: #6b7280;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-      .metadata-item-value {
-        font-size: 14px;
-        font-weight: 700;
-        color: #111827;
-      }
-      .metadata-item-value.budget {
-        color: #059669;
-      }
-      .metadata-item.full-width {
-        grid-column: 1 / -1;
-      }
-      .metadata-section-title {
-        font-size: 12px;
-        font-weight: 600;
-        color: #6b7280;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .metadata-chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-      .metadata-chip {
-        padding: 6px 12px;
-        border-radius: 12px;
-        font-size: 12px;
+      .job-card-company {
+        font-size: 13px;
+        color: #64748b;
         font-weight: 500;
       }
-      .chip-skills {
-        background: linear-gradient(to right, #10b981, #059669);
-        color: white;
+      .score-badge {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 13px;
+        flex-shrink: 0;
+        position: relative;
       }
-      .chip-keywords {
-        background: linear-gradient(to right, #a855f7, #9333ea);
-        color: white;
+      .score-badge.low {
+        background: #fee2e2;
+        color: #991b1b;
       }
-      .sign-in-section {
-        padding: 16px;
-        background: #fffbeb;
-        border: 2px solid #fde68a;
-        border-radius: 8px;
-        margin-bottom: 16px;
-      }
-      .sign-in-content {
-        text-align: center;
-        margin-bottom: 12px;
-      }
-      .sign-in-icon {
-        font-size: 24px;
-        margin-bottom: 8px;
-      }
-      .sign-in-title {
-        font-weight: 600;
+      .score-badge.medium {
+        background: #fef3c7;
         color: #92400e;
-        margin-bottom: 4px;
       }
-      .sign-in-desc {
-        font-size: 12px;
-        color: #78350f;
+      .score-badge.high {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .score-value {
+        position: relative;
+        z-index: 1;
+      }
+      
+      /* Job Detail View */
+      .job-detail {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #e2e8f0;
+        display: none;
+      }
+      .job-card.expanded .job-detail {
+        display: block;
+      }
+      .detail-section {
+        margin-bottom: 20px;
+      }
+      .detail-section-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
         margin-bottom: 12px;
       }
+      .tags-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        max-height: 60px;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+      }
+      .tags-container.expanded {
+        max-height: 500px;
+      }
+      .tag {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+        background: #f1f5f9;
+        color: #334155;
+      }
+      .tag.tag-high-priority {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .tag-category {
+        margin-bottom: 12px;
+      }
+      .tag-category:last-child {
+        margin-bottom: 0;
+      }
+      .tag-category-title {
+        font-size: 10px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+      }
+      .expand-tags-btn {
+        margin-top: 8px;
+        padding: 6px 12px;
+        border: none;
+        background: transparent;
+        color: #4f46e5;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.2s;
+        font-family: inherit;
+      }
+      .expand-tags-btn:hover {
+        background: #f1f5f9;
+      }
+      
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 48px 24px;
+        color: #94a3b8;
+      }
+      .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+      }
+      .empty-state-text {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      
+      /* Footer */
+      .footer {
+        padding: 16px 24px;
+        border-top: 1px solid #e2e8f0;
+        background: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .footer-link {
+        color: #4f46e5;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+      .footer-link:hover {
+        color: #4338ca;
+        text-decoration: underline;
+      }
+      
+      /* Utilities */
       .btn {
         padding: 10px 16px;
         border: none;
         border-radius: 8px;
         font-weight: 600;
-        font-size: 14px;
+        font-size: 13px;
         cursor: pointer;
         transition: all 0.2s;
-        width: 100%;
+        font-family: inherit;
       }
       .btn-primary {
-        background: #2563eb;
+        background: #4f46e5;
         color: white;
       }
       .btn-primary:hover {
-        background: #1d4ed8;
-      }
-      .refresh-btn {
-        background: none;
-        border: none;
-        color: #2563eb;
-        font-size: 12px;
-        cursor: pointer;
-        padding: 4px 0;
-        text-decoration: underline;
-      }
-      .placeholder {
-        background: linear-gradient(to right, #eff6ff, #f3e8ff);
-        border-left: 4px solid #2563eb;
-        border-radius: 8px;
-        padding: 48px 24px;
-        text-align: center;
-        border: 2px dashed #cbd5e1;
-      }
-      .placeholder-icon {
-        font-size: 48px;
-        margin-bottom: 12px;
-        color: #9ca3af;
-      }
-      .placeholder-text {
-        font-size: 14px;
-        color: #6b7280;
-        font-weight: 500;
-        margin-bottom: 4px;
-      }
-      .placeholder-subtext {
-        font-size: 12px;
-        color: #9ca3af;
+        background: #4338ca;
       }
     </style>
   </head>
   <body>
+    <!-- Header -->
     <div class="header">
-      <h2>
-        <img src="icon-48.png" alt="EditResume" style="width: 24px; height: 24px; margin-right: 8px; vertical-align: middle;" />
-        Save Job Description
-      </h2>
-      <a href="options.html" target="_blank">Settings</a>
+      <div class="header-logo">
+        <img src="icon-48.png" alt="EditResume" />
+        <span>EditResume</span>
+      </div>
+      <a href="options.html" target="_blank" class="header-settings" title="Settings">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </a>
     </div>
+    
+    <!-- Tabs -->
+    <div class="tabs-container">
+      <div class="tabs">
+        <button class="tab active" data-tab="saved">Saved Jobs</button>
+        <button class="tab" data-tab="add">Add New</button>
+      </div>
+    </div>
+    
+    <!-- Content -->
     <div class="content">
-      <!-- Left: Saved Jobs & Save Form -->
-      <div class="saved-jobs-section">
-        <div id="signInSection" class="sign-in-section" style="display: none;">
-          <div class="sign-in-content">
-            <div class="sign-in-icon">🔐</div>
-            <div class="sign-in-title">Sign In Required</div>
-            <div class="sign-in-desc">Sign in to save and view job descriptions</div>
-          </div>
-          <button id="signInBtn" class="btn btn-primary">Sign In / Configure</button>
-        </div>
-
-        <!-- Saved Jobs (Top) -->
-        <div>
-          <div class="saved-jobs-header">
-            <label>Saved Jobs</label>
-            <button id="refreshSaved" class="refresh-btn">Refresh</button>
-          </div>
-          <div id="savedList" class="saved-list">
-            <div class="empty-state">Loading...</div>
+      <!-- Sign In Section -->
+      <div id="signInSection" class="sign-in-section" style="display: none;">
+        <div class="sign-in-icon">🔐</div>
+        <div class="sign-in-title">Sign In Required</div>
+        <div class="sign-in-desc">Sign in to save and view job descriptions</div>
+        <button id="signInBtn" class="btn btn-primary">Sign In / Configure</button>
+      </div>
+      
+      <!-- Saved Jobs Tab -->
+      <div id="tabSaved" class="tab-content active">
+        <div id="savedList" class="saved-list">
+          <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-text">No saved jobs yet</div>
           </div>
         </div>
-        
-        <!-- Save Form (Bottom) -->
+      </div>
+      
+      <!-- Add New Tab -->
+      <div id="tabAdd" class="tab-content">
         <div id="saveForm" class="save-form" style="display: none;">
           <div class="save-form-title">Save Job Description</div>
           <input type="text" id="saveTitle" placeholder="Job Title" />
           <input type="text" id="saveCompany" placeholder="Company" />
           <input type="text" id="saveUrl" placeholder="URL (optional)" />
+          <button id="autoFillBtn" class="auto-fill-btn">Auto-fill from current tab</button>
           <button id="saveBtn" class="btn-save">Save Job</button>
           <div id="saveStatus" class="save-status" style="display: none;"></div>
         </div>
       </div>
-
-      <!-- Right: Metadata Graphics -->
-      <div class="metadata-section">
-        <div id="metadataCard" class="placeholder" style="display: none;">
-          <div class="metadata-card" id="metadataContent"></div>
-        </div>
-        <div id="metadataPlaceholder" class="placeholder">
-          <div class="placeholder-icon">📋</div>
-          <div class="placeholder-text">Job metadata will appear here</div>
-          <div class="placeholder-subtext">Select a saved job or save a new one</div>
-        </div>
-      </div>
     </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+      <a href="https://editresume.io" target="_blank" class="footer-link">Open Dashboard →</a>
+    </div>
+    
     <script src="popup.js"></script>
   </body>
 </html>

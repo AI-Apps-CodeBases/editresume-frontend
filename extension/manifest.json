@@ -1,7 +1,9 @@
 {
+"update_url": "https://clients2.google.com/service/update2/crx",
+
   "manifest_version": 3,
   "name": "EditResume Job Saver",
-  "version": "0.1.5",
+  "version": "1.0.0",
   "description": "Save LinkedIn job descriptions to editresume.io and run matching.",
   "homepage_url": "https://editresume.io",
   "privacy_policy": "https://editresume.io/privacy",
@@ -14,7 +16,8 @@
     "storage",
     "activeTab",
     "scripting",
-    "tabs"
+    "tabs",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://www.linkedin.com/*",
@@ -33,6 +36,9 @@
       "48": "icon-48.png",
       "128": "icon-128.png"
     }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "options_page": "options.html",
   "background": {

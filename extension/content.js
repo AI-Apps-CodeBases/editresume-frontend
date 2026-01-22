@@ -251,43 +251,9 @@
       const currentUrl = window.location.href;
       
       // First, try to extract job ID from current URL
-      let jobId = null;
-      const jobIdMatch = currentUrl.match(/\/jobs\/view\/(\d+)/);
-      if (jobIdMatch) {
-        jobId = jobIdMatch[1];
-      }
+      let jobId = getLinkedInJobIdFromUrl(currentUrl);
       
-      // Priority 1: Look for actual Easy Apply buttons/links with direct hrefs
-      const allButtons = document.querySelectorAll('button, a');
-      for (const btn of allButtons) {
-        const text = btn.textContent?.trim() || '';
-        const ariaLabel = btn.getAttribute('aria-label') || '';
-        const isEasyApply = (text.toLowerCase().includes('easy apply') || ariaLabel.toLowerCase().includes('easy apply')) && 
-            !text.toLowerCase().includes('save') && !text.toLowerCase().includes('follow');
-        
-        if (isEasyApply) {
-          // Direct link with /jobs/apply/ - highest priority
-          if (btn.tagName === 'A' && btn.href && btn.href.includes('/jobs/apply/')) {
-            return btn.href.split('?')[0].split('#')[0];
-          }
-          // Check data attributes for apply URL
-          if (btn.dataset.href && btn.dataset.href.includes('/jobs/apply/')) {
-            return btn.dataset.href.split('?')[0].split('#')[0];
-          }
-          // Check for data-apply-url or similar attributes
-          const applyUrlAttr = btn.getAttribute('data-apply-url') || btn.getAttribute('data-href') || btn.getAttribute('href');
-          if (applyUrlAttr && applyUrlAttr.includes('/jobs/apply/')) {
-            return applyUrlAttr.split('?')[0].split('#')[0];
-          }
-          // Check parent link
-          const parentLink = btn.closest('a');
-          if (parentLink && parentLink.href && parentLink.href.includes('/jobs/apply/')) {
-            return parentLink.href.split('?')[0].split('#')[0];
-          }
-        }
-      }
-      
-      // Priority 2: Try multiple selectors for Easy Apply button
+      // Try multiple selectors for Easy Apply button - prioritize actual Easy Apply buttons
       const selectors = [
         // Easy Apply specific buttons
         'button[aria-label*="Easy Apply" i]',
@@ -311,8 +277,53 @@
         '.jobs-s-apply button',
         '.jobs-s-apply a',
         'button[data-tracking-control-name="public_jobs_topcard_apply"]',
-        'a[data-tracking-control-name="public_jobs_topcard_apply"]'
+        'a[data-tracking-control-name="public_jobs_topcard_apply"]',
+        // Look for buttons with "Easy Apply" text
+        'button:has-text("Easy Apply")',
+        'a:has-text("Easy Apply")'
       ];
+      
+      // First, try to find buttons/links with "Easy Apply" text
+      const allButtons = document.querySelectorAll('button, a');
+      for (const btn of allButtons) {
+        const text = btn.textContent?.trim() || '';
+        const ariaLabel = btn.getAttribute('aria-label') || '';
+        if ((text.toLowerCase().includes('easy apply') || ariaLabel.toLowerCase().includes('easy apply')) && 
+            !text.toLowerCase().includes('save') && !text.toLowerCase().includes('follow')) {
+          // Check if it's a link
+          if (btn.tagName === 'A' && btn.href) {
+            if (btn.href.includes('/jobs/apply/')) {
+              return btn.href;
+            }
+            const hrefJobId = getLinkedInJobIdFromUrl(btn.href);
+            if (hrefJobId) {
+              return btn.href;
+            }
+          }
+          // Check if button has data attributes
+          if (btn.dataset.href) {
+            const dataUrl = normalizeLinkedInUrl(btn.dataset.href);
+            if (dataUrl.includes('/jobs/apply/')) {
+              return dataUrl;
+            }
+            const dataJobId = getLinkedInJobIdFromUrl(dataUrl);
+            if (dataJobId) {
+              return dataUrl;
+            }
+          }
+          // Check parent for link
+          const parentLink = btn.closest('a');
+          if (parentLink && parentLink.href) {
+            if (parentLink.href.includes('/jobs/apply/')) {
+              return parentLink.href;
+            }
+            const parentJobId = getLinkedInJobIdFromUrl(parentLink.href);
+            if (parentJobId) {
+              return parentLink.href;
+            }
+          }
+        }
+      }
       
       for (const sel of selectors) {
         try {
@@ -320,14 +331,14 @@
           if (el) {
             // Check if it's a link with direct href
             if (el.tagName === 'A' && el.href) {
-              // If href contains /jobs/apply/, use it directly
+              // If href contains /jobs/apply/, use it directly (preserve full URL)
               if (el.href.includes('/jobs/apply/')) {
-                return el.href.split('?')[0].split('#')[0];
+                return el.href; // Keep full URL with any params
               }
               // If it's a different LinkedIn URL, try to extract job ID from it
               const hrefMatch = el.href.match(/\/jobs\/view\/(\d+)/);
               if (hrefMatch) {
-                return `https://www.linkedin.com/jobs/apply/${hrefMatch[1]}`;
+                return el.href;
               }
             }
             
@@ -336,8 +347,8 @@
               // Check if button has a link as child or sibling
               const link = el.querySelector('a[href*="/jobs/apply/"]') || 
                           el.parentElement?.querySelector('a[href*="/jobs/apply/"]');
-              if (link && link.href && link.href.includes('/jobs/apply/')) {
-                return link.href.split('?')[0].split('#')[0];
+              if (link && link.href) {
+                return link.href; // Keep full URL
               }
               
               // Try to find link in parent container
@@ -347,24 +358,21 @@
                             container.querySelector('a[href*="linkedin.com/jobs"]');
                 if (link && link.href) {
                   if (link.href.includes('/jobs/apply/')) {
-                    return link.href.split('?')[0].split('#')[0];
+                    return link.href; // Keep full URL
                   }
                   const hrefMatch = link.href.match(/\/jobs\/view\/(\d+)/);
                   if (hrefMatch) {
-                    return `https://www.linkedin.com/jobs/apply/${hrefMatch[1]}`;
+                    return link.href;
                   }
                 }
               }
               
               // Check data attributes
-              if (el.dataset.href && el.dataset.href.includes('/jobs/apply/')) {
-                return el.dataset.href.split('?')[0].split('#')[0];
-              }
-              
-              // Check for data-apply-url attribute
-              const applyUrl = el.getAttribute('data-apply-url');
-              if (applyUrl && applyUrl.includes('/jobs/apply/')) {
-                return applyUrl.split('?')[0].split('#')[0];
+              if (el.dataset.href) {
+                const dataUrl = normalizeLinkedInUrl(el.dataset.href);
+                if (dataUrl.includes('/jobs/apply/')) {
+                  return dataUrl; // Keep full URL
+                }
               }
               
               // Check onclick handler for actual URL
@@ -373,7 +381,7 @@
                   const onclickStr = el.onclick.toString();
                   const urlMatch = onclickStr.match(/['"](https?:\/\/[^'"]*\/jobs\/apply\/[^'"]*)['"]/);
                   if (urlMatch) {
-                    return urlMatch[1].split('?')[0].split('#')[0];
+                    return urlMatch[1]; // Keep full URL
                   }
                 } catch (e) {
                   // Ignore onclick parsing errors
@@ -413,20 +421,20 @@
         }
       }
       
-      // Final fallback: construct Easy Apply URL from job ID
+      // Final fallback: do not guess apply URLs; rely on the job URL instead
       if (jobId) {
-        return `https://www.linkedin.com/jobs/apply/${jobId}`;
+        return '';
       }
       
       // Last resort: try to extract from any apply-related links on the page
       const allApplyLinks = document.querySelectorAll('a[href*="apply"], a[href*="jobs"]');
       for (const link of allApplyLinks) {
         if (link.href.includes('/jobs/apply/')) {
-          return link.href.split('?')[0].split('#')[0];
+          return link.href.split('?')[0];
         }
         const match = link.href.match(/\/jobs\/view\/(\d+)/);
         if (match) {
-          return `https://www.linkedin.com/jobs/apply/${match[1]}`;
+          return link.href;
         }
       }
       
@@ -435,9 +443,9 @@
       console.error('Error extracting Easy Apply URL:', e);
       // Fallback: try to extract job ID from URL
       try {
-        const jobIdMatch = window.location.href.match(/\/jobs\/view\/(\d+)/);
-        if (jobIdMatch) {
-          return `https://www.linkedin.com/jobs/apply/${jobIdMatch[1]}`;
+        const jobId = getLinkedInJobIdFromUrl(window.location.href);
+        if (jobId) {
+          return '';
         }
       } catch (fallbackError) {
         console.error('Fallback extraction also failed:', fallbackError);
@@ -685,7 +693,34 @@
     return { title, company, content, url, easyApplyUrl, skills, responsibilities, location, jobType: jobTypeMeta, workType: workTypeMeta };
   }
 
-  function locationOriginUrl() { try { return window.location.href.split('?')[0]; } catch(e){ return window.location.href; } }
+  function getLinkedInJobIdFromUrl(rawUrl) {
+    try {
+      const url = new URL(rawUrl);
+      if (!url.hostname.includes('linkedin.com')) return null;
+      const pathMatch = url.pathname.match(/\/jobs\/view\/(\d+)/);
+      if (pathMatch) return pathMatch[1];
+      return url.searchParams.get('currentJobId') || url.searchParams.get('jobId');
+    } catch (e) {
+      const match = rawUrl.match(/\/jobs\/view\/(\d+)/);
+      return match ? match[1] : null;
+    }
+  }
+
+  function normalizeLinkedInUrl(rawUrl) {
+    try {
+      return new URL(rawUrl, window.location.origin).href;
+    } catch (e) {
+      return rawUrl;
+    }
+  }
+
+  function locationOriginUrl() {
+    try {
+      return window.location.href;
+    } catch (e) {
+      return window.location.href;
+    }
+  }
 
   const STOP_WORDS = new Set([
     'the', 'and', 'for', 'with', 'from', 'your', 'our', 'you', 'will', 'can', 'able', 'work', 'team', 'role',
@@ -1039,21 +1074,6 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Failed to save');
         setStatus(`Saved ✓ (id: ${data.id})`);
-        
-        // Signal to app that JD was saved via chrome.storage
-        // appBridge.js (running on editresume.io) will poll this and write to localStorage
-        if (data.id) {
-          try {
-            const signalData = {
-              jobId: data.id,
-              timestamp: Date.now(),
-              source: 'extension'
-            };
-            chrome.storage.local.set({ extensionSavedJobId: signalData });
-          } catch (e) {
-            console.warn('Failed to signal saved JD to app:', e);
-          }
-        }
         // Job saved successfully - no navigation needed
       } catch (e) {
         setStatus('Error: ' + e.message);
@@ -1094,4 +1114,3 @@
     return false;
   });
 })();
-
