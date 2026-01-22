@@ -981,20 +981,21 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         quality_score = quality_analysis["score"]
 
-        # Keyword matching is 50-60% of the score (primary factor)
-        # Higher weight for better keyword matches to reward improvements
-        if keyword_match_score >= 85:
+        # Keyword matching weight - increased for 100% matches to guarantee 90+ score
+        if keyword_match_score >= 99:
+            keyword_weight = 0.75  # 75% weight when keywords are 100% (ensures 90+ score)
+            tfidf_weight = 0.12
+            section_weight = 0.08
+            formatting_weight = 0.03
+            quality_weight = 0.02
+        elif keyword_match_score >= 85:
             keyword_weight = 0.60  # Higher weight for strong keyword matches
-        else:
-            keyword_weight = 0.50  # Standard weight for lower matches
-
-        # Distribute remaining weight among other components
-        if keyword_match_score >= 85:
             tfidf_weight = 0.20
             section_weight = 0.12
             formatting_weight = 0.05
             quality_weight = 0.03
         else:
+            keyword_weight = 0.50  # Standard weight for lower matches
             tfidf_weight = 0.25
             section_weight = 0.15
             formatting_weight = 0.07
@@ -1081,6 +1082,12 @@ class EnhancedATSChecker:
         # Apply total bonus cap: maximum 5 points from all bonuses combined (increased from 3)
         total_bonus = min(5, total_bonus)
         overall_score += total_bonus
+
+        # Guarantee minimum 90 score when keywords match 100% (or very close to 100%)
+        # Check for >= 98 to catch cases where it's 99.9% (displays as 100%)
+        if keyword_match_score >= 98:
+            # Ensure at least 90 when keywords match 98% or higher (displays as 100%)
+            overall_score = max(90, overall_score)
 
         # No artificial caps - allow scores to reach 95-100 with strong keyword matching
         # Scores are calculated directly from components without diminishing returns
@@ -1332,7 +1339,34 @@ class EnhancedATSChecker:
                 # Non-critical: if agent fails, continue with rule-based score
                 logger.warning(f"ATS scoring agent analysis failed, using rule-based score only: {e}")
 
-            return {
+            # Apply rule engine adjustments if enabled
+            rule_engine_result = None
+            rule_adjustment = 0.0
+            try:
+                from app.services.ats_rule_engine import ATSRuleEngine
+
+                rule_engine = ATSRuleEngine()
+                rule_engine_result = rule_engine.evaluate(
+                    resume_data=resume_data,
+                    job_description=job_description,
+                    base_score=calculated_score,
+                    extracted_keywords=extracted_keywords,
+                    resume_text=resume_text_to_use,
+                )
+                rule_adjustment = rule_engine_result.total_adjustment
+                
+                # Apply rule adjustment to score
+                calculated_score = max(0, min(100, calculated_score + rule_adjustment))
+                
+                logger.debug(
+                    f"Applied rule engine adjustment: {rule_adjustment:.2f} "
+                    f"(final score: {calculated_score:.2f})"
+                )
+            except Exception as e:
+                # Non-critical: if rule engine fails, continue without rule adjustments
+                logger.warning(f"Rule engine evaluation failed, continuing without rule adjustments: {e}")
+
+            response = {
                 "success": True,
                 "score": round(calculated_score, 1),
                 "details": result,
@@ -1340,6 +1374,19 @@ class EnhancedATSChecker:
                 "ai_improvements": result.get("ai_improvements", []),
                 "method": result.get("method", "comprehensive"),
             }
+            
+            # Add rule engine results if available
+            if rule_engine_result:
+                # Convert Pydantic model to dict for JSON serialization
+                rule_engine_dict = rule_engine_result.model_dump() if hasattr(rule_engine_result, 'model_dump') else rule_engine_result.dict()
+                response["rule_engine"] = rule_engine_dict
+                response["rule_adjustments"] = {
+                    "total_adjustment": rule_adjustment,
+                    "base_score": result.get("overall_score", calculated_score - rule_adjustment),
+                    "final_score": calculated_score,
+                }
+            
+            return response
         except Exception as e:
             return {
                 "success": False,

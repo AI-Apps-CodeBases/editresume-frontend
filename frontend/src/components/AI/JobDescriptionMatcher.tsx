@@ -22,6 +22,7 @@ import {
   Search, 
   CheckCircle2,
   ArrowUp,
+  ArrowDown,
   X,
   Info
 } from 'lucide-react';
@@ -311,6 +312,26 @@ interface JobMatchResult {
   analysis_summary: {
     overall_match: string;
     technical_match: string;
+  };
+  score_breakdown?: {
+    tfidf_cosine_score?: number;
+    keyword_match_score?: number;
+    section_score?: number;
+    formatting_score?: number;
+    quality_score?: number;
+    weights_used?: {
+      tfidf_weight?: number;
+      keyword_weight?: number;
+      section_weight?: number;
+      formatting_weight?: number;
+      quality_weight?: number;
+    };
+  };
+  rule_engine?: any;
+  rule_adjustments?: {
+    total_adjustment?: number;
+    base_score?: number;
+    final_score?: number;
   };
 }
 
@@ -1605,6 +1626,11 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
     missing_count: missingKeywords.length,
   };
   
+  // Extract score breakdown if available
+  const scoreBreakdown = details.score_breakdown || {};
+  const ruleEngine = enhancedATSResult.rule_engine;
+  const ruleAdjustments = enhancedATSResult.rule_adjustments;
+
   return {
     success: enhancedATSResult.success !== false,
     match_analysis,
@@ -1622,6 +1648,9 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
       technical_match: technicalScore >= 70 ? 'Strong' : 
                        technicalScore >= 40 ? 'Moderate' : 'Weak',
     },
+    score_breakdown: scoreBreakdown,
+    rule_engine: ruleEngine,
+    rule_adjustments: ruleAdjustments,
   };
 };
 
@@ -1943,7 +1972,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         
         // Restore ATS score
         const score = normalized?.match_analysis?.similarity_score ?? null;
-        setCurrentATSScore(roundScoreValue(score));
+        const roundedScore = roundScoreValue(score);
+        setCurrentATSScore(roundedScore);
+        if (roundedScore !== null) {
+          previousScoreRef.current = roundedScore;
+        }
         
         // Restore keywords
         const jdKeywords = {
@@ -2122,6 +2155,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [isCalculatingATS, setIsCalculatingATS] = useState(false);
   const [previousATSScore, setPreviousATSScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
   // Restore match result when job description or component mounts
   useEffect(() => {
@@ -2139,7 +2173,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
         
         // Restore ATS score
         const score = normalized?.match_analysis?.similarity_score ?? null;
-        setCurrentATSScore(roundScoreValue(score));
+        const roundedScore = roundScoreValue(score);
+        setCurrentATSScore(roundedScore);
+        if (roundedScore !== null) {
+          previousScoreRef.current = roundedScore;
+        }
       }
     } catch (e) {
       console.error('Failed to restore match result:', e);
@@ -2776,6 +2814,33 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           normalizedMatchData.match_analysis.similarity_score = apiScore
         }
 
+        // Track score change BEFORE updating state
+        // Use ref to get the most recent score value (avoids closure issues)
+        const previousScore = roundScoreValue(previousScoreRef.current ?? currentATSScore);
+        const nextScore = roundScoreValue(newScore);
+        
+        // Calculate change if we have both previous and next scores
+        if (previousScore !== null && nextScore !== null && previousScore !== nextScore) {
+          const change = nextScore - previousScore;
+          setScoreChange(change);
+          setPreviousATSScore(previousScore);
+          previousScoreRef.current = nextScore; // Update ref for next comparison
+
+          // Clear score change indicator after 5 seconds
+          setTimeout(() => {
+            setScoreChange(null);
+            setPreviousATSScore(null);
+          }, 5000);
+        } else if (previousScore === null && nextScore !== null) {
+          // First score, no change to show
+          setScoreChange(null);
+          setPreviousATSScore(null);
+          previousScoreRef.current = nextScore; // Store for next time
+        } else if (nextScore !== null) {
+          // Score unchanged, but update ref
+          previousScoreRef.current = nextScore;
+        }
+
         setMatchResult(normalizedMatchData);
         
         // Store the new score for next calculation
@@ -2783,28 +2848,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           localStorage.setItem('lastATSScore', newScore.toString())
         }
 
-        // Track score change using functional update to get current value
-        setCurrentATSScore((prevScore) => {
-          const previousRounded = roundScoreValue(prevScore);
-          const nextRounded = roundScoreValue(newScore);
-
-          if (previousRounded !== null && nextRounded !== null) {
-            const change = nextRounded - previousRounded;
-            setScoreChange(change !== 0 ? change : null);
-            setPreviousATSScore(previousRounded);
-
-            // Clear score change indicator after 5 seconds
-            setTimeout(() => {
-              setScoreChange(null);
-              setPreviousATSScore(null);
-            }, 5000);
-          } else if (previousRounded === null && nextRounded !== null) {
-            setPreviousATSScore(null);
-            setScoreChange(null);
-          }
-
-          return nextRounded;
-        });
+        // Update current score
+        setCurrentATSScore(nextScore);
 
         // Update localStorage - store with JD ID for persistence
         if (typeof window !== 'undefined') {
@@ -2869,6 +2914,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const resumeChangeTimerRef = useRef<number | null>(null);
   const lastCommittedResumeHashRef = useRef<string | null>(computeResumeSignature(resumeData));
   const pendingResumeHashRef = useRef<string | null>(null);
+  const previousScoreRef = useRef<number | null>(null);
   const [isATSUpdatePending, setIsATSUpdatePending] = useState(false);
 
   // Auto-update ATS score when resume data changes (only if JD is selected)
@@ -3291,12 +3337,43 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             const matchData = transformEnhancedATSResponse(enhancedATSData, jobDescription);
             const normalizedMatchData = normalizeMatchResult(matchData);
             const newScore = roundScoreValue(matchData.match_analysis?.similarity_score);
+            
+            // Track score change BEFORE updating state
+            // Use ref to get the most recent score value (avoids closure issues)
+            const previousScore = roundScoreValue(previousScoreRef.current ?? currentATSScore);
+            const nextScore = roundScoreValue(newScore);
+            
+            // Calculate change if we have both previous and next scores
+            if (previousScore !== null && nextScore !== null && previousScore !== nextScore) {
+              const change = nextScore - previousScore;
+              setScoreChange(change);
+              setPreviousATSScore(previousScore);
+              previousScoreRef.current = nextScore; // Update ref for next comparison
+
+              // Clear score change indicator after 5 seconds
+              setTimeout(() => {
+                setScoreChange(null);
+                setPreviousATSScore(null);
+              }, 5000);
+            } else if (nextScore !== null) {
+              previousScoreRef.current = nextScore; // Store for next time
+            }
+            
             setUpdatedATSScore(newScore);
             setMatchResult(normalizedMatchData);
+            setCurrentATSScore(nextScore);
             
             // Store the new score for next calculation
             if (newScore !== null && typeof window !== 'undefined') {
               localStorage.setItem('lastATSScore', newScore.toString())
+            }
+            
+            // Update refs to prevent auto-update useEffect from triggering another recalculation
+            // This ensures the score doesn't reset when onResumeUpdate triggers resumeData prop change
+            const updatedSignature = computeResumeSignature(updatedResume);
+            lastCommittedResumeHashRef.current = updatedSignature;
+            if (nextScore !== null) {
+              previousScoreRef.current = nextScore;
             }
             
             // Notify parent component of updated match result
@@ -3382,6 +3459,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       setIsCalculatingATS,
       setUpdatedATSScore,
       setSelectedKeywords,
+      computeResumeSignature,
+      currentATSScore,
+      onMatchResult,
     ]
   );
 
@@ -4171,8 +4251,33 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
       // Pass saved keywords and resume text to transformation (ensures consistent use of extension keywords)
       const rawResult = transformEnhancedATSResponse(enhancedATSResult, jobDescription, extractedKeywords, resumeText);
       const normalizedResult = normalizeMatchResult(rawResult);
+      const newScore = roundScoreValue(normalizedResult?.match_analysis?.similarity_score ?? null);
+      
+      // Track score change for initial analysis (only if there was a previous score)
+      // Use ref to get the most recent score value (avoids closure issues)
+      const previousScore = roundScoreValue(previousScoreRef.current ?? currentATSScore);
+      if (previousScore !== null && newScore !== null && previousScore !== newScore) {
+        const change = newScore - previousScore;
+        setScoreChange(change);
+        setPreviousATSScore(previousScore);
+        previousScoreRef.current = newScore; // Update ref for next comparison
+
+        // Clear score change indicator after 5 seconds
+        setTimeout(() => {
+          setScoreChange(null);
+          setPreviousATSScore(null);
+        }, 5000);
+      } else {
+        // Initial analysis or no change - clear any previous change indicator
+        setScoreChange(null);
+        setPreviousATSScore(null);
+        if (newScore !== null) {
+          previousScoreRef.current = newScore; // Store for next time
+        }
+      }
+      
       setMatchResult(normalizedResult);
-      setCurrentATSScore(normalizedResult?.match_analysis?.similarity_score ?? null);
+      setCurrentATSScore(newScore);
       setSelectedKeywords(new Set());
       const metadataFromText = deriveJobMetadataFromText(jobDescription);
       setSelectedJobMetadata((prev) => mergeMetadata(prev, metadataFromText));
@@ -4268,98 +4373,20 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             <div className="flex flex-col gap-3">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                  <div className="relative inline-flex h-16 w-16 flex-shrink-0 items-center justify-center">
-                    <svg viewBox="0 0 120 120" className="h-full w-full">
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="52"
-                        fill="none"
-                        stroke="#e5e7eb"
-                        strokeWidth="8"
-                      />
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="52"
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeWidth="8"
-                        strokeDasharray={`${Math.max(0, Math.min(100, overallATSScore ?? 0)) * 3.27} 999`}
-                        strokeDashoffset="0"
-                        className={`${getScoreColor(overallATSScore ?? 0).replace('text-', 'stroke-')} drop-shadow-sm`}
-                        style={{
-                          transform: 'rotate(-90deg)',
-                          transformOrigin: 'center',
-                          transition: 'stroke-dasharray 0.6s ease-out'
-                        }}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className={`text-xl font-bold ${getScoreColor(overallATSScore ?? 0)}`}>
-                        {overallATSScore !== null ? `${overallATSScore}%` : '—'}
-                      </span>
-                      <span className="text-[9px] font-semibold uppercase tracking-wide text-gray-500">
-                        ATS
-                      </span>
+                  {(selectedJobMetadata?.title || selectedJobMetadata?.company || currentJDInfo?.title || currentJDInfo?.company) && (
+                    <div className="min-w-0 flex-1">
+                      {selectedJobMetadata?.title || currentJDInfo?.title ? (
+                        <div className="text-sm font-semibold text-gray-900 truncate">
+                          {selectedJobMetadata?.title || currentJDInfo?.title}
+                        </div>
+                      ) : null}
+                      {selectedJobMetadata?.company || currentJDInfo?.company ? (
+                        <div className="text-xs text-gray-600 truncate mt-0.5">
+                          {selectedJobMetadata?.company || currentJDInfo?.company}
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Match Score
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-2xl font-bold ${getScoreColor(overallATSScore ?? 0)}`}>
-                        {overallATSScore !== null ? `${overallATSScore}%` : '—'}
-                      </span>
-                      {scoreChange !== null && scoreChange !== 0 && previousATSScore !== null && (
-                        <span
-                          className={`text-xs font-bold px-1.5 py-0.5 rounded ${scoreChange > 0
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                            }`}
-                        >
-                          {scoreChange > 0 ? '↑' : '↓'} {Math.abs(scoreChange)}%
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      <span className="text-xs text-gray-600">
-                        {matchTierLabel}
-                      </span>
-                      <Tooltip 
-                        text={
-                          overallATSScore !== null
-                            ? overallATSScore >= 80
-                              ? 'Excellent Match: Your resume strongly aligns with the job requirements. You have most of the required keywords and qualifications.'
-                              : overallATSScore >= 60
-                              ? 'Good Match: Your resume aligns well with the job. Consider adding a few more keywords to improve your score.'
-                              : overallATSScore >= 40
-                              ? 'Fair Match: Your resume has some alignment but needs improvement. Add more relevant keywords to increase your chances.'
-                              : 'Needs Improvement: Your resume has limited alignment with the job requirements. Focus on adding missing keywords and skills.'
-                            : 'Score calculation in progress...'
-                        }
-                        color="blue"
-                        position="right"
-                      >
-                        <Info className="w-3 h-3 text-gray-400 hover:text-gray-600 cursor-help" />
-                      </Tooltip>
-                    </div>
-                    {(selectedJobMetadata?.title || selectedJobMetadata?.company || currentJDInfo?.title || currentJDInfo?.company) && (
-                      <div className="mt-2 pt-2 border-t border-gray-200">
-                        {selectedJobMetadata?.title || currentJDInfo?.title ? (
-                          <div className="text-sm font-semibold text-gray-900 truncate">
-                            {selectedJobMetadata?.title || currentJDInfo?.title}
-                          </div>
-                        ) : null}
-                        {selectedJobMetadata?.company || currentJDInfo?.company ? (
-                          <div className="text-xs text-gray-600 truncate mt-0.5">
-                            {selectedJobMetadata?.company || currentJDInfo?.company}
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
+                  )}
                   <button
                     onClick={() => setIsMinimized(!isMinimized)}
                     className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200"
@@ -4430,46 +4457,161 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   </button>
                 </div>
               </div>
-              
-              {/* Combined Metrics Row */}
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
-                    Keyword Coverage
+
+              {/* ATS Score Gauge - Visual display */}
+              {overallATSScore !== null && (
+                <div className="pt-3 border-t border-gray-100">
+                  <div className="flex items-center justify-center gap-6">
+                    <div className="flex flex-col items-center">
+                      <div className="relative w-24 h-24 mb-3">
+                        <svg viewBox="0 0 36 36" className="w-24 h-24 transform -rotate-90">
+                          <circle
+                            className="text-gray-200"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            fill="none"
+                            cx="18"
+                            cy="18"
+                            r="15"
+                          />
+                          <circle
+                            className={getScoreColor(overallATSScore).replace('text-', 'stroke-')}
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeWidth="3"
+                            fill="none"
+                            strokeDasharray={`${(overallATSScore / 100) * 94.2}, 94.2`}
+                            cx="18"
+                            cy="18"
+                            r="15"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="flex flex-col items-center">
+                            <span className={`text-xl font-bold ${getScoreColor(overallATSScore)}`}>
+                              {overallATSScore}%
+                            </span>
+                            {scoreChange !== null && scoreChange !== 0 && (
+                              <span
+                                className={`text-xs font-semibold mt-0.5 flex items-center gap-0.5 animate-pulse ${
+                                  scoreChange > 0 ? 'text-green-600' : 'text-red-600'
+                                }`}
+                              >
+                                {scoreChange > 0 ? (
+                                  <>
+                                    <ArrowUp className="w-3 h-3" />
+                                    <span>+{Math.abs(scoreChange)}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ArrowDown className="w-3 h-3" />
+                                    <span>{scoreChange}</span>
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                          ATS Score
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          {overallATSScore >= 80
+                            ? 'Excellent'
+                            : overallATSScore >= 60
+                              ? 'Strong'
+                              : overallATSScore >= 40
+                                ? 'Fair'
+                                : 'Needs Work'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {keywordCoverageValue !== null ? `${keywordCoverageValue}%` : '—'}
-                    </span>
-                    {scoreChange !== null && scoreChange > 0 && (
-                      <ArrowUp className="w-3 h-3 text-green-600" />
+                </div>
+              )}
+
+              {/* Score Breakdown - Collapsible detailed breakdown */}
+              {matchResult?.score_breakdown && (
+                <div className="pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
+                    className="flex items-center justify-between w-full text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 hover:text-gray-700 transition-colors"
+                  >
+                    <span>Score Breakdown</span>
+                    {showScoreBreakdown ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
                     )}
-                  </div>
-                  {matchedKeywordCount !== null && totalKeywordCount !== null && (
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {matchedKeywordCount} of {totalKeywordCount} keywords
+                  </button>
+                  {showScoreBreakdown && (
+                    <div className="space-y-1.5 text-xs">
+                    {(() => {
+                      const breakdown = matchResult.score_breakdown;
+                      const weights = breakdown.weights_used || {};
+                      const keywordWeight = weights.keyword_weight || 0.5;
+                      const tfidfWeight = weights.tfidf_weight || 0.25;
+                      const sectionWeight = weights.section_weight || 0.15;
+                      const formattingWeight = weights.formatting_weight || 0.07;
+                      const qualityWeight = weights.quality_weight || 0.03;
+                      
+                      // Calculate contributions
+                      const keywordScore = breakdown.keyword_match_score || 0;
+                      const tfidfScore = breakdown.tfidf_cosine_score || 0;
+                      const sectionScore = breakdown.section_score || 0;
+                      const formattingScore = breakdown.formatting_score || 0;
+                      const qualityScore = breakdown.quality_score || 0;
+                      
+                      return (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Keywords ({Math.round(keywordWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(keywordScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">TF-IDF Similarity ({Math.round(tfidfWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(tfidfScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Structure ({Math.round(sectionWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(sectionScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Formatting ({Math.round(formattingWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(formattingScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Content Quality ({Math.round(qualityWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(qualityScore)}%</span>
+                          </div>
+                          {matchResult.rule_adjustments && matchResult.rule_adjustments.total_adjustment !== undefined && matchResult.rule_adjustments.total_adjustment !== 0 && (
+                            <div className="flex items-center justify-between pt-1 border-t border-gray-200">
+                              <span className="text-gray-600">Rule Adjustments</span>
+                              <span className={`font-medium ${(matchResult.rule_adjustments.total_adjustment || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {(matchResult.rule_adjustments.total_adjustment || 0) > 0 ? '+' : ''}{Math.round((matchResult.rule_adjustments.total_adjustment || 0) * 10) / 10}
+                              </span>
+                            </div>
+                          )}
+                          <div className="pt-1.5 mt-1.5 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-gray-700">Total Score</span>
+                              <span className="text-sm font-bold text-gray-900">{overallATSScore}%</span>
+                            </div>
+                            {keywordCoverageValue === 100 && overallATSScore !== null && overallATSScore < 100 && (
+                              <div className="mt-1 text-xs text-gray-500 italic">
+                                Note: 100% keyword coverage doesn't guarantee 100% score. Other factors (structure, formatting, content quality) also contribute.
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                     </div>
                   )}
                 </div>
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
-                    Estimated Fit
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {overallATSScore !== null ? `${String(overallATSScore)}%` : '—'}
-                    </span>
-                    {scoreChange !== null && scoreChange > 0 && (
-                      <ArrowUp className="w-3 h-3 text-green-600" />
-                    )}
-                  </div>
-                  {overallATSScore !== null && (
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {matchedKeywordCount ?? 0} of {totalKeywordCount ?? 0} terms
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
           </div>
 

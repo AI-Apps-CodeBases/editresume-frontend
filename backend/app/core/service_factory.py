@@ -24,6 +24,7 @@ import logging
 
 from app.services.ai_improvement_engine import AIResumeImprovementEngine
 from app.services.ats_service import ATSChecker
+from app.services.ats_rule_engine import ATSRuleEngine
 from app.services.enhanced_ats_service import EnhancedATSChecker
 from app.services.keyword_service import KeywordExtractor
 
@@ -141,6 +142,15 @@ class ServiceFactory:
             logger.warning(f"ATS scoring agent not available: {e}")
             return None
 
+    @staticmethod
+    def create_ats_rule_engine() -> ATSRuleEngine:
+        """Create ATSRuleEngine instance."""
+        try:
+            return ATSRuleEngine()
+        except Exception as e:
+            logger.error(f"Failed to create ATSRuleEngine: {e}", exc_info=True)
+            raise
+
 
 # Dependency injection functions for FastAPI
 def get_enhanced_ats_service() -> EnhancedATSChecker:
@@ -192,4 +202,15 @@ def get_job_matching_agent_service() -> JobMatchingAgent | None:
 def get_ats_scoring_agent_service() -> ATSScoringAgent | None:
     """Dependency injection function for ATSScoringAgent."""
     return ServiceFactory.create_ats_scoring_agent()
+
+
+def get_ats_rule_engine_service() -> ATSRuleEngine:
+    """Dependency injection function for ATSRuleEngine.
+    
+    Use in FastAPI endpoints:
+        @router.post("/endpoint")
+        async def endpoint(rule_engine: ATSRuleEngine = Depends(get_ats_rule_engine_service)):
+            ...
+    """
+    return ServiceFactory.create_ats_rule_engine()
 
