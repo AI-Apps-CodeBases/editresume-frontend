@@ -312,6 +312,26 @@ interface JobMatchResult {
     overall_match: string;
     technical_match: string;
   };
+  score_breakdown?: {
+    tfidf_cosine_score?: number;
+    keyword_match_score?: number;
+    section_score?: number;
+    formatting_score?: number;
+    quality_score?: number;
+    weights_used?: {
+      tfidf_weight?: number;
+      keyword_weight?: number;
+      section_weight?: number;
+      formatting_weight?: number;
+      quality_weight?: number;
+    };
+  };
+  rule_engine?: any;
+  rule_adjustments?: {
+    total_adjustment?: number;
+    base_score?: number;
+    final_score?: number;
+  };
 }
 
 interface JobDescriptionMatcherProps {
@@ -1605,6 +1625,11 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
     missing_count: missingKeywords.length,
   };
   
+  // Extract score breakdown if available
+  const scoreBreakdown = details.score_breakdown || {};
+  const ruleEngine = enhancedATSResult.rule_engine;
+  const ruleAdjustments = enhancedATSResult.rule_adjustments;
+
   return {
     success: enhancedATSResult.success !== false,
     match_analysis,
@@ -1622,6 +1647,9 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
       technical_match: technicalScore >= 70 ? 'Strong' : 
                        technicalScore >= 40 ? 'Moderate' : 'Weak',
     },
+    score_breakdown: scoreBreakdown,
+    rule_engine: ruleEngine,
+    rule_adjustments: ruleAdjustments,
   };
 };
 
@@ -4470,6 +4498,77 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   )}
                 </div>
               </div>
+
+              {/* Score Breakdown - Explain why 100% keywords ≠ 100% score */}
+              {matchResult?.score_breakdown && (
+                <div className="pt-3 border-t border-gray-100">
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    Score Breakdown
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    {(() => {
+                      const breakdown = matchResult.score_breakdown;
+                      const weights = breakdown.weights_used || {};
+                      const keywordWeight = weights.keyword_weight || 0.5;
+                      const tfidfWeight = weights.tfidf_weight || 0.25;
+                      const sectionWeight = weights.section_weight || 0.15;
+                      const formattingWeight = weights.formatting_weight || 0.07;
+                      const qualityWeight = weights.quality_weight || 0.03;
+                      
+                      // Calculate contributions
+                      const keywordScore = breakdown.keyword_match_score || 0;
+                      const tfidfScore = breakdown.tfidf_cosine_score || 0;
+                      const sectionScore = breakdown.section_score || 0;
+                      const formattingScore = breakdown.formatting_score || 0;
+                      const qualityScore = breakdown.quality_score || 0;
+                      
+                      return (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Keywords ({Math.round(keywordWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(keywordScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">TF-IDF Similarity ({Math.round(tfidfWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(tfidfScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Structure ({Math.round(sectionWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(sectionScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Formatting ({Math.round(formattingWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(formattingScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Content Quality ({Math.round(qualityWeight * 100)}%)</span>
+                            <span className="font-medium text-gray-900">{Math.round(qualityScore)}%</span>
+                          </div>
+                          {matchResult.rule_adjustments && matchResult.rule_adjustments.total_adjustment !== undefined && matchResult.rule_adjustments.total_adjustment !== 0 && (
+                            <div className="flex items-center justify-between pt-1 border-t border-gray-200">
+                              <span className="text-gray-600">Rule Adjustments</span>
+                              <span className={`font-medium ${(matchResult.rule_adjustments.total_adjustment || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {(matchResult.rule_adjustments.total_adjustment || 0) > 0 ? '+' : ''}{Math.round((matchResult.rule_adjustments.total_adjustment || 0) * 10) / 10}
+                              </span>
+                            </div>
+                          )}
+                          <div className="pt-1.5 mt-1.5 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-gray-700">Total Score</span>
+                              <span className="text-sm font-bold text-gray-900">{overallATSScore}%</span>
+                            </div>
+                            {keywordCoverageValue === 100 && overallATSScore !== null && overallATSScore < 100 && (
+                              <div className="mt-1 text-xs text-gray-500 italic">
+                                Note: 100% keyword coverage doesn't guarantee 100% score. Other factors (structure, formatting, content quality) also contribute.
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

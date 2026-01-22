@@ -11,3 +11,5 @@ build/
 .vercel
 *.tsbuildinfo
 extension/*
+backend/venv312
+

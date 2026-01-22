@@ -1332,7 +1332,34 @@ class EnhancedATSChecker:
                 # Non-critical: if agent fails, continue with rule-based score
                 logger.warning(f"ATS scoring agent analysis failed, using rule-based score only: {e}")
 
-            return {
+            # Apply rule engine adjustments if enabled
+            rule_engine_result = None
+            rule_adjustment = 0.0
+            try:
+                from app.services.ats_rule_engine import ATSRuleEngine
+
+                rule_engine = ATSRuleEngine()
+                rule_engine_result = rule_engine.evaluate(
+                    resume_data=resume_data,
+                    job_description=job_description,
+                    base_score=calculated_score,
+                    extracted_keywords=extracted_keywords,
+                    resume_text=resume_text_to_use,
+                )
+                rule_adjustment = rule_engine_result.total_adjustment
+                
+                # Apply rule adjustment to score
+                calculated_score = max(0, min(100, calculated_score + rule_adjustment))
+                
+                logger.debug(
+                    f"Applied rule engine adjustment: {rule_adjustment:.2f} "
+                    f"(final score: {calculated_score:.2f})"
+                )
+            except Exception as e:
+                # Non-critical: if rule engine fails, continue without rule adjustments
+                logger.warning(f"Rule engine evaluation failed, continuing without rule adjustments: {e}")
+
+            response = {
                 "success": True,
                 "score": round(calculated_score, 1),
                 "details": result,
@@ -1340,6 +1367,19 @@ class EnhancedATSChecker:
                 "ai_improvements": result.get("ai_improvements", []),
                 "method": result.get("method", "comprehensive"),
             }
+            
+            # Add rule engine results if available
+            if rule_engine_result:
+                # Convert Pydantic model to dict for JSON serialization
+                rule_engine_dict = rule_engine_result.model_dump() if hasattr(rule_engine_result, 'model_dump') else rule_engine_result.dict()
+                response["rule_engine"] = rule_engine_dict
+                response["rule_adjustments"] = {
+                    "total_adjustment": rule_adjustment,
+                    "base_score": result.get("overall_score", calculated_score - rule_adjustment),
+                    "final_score": calculated_score,
+                }
+            
+            return response
         except Exception as e:
             return {
                 "success": False,
