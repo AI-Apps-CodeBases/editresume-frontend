@@ -421,66 +421,6 @@ export default function ModernEditorLayout({
                 </div>
               </div>
 
-              {mobileATSScore !== null && (
-                <div className="lg:hidden fixed top-20 right-4 z-40">
-                  <div className="bg-white/95 backdrop-blur-sm border border-border-subtle rounded-lg px-2.5 py-2 shadow-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="relative w-12 h-12">
-                        <svg viewBox="0 0 36 36" className="w-12 h-12 transform -rotate-90">
-                          <circle
-                            className="text-gray-200"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            fill="none"
-                            cx="18"
-                            cy="18"
-                            r="15"
-                          />
-                          {(() => {
-                            const ring = getScoreRing(mobileATSScore)
-                            return (
-                              <circle
-                                className={ring.strokeClass.replace('stroke-', 'text-')}
-                                stroke="currentColor"
-                                strokeLinecap="round"
-                                strokeWidth="2.5"
-                                fill="none"
-                                strokeDasharray={`${(mobileATSScore / 100) * 94.2}, 94.2`}
-                                cx="18"
-                                cy="18"
-                                r="15"
-                              />
-                            )
-                          })()}
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          {isMobileAnalyzing ? (
-                            <div className="w-3 h-3 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-                          ) : (
-                            <span className={`text-xs font-bold ${getScoreColor(mobileATSScore)}`}>
-                              {mobileATSScore}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                          ATS
-                        </div>
-                        <p className="text-[10px] text-gray-600 leading-tight">
-                          {mobileATSScore >= 80
-                            ? 'Excellent'
-                            : mobileATSScore >= 60
-                              ? 'Strong'
-                              : mobileATSScore >= 40
-                                ? 'Fair'
-                                : 'Needs Work'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="origin-top-left lg:origin-top-left lg:scale-100 scale-[0.5] w-[200%] lg:w-full">
                 <VisualResumeEditor

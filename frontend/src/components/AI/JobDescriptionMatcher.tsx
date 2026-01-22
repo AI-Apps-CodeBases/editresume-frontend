@@ -4296,98 +4296,20 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             <div className="flex flex-col gap-3">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                  <div className="relative inline-flex h-16 w-16 flex-shrink-0 items-center justify-center">
-                    <svg viewBox="0 0 120 120" className="h-full w-full">
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="52"
-                        fill="none"
-                        stroke="#e5e7eb"
-                        strokeWidth="8"
-                      />
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="52"
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeWidth="8"
-                        strokeDasharray={`${Math.max(0, Math.min(100, overallATSScore ?? 0)) * 3.27} 999`}
-                        strokeDashoffset="0"
-                        className={`${getScoreColor(overallATSScore ?? 0).replace('text-', 'stroke-')} drop-shadow-sm`}
-                        style={{
-                          transform: 'rotate(-90deg)',
-                          transformOrigin: 'center',
-                          transition: 'stroke-dasharray 0.6s ease-out'
-                        }}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className={`text-xl font-bold ${getScoreColor(overallATSScore ?? 0)}`}>
-                        {overallATSScore !== null ? `${overallATSScore}%` : '—'}
-                      </span>
-                      <span className="text-[9px] font-semibold uppercase tracking-wide text-gray-500">
-                        ATS
-                      </span>
+                  {(selectedJobMetadata?.title || selectedJobMetadata?.company || currentJDInfo?.title || currentJDInfo?.company) && (
+                    <div className="min-w-0 flex-1">
+                      {selectedJobMetadata?.title || currentJDInfo?.title ? (
+                        <div className="text-sm font-semibold text-gray-900 truncate">
+                          {selectedJobMetadata?.title || currentJDInfo?.title}
+                        </div>
+                      ) : null}
+                      {selectedJobMetadata?.company || currentJDInfo?.company ? (
+                        <div className="text-xs text-gray-600 truncate mt-0.5">
+                          {selectedJobMetadata?.company || currentJDInfo?.company}
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Match Score
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-2xl font-bold ${getScoreColor(overallATSScore ?? 0)}`}>
-                        {overallATSScore !== null ? `${overallATSScore}%` : '—'}
-                      </span>
-                      {scoreChange !== null && scoreChange !== 0 && previousATSScore !== null && (
-                        <span
-                          className={`text-xs font-bold px-1.5 py-0.5 rounded ${scoreChange > 0
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                            }`}
-                        >
-                          {scoreChange > 0 ? '↑' : '↓'} {Math.abs(scoreChange)}%
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      <span className="text-xs text-gray-600">
-                        {matchTierLabel}
-                      </span>
-                      <Tooltip 
-                        text={
-                          overallATSScore !== null
-                            ? overallATSScore >= 80
-                              ? 'Excellent Match: Your resume strongly aligns with the job requirements. You have most of the required keywords and qualifications.'
-                              : overallATSScore >= 60
-                              ? 'Good Match: Your resume aligns well with the job. Consider adding a few more keywords to improve your score.'
-                              : overallATSScore >= 40
-                              ? 'Fair Match: Your resume has some alignment but needs improvement. Add more relevant keywords to increase your chances.'
-                              : 'Needs Improvement: Your resume has limited alignment with the job requirements. Focus on adding missing keywords and skills.'
-                            : 'Score calculation in progress...'
-                        }
-                        color="blue"
-                        position="right"
-                      >
-                        <Info className="w-3 h-3 text-gray-400 hover:text-gray-600 cursor-help" />
-                      </Tooltip>
-                    </div>
-                    {(selectedJobMetadata?.title || selectedJobMetadata?.company || currentJDInfo?.title || currentJDInfo?.company) && (
-                      <div className="mt-2 pt-2 border-t border-gray-200">
-                        {selectedJobMetadata?.title || currentJDInfo?.title ? (
-                          <div className="text-sm font-semibold text-gray-900 truncate">
-                            {selectedJobMetadata?.title || currentJDInfo?.title}
-                          </div>
-                        ) : null}
-                        {selectedJobMetadata?.company || currentJDInfo?.company ? (
-                          <div className="text-xs text-gray-600 truncate mt-0.5">
-                            {selectedJobMetadata?.company || currentJDInfo?.company}
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
+                  )}
                   <button
                     onClick={() => setIsMinimized(!isMinimized)}
                     className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200"
@@ -4456,46 +4378,6 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                   >
                     {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
                   </button>
-                </div>
-              </div>
-              
-              {/* Combined Metrics Row */}
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
-                    Keyword Coverage
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {keywordCoverageValue !== null ? `${keywordCoverageValue}%` : '—'}
-                    </span>
-                    {scoreChange !== null && scoreChange > 0 && (
-                      <ArrowUp className="w-3 h-3 text-green-600" />
-                    )}
-                  </div>
-                  {matchedKeywordCount !== null && totalKeywordCount !== null && (
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {matchedKeywordCount} of {totalKeywordCount} keywords
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
-                    Estimated Fit
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {overallATSScore !== null ? `${String(overallATSScore)}%` : '—'}
-                    </span>
-                    {scoreChange !== null && scoreChange > 0 && (
-                      <ArrowUp className="w-3 h-3 text-green-600" />
-                    )}
-                  </div>
-                  {overallATSScore !== null && (
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {matchedKeywordCount ?? 0} of {totalKeywordCount ?? 0} terms
-                    </div>
-                  )}
                 </div>
               </div>
 
