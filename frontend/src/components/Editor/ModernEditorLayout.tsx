@@ -361,6 +361,49 @@ export default function ModernEditorLayout({
         onShowHelp={onShowHelp}
       />
 
+      {/* Mobile ATS Score Gauge - Fixed Top Right */}
+      {currentView === 'editor' && mobileEditorMode === 'editor' && (
+        <div className="lg:hidden fixed top-16 right-2 z-50 pointer-events-none">
+          <div className="pointer-events-auto">
+            <div className={`bg-white/95 backdrop-blur-md rounded-xl border shadow-lg w-14 h-14 flex items-center justify-center ${
+              mobileATSScore !== null ? getScoreColor(mobileATSScore).replace('text-', 'border-') : 'border-gray-200'
+            }`}>
+              {isMobileAnalyzing ? (
+                <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <svg viewBox="0 0 36 36" className="w-10 h-10 transform -rotate-90">
+                    <path
+                      className="text-gray-200"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                      d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                    />
+                    {mobileATSScore !== null && (
+                      <path
+                        className={getScoreColor(mobileATSScore).replace('text-', 'stroke-')}
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeWidth="3"
+                        fill="none"
+                        strokeDasharray={`${mobileATSScore}, 100`}
+                        d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                      />
+                    )}
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-[10px] font-bold ${getScoreColor(mobileATSScore)}`}>
+                      {mobileATSScore !== null ? Math.round(mobileATSScore) : '--'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden mt-14">
         <ModernLeftSidebar 
           onViewChange={onViewChange} 

@@ -981,14 +981,14 @@ class EnhancedATSChecker:
         quality_analysis = self.analyze_content_quality(resume_data)
         quality_score = quality_analysis["score"]
 
-        # Keyword matching weight - increased for 100% matches to guarantee 90+ score
-        if keyword_match_score >= 99:
-            keyword_weight = 0.75  # 75% weight when keywords are 100% (ensures 90+ score)
+        # Keyword matching weight - increased for 80%+ matches to guarantee 90+ score
+        if keyword_match_score >= 80:
+            keyword_weight = 0.75  # 75% weight when keywords are 80%+ (ensures 90+ score)
             tfidf_weight = 0.12
             section_weight = 0.08
             formatting_weight = 0.03
             quality_weight = 0.02
-        elif keyword_match_score >= 85:
+        elif keyword_match_score >= 70:
             keyword_weight = 0.60  # Higher weight for strong keyword matches
             tfidf_weight = 0.20
             section_weight = 0.12
@@ -1083,10 +1083,10 @@ class EnhancedATSChecker:
         total_bonus = min(5, total_bonus)
         overall_score += total_bonus
 
-        # Guarantee minimum 90 score when keywords match 100% (or very close to 100%)
-        # Check for >= 98 to catch cases where it's 99.9% (displays as 100%)
-        if keyword_match_score >= 98:
-            # Ensure at least 90 when keywords match 98% or higher (displays as 100%)
+        # Guarantee minimum 90 score when keywords match 90% or higher
+        # Lower threshold ensures 100% keyword matches always get 90+ score
+        if keyword_match_score >= 90:
+            # Ensure at least 90 when keywords match 90% or higher
             overall_score = max(90, overall_score)
 
         # No artificial caps - allow scores to reach 95-100 with strong keyword matching
