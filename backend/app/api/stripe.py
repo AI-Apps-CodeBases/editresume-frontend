@@ -15,6 +15,7 @@ from app.core.firebase_admin import (
     update_user_subscription,
 )
 from app.core.stripe_client import get_stripe_client
+from app.services.make_events import send_make_event
 
 logger = logging.getLogger(__name__)
 
@@ -341,16 +342,64 @@ async def create_portal_session(
 async def _process_event(event: dict[str, Any], stripe) -> None:
     event_type = event.get("type")
     data_object = event.get("data", {}).get("object", {})
+    event_id = event.get("id") or ""
 
     if event_type == "checkout.session.completed":
         await _handle_checkout_session_completed(data_object, stripe)
+        await _send_make_event_for_checkout(event_id, data_object)
     elif event_type in {
         "customer.subscription.updated",
         "customer.subscription.deleted",
     }:
         await _handle_subscription_event(data_object)
+        await _send_make_event_for_subscription(event_type, event_id, data_object)
     else:
         logger.debug("Unhandled Stripe event type: %s", event_type)
+
+
+async def _send_make_event_for_checkout(event_id: str, session: dict[str, Any]) -> None:
+    metadata = session.get("metadata") or {}
+    await send_make_event(
+        event="billing.checkout_completed",
+        event_id=event_id or f"checkout:{session.get('id', '')}",
+        user={
+            "uid": metadata.get("uid"),
+            "email": metadata.get("email") or session.get("customer_details", {}).get("email"),
+        },
+        billing={
+            "stripeCustomerId": session.get("customer"),
+            "stripeSubscriptionId": session.get("subscription"),
+            "planType": metadata.get("planType"),
+            "period": metadata.get("period"),
+            "mode": session.get("mode"),
+        },
+    )
+
+
+async def _send_make_event_for_subscription(
+    event_type: str,
+    event_id: str,
+    subscription: dict[str, Any],
+) -> None:
+    event_name = (
+        "billing.canceled"
+        if event_type == "customer.subscription.deleted"
+        else "billing.subscription_updated"
+    )
+    await send_make_event(
+        event=event_name,
+        event_id=event_id or f"subscription:{subscription.get('id', '')}",
+        user={
+            "uid": subscription.get("metadata", {}).get("uid"),
+            "email": subscription.get("metadata", {}).get("email"),
+        },
+        billing={
+            "stripeCustomerId": subscription.get("customer"),
+            "stripeSubscriptionId": subscription.get("id"),
+            "status": subscription.get("status"),
+            "currentPeriodEnd": subscription.get("current_period_end"),
+        },
+    )
 
 
 async def _handle_checkout_session_completed(session: dict[str, Any], stripe) -> None:
