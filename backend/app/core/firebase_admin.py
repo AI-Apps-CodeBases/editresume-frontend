@@ -370,29 +370,6 @@ def get_user_profile(uid: str) -> dict[str, Any] | None:
         return None
 
 
-def mark_make_first_session_sent(uid: str) -> bool:
-    client = get_firestore_client()
-    if not client:
-        return False
-
-    doc_ref = client.collection("users").document(uid)
-    try:
-        snapshot = doc_ref.get()
-        if snapshot.exists:
-            data = snapshot.to_dict() or {}
-            if data.get("makeFirstSessionSentAt"):
-                return False
-
-        doc_ref.set({"makeFirstSessionSentAt": firestore.SERVER_TIMESTAMP}, merge=True)
-        return True
-    except firebase_exceptions.FirebaseError as exc:
-        logger.error("Failed to mark first session for %s: %s", uid, exc)
-        return False
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Unexpected error marking first session for %s: %s", uid, exc)
-        return False
-
-
 def sanitized_user_from_token(token: dict[str, Any]) -> dict[str, Any]:
     email = token.get("email")
     name = token.get("name") or (email.split("@")[0] if email else None) or "User"
