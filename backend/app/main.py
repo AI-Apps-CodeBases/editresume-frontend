@@ -19,7 +19,6 @@ from app.api import (
     auth,
     collaboration,
     dashboard,
-    events,
     feedback,
     firebase_auth,
     job,
@@ -127,7 +126,6 @@ else:
 # Include all routers
 app.include_router(firebase_auth.router)
 app.include_router(auth.router)
-app.include_router(events.router)
 app.include_router(stripe.router)
 app.include_router(ats_scoring_router)  # ATS scoring feature
 app.include_router(resume_management_router)  # Resume management feature

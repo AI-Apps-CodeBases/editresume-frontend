@@ -58,9 +58,6 @@ class Settings(BaseSettings):
         default=None, env="STRIPE_PORTAL_RETURN_URL"
     )
 
-    make_webhook_url: str | None = Field(default=None, env="MAKE_WEBHOOK_URL")
-    make_webhook_secret: str | None = Field(default=None, env="MAKE_WEBHOOK_SECRET")
-
     linkedin_client_id: str | None = Field(default=None, env="LINKEDIN_CLIENT_ID")
     linkedin_client_secret: str | None = Field(
         default=None, env="LINKEDIN_CLIENT_SECRET"

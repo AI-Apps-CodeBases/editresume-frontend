@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode, useCallback, useRef } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode, useCallback } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '@/lib/firebaseClient'
 import { resetGuestActionCounters } from '@/lib/guestAuth'
@@ -47,7 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const premiumMode = process.env.NEXT_PUBLIC_PREMIUM_MODE === 'true'
-  const firstSessionSentRef = useRef(false)
 
   const resolvePlanTier = useCallback((hasPremiumClaim: boolean): PlanTier => {
     if (!premiumMode) {
@@ -146,43 +145,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [user?.uid, premiumMode])
-
-  useEffect(() => {
-    if (!user || typeof window === 'undefined') return
-    if (firstSessionSentRef.current) return
-
-    const sendFirstSessionEvent = async () => {
-      try {
-        const token = await auth.currentUser?.getIdToken()
-        if (!token) return
-
-        const apiBase = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/$/, '')
-        const payload = {
-          referrer: document.referrer || undefined,
-          landing_path: window.location.pathname || undefined,
-          utm_source: new URLSearchParams(window.location.search).get('utm_source') || undefined,
-          utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign') || undefined
-        }
-
-        const response = await fetch(`${apiBase}/api/events/first-session`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        })
-
-        if (response.ok) {
-          firstSessionSentRef.current = true
-        }
-      } catch (error) {
-        console.error('Failed to send first session event:', error)
-      }
-    }
-
-    sendFirstSessionEvent()
-  }, [user?.uid])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
