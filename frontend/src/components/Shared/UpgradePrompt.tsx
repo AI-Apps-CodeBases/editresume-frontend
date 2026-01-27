@@ -97,7 +97,13 @@ export default function UpgradePrompt({
                 />
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                Limit resets {period === 'monthly' ? 'monthly' : period === 'daily' ? 'daily' : 'per session'}
+                {period === 'lifetime' 
+                  ? 'Total limit (does not reset)' 
+                  : period === 'monthly' 
+                    ? 'Limit resets monthly' 
+                    : period === 'daily' 
+                      ? 'Limit resets daily' 
+                      : 'Limit resets per session'}
               </p>
             </div>
           )}

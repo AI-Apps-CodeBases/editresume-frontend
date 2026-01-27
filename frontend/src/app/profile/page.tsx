@@ -721,7 +721,7 @@ function ProfilePageContent() {
                         <ul className="mt-3 space-y-1.5 text-xs text-text-muted">
                           {[
                             'Visual resume editor',
-                            '3 PDF/DOCX exports per month',
+                            '3 PDF/DOCX exports total',
                             '5 AI improvements per session',
                             'Unlimited ATS scores (always free)',
                             'Job match analytics (1 resume)',

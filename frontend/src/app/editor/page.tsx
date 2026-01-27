@@ -1772,9 +1772,15 @@ const EditorPageContent = () => {
     }
 
     if (premiumMode && !checkPremiumAccess()) {
-      // Check export usage limit
+      // Check export usage limit for free users
       const availability = checkFeatureAvailability('exports')
-      if (!availability.allowed) {
+      
+      // If usage stats are still loading, allow export and let backend handle limit check
+      if (availability.period === 'unknown' && availability.message?.includes('Loading')) {
+        console.log('Usage stats loading - proceeding with export, backend will check limits')
+        // Continue to export - backend will enforce limits
+      } else if (!availability.allowed) {
+        // User has reached their export limit
         setExportUpgradeData({
           currentUsage: availability.currentUsage,
           limit: availability.limit,
@@ -1783,17 +1789,7 @@ const EditorPageContent = () => {
         setShowExportUpgradePrompt(true)
         return
       }
-      
-      console.log('Premium mode - access denied')
-      await showAlert({
-        type: 'info',
-        message: 'This is a premium feature. Upgrade to export your resume in PDF or DOCX format.',
-        title: 'Premium Feature',
-        onUpgrade: () => {
-          router.push('/profile')
-        }
-      })
-      return
+      // If availability.allowed is true, continue with export (don't block free users with remaining exports)
     }
 
     const isCoverLetterExport = format === 'cover-letter-pdf'

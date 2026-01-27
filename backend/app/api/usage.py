@@ -52,6 +52,7 @@ class UsageStatsResponse(BaseModel):
     plan_tier: str
     is_premium_mode: bool
     features: dict[str, Any]
+    exports: dict[str, Any] | None = None
     trial_active: bool = False
 
 
@@ -118,6 +119,7 @@ async def get_usage_statistics(
         plan_tier=plan_tier,
         is_premium_mode=stats.get("is_premium_mode", False),
         features=stats.get("features", {}),
+        exports=stats.get("exports"),
         trial_active=trial_active,
     )
 

@@ -27,13 +27,13 @@ export interface PlanLimits {
 
 export const USAGE_LIMITS: Record<PlanTier, PlanLimits> = {
   guest: {
-    exports: { monthly: 3 },
+    exports: { monthly: 3 },  // Note: backend uses "lifetime" but frontend keeps monthly for display
     ai_improvements: { session: 3 },
     ats_scores: { daily: null },
     cover_letters: { monthly: 0 },
   },
   free: {
-    exports: { monthly: 3 },
+    exports: { monthly: 3 },  // Note: backend uses "lifetime" but frontend keeps monthly for display
     ai_improvements: { session: 5 },
     ats_scores: { daily: null },
     cover_letters: { monthly: 1 },

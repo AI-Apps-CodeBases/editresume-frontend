@@ -28,13 +28,13 @@ FEATURE_TYPES = {
 # Usage limits per tier (only enforced when NEXT_PUBLIC_PREMIUM_MODE=true)
 USAGE_LIMITS = {
     "guest": {
-        "exports": {"monthly": 3},
+        "exports": {"lifetime": 3},  # 3 exports total (not per month)
         "ai_improvements": {"session": 3},
         "ats_scores": {"daily": float("inf")},  # ATS scoring is always free
         "cover_letters": {"monthly": 0},
     },
     "free": {
-        "exports": {"monthly": 3},
+        "exports": {"lifetime": 3},  # 3 exports total (not per month)
         "ai_improvements": {"session": 5},
         "ats_scores": {"daily": float("inf")},  # ATS scoring is always free
         "cover_letters": {"monthly": 1},
@@ -294,6 +294,7 @@ def get_export_count(
     elif period == "daily":
         start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
         query = query.filter(ExportAnalytics.created_at >= start_time)
+    # For "lifetime" period, no time filter is applied (count all exports)
 
     return query.scalar() or 0
 
@@ -320,9 +321,18 @@ def check_export_limit(
     # Check if unlimited
     if "monthly" in export_limits and export_limits["monthly"] == float("inf"):
         return True, {"allowed": True, "reason": "unlimited"}
+    if "lifetime" in export_limits and export_limits["lifetime"] == float("inf"):
+        return True, {"allowed": True, "reason": "unlimited"}
 
-    limit = export_limits.get("monthly", 0)
-    current_usage = get_export_count(user_id, "monthly", session_id, db)
+    # Check lifetime limit first (for free/guest users), fallback to monthly
+    if "lifetime" in export_limits:
+        limit = export_limits.get("lifetime", 0)
+        current_usage = get_export_count(user_id, "lifetime", session_id, db)
+        period = "lifetime"
+    else:
+        limit = export_limits.get("monthly", 0)
+        current_usage = get_export_count(user_id, "monthly", session_id, db)
+        period = "monthly"
 
     allowed = current_usage < limit
 
@@ -330,7 +340,7 @@ def check_export_limit(
         "allowed": allowed,
         "current_usage": current_usage,
         "limit": limit,
-        "period": "monthly",
+        "period": period,
         "plan_tier": plan_tier,
     }
 
@@ -355,12 +365,19 @@ def get_usage_stats(
 
     # Get export stats
     export_limits = limits.get("exports", {})
-    export_limit = export_limits.get("monthly", 0)
-    export_usage = get_export_count(user_id, "monthly", session_id, db)
+    # Check for lifetime limit first (for free/guest users), fallback to monthly
+    if "lifetime" in export_limits:
+        export_limit = export_limits.get("lifetime", 0)
+        export_usage = get_export_count(user_id, "lifetime", session_id, db)
+        export_period = "lifetime"
+    else:
+        export_limit = export_limits.get("monthly", 0)
+        export_usage = get_export_count(user_id, "monthly", session_id, db)
+        export_period = "monthly"
     stats["exports"] = {
         "current_usage": export_usage,
         "limit": export_limit if export_limit != float("inf") else None,
-        "period": "monthly",
+        "period": export_period,
         "unlimited": export_limit == float("inf"),
     }
 

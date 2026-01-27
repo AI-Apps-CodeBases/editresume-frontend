@@ -38,7 +38,7 @@ export default function Pricing() {
               {[
                 'Visual resume editor',
                 'All professional templates',
-                '3 PDF/DOCX exports per month',
+                '3 PDF/DOCX exports total',
                 '5 AI improvements per session',
                 'Unlimited ATS scores (always free)',
                 'Job match analytics (1 resume)',

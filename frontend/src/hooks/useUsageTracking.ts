@@ -149,13 +149,21 @@ export function useUsageTracking() {
     const allowed = feature.current_usage < feature.limit
     const remaining = feature.limit - feature.current_usage
 
+    const periodMessage = feature.period === 'lifetime' 
+      ? 'total' 
+      : feature.period === 'monthly' 
+        ? 'this month' 
+        : feature.period === 'daily' 
+          ? 'today' 
+          : 'this session'
+    
     return {
       allowed,
       currentUsage: feature.current_usage,
       limit: feature.limit,
       period: feature.period,
       message: allowed 
-        ? `${remaining} ${feature.period === 'monthly' ? 'this month' : feature.period === 'daily' ? 'today' : 'this session'}`
+        ? `${remaining} ${periodMessage}`
         : `Limit reached. Upgrade for unlimited ${featureType}.`
     }
   }, [usageStats])
