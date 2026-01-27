@@ -1,21 +1,21 @@
 "use client"
 
 import { useEffect, useRef, useCallback } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { auth } from '@/lib/firebaseClient'
 import { getApiBaseUrl } from '@/lib/config'
 
 export default function PageEngagementTracker() {
     const pathname = usePathname()
-    const searchParams = useSearchParams()
     const startTimeRef = useRef<number | null>(null)
     const pathRef = useRef<string | null>(null)
     const maxScrollRef = useRef(0)
     const exitSentRef = useRef(false)
 
     const getPath = () => {
-        const query = searchParams?.toString()
-        return `${pathname}${query ? `?${query}` : ''}`
+        if (typeof window === 'undefined') return pathname
+        const query = window.location.search
+        return `${pathname}${query || ''}`
     }
 
     const postEvent = useCallback(async (payload: {
@@ -92,7 +92,7 @@ export default function PageEngagementTracker() {
             scrollDepth: 0,
             referrer: document.referrer || null,
         })
-    }, [pathname, searchParams, postEvent, sendExit])
+    }, [pathname, postEvent, sendExit])
 
     useEffect(() => {
         const onVisibilityChange = () => {
