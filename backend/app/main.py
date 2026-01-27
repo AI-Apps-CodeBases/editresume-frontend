@@ -83,6 +83,7 @@ app.add_middleware(
         "/api/billing/subscription",
         "/api/billing/create-portal-session",
         "/api/billing/event",
+        "/api/analytics/page-engagement",
     ),
 )
 

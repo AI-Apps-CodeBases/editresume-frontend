@@ -80,4 +80,22 @@ class BillingEvent(Base):
     user = relationship("User", backref="billing_events")
 
 
-__all__ = ["ExportAnalytics", "VisitorAnalytics", "BillingEvent"]
+class PageEngagementEvent(Base):
+    """Track per-page engagement such as time-on-page and scroll depth."""
+    __tablename__ = "page_engagement_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uid = Column(String, nullable=True, index=True)  # Firebase UID
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    session_id = Column(String, nullable=True, index=True)
+    path = Column(String, nullable=True, index=True)
+    referrer = Column(Text, nullable=True)
+    event_type = Column(String, nullable=False, index=True)  # page_view, page_exit
+    duration_ms = Column(Integer, nullable=True)
+    scroll_depth = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    user = relationship("User", backref="page_engagement_events")
+
+
+__all__ = ["ExportAnalytics", "VisitorAnalytics", "BillingEvent", "PageEngagementEvent"]
