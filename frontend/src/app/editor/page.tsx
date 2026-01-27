@@ -16,6 +16,8 @@ import TemplateSelector from '@/components/Resume/TemplateSelector'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
 import OnboardingSlideshow from '@/components/OnboardingSlideshow'
 import ModernEditorLayout from '@/components/Editor/ModernEditorLayout'
+import ResumeUploadSuggestionModal from '@/components/Editor/ResumeUploadSuggestionModal'
+import JDUploadSuggestionModal from '@/components/Editor/JDUploadSuggestionModal'
 import EnhancedATSScoreWidget from '@/components/AI/EnhancedATSScoreWidget'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
 import AIImprovementWidget from '@/components/AI/AIImprovementWidget'
@@ -194,6 +196,20 @@ const normalizeSectionsForState = (sections: any[]) => {
   })
 }
 
+const isResumeEmpty = (resume: {
+  name: string
+  sections?: Array<{
+    bullets?: Array<{ text?: string }>
+  }>
+}): boolean => {
+  if (!resume) return true
+  if (resume.name?.trim()) return false
+  if (!resume.sections || resume.sections.length === 0) return true
+  return !resume.sections.some(section => 
+    section.bullets?.some(bullet => bullet.text?.trim())
+  )
+}
+
 const EditorPageContent = () => {
   const { user, isAuthenticated, logout, checkPremiumAccess } = useAuth()
   const { showAlert } = useModal()
@@ -202,6 +218,8 @@ const EditorPageContent = () => {
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showResumeUploadSuggestion, setShowResumeUploadSuggestion] = useState(false)
+  const [showJDUploadSuggestion, setShowJDUploadSuggestion] = useState(false)
   const [showExportUpgradePrompt, setShowExportUpgradePrompt] = useState(false)
   const [exportUpgradeData, setExportUpgradeData] = useState<{
     currentUsage: number
@@ -1189,6 +1207,17 @@ const EditorPageContent = () => {
                 localStorage.removeItem('resumeSectionOrder') // Clear old section order to use sorted order
                 localStorage.setItem('resumeData', JSON.stringify(cleanedResume))
                 console.log('✅ Uploaded resume loaded successfully')
+                
+                // Show JD suggestion popup after resume is loaded (if no JD exists)
+                setTimeout(() => {
+                  const hasJD = typeof window !== 'undefined' && (
+                    localStorage.getItem('deepLinkedJD') || 
+                    localStorage.getItem('activeJobDescriptionId')
+                  )
+                  if (!hasJD && !showJDUploadSuggestion) {
+                    setShowJDUploadSuggestion(true)
+                  }
+                }, 500)
                }
                if (parsed?.template) {
                  setSelectedTemplate(parsed.template)
@@ -1317,6 +1346,25 @@ const EditorPageContent = () => {
       router.replace(url.pathname + url.search)
     }
   }, [searchParams, router])
+
+  // Show JD suggestion popup when resume is loaded but no JD exists
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (showJDUploadSuggestion || showResumeUploadSuggestion || showOnboarding) return
+    
+    const hasResume = !isResumeEmpty(resumeData)
+    const hasJD = localStorage.getItem('deepLinkedJD') || localStorage.getItem('activeJobDescriptionId')
+    const hasSeenJDHint = localStorage.getItem('hasSeenJDHint') === 'true'
+    
+    // Show JD popup if resume exists, no JD, and user hasn't seen the hint yet
+    if (hasResume && !hasJD && !hasSeenJDHint) {
+      // Small delay to ensure resume is fully loaded
+      const timer = setTimeout(() => {
+        setShowJDUploadSuggestion(true)
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [resumeData, showJDUploadSuggestion, showResumeUploadSuggestion, showOnboarding])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -2911,56 +2959,164 @@ const EditorPageContent = () => {
             if (typeof window !== 'undefined') {
               localStorage.setItem('hasSeenOnboarding', 'true')
               
-              const notification = document.createElement('div')
-              notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-primary-600 to-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[10001] max-w-md'
-              notification.style.opacity = '0'
-              notification.style.transform = 'translateX(100%)'
-              notification.innerHTML = `
-                <div class="flex items-center gap-3">
-                  <div class="text-2xl">👋</div>
-                  <div>
-                    <div class="font-bold text-lg">Welcome!</div>
-                    <div class="text-sm mt-1 text-white/90">Upload your resume to get started</div>
-                  </div>
-                  <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-white/70 text-xl font-bold transition-colors">×</button>
-                </div>
-              `
-              document.body.appendChild(notification)
-              requestAnimationFrame(() => {
-                notification.style.transition = 'all 0.3s ease-out'
-                notification.style.opacity = '1'
-                notification.style.transform = 'translateX(0)'
-              })
-              setTimeout(() => {
-                if (notification.parentElement) {
-                  notification.style.opacity = '0'
-                  notification.style.transform = 'translateX(100%)'
-                  setTimeout(() => notification.remove(), 300)
-                }
-              }, 3000)
-              
-              setTimeout(() => {
-                const uploadButton = document.getElementById('upload-resume-button')
-                if (uploadButton) {
-                  uploadButton.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                  uploadButton.focus()
-                  uploadButton.classList.add('ring-2', 'ring-primary-500', 'ring-offset-2')
+              const handleShowPopups = () => {
+                const resumeEmpty = isResumeEmpty(resumeData)
+                const hasJD = typeof window !== 'undefined' && (
+                  localStorage.getItem('deepLinkedJD') || 
+                  localStorage.getItem('activeJobDescriptionId')
+                )
+                
+                if (resumeEmpty) {
                   setTimeout(() => {
-                    uploadButton.classList.remove('ring-2', 'ring-primary-500', 'ring-offset-2')
-                  }, 3000)
+                    setShowResumeUploadSuggestion(true)
+                  }, 300)
+                } else if (!hasJD) {
+                  setTimeout(() => {
+                    setShowJDUploadSuggestion(true)
+                  }, 300)
                 }
-              }, 100)
+              }
+              
+              handleShowPopups()
             }
           }}
           onSkip={() => {
             setShowOnboarding(false)
             if (typeof window !== 'undefined') {
               localStorage.setItem('hasSeenOnboarding', 'true')
+              
+              const handleShowPopups = () => {
+                const resumeEmpty = isResumeEmpty(resumeData)
+                const hasJD = typeof window !== 'undefined' && (
+                  localStorage.getItem('deepLinkedJD') || 
+                  localStorage.getItem('activeJobDescriptionId')
+                )
+                
+                if (resumeEmpty) {
+                  setTimeout(() => {
+                    setShowResumeUploadSuggestion(true)
+                  }, 300)
+                } else if (!hasJD) {
+                  setTimeout(() => {
+                    setShowJDUploadSuggestion(true)
+                  }, 300)
+                }
+              }
+              
+              handleShowPopups()
             }
           }}
           onDisable={() => {
             if (typeof window !== 'undefined') {
               localStorage.setItem('onboardingDisabled', 'true')
+            }
+          }}
+        />
+      )}
+
+      {showResumeUploadSuggestion && (
+        <ResumeUploadSuggestionModal
+          isOpen={showResumeUploadSuggestion}
+          onClose={() => {
+            setShowResumeUploadSuggestion(false)
+            // Check if resume exists and no JD - show JD popup
+            setTimeout(() => {
+              const hasResume = !isResumeEmpty(resumeData)
+              const hasJD = typeof window !== 'undefined' && (
+                localStorage.getItem('deepLinkedJD') || 
+                localStorage.getItem('activeJobDescriptionId')
+              )
+              const hasSeenJDHint = typeof window !== 'undefined' && localStorage.getItem('hasSeenJDHint') === 'true'
+              
+              if (hasResume && !hasJD && !hasSeenJDHint) {
+                setShowJDUploadSuggestion(true)
+              }
+            }, 500)
+          }}
+          onUpload={() => {
+            router.push('/upload')
+          }}
+        />
+      )}
+
+      {showJDUploadSuggestion && (
+        <JDUploadSuggestionModal
+          isOpen={showJDUploadSuggestion}
+          onClose={() => {
+            setShowJDUploadSuggestion(false)
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('hasSeenJDHint', 'true')
+            }
+          }}
+          onOpenMatchJD={() => {
+            if (typeof window === 'undefined') return
+            
+            const isMobile = window.innerWidth < 768
+            
+            if (isMobile) {
+              // On mobile: Find and click the "Match JD" button that switches mobileEditorMode
+              setTimeout(() => {
+                const matchJDButtons = Array.from(document.querySelectorAll('button')).filter(
+                  btn => {
+                    const text = btn.textContent || ''
+                    return text.trim() === 'Match JD' || text.trim() === 'Match'
+                  }
+                )
+                
+                // Click the first Match JD button found (should be the mobile toggle)
+                if (matchJDButtons.length > 0) {
+                  const matchButton = matchJDButtons[0] as HTMLElement
+                  matchButton.click()
+                  // Add visual highlight
+                  matchButton.classList.add('ring-2', 'ring-primary-500', 'ring-offset-2')
+                  setTimeout(() => {
+                    matchButton.classList.remove('ring-2', 'ring-primary-500', 'ring-offset-2')
+                  }, 2000)
+                  
+                  // Scroll to the button if needed
+                  matchButton.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }
+              }, 100)
+            } else {
+              // Desktop: Scroll to right panel and click the Match JD tab
+              setTimeout(() => {
+                const rightPanel = document.querySelector('.bg-white\\/95.backdrop-blur-sm.border-l') ||
+                                  document.querySelector('[class*="border-l"][class*="bg-white"]')
+                
+                if (rightPanel) {
+                  rightPanel.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  
+                  setTimeout(() => {
+                    // Method 1: Find by text content
+                    const matchJDTab = Array.from(document.querySelectorAll('button')).find(
+                      btn => {
+                        const text = btn.textContent || ''
+                        return text.includes('Match JD') || text.includes('Match')
+                      }
+                    )
+                    
+                    // Method 2: Find by tooltip or aria-label
+                    const matchJDTabByAria = Array.from(document.querySelectorAll('button')).find(
+                      btn => {
+                        const ariaLabel = btn.getAttribute('aria-label') || ''
+                        return ariaLabel.toLowerCase().includes('match') || 
+                               ariaLabel.toLowerCase().includes('job description')
+                      }
+                    )
+                    
+                    const tabToClick = matchJDTab || matchJDTabByAria
+                    
+                    if (tabToClick) {
+                      (tabToClick as HTMLElement).click()
+                      // Add visual highlight
+                      tabToClick.classList.add('ring-2', 'ring-primary-500', 'ring-offset-2')
+                      setTimeout(() => {
+                        tabToClick.classList.remove('ring-2', 'ring-primary-500', 'ring-offset-2')
+                      }, 2000)
+                    }
+                  }, 500)
+                }
+              }, 100)
             }
           }}
         />
