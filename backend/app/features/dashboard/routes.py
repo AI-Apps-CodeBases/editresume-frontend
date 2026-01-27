@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.firebase_admin import verify_id_token
-from app.models import Resume, ResumeVersion, User, VisitorAnalytics
+from app.models import BillingEvent, Resume, ResumeVersion, User, VisitorAnalytics
 
 logger = logging.getLogger(__name__)
 
@@ -491,6 +491,81 @@ async def get_top_countries(
         raise HTTPException(status_code=500, detail="Failed to fetch top countries")
 
 
+@router.get("/billing-funnel")
+async def get_billing_funnel(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+    days: int = 30,
+):
+    """Get counts of billing funnel events over the last N days."""
+    try:
+        since = datetime.utcnow() - timedelta(days=days)
+        rows = (
+            db.query(BillingEvent.event_type, func.count(BillingEvent.id))
+            .filter(BillingEvent.created_at >= since)
+            .group_by(BillingEvent.event_type)
+            .all()
+        )
+        counts = {event_type: count for event_type, count in rows}
+        return {
+            "days": days,
+            "since": since.isoformat(),
+            "counts": counts,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching billing funnel: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch billing funnel")
+
+
+@router.get("/users/{user_id}/billing-events")
+async def get_user_billing_events(
+    user_id: int,
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+    days: int = 90,
+    limit: int = 200,
+    uid: str | None = None,
+):
+    """Get billing events timeline for a user (by user_id if available, or by uid if provided)."""
+    try:
+        since = datetime.utcnow() - timedelta(days=days)
+        query = db.query(BillingEvent).filter(BillingEvent.created_at >= since)
+
+        if uid:
+            query = query.filter(BillingEvent.uid == uid)
+        else:
+            query = query.filter(BillingEvent.user_id == user_id)
+
+        events = query.order_by(BillingEvent.created_at.desc()).limit(limit).all()
+
+        return {
+            "userId": user_id,
+            "uid": uid,
+            "days": days,
+            "events": [
+                {
+                    "id": event.id,
+                    "createdAt": event.created_at.isoformat() if event.created_at else None,
+                    "eventType": event.event_type,
+                    "planType": event.plan_type,
+                    "period": event.period,
+                    "stripeCheckoutSessionId": event.stripe_checkout_session_id,
+                    "stripeCustomerId": event.stripe_customer_id,
+                    "stripeSubscriptionId": event.stripe_subscription_id,
+                    "stripePaymentIntentId": event.stripe_payment_intent_id,
+                    "failureCode": event.failure_code,
+                    "failureMessage": event.failure_message,
+                    "referrer": event.referrer,
+                    "rawData": event.raw_data,
+                }
+                for event in events
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Error fetching user billing events: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch user billing events")
+
+
 @router.get("/users")
 async def get_users(
     db: Session = Depends(get_db),
@@ -738,4 +813,3 @@ async def delete_feedback(
         logger.error(f"Error deleting feedback: {e}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete feedback")
-

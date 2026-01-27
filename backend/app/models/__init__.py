@@ -1,6 +1,6 @@
 """Aggregate imports for ORM models."""
 
-from app.models.analytics import ExportAnalytics, VisitorAnalytics
+from app.models.analytics import BillingEvent, ExportAnalytics, VisitorAnalytics
 from app.models.feedback import Feedback
 from app.models.job import (
     Job,
@@ -22,6 +22,7 @@ __all__ = [
     "ResumeVersion",
     "ExportAnalytics",
     "VisitorAnalytics",
+    "BillingEvent",
     "JobDescription",
     "JobResumeVersion",
     "JobCoverLetter",

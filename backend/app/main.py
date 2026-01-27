@@ -82,6 +82,7 @@ app.add_middleware(
         "/api/billing/create-checkout-session",
         "/api/billing/subscription",
         "/api/billing/create-portal-session",
+        "/api/billing/event",
     ),
 )
 
