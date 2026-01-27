@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Users, Mail, ChevronRight, CreditCard } from 'lucide-react'
+import { Home, Users, Mail, ChevronRight, CreditCard, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
@@ -27,6 +27,12 @@ const menuItems = [
         title: 'Email',
         icon: Mail,
         href: '/dashboard/email',
+        hasSubmenu: false
+    },
+    {
+        title: 'Engagement',
+        icon: Activity,
+        href: '/dashboard/engagement',
         hasSubmenu: false
     },
     {

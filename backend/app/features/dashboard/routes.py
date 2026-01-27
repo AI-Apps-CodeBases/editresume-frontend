@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.firebase_admin import verify_id_token
-from app.models import BillingEvent, Resume, ResumeVersion, User, VisitorAnalytics
+from app.models import (
+    BillingEvent,
+    PageEngagementEvent,
+    Resume,
+    ResumeVersion,
+    User,
+    VisitorAnalytics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -515,6 +522,117 @@ async def get_billing_funnel(
     except Exception as e:
         logger.error(f"Error fetching billing funnel: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch billing funnel")
+
+
+@router.get("/page-engagement")
+async def get_page_engagement_by_email(
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+    email: str | None = None,
+    days: int = 30,
+):
+    """Aggregate time-on-page by path for a given user email."""
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        since = datetime.utcnow() - timedelta(days=days)
+        rows = (
+            db.query(
+                PageEngagementEvent.path,
+                func.count(PageEngagementEvent.id).label("views"),
+                func.coalesce(func.sum(PageEngagementEvent.duration_ms), 0).label("total_duration_ms"),
+                func.coalesce(func.avg(PageEngagementEvent.duration_ms), 0).label("avg_duration_ms"),
+                func.coalesce(func.max(PageEngagementEvent.scroll_depth), 0).label("max_scroll_depth"),
+            )
+            .filter(
+                PageEngagementEvent.user_id == user.id,
+                PageEngagementEvent.created_at >= since,
+                PageEngagementEvent.event_type == "page_exit",
+            )
+            .group_by(PageEngagementEvent.path)
+            .order_by(func.coalesce(func.sum(PageEngagementEvent.duration_ms), 0).desc())
+            .all()
+        )
+
+        return {
+            "email": email,
+            "userId": user.id,
+            "days": days,
+            "paths": [
+                {
+                    "path": path,
+                    "views": int(views or 0),
+                    "totalDurationMs": int(total_duration_ms or 0),
+                    "avgDurationMs": int(avg_duration_ms or 0),
+                    "maxScrollDepth": int(max_scroll_depth or 0),
+                }
+                for path, views, total_duration_ms, avg_duration_ms, max_scroll_depth in rows
+            ],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching page engagement: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch page engagement")
+
+
+@router.get("/users/{user_id}/page-engagement")
+async def get_page_engagement_by_user_id(
+    user_id: int,
+    db: Session = Depends(get_db),
+    token: dict = Depends(verify_admin_token),
+    days: int = 30,
+    uid: str | None = None,
+):
+    """Aggregate time-on-page by path for a given user id (or uid override)."""
+    try:
+        since = datetime.utcnow() - timedelta(days=days)
+        query = db.query(PageEngagementEvent).filter(
+            PageEngagementEvent.created_at >= since,
+            PageEngagementEvent.event_type == "page_exit",
+        )
+
+        if uid:
+            query = query.filter(PageEngagementEvent.uid == uid)
+        else:
+            query = query.filter(PageEngagementEvent.user_id == user_id)
+
+        rows = (
+            query.with_entities(
+                PageEngagementEvent.path,
+                func.count(PageEngagementEvent.id).label("views"),
+                func.coalesce(func.sum(PageEngagementEvent.duration_ms), 0).label("total_duration_ms"),
+                func.coalesce(func.avg(PageEngagementEvent.duration_ms), 0).label("avg_duration_ms"),
+                func.coalesce(func.max(PageEngagementEvent.scroll_depth), 0).label("max_scroll_depth"),
+            )
+            .group_by(PageEngagementEvent.path)
+            .order_by(func.coalesce(func.sum(PageEngagementEvent.duration_ms), 0).desc())
+            .all()
+        )
+
+        return {
+            "userId": user_id,
+            "uid": uid,
+            "days": days,
+            "paths": [
+                {
+                    "path": path,
+                    "views": int(views or 0),
+                    "totalDurationMs": int(total_duration_ms or 0),
+                    "avgDurationMs": int(avg_duration_ms or 0),
+                    "maxScrollDepth": int(max_scroll_depth or 0),
+                }
+                for path, views, total_duration_ms, avg_duration_ms, max_scroll_depth in rows
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Error fetching page engagement: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch page engagement")
 
 
 @router.get("/users/{user_id}/billing-events")

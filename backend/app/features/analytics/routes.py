@@ -10,15 +10,64 @@ import logging
 from collections import Counter
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.api.firebase_auth import require_firebase_user
 from app.core.db import get_db
-from app.models import ExportAnalytics, JobMatch, User
+from app.models import ExportAnalytics, JobMatch, PageEngagementEvent, User
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+
+
+class PageEngagementPayload(BaseModel):
+    eventType: str = Field(..., description="page_view or page_exit")
+    path: str | None = Field(default=None)
+    referrer: str | None = Field(default=None)
+    durationMs: int | None = Field(default=None, ge=0)
+    scrollDepth: int | None = Field(default=None, ge=0, le=100)
+
+
+class PageEngagementResponse(BaseModel):
+    recorded: bool = True
+
+
+@router.post("/page-engagement", response_model=PageEngagementResponse)
+async def record_page_engagement(
+    payload: PageEngagementPayload,
+    request: Request,
+    user: dict = Depends(require_firebase_user),
+    db: Session = Depends(get_db),
+) -> PageEngagementResponse:
+    """Record time-on-page and scroll depth for authenticated users."""
+    try:
+        db_user_id = None
+        if user.get("email"):
+            db_user = db.query(User).filter(User.email == user["email"]).first()
+            db_user_id = db_user.id if db_user else None
+
+        session_id = getattr(request.state, "session_id", None)
+        db.add(
+            PageEngagementEvent(
+                uid=user.get("uid"),
+                user_id=db_user_id,
+                session_id=session_id,
+                path=payload.path,
+                referrer=payload.referrer or request.headers.get("referer"),
+                event_type=payload.eventType,
+                duration_ms=payload.durationMs,
+                scroll_depth=payload.scrollDepth,
+            )
+        )
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed recording page engagement: %s", exc, exc_info=True)
+        db.rollback()
+
+    return PageEngagementResponse(recorded=True)
 
 
 @router.get("/exports")
@@ -218,4 +267,3 @@ async def get_job_match_detail(match_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=500, detail="Failed to get job match detail"
         )
-

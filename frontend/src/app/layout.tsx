@@ -9,6 +9,7 @@ import Footer from '@/components/layout/Footer'
 import FeedbackWidget from '@/components/Feedback/FeedbackWidget'
 import ExtensionAuthHandler from '@/components/extension/ExtensionAuthHandler'
 import MobileWebAppMeta from '@/components/Shared/MobileWebAppMeta'
+import PageEngagementTracker from '@/components/analytics/PageEngagementTracker'
 import { Analytics } from '@vercel/analytics/react'
 import { Inter } from 'next/font/google'
 
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <main className="flex-1">{children}</main>
                 <Footer />
               </div>
+              <PageEngagementTracker />
               <Suspense fallback={null}>
                 <ExtensionAuthHandler />
               </Suspense>
@@ -78,4 +80,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   )
 }
-
