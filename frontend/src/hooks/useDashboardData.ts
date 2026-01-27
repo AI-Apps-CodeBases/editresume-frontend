@@ -6,7 +6,8 @@ import {
     UserOverviewData,
     TopPerformer,
     CountryData,
-    ContentGenerationData
+    ContentGenerationData,
+    BillingFunnelResponse
 } from '@/types/dashboard'
 import { getApiBaseUrl } from '@/lib/config'
 
@@ -29,6 +30,7 @@ export const useDashboardData = () => {
     const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([])
     const [topCountries, setTopCountries] = useState<CountryData[]>([])
     const [contentGenData, setContentGenData] = useState<ContentGenerationData[]>([])
+    const [billingFunnel, setBillingFunnel] = useState<BillingFunnelResponse | null>(null)
     const [latestUsers, setLatestUsers] = useState<any[]>([])
     const [latestSubscribers, setLatestSubscribers] = useState<any[]>([])
     const [feedbacks, setFeedbacks] = useState<any[]>([])
@@ -74,7 +76,7 @@ export const useDashboardData = () => {
                 }
 
                 // PRIORITY 2: Fetch other data in parallel (non-blocking)
-                const [salesRes, subscribersRes, userOverviewRes, topPerformersRes, topCountriesRes, contentGenRes, latestUsersRes, latestSubscribersRes, feedbacksRes] = await Promise.allSettled([
+                const [salesRes, subscribersRes, userOverviewRes, topPerformersRes, topCountriesRes, contentGenRes, latestUsersRes, latestSubscribersRes, feedbacksRes, billingFunnelRes] = await Promise.allSettled([
                     fetch(`${baseUrl}/api/dashboard/sales`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/subscribers`, { headers }),
                     fetch(`${baseUrl}/api/dashboard/user-overview`, { headers }),
@@ -87,6 +89,7 @@ export const useDashboardData = () => {
                         console.error('🚨 Feedback fetch error:', err)
                         throw err
                     }),
+                    fetch(`${baseUrl}/api/dashboard/billing-funnel?days=30`, { headers }),
                 ])
 
                 // Update sales data
@@ -180,6 +183,12 @@ export const useDashboardData = () => {
                     setFeedbacks([]) // Set empty array on rejection
                 }
 
+                // Update billing funnel
+                if (billingFunnelRes.status === 'fulfilled' && billingFunnelRes.value.ok) {
+                    const data = await billingFunnelRes.value.json()
+                    setBillingFunnel(data)
+                }
+
             } catch (err) {
                 console.error('Error fetching dashboard data:', err)
                 setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data')
@@ -270,6 +279,7 @@ export const useDashboardData = () => {
         topPerformers,
         topCountries,
         contentGenData,
+        billingFunnel,
         latestUsers,
         latestSubscribers,
         feedbacks,

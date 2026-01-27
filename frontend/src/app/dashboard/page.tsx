@@ -9,6 +9,7 @@ import { LatestUsersTable } from '@/components/dashboard/LatestUsersTable'
 import { TopPerformerList } from '@/components/dashboard/TopPerformerList'
 import { FeedbackTable } from '@/components/dashboard/FeedbackTable'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+import { BillingFunnelCard } from '@/components/dashboard/BillingFunnelCard'
 
 const SalesChart = dynamic(() => import('@/components/dashboard/SalesChart').then(mod => ({ default: mod.SalesChart })), {
   ssr: false,
@@ -39,6 +40,7 @@ export default function DashboardPage() {
         topPerformers,
         topCountries,
         contentGenData,
+        billingFunnel,
         latestUsers,
         latestSubscribers,
         feedbacks,
@@ -182,6 +184,11 @@ export default function DashboardPage() {
                     <Suspense fallback={<div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 animate-pulse h-64" />}>
                         <GeneratedContentChart data={contentGenData} />
                     </Suspense>
+                </div>
+
+                {/* Billing Funnel */}
+                <div className="grid grid-cols-1 gap-6">
+                    <BillingFunnelCard counts={billingFunnel?.counts} />
                 </div>
 
                 {/* Feedback Section */}

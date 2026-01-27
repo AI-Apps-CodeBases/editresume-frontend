@@ -94,6 +94,28 @@ export interface ContentGenerationData {
     image: number
 }
 
+export interface BillingFunnelResponse {
+    days: number
+    since: string
+    counts: Record<string, number>
+}
+
+export interface BillingEvent {
+    id: number
+    createdAt: string | null
+    eventType: string
+    planType: string | null
+    period: string | null
+    stripeCheckoutSessionId: string | null
+    stripeCustomerId: string | null
+    stripeSubscriptionId: string | null
+    stripePaymentIntentId: string | null
+    failureCode: string | null
+    failureMessage: string | null
+    referrer: string | null
+    rawData: string | null
+}
+
 export interface Feedback {
     id: number
     user_email: string | null
