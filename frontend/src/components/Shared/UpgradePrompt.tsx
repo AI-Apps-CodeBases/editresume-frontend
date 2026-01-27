@@ -114,7 +114,8 @@ export default function UpgradePrompt({
         </div>
 
         <div className="space-y-3">
-          {isAuthenticated && !user?.isPremium && !isTrialActive && (
+          {/* Hide trial button for exports - users have already used their free exports */}
+          {isAuthenticated && !user?.isPremium && !isTrialActive && featureType !== 'exports' && (
             <>
               {trialEligible === null && (
                 <button
