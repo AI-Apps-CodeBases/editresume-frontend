@@ -1,20 +1,24 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.api.firebase_auth import require_firebase_user
 from app.core.config import settings
+from app.core.db import get_db, session_scope
 from app.core.firebase_admin import (
     find_user_by_stripe_customer,
     get_user_profile,
     update_user_subscription,
 )
 from app.core.stripe_client import get_stripe_client
+from app.models import BillingEvent, User
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,25 @@ class CheckoutSessionResponse(BaseModel):
     url: str
 
 
+class BillingEventRequest(BaseModel):
+    eventType: str = Field(..., description="Billing funnel event type")
+    path: str | None = Field(default=None, description="Client path (optional)")
+    referrer: str | None = Field(default=None, description="Client referrer (optional)")
+    planType: str | None = Field(default=None, description="Plan type (optional)")
+    period: str | None = Field(default=None, description="Billing period (optional)")
+    checkoutSessionId: str | None = Field(default=None, description="Stripe checkout session id (optional)")
+    customerId: str | None = Field(default=None, description="Stripe customer id (optional)")
+    subscriptionId: str | None = Field(default=None, description="Stripe subscription id (optional)")
+    paymentIntentId: str | None = Field(default=None, description="Stripe payment intent id (optional)")
+    failureCode: str | None = Field(default=None, description="Stripe failure code (optional)")
+    failureMessage: str | None = Field(default=None, description="Stripe failure message (optional)")
+    raw: dict[str, Any] | None = Field(default=None, description="Arbitrary debug payload (optional)")
+
+
+class BillingEventResponse(BaseModel):
+    recorded: bool = True
+
+
 class WebhookResponse(BaseModel):
     received: bool
 
@@ -60,6 +83,49 @@ class PortalSessionResponse(BaseModel):
 
 
 PREFERRED_ACTIVE_STATUSES = {"active", "trialing"}
+
+def _safe_record_billing_event(
+    *,
+    uid: str | None,
+    event_type: str,
+    plan_type: str | None = None,
+    period: str | None = None,
+    stripe_checkout_session_id: str | None = None,
+    stripe_customer_id: str | None = None,
+    stripe_subscription_id: str | None = None,
+    stripe_payment_intent_id: str | None = None,
+    failure_code: str | None = None,
+    failure_message: str | None = None,
+    referrer: str | None = None,
+    raw: dict[str, Any] | None = None,
+) -> None:
+    try:
+        with session_scope() as db:
+            db.add(
+                BillingEvent(
+                    uid=uid,
+                    session_id=None,
+                    event_type=event_type,
+                    plan_type=plan_type,
+                    period=period,
+                    stripe_checkout_session_id=stripe_checkout_session_id,
+                    stripe_customer_id=stripe_customer_id,
+                    stripe_subscription_id=stripe_subscription_id,
+                    stripe_payment_intent_id=stripe_payment_intent_id,
+                    failure_code=failure_code,
+                    failure_message=failure_message,
+                    referrer=referrer,
+                    raw_data=json.dumps(raw or {}, default=str),
+                )
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Failed recording billing event %s (uid=%s): %s",
+            event_type,
+            uid,
+            exc,
+            exc_info=True,
+        )
 
 
 def _build_subscription_payload(
@@ -87,7 +153,9 @@ def _build_subscription_payload(
 @router.post("/create-checkout-session", response_model=CheckoutSessionResponse)
 async def create_checkout_session(
     payload: CheckoutSessionRequest,
+    request: Request,
     user: dict[str, Any] = Depends(require_firebase_user),
+    db: Session = Depends(get_db),
 ) -> CheckoutSessionResponse:
     stripe = get_stripe_client()
     if not stripe:
@@ -125,6 +193,8 @@ async def create_checkout_session(
             detail="Success and cancel URLs must be configured.",
         )
 
+    session_id = getattr(request.state, "session_id", None)
+
     try:
         # Verify price exists and matches expected type
         try:
@@ -135,7 +205,9 @@ async def create_checkout_session(
             price_interval_count = price_obj.get("recurring", {}).get("interval_count") if price_type == "recurring" else None
 
             logger.info(
-                "Creating checkout session: planType=%s, period=%s, priceId=%s, priceType=%s, amount=$%.2f, interval=%s, intervalCount=%s, mode=%s",
+                "Creating checkout session: uid=%s, session_id=%s, planType=%s, period=%s, priceId=%s, priceType=%s, amount=$%.2f, interval=%s, intervalCount=%s, mode=%s",
+                user.get("uid"),
+                session_id,
                 payload.planType,
                 payload.period,
                 price_id,
@@ -232,7 +304,100 @@ async def create_checkout_session(
             detail="Unexpected error.",
         ) from exc
 
+    # Persist "intent" even if the user never completes checkout.
+    try:
+        session_id = getattr(request.state, "session_id", None)
+        db_user_id = None
+        if user.get("email"):
+            db_user = db.query(User).filter(User.email == user["email"]).first()
+            db_user_id = db_user.id if db_user else None
+        raw = {
+            "path": request.url.path,
+            "referrer": request.headers.get("referer"),
+            "planType": payload.planType,
+            "period": payload.period,
+            "priceId": price_id,
+            "mode": session.get("mode"),
+        }
+        db.add(
+            BillingEvent(
+                uid=user.get("uid"),
+                user_id=db_user_id,
+                session_id=session_id,
+                event_type="checkout_session_created",
+                plan_type=payload.planType,
+                period=payload.period,
+                stripe_checkout_session_id=session.get("id"),
+                stripe_customer_id=session.get("customer"),
+                stripe_subscription_id=session.get("subscription"),
+                stripe_payment_intent_id=session.get("payment_intent"),
+                referrer=request.headers.get("referer"),
+                raw_data=json.dumps(raw, default=str),
+            )
+        )
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed recording billing intent event: %s", exc, exc_info=True)
+        db.rollback()
+
     return CheckoutSessionResponse(url=session["url"])
+
+
+@router.post("/event", response_model=BillingEventResponse)
+async def record_billing_event(
+    payload: BillingEventRequest,
+    request: Request,
+    user: dict[str, Any] = Depends(require_firebase_user),
+    db: Session = Depends(get_db),
+) -> BillingEventResponse:
+    """Persist lightweight billing funnel events for later debugging."""
+    session_id = getattr(request.state, "session_id", None)
+    referrer = payload.referrer or request.headers.get("referer")
+    raw = {
+        "client_path": payload.path,
+        "server_path": request.url.path,
+        "referrer": referrer,
+        "planType": payload.planType,
+        "period": payload.period,
+        "checkoutSessionId": payload.checkoutSessionId,
+        "customerId": payload.customerId,
+        "subscriptionId": payload.subscriptionId,
+        "paymentIntentId": payload.paymentIntentId,
+        "failureCode": payload.failureCode,
+        "failureMessage": payload.failureMessage,
+        "raw": payload.raw,
+    }
+
+    try:
+        db_user_id = None
+        if user.get("email"):
+            db_user = db.query(User).filter(User.email == user["email"]).first()
+            db_user_id = db_user.id if db_user else None
+
+        db.add(
+            BillingEvent(
+                uid=user.get("uid"),
+                user_id=db_user_id,
+                session_id=session_id,
+                event_type=payload.eventType,
+                plan_type=payload.planType,
+                period=payload.period,
+                stripe_checkout_session_id=payload.checkoutSessionId,
+                stripe_customer_id=payload.customerId,
+                stripe_subscription_id=payload.subscriptionId,
+                stripe_payment_intent_id=payload.paymentIntentId,
+                failure_code=payload.failureCode,
+                failure_message=payload.failureMessage,
+                referrer=referrer,
+                raw_data=json.dumps(raw, default=str),
+            )
+        )
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed recording billing event %s: %s", payload.eventType, exc, exc_info=True)
+        db.rollback()
+
+    return BillingEventResponse(recorded=True)
 
 
 @router.post("/webhook", response_model=WebhookResponse)
@@ -344,11 +509,19 @@ async def _process_event(event: dict[str, Any], stripe) -> None:
 
     if event_type == "checkout.session.completed":
         await _handle_checkout_session_completed(data_object, stripe)
+    elif event_type == "checkout.session.expired":
+        await _handle_checkout_session_expired(data_object)
+    elif event_type == "payment_intent.payment_failed":
+        await _handle_payment_intent_failed(data_object)
+    elif event_type == "invoice.payment_failed":
+        await _handle_invoice_payment_failed(data_object, stripe)
+    elif event_type == "invoice.paid":
+        await _handle_invoice_paid(data_object)
     elif event_type in {
         "customer.subscription.updated",
         "customer.subscription.deleted",
     }:
-        await _handle_subscription_event(data_object)
+        await _handle_subscription_event(data_object, source_event_type=event_type)
     else:
         logger.debug("Unhandled Stripe event type: %s", event_type)
 
@@ -358,8 +531,10 @@ async def _handle_checkout_session_completed(session: dict[str, Any], stripe) ->
     uid = metadata.get("uid")
     customer_id = session.get("customer")
     subscription_id = session.get("subscription")
+    payment_intent_id = session.get("payment_intent")
     mode = session.get("mode")
     plan_type = metadata.get("planType", "premium")
+    period = metadata.get("period")
 
     if not uid and customer_id:
         user_doc = find_user_by_stripe_customer(customer_id)
@@ -371,6 +546,22 @@ async def _handle_checkout_session_completed(session: dict[str, Any], stripe) ->
             session.get("id"),
         )
         return
+
+    _safe_record_billing_event(
+        uid=uid,
+        event_type="checkout_session_completed",
+        plan_type=plan_type,
+        period=period,
+        stripe_checkout_session_id=session.get("id"),
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        stripe_payment_intent_id=payment_intent_id,
+        raw={
+            "mode": mode,
+            "status": session.get("status"),
+            "payment_status": session.get("payment_status"),
+        },
+    )
 
     # Handle one-time payments (only trial-onetime)
     if mode == "payment":
@@ -423,7 +614,131 @@ async def _handle_checkout_session_completed(session: dict[str, Any], stripe) ->
     update_user_subscription(uid, payload)
 
 
-async def _handle_subscription_event(subscription: dict[str, Any]) -> None:
+async def _handle_checkout_session_expired(session: dict[str, Any]) -> None:
+    metadata = session.get("metadata") or {}
+    uid = metadata.get("uid")
+    customer_id = session.get("customer")
+
+    if not uid and customer_id:
+        user_doc = find_user_by_stripe_customer(customer_id)
+        uid = user_doc.get("uid") if user_doc else None
+
+    _safe_record_billing_event(
+        uid=uid,
+        event_type="checkout_session_expired",
+        plan_type=metadata.get("planType"),
+        period=metadata.get("period"),
+        stripe_checkout_session_id=session.get("id"),
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=session.get("subscription"),
+        stripe_payment_intent_id=session.get("payment_intent"),
+        raw={
+            "status": session.get("status"),
+            "payment_status": session.get("payment_status"),
+            "expires_at": session.get("expires_at"),
+        },
+    )
+
+
+async def _handle_payment_intent_failed(payment_intent: dict[str, Any]) -> None:
+    metadata = payment_intent.get("metadata") or {}
+    uid = metadata.get("uid")
+    customer_id = payment_intent.get("customer")
+
+    if not uid and customer_id:
+        user_doc = find_user_by_stripe_customer(customer_id)
+        uid = user_doc.get("uid") if user_doc else None
+
+    last_error = payment_intent.get("last_payment_error") or {}
+    _safe_record_billing_event(
+        uid=uid,
+        event_type="payment_intent_payment_failed",
+        stripe_customer_id=customer_id,
+        stripe_payment_intent_id=payment_intent.get("id"),
+        failure_code=last_error.get("code"),
+        failure_message=last_error.get("message") or last_error.get("decline_code"),
+        raw={
+            "status": payment_intent.get("status"),
+            "amount": payment_intent.get("amount"),
+            "currency": payment_intent.get("currency"),
+            "invoice": payment_intent.get("invoice"),
+        },
+    )
+
+
+async def _handle_invoice_payment_failed(invoice: dict[str, Any], stripe) -> None:
+    metadata = invoice.get("metadata") or {}
+    uid = metadata.get("uid")
+    customer_id = invoice.get("customer")
+    subscription_id = invoice.get("subscription")
+    payment_intent_id = invoice.get("payment_intent")
+
+    if not uid and customer_id:
+        user_doc = find_user_by_stripe_customer(customer_id)
+        uid = user_doc.get("uid") if user_doc else None
+
+    failure_code = None
+    failure_message = None
+    if payment_intent_id:
+        try:
+            pi = stripe.PaymentIntent.retrieve(payment_intent_id)
+            last_error = pi.get("last_payment_error") or {}
+            failure_code = last_error.get("code")
+            failure_message = last_error.get("message") or last_error.get("decline_code")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed retrieving payment_intent %s for invoice.payment_failed: %s",
+                payment_intent_id,
+                exc,
+            )
+
+    _safe_record_billing_event(
+        uid=uid,
+        event_type="invoice_payment_failed",
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        stripe_payment_intent_id=payment_intent_id,
+        failure_code=failure_code,
+        failure_message=failure_message,
+        raw={
+            "status": invoice.get("status"),
+            "attempt_count": invoice.get("attempt_count"),
+            "amount_due": invoice.get("amount_due"),
+            "currency": invoice.get("currency"),
+            "invoice_id": invoice.get("id"),
+        },
+    )
+
+
+async def _handle_invoice_paid(invoice: dict[str, Any]) -> None:
+    metadata = invoice.get("metadata") or {}
+    uid = metadata.get("uid")
+    customer_id = invoice.get("customer")
+
+    if not uid and customer_id:
+        user_doc = find_user_by_stripe_customer(customer_id)
+        uid = user_doc.get("uid") if user_doc else None
+
+    _safe_record_billing_event(
+        uid=uid,
+        event_type="invoice_paid",
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=invoice.get("subscription"),
+        stripe_payment_intent_id=invoice.get("payment_intent"),
+        raw={
+            "status": invoice.get("status"),
+            "invoice_id": invoice.get("id"),
+            "amount_paid": invoice.get("amount_paid"),
+            "currency": invoice.get("currency"),
+        },
+    )
+
+
+async def _handle_subscription_event(
+    subscription: dict[str, Any],
+    *,
+    source_event_type: str | None = None,
+) -> None:
     customer_id = subscription.get("customer")
     if not customer_id:
         return
@@ -442,6 +757,16 @@ async def _handle_subscription_event(subscription: dict[str, Any]) -> None:
     status = subscription.get("status")
     current_period_end = subscription.get("current_period_end")
     subscription_id = subscription.get("id")
+    _safe_record_billing_event(
+        uid=uid,
+        event_type=source_event_type or "subscription_event",
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        raw={
+            "status": status,
+            "current_period_end": current_period_end,
+        },
+    )
     payload = _build_subscription_payload(
         status, current_period_end, customer_id, subscription_id
     )

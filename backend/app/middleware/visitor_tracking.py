@@ -47,16 +47,7 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
         session_id = request.cookies.get("session_id")
         if not session_id:
             session_id = str(uuid.uuid4())
-
-        # Get user ID if authenticated
-        user_id = None
-        if hasattr(request.state, "firebase_user") and request.state.firebase_user:
-            user_id = request.state.firebase_user.get("uid")
-            # Convert to integer if it's numeric, otherwise use None
-            try:
-                user_id = int(user_id) if user_id and str(user_id).isdigit() else None
-            except (ValueError, TypeError):
-                user_id = None
+        request.state.session_id = session_id
 
         # Get geolocation info (async, don't block request)
         geolocation_data = None
@@ -67,6 +58,16 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
 
         # Process request first (don't block)
         response = await call_next(request)
+
+        # Get user ID if authenticated (Firebase auth middleware runs after this middleware)
+        user_id = None
+        if hasattr(request.state, "firebase_user") and request.state.firebase_user:
+            firebase_uid = request.state.firebase_user.get("uid")
+            # Convert to integer if it's numeric, otherwise use None (visitor_analytics stores int)
+            try:
+                user_id = int(firebase_uid) if firebase_uid and str(firebase_uid).isdigit() else None
+            except (ValueError, TypeError):
+                user_id = None
 
         # Track visitor in background (don't block response)
         asyncio.create_task(self._track_visitor(
@@ -132,4 +133,3 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
                 db.close()
         except Exception as e:
             logger.error(f"Error in visitor tracking: {e}")
-

@@ -160,6 +160,53 @@ function BillingContent() {
     }
   }, [])
 
+  const recordBillingEvent = useCallback(async (eventType: string, extra?: Record<string, unknown>) => {
+    const currentUser = auth.currentUser
+    if (!currentUser) return
+
+    try {
+      const token = await currentUser.getIdToken()
+      const path =
+        typeof window !== 'undefined'
+          ? `${window.location.pathname}${window.location.search}${window.location.hash}`
+          : undefined
+
+      await fetch(`${apiBase}/api/billing/event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          eventType,
+          path,
+          ...(extra || {})
+        })
+      })
+    } catch (error) {
+      // Never block UX on analytics
+      console.warn('Failed to record billing event', eventType, error)
+    }
+  }, [apiBase])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    recordBillingEvent('billing_page_view')
+
+    if (typeof window === 'undefined') return
+    const urlParams = new URLSearchParams(window.location.search)
+    const checkout = urlParams.get('checkout')
+    if (checkout === 'success' || checkout === 'cancel') {
+      recordBillingEvent(checkout === 'success' ? 'checkout_return_success' : 'checkout_return_cancel')
+
+      urlParams.delete('checkout')
+      const nextQuery = urlParams.toString()
+      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`
+      window.history.replaceState({}, '', nextUrl)
+    }
+  }, [isAuthenticated, recordBillingEvent])
+
   const handleStartTrial = async () => {
     setStartingTrial(true)
     const result = await startTrial()
@@ -185,7 +232,8 @@ function BillingContent() {
     try {
       const token = await currentUser.getIdToken()
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
-      const returnUrl = origin ? `${origin}/billing` : undefined
+      const successUrl = origin ? `${origin}/billing?checkout=success` : undefined
+      const cancelUrl = origin ? `${origin}/billing?checkout=cancel` : undefined
 
       const res = await fetch(`${apiBase}/api/billing/create-checkout-session`, {
         method: 'POST',
@@ -194,8 +242,8 @@ function BillingContent() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          successUrl: returnUrl,
-          cancelUrl: returnUrl,
+          successUrl,
+          cancelUrl,
           planType: planType,
           period: period
         })
@@ -548,5 +596,4 @@ export default function BillingPage() {
     </ProtectedRoute>
   )
 }
-
 

@@ -87,6 +87,35 @@ function ProfilePageContent() {
     ? new Date(subscriptionInfo.subscriptionCurrentPeriodEnd).toLocaleDateString()
     : null
 
+  const recordBillingEvent = useCallback(async (eventType: string, extra?: Record<string, unknown>) => {
+    const currentUser = auth.currentUser
+    if (!currentUser) return
+
+    try {
+      const token = await currentUser.getIdToken()
+      const path =
+        typeof window !== 'undefined'
+          ? `${window.location.pathname}${window.location.search}${window.location.hash}`
+          : undefined
+
+      await fetch(`${apiBase}/api/billing/event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          eventType,
+          path,
+          ...(extra || {})
+        })
+      })
+    } catch (error) {
+      // Never block UX on analytics
+      console.warn('Failed to record billing event', eventType, error)
+    }
+  }, [apiBase])
+
   const loadUserData = useCallback(() => {
     const savedResumes = localStorage.getItem('resumeHistory')
     if (savedResumes) {
@@ -142,6 +171,21 @@ function ProfilePageContent() {
     
     return () => clearTimeout(checkAuth)
   }, [isAuthenticated, router, searchParams, loadUserData])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const checkout = searchParams.get('checkout')
+    if (checkout !== 'success' && checkout !== 'cancel') return
+
+    recordBillingEvent(checkout === 'success' ? 'checkout_return_success' : 'checkout_return_cancel')
+
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('checkout')
+    const next = `${url.pathname}${url.searchParams.toString() ? `?${url.searchParams.toString()}` : ''}`
+    router.replace(next)
+  }, [isAuthenticated, recordBillingEvent, router, searchParams])
 
   const loadSubscriptionStatus = useCallback(async () => {
     if (!isAuthenticated) {
@@ -263,8 +307,8 @@ function ProfilePageContent() {
     try {
       const token = await currentUser.getIdToken()
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
-      const successUrl = origin ? `${origin}/profile?tab=billing` : undefined
-      const cancelUrl = successUrl
+      const successUrl = origin ? `${origin}/profile?tab=billing&checkout=success` : undefined
+      const cancelUrl = origin ? `${origin}/profile?tab=billing&checkout=cancel` : undefined
 
       const response = await fetch(`${apiBase}/api/billing/create-checkout-session`, {
         method: 'POST',
@@ -901,4 +945,3 @@ export default function ProfilePage() {
     </ProtectedRoute>
   )
 }
-
