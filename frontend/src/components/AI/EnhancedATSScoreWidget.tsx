@@ -378,19 +378,17 @@ export default function EnhancedATSScoreWidget({
   return (
     <>
       {/* Upgrade Prompt */}
-      {showUpgradePrompt && upgradePromptData && (
-        <UpgradePrompt
-          isOpen={showUpgradePrompt}
-          onClose={() => {
-            setShowUpgradePrompt(false)
-            setUpgradePromptData(null)
-          }}
-          featureType="ats_enhanced"
-          currentUsage={upgradePromptData.currentUsage}
-          limit={upgradePromptData.limit}
-          period={upgradePromptData.period}
-        />
-      )}
+      <UpgradePrompt
+        isOpen={showUpgradePrompt && !!upgradePromptData}
+        onClose={() => {
+          setShowUpgradePrompt(false)
+          setUpgradePromptData(null)
+        }}
+        featureType="ats_enhanced"
+        currentUsage={upgradePromptData?.currentUsage || 0}
+        limit={upgradePromptData?.limit || null}
+        period={upgradePromptData?.period || 'month'}
+      />
 
       <div className={inline ? '' : 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'}>
         <div className={inline ? 'bg-white rounded-lg shadow-sm border w-full' : 'bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto'}>

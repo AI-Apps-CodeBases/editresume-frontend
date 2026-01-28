@@ -2811,19 +2811,17 @@ const EditorPageContent = () => {
         {headerElement}
         <div className="fixed inset-0 overflow-hidden">
       {/* Export Upgrade Prompt */}
-      {showExportUpgradePrompt && exportUpgradeData && (
-        <UpgradePrompt
-          isOpen={showExportUpgradePrompt}
-          onClose={() => {
-            setShowExportUpgradePrompt(false)
-            setExportUpgradeData(null)
-          }}
-          featureType="exports"
-          currentUsage={exportUpgradeData.currentUsage}
-          limit={exportUpgradeData.limit}
-          period={exportUpgradeData.period}
-        />
-      )}
+      <UpgradePrompt
+        isOpen={showExportUpgradePrompt && !!exportUpgradeData}
+        onClose={() => {
+          setShowExportUpgradePrompt(false)
+          setExportUpgradeData(null)
+        }}
+        featureType="exports"
+        currentUsage={exportUpgradeData?.currentUsage || 0}
+        limit={exportUpgradeData?.limit || null}
+        period={exportUpgradeData?.period || 'month'}
+      />
 
       <ModernEditorLayout
         resumeData={resumeData}
@@ -2939,12 +2937,10 @@ const EditorPageContent = () => {
       />
 
       {/* Modals */}
-      {showAuthModal && (
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-        />
-      )}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
 
       {showOnboarding && (
         <OnboardingSlideshow

@@ -484,19 +484,17 @@ export default function AIImprovementWidget({
       </div>
 
       {/* Upgrade Prompt */}
-      {showUpgradePrompt && upgradePromptData && (
-        <UpgradePrompt
-          isOpen={showUpgradePrompt}
-          onClose={() => {
-            setShowUpgradePrompt(false)
-            setUpgradePromptData(null)
-          }}
-          featureType="improvement"
-          currentUsage={upgradePromptData.currentUsage}
-          limit={upgradePromptData.limit}
-          period={upgradePromptData.period}
-        />
-      )}
+      <UpgradePrompt
+        isOpen={showUpgradePrompt && !!upgradePromptData}
+        onClose={() => {
+          setShowUpgradePrompt(false)
+          setUpgradePromptData(null)
+        }}
+        featureType="improvement"
+        currentUsage={upgradePromptData?.currentUsage || 0}
+        limit={upgradePromptData?.limit || null}
+        period={upgradePromptData?.period || 'month'}
+      />
 
       {/* AI Prompt Modal */}
       {selectedImprovement && (
