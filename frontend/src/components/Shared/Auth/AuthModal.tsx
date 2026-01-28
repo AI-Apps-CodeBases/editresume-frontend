@@ -54,8 +54,6 @@ export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModal
     }
   }
 
-  if (!isOpen) return null
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -127,6 +125,10 @@ export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModal
   }
 
   const isBusy = loading || googleLoading || linkedInLoading
+
+  if (!isOpen) {
+    return null
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
