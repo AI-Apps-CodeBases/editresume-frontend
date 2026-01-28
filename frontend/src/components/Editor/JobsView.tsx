@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import config from '@/lib/config'
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
@@ -110,7 +110,7 @@ export default function JobsView({ onBack }: Props) {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!isAuthenticated || !user?.email) {
       setLoading(false)
       return
@@ -154,18 +154,22 @@ export default function JobsView({ onBack }: Props) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [isAuthenticated, user?.email])
 
   useEffect(() => {
-    fetchData()
-  }, [isAuthenticated, user?.email])
+    if (isAuthenticated && user?.email) {
+      fetchData()
+    } else {
+      setLoading(false)
+    }
+  }, [isAuthenticated, user?.email, fetchData])
 
   useEffect(() => {
     if (isAuthenticated && authModalOpen) {
       setAuthModalOpen(false)
       fetchData()
     }
-  }, [isAuthenticated, authModalOpen])
+  }, [isAuthenticated, authModalOpen, fetchData])
 
   // Listen for job saved events to refresh the list
   useEffect(() => {
@@ -177,7 +181,7 @@ export default function JobsView({ onBack }: Props) {
     return () => {
       window.removeEventListener('jobSaved', handleJobSaved)
     }
-  }, [])
+  }, [fetchData])
 
   // Close dropdown when clicking outside
   useEffect(() => {
