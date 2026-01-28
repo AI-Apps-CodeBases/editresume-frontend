@@ -67,31 +67,23 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
     console.log('API Base URL:', process.env.NEXT_PUBLIC_API_BASE)
     console.log('Current origin:', typeof window !== 'undefined' ? window.location.origin : 'server')
 
-    // Show scanning animation
+    // Show scanning animation (non-blocking)
     setSelectedFileName(file.name)
     setIsScanning(true)
     setError('')
     setScanProgress(0)
 
-    // Animate progress bar
+    // Animate progress bar in the background while upload runs
     const progressInterval = setInterval(() => {
       setScanProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(progressInterval)
-          return 90
+        if (prev >= 95) {
+          return prev
         }
-        return prev + Math.random() * 15
+        return prev + Math.random() * 10
       })
     }, 200)
 
-    // Wait a bit for scanning animation
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    setScanProgress(100)
-    clearInterval(progressInterval)
-    
     setIsUploading(true)
-    setIsScanning(false)
 
     try {
       let baseUrl = process.env.NEXT_PUBLIC_API_BASE || config.apiBase
@@ -116,10 +108,18 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
       const formData = new FormData()
       formData.append('file', file)
 
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => {
+        controller.abort()
+      }, 65000) // a bit above backend max_parsing_time_seconds (60s)
+
       const response = await fetch(uploadUrl, {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: controller.signal
       })
+
+      clearTimeout(timeoutId)
 
       console.log('Response status:', response.status)
       console.log('Response headers:', Object.fromEntries(response.headers.entries()))
@@ -193,6 +193,8 @@ export default function UploadResume({ onUploadSuccess, variant = 'page' }: Prop
       }
     } finally {
       setIsUploading(false)
+      setIsScanning(false)
+      setScanProgress(100)
     }
   }
 

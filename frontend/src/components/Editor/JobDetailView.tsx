@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config'
@@ -81,6 +81,45 @@ interface Props {
   onUpdate?: () => void
 }
 
+const sanitizeKeywordValue = (value: unknown): string | null => {
+  if (!value) return null
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>
+    if (typeof record.keyword === 'string') return record.keyword.trim()
+    if (typeof record.name === 'string') return record.name.trim()
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const candidate = sanitizeKeywordValue(entry)
+        if (candidate) return candidate
+      }
+    }
+  }
+  return null
+}
+
+const formatKeywordDisplay = (keyword: string): string => {
+  if (!keyword) return keyword
+  if (keyword.length <= 3) return keyword.toUpperCase()
+  return keyword
+    .split(/[\s/-]+/)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ')
+    .replace(/([A-Za-z])([A-Z][a-z])/g, '$1 $2')
+}
+
+const isKeywordMatched = (keyword: string, matchedKeywords?: string[], missingKeywords?: string[]): boolean | null => {
+  if (!matchedKeywords && !missingKeywords) return null
+  const lowerKeyword = keyword.toLowerCase()
+  if (matchedKeywords && matchedKeywords.some(k => k.toLowerCase() === lowerKeyword)) {
+    return true
+  }
+  if (missingKeywords && missingKeywords.some(k => k.toLowerCase() === lowerKeyword)) {
+    return false
+  }
+  return null
+}
+
 const STATUS_OPTIONS = [
   { value: 'bookmarked', label: 'Bookmarked', icon: BookmarkIcon, color: 'bg-gray-100 text-gray-700' },
   { value: 'applied', label: 'Applied', icon: EditIcon, color: 'bg-primary-100 text-primary-700' },
@@ -145,7 +184,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     'id' in value &&
     typeof (value as { id: unknown }).id === 'number'
 
-  const fetchJobDetails = useCallback(async () => {
+  const fetchJobDetails = async () => {
     if (!user?.email) return
     
     setLoading(true)
@@ -194,13 +233,13 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [jobId, user?.email, selectedResumeId])
+  }
 
   useEffect(() => {
     if (jobId && isAuthenticated && user?.email) {
-      fetchJobDetails()
+      void fetchJobDetails()
     }
-  }, [jobId, isAuthenticated, user?.email, fetchJobDetails])
+  }, [jobId, isAuthenticated, user?.email, selectedResumeId])
 
   useEffect(() => {
     if (isAuthenticated && user?.email) {
@@ -257,33 +296,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
-  const sanitizeKeywordValue = useCallback((value: unknown): string | null => {
-    if (!value) return null
-    if (typeof value === 'string') return value.trim()
-    if (typeof value === 'object' && value !== null) {
-      const record = value as Record<string, unknown>
-      if (typeof record.keyword === 'string') return record.keyword.trim()
-      if (typeof record.name === 'string') return record.name.trim()
-      if (Array.isArray(value)) {
-        for (const entry of value) {
-          const candidate = sanitizeKeywordValue(entry)
-          if (candidate) return candidate
-        }
-      }
-    }
-    return null
-  }, [])
-
-  const formatKeywordDisplay = useCallback((keyword: string): string => {
-    if (!keyword) return keyword
-    if (keyword.length <= 3) return keyword.toUpperCase()
-    return keyword
-      .split(/[\s/-]+/)
-      .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-      .join(' ')
-      .replace(/([A-Za-z])([A-Z][a-z])/g, '$1 $2')
-  }, [])
-
   const allTechnicalSkills = useMemo(() => {
     if (!job) return []
     const extracted = job.extracted_keywords
@@ -300,7 +312,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       .map((value) => value.toLowerCase())
 
     return Array.from(new Set(cleaned)).slice(0, 24)
-  }, [job, sanitizeKeywordValue])
+  }, [job])
 
   const highlightedKeywords = useMemo(() => {
     if (!job) return []
@@ -322,7 +334,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       .map((value) => value.toLowerCase())
 
     return Array.from(new Set(cleaned)).slice(0, 30)
-  }, [job, sanitizeKeywordValue])
+  }, [job])
 
   const updateJobField = async (field: string, value: unknown) => {
     if (!user?.email || !job) return
@@ -656,7 +668,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
-  const handleUploadResumeForMatch = useCallback((data: unknown) => {
+  const handleUploadResumeForMatch = (data: unknown) => {
      if (!job) {
        return
      }
@@ -712,7 +724,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
        setShowUploadResumeModal(false)
        window.location.href = `/editor?jdId=${job.id}`
      }
-   }, [job])
+   }
 
   if (loading) {
     return (
@@ -822,18 +834,6 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       safeScore
     }
   }
-
-  const isKeywordMatched = useCallback((keyword: string, matchedKeywords?: string[], missingKeywords?: string[]): boolean | null => {
-    if (!matchedKeywords && !missingKeywords) return null
-    const lowerKeyword = keyword.toLowerCase()
-    if (matchedKeywords && matchedKeywords.some(k => k.toLowerCase() === lowerKeyword)) {
-      return true
-    }
-    if (missingKeywords && missingKeywords.some(k => k.toLowerCase() === lowerKeyword)) {
-      return false
-    }
-    return null
-  }, [])
 
   const buildHighFrequencyList = (data: unknown): Array<{ keyword: string; count: number }> => {
     if (!data) return []

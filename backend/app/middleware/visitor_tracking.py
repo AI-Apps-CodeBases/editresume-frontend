@@ -40,7 +40,7 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(excluded) for excluded in self.EXCLUDED_PATHS):
             return await call_next(request)
 
-        # Extract IP address
+        # Extract IP address (cheap/local)
         ip_address = GeolocationService.extract_ip_from_request(request)
 
         # Get or create session ID
@@ -49,14 +49,7 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
             session_id = str(uuid.uuid4())
         request.state.session_id = session_id
 
-        # Get geolocation info (async, don't block request)
-        geolocation_data = None
-        try:
-            geolocation_data = await GeolocationService.get_country_from_ip(ip_address)
-        except Exception as e:
-            logger.warning(f"Failed to get geolocation: {e}")
-
-        # Process request first (don't block)
+        # Process request first (don't block on external geolocation API)
         response = await call_next(request)
 
         # Get user ID if authenticated (Firebase auth middleware runs after this middleware)
@@ -69,14 +62,10 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
             except (ValueError, TypeError):
                 user_id = None
 
-        # Track visitor in background (don't block response)
+        # Track visitor and geolocation in background (don't block response)
         asyncio.create_task(self._track_visitor(
             ip_address=ip_address,
             user_agent=request.headers.get("user-agent"),
-            country=geolocation_data.get("country") if geolocation_data else None,
-            country_code=geolocation_data.get("country_code") if geolocation_data else None,
-            city=geolocation_data.get("city") if geolocation_data else None,
-            region=geolocation_data.get("region") if geolocation_data else None,
             referrer=request.headers.get("referer"),
             path=path,
             user_id=user_id,
@@ -110,15 +99,22 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
     ):
         """Save visitor analytics to database."""
         try:
+            # Resolve geolocation here so any external latency stays off the request path
+            geolocation_data = None
+            try:
+                geolocation_data = await GeolocationService.get_country_from_ip(ip_address)
+            except Exception as e:
+                logger.warning(f"Failed to get geolocation: {e}")
+
             db = SessionLocal()
             try:
                 visitor = VisitorAnalytics(
                     ip_address=ip_address,
                     user_agent=user_agent,
-                    country=country,
-                    country_code=country_code,
-                    city=city,
-                    region=region,
+                    country=geolocation_data.get("country") if geolocation_data else country,
+                    country_code=geolocation_data.get("country_code") if geolocation_data else country_code,
+                    city=geolocation_data.get("city") if geolocation_data else city,
+                    region=geolocation_data.get("region") if geolocation_data else region,
                     referrer=referrer,
                     path=path,
                     user_id=user_id,
