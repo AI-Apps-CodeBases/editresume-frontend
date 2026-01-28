@@ -63,14 +63,16 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
                 user_id = None
 
         # Track visitor and geolocation in background (don't block response)
-        asyncio.create_task(self._track_visitor(
-            ip_address=ip_address,
-            user_agent=request.headers.get("user-agent"),
-            referrer=request.headers.get("referer"),
-            path=path,
-            user_id=user_id,
-            session_id=session_id,
-        ))
+        asyncio.create_task(
+            self._track_visitor(
+                ip_address=ip_address,
+                user_agent=request.headers.get("user-agent"),
+                referrer=request.headers.get("referer"),
+                path=path,
+                user_id=user_id,
+                session_id=session_id,
+            )
+        )
 
         # Set session cookie if not exists
         if not request.cookies.get("session_id"):
@@ -88,10 +90,6 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
         self,
         ip_address: str,
         user_agent: str | None,
-        country: str | None,
-        country_code: str | None,
-        city: str | None,
-        region: str | None,
         referrer: str | None,
         path: str,
         user_id: int | None,
@@ -111,10 +109,10 @@ class VisitorTrackingMiddleware(BaseHTTPMiddleware):
                 visitor = VisitorAnalytics(
                     ip_address=ip_address,
                     user_agent=user_agent,
-                    country=geolocation_data.get("country") if geolocation_data else country,
-                    country_code=geolocation_data.get("country_code") if geolocation_data else country_code,
-                    city=geolocation_data.get("city") if geolocation_data else city,
-                    region=geolocation_data.get("region") if geolocation_data else region,
+                    country=geolocation_data.get("country") if geolocation_data else None,
+                    country_code=geolocation_data.get("country_code") if geolocation_data else None,
+                    city=geolocation_data.get("city") if geolocation_data else None,
+                    region=geolocation_data.get("region") if geolocation_data else None,
                     referrer=referrer,
                     path=path,
                     user_id=user_id,
