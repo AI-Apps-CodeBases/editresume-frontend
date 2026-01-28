@@ -91,41 +91,9 @@ async def parse_resume(file_bytes: bytes, filename: str) -> dict[str, Any]:
     except asyncio.TimeoutError:
         logger.error(f"Parsing timeout after {max_time} seconds")
         enable_legacy = getattr(settings, 'enable_legacy_parser', False)
-        
-        # Try vision parser as fallback if available
-        use_vision = getattr(settings, 'use_vision_parser', True)
-        file_type = _detect_file_type(file_bytes, filename)
-        
-        if use_vision and file_type == 'pdf':
-            try:
-                logger.info("Timeout occurred, trying vision parser as fallback")
-                vision_pages = extract_with_vision(file_bytes)
-                parsed_data = await parse_with_vision(vision_pages)
-                validation_result = validate_and_score(parsed_data)
-                
-                return {
-                    'success': True,
-                    'data': {
-                        'name': parsed_data.get('name', ''),
-                        'title': parsed_data.get('title', ''),
-                        'email': parsed_data.get('email', ''),
-                        'phone': parsed_data.get('phone', ''),
-                        'location': parsed_data.get('location', ''),
-                        'summary': parsed_data.get('summary', ''),
-                        'sections': parsed_data.get('sections', [])
-                    },
-                    'metadata': {
-                        'complexity_score': 0.0,
-                        'confidence_score': validation_result['overall_confidence'],
-                        'parsing_method': 'vision_fallback',
-                        'processing_time_ms': int((time.time() - start_time) * 1000),
-                        'issues': ['Initial parsing timed out, used vision parser fallback']
-                    },
-                    'raw_text': ''
-                }
-            except Exception as vision_error:
-                logger.error(f"Vision parser fallback also failed: {vision_error}")
-        
+
+        # Avoid running an additional heavy vision pass here – inner logic already
+        # handled vision/legacy fallbacks where appropriate.
         if enable_legacy:
             return await _fallback_to_legacy(file_bytes, filename, start_time)
         else:
