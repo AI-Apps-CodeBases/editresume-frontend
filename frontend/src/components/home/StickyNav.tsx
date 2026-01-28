@@ -3,17 +3,18 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function StickyNav() {
   const [isScrolled, setIsScrolled] = useState(false)
   const { user, isAuthenticated, logout } = useAuth()
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const [nextPath, setNextPath] = useState('/')
 
-  const nextPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setNextPath(`${window.location.pathname}${window.location.search}`)
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {

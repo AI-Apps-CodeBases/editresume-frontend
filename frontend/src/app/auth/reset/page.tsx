@@ -3,7 +3,6 @@ import { MailIcon } from '@/components/Icons'
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { FirebaseError } from 'firebase/app'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -30,8 +29,7 @@ export default function ResetPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const searchParams = useSearchParams()
-  const queryString = searchParams.toString()
+  const queryString = typeof window !== 'undefined' ? window.location.search.replace(/^\?/, '') : ''
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
