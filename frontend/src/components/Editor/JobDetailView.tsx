@@ -823,17 +823,21 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
-  const isKeywordMatched = useCallback((keyword: string, matchedKeywords?: string[], missingKeywords?: string[]): boolean | null => {
+  const isKeywordMatched = (
+    keyword: string,
+    matchedKeywords?: string[],
+    missingKeywords?: string[]
+  ): boolean | null => {
     if (!matchedKeywords && !missingKeywords) return null
     const lowerKeyword = keyword.toLowerCase()
-    if (matchedKeywords && matchedKeywords.some(k => k.toLowerCase() === lowerKeyword)) {
+    if (matchedKeywords && matchedKeywords.some((k) => k.toLowerCase() === lowerKeyword)) {
       return true
     }
-    if (missingKeywords && missingKeywords.some(k => k.toLowerCase() === lowerKeyword)) {
+    if (missingKeywords && missingKeywords.some((k) => k.toLowerCase() === lowerKeyword)) {
       return false
     }
     return null
-  }, [])
+  }
 
   const buildHighFrequencyList = (data: unknown): Array<{ keyword: string; count: number }> => {
     if (!data) return []
