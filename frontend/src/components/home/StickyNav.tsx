@@ -3,12 +3,17 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function StickyNav() {
   const [isScrolled, setIsScrolled] = useState(false)
   const { user, isAuthenticated, logout } = useAuth()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const nextPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
 
   useEffect(() => {
     const handleScroll = () => {
@@ -126,13 +131,13 @@ export default function StickyNav() {
           ) : (
             <>
               <Link
-                href="/auth/login"
+                href={`/auth/login?next=${encodeURIComponent(nextPath)}`}
                 className="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
               >
                 Sign In
               </Link>
               <Link
-                href="/auth/signup"
+                href={`/auth/signup?next=${encodeURIComponent(nextPath)}`}
                 className="button-primary text-sm"
               >
                 Get Started

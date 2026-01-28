@@ -3,6 +3,7 @@ import { MailIcon } from '@/components/Icons'
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { FirebaseError } from 'firebase/app'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -29,6 +30,8 @@ export default function ResetPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const searchParams = useSearchParams()
+  const queryString = searchParams.toString()
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -99,13 +102,13 @@ export default function ResetPage() {
       <div className="mt-8 space-y-2 text-center text-sm text-text-secondary">
         <p>
           Remembered your password?{' '}
-          <Link href="/auth/login" className="font-semibold text-text-primary underline-offset-4 hover:underline">
+          <Link href={`/auth/login${queryString ? `?${queryString}` : ''}`} className="font-semibold text-text-primary underline-offset-4 hover:underline">
             Sign in
           </Link>
         </p>
         <p>
           Need an account?{' '}
-          <Link href="/auth/signup" className="font-semibold text-text-primary underline-offset-4 hover:underline">
+          <Link href={`/auth/signup${queryString ? `?${queryString}` : ''}`} className="font-semibold text-text-primary underline-offset-4 hover:underline">
             Create one
           </Link>
         </p>

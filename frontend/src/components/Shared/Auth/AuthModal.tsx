@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLinkedIn } from '@/hooks/useLinkedIn'
 
@@ -15,6 +15,7 @@ interface AuthModalProps {
 
 export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModalProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const [currentMode, setCurrentMode] = useState<typeof mode>(mode)
   const [email, setEmail] = useState('')
@@ -32,6 +33,16 @@ export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModal
     if (typeof window === 'undefined') return null
     return searchParams.get('extensionAuth') || sessionStorage.getItem(EXTENSION_AUTH_KEY)
   }
+
+  const nextPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+
+  const fullPageAuthHref = (() => {
+    const params = new URLSearchParams()
+    params.set('next', nextPath)
+    const extensionAuth = getExtensionAuth()
+    if (extensionAuth === '1') params.set('extensionAuth', '1')
+    return `/auth/login?${params.toString()}`
+  })()
 
   const handlePostLogin = () => {
     const extensionAuth = getExtensionAuth()
@@ -263,7 +274,7 @@ export default function AuthModal({ isOpen, onClose, mode = 'login' }: AuthModal
 
           <div className="text-xs text-gray-400">
             Prefer full page?{' '}
-            <Link href="/auth/login" className="text-purple-600 hover:text-purple-500 font-semibold">
+            <Link href={fullPageAuthHref} className="text-purple-600 hover:text-purple-500 font-semibold">
               Open auth portal
             </Link>
           </div>

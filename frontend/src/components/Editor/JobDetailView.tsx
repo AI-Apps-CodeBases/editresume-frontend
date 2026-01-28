@@ -11,6 +11,10 @@ import { StarRating } from '@/components/Shared/StarRating'
 import { deduplicateSections, sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
 import { Skeleton, SkeletonCard, SkeletonText } from '@/components/Shared/Skeleton'
 
+type UnknownRecord = Record<string, unknown>
+const isRecord = (value: unknown): value is UnknownRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
 interface JobResumeSummary {
   id: number
   score: number
@@ -51,9 +55,9 @@ interface JobDescription {
   follow_up_date?: string
   importance?: number // 0-5 stars
   created_at?: string
-  extracted_keywords?: any
-  priority_keywords?: any
-  high_frequency_keywords?: any
+  extracted_keywords?: unknown
+  priority_keywords?: unknown
+  high_frequency_keywords?: unknown
   ats_insights?: {
     score_snapshot?: {
       overall_score?: number
@@ -132,8 +136,14 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const [editingLetterContent, setEditingLetterContent] = useState('')
   const [showUploadResumeModal, setShowUploadResumeModal] = useState(false)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
-  const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<any>(null)
+  const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<unknown>(null)
   const [selectedCoverLetterId, setSelectedCoverLetterId] = useState<number | null>(null)
+
+  const isJobCoverLetter = (value: unknown): value is JobCoverLetter =>
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof (value as { id: unknown }).id === 'number'
 
   const fetchJobDetails = useCallback(async () => {
     if (!user?.email) return
@@ -159,8 +169,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
           })
           if (coverLetterRes.ok) {
             const coverLetterData = await coverLetterRes.json()
-            if (coverLetterData && Array.isArray(coverLetterData)) {
-              letters = coverLetterData.filter((l: any) => l && l.id)
+            if (Array.isArray(coverLetterData)) {
+              letters = coverLetterData.filter(isJobCoverLetter)
             }
           }
         } catch (e) {
@@ -168,8 +178,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         }
         
         // Fallback to data.cover_letters if direct fetch failed
-        if (letters.length === 0 && data.cover_letters && Array.isArray(data.cover_letters)) {
-          letters = data.cover_letters.filter((l: any) => l && l.id)
+        if (letters.length === 0 && Array.isArray(data.cover_letters)) {
+          letters = data.cover_letters.filter(isJobCoverLetter)
         }
         
         // Always update cover letters from fetch (only called on initial load or explicit refresh)
@@ -247,12 +257,13 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
-  const sanitizeKeywordValue = useCallback((value: any): string | null => {
+  const sanitizeKeywordValue = useCallback((value: unknown): string | null => {
     if (!value) return null
     if (typeof value === 'string') return value.trim()
     if (typeof value === 'object' && value !== null) {
-      if (typeof value.keyword === 'string') return value.keyword.trim()
-      if (typeof value.name === 'string') return value.name.trim()
+      const record = value as Record<string, unknown>
+      if (typeof record.keyword === 'string') return record.keyword.trim()
+      if (typeof record.name === 'string') return record.name.trim()
       if (Array.isArray(value)) {
         for (const entry of value) {
           const candidate = sanitizeKeywordValue(entry)
@@ -277,8 +288,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     if (!job) return []
     const extracted = job.extracted_keywords
     const rawSkills: string[] = []
-    if (extracted && Array.isArray(extracted.technical_keywords)) {
-      rawSkills.push(...extracted.technical_keywords)
+    if (isRecord(extracted) && Array.isArray(extracted.technical_keywords)) {
+      rawSkills.push(...extracted.technical_keywords.filter((kw): kw is string => typeof kw === 'string'))
     }
     if (Array.isArray(job.priority_keywords)) {
       rawSkills.push(...job.priority_keywords)
@@ -295,11 +306,11 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     if (!job) return []
     const extracted = job.extracted_keywords
     const rawKeywords: string[] = []
-    if (extracted && Array.isArray(extracted.general_keywords)) {
-      rawKeywords.push(...extracted.general_keywords)
+    if (isRecord(extracted) && Array.isArray(extracted.general_keywords)) {
+      rawKeywords.push(...extracted.general_keywords.filter((kw): kw is string => typeof kw === 'string'))
     }
     if (Array.isArray(job.high_frequency_keywords)) {
-      job.high_frequency_keywords.forEach((item: any) => {
+      job.high_frequency_keywords.forEach((item: unknown) => {
         const keyword = sanitizeKeywordValue(item)
         if (keyword) rawKeywords.push(keyword)
       })
@@ -313,7 +324,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     return Array.from(new Set(cleaned)).slice(0, 30)
   }, [job, sanitizeKeywordValue])
 
-  const updateJobField = async (field: string, value: any) => {
+  const updateJobField = async (field: string, value: unknown) => {
     if (!user?.email || !job) return
     
     setSaving(true)
@@ -645,24 +656,25 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
-  const handleUploadResumeForMatch = useCallback((data: any) => {
+  const handleUploadResumeForMatch = useCallback((data: unknown) => {
      if (!job) {
        return
      }
  
      // Use professional deduplication utility
-     const sections = Array.isArray(data?.sections) ? data.sections : []
+     const record = (typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null)
+     const sections = Array.isArray(record?.sections) ? record.sections : []
      const deduplicatedSections = deduplicateSections(sections)
      const sortedSections = sortSectionsByDefaultOrder(deduplicatedSections)
      
  
      const normalizedResume = {
-       name: data?.name || '',
-       title: data?.title || '',
-       email: data?.email || '',
-       phone: data?.phone || '',
-       location: data?.location || '',
-       summary: data?.summary || '',
+       name: typeof record?.name === 'string' ? record.name : '',
+       title: typeof record?.title === 'string' ? record.title : '',
+       email: typeof record?.email === 'string' ? record.email : '',
+       phone: typeof record?.phone === 'string' ? record.phone : '',
+       location: typeof record?.location === 'string' ? record.location : '',
+       summary: typeof record?.summary === 'string' ? record.summary : '',
        sections: sortedSections
      }
  
@@ -681,7 +693,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
          const uploadToken = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
          const payload = {
            resume: normalizedResume,
-           template: data?.template || 'tech'
+           template: typeof record?.template === 'string' ? record.template : 'tech'
          }
          window.sessionStorage.setItem(`uploadedResume:${uploadToken}`, JSON.stringify(payload))
 
@@ -752,10 +764,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const bestMatch: JobResumeSummary | null = job.best_resume_version
     || (job.resume_versions && job.resume_versions.length > 0 ? job.resume_versions[0] : null)
 
-  const scoreSnapshot =
-    job.ats_insights && typeof job.ats_insights === 'object'
-      ? (job.ats_insights as any).score_snapshot ?? null
-      : null
+  const scoreSnapshot = job.ats_insights?.score_snapshot ?? null
 
   const overallScore =
     (bestMatch?.score ?? null) !== null
@@ -826,18 +835,24 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     return null
   }, [])
 
-  const buildHighFrequencyList = (data: any): Array<{ keyword: string; count: number }> => {
+  const buildHighFrequencyList = (data: unknown): Array<{ keyword: string; count: number }> => {
     if (!data) return []
     if (Array.isArray(data)) {
       return data
-        .map((item: any) => {
+        .map((item: unknown) => {
           if (!item) return null
           if (typeof item === 'string') return { keyword: item, count: 1 }
           if (Array.isArray(item)) return { keyword: item[0], count: item[1] ?? 1 }
           if (typeof item === 'object') {
+            const rec = item as Record<string, unknown>
             return {
-              keyword: item.keyword ?? item.term ?? '',
-              count: item.frequency ?? item.count ?? 1
+              keyword: (typeof rec.keyword === 'string' ? rec.keyword : typeof rec.term === 'string' ? rec.term : '') ?? '',
+              count:
+                typeof rec.frequency === 'number'
+                  ? rec.frequency
+                  : typeof rec.count === 'number'
+                    ? rec.count
+                    : 1
             }
           }
           return null
@@ -845,7 +860,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         .filter((entry): entry is { keyword: string; count: number } => !!entry && !!entry.keyword)
     }
     if (typeof data === 'object') {
-      return Object.entries(data).map(([keyword, count]) => ({
+      return Object.entries(data as Record<string, unknown>).map(([keyword, count]) => ({
         keyword,
         count: typeof count === 'number' ? count : 1
       }))
@@ -861,9 +876,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     return []
   }
 
-  const buildPriorityKeywords = (data: any): string[] => {
+  const buildPriorityKeywords = (data: unknown): string[] => {
     if (!data) return []
-    if (Array.isArray(data)) return data
+    if (Array.isArray(data)) return data.filter((v): v is string => typeof v === 'string')
     if (typeof data === 'string') {
       try {
         const parsed = JSON.parse(data)
@@ -873,7 +888,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       }
     }
     if (typeof data === 'object') {
-      return Object.values(data).flatMap((value) => (Array.isArray(value) ? value : []))
+      return Object.values(data as Record<string, unknown>).flatMap((value) =>
+        Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []
+      )
     }
     return []
   }
@@ -984,18 +1001,20 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
           
           <div className="flex items-center justify-between border-b border-gray-200">
             <div className="flex gap-1">
-              {[
-                { id: 'overview', label: 'Overview', icon: DocumentIcon },
-                { id: 'notes', label: 'Notes', icon: EditIcon },
-                { id: 'resume', label: 'Resume Versions', icon: FileTextIcon },
-                { id: 'analysis', label: 'Analysis', icon: ChartIcon },
-                { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
-              ].map(tab => {
+              {(
+                [
+                  { id: 'overview', label: 'Overview', icon: DocumentIcon },
+                  { id: 'notes', label: 'Notes', icon: EditIcon },
+                  { id: 'resume', label: 'Resume Versions', icon: FileTextIcon },
+                  { id: 'analysis', label: 'Analysis', icon: ChartIcon },
+                  { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
+                ] as const
+              ).map((tab) => {
                 const IconComponent = tab.icon
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
+                    onClick={() => setActiveTab(tab.id)}
                     className={`inline-flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors relative ${
                       activeTab === tab.id
                         ? 'text-gray-900'
@@ -1298,8 +1317,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                         {(() => {
                           const extracted = job.extracted_keywords
                           const softSkills: string[] = []
-                          if (extracted && Array.isArray(extracted.soft_skills)) {
-                            softSkills.push(...extracted.soft_skills.map(sanitizeKeywordValue).filter(Boolean).map((s: string) => s.toLowerCase()))
+                          if (isRecord(extracted) && Array.isArray(extracted.soft_skills)) {
+                            softSkills.push(...extracted.soft_skills.map(sanitizeKeywordValue).filter((s): s is string => typeof s === 'string').map((s) => s.toLowerCase()))
                           }
                           const uniqueSoftSkills = Array.from(new Set(softSkills)).slice(0, 15)
                           
@@ -1552,16 +1571,26 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                             return null
                           }
 
+                          const matchRecord = match as unknown as Record<string, unknown>
+                          const matchAnalysis =
+                            typeof matchRecord.match_analysis === 'object' && matchRecord.match_analysis !== null
+                              ? (matchRecord.match_analysis as Record<string, unknown>)
+                              : null
+                          const scoreSnapshot =
+                            typeof matchRecord.score_snapshot === 'object' && matchRecord.score_snapshot !== null
+                              ? (matchRecord.score_snapshot as Record<string, unknown>)
+                              : null
+
                           const matchScore = resolveNumeric(
                             match.score,
-                            (match as any)?.match_analysis?.similarity_score,
-                            (match as any)?.score_snapshot?.overall_score
+                            typeof matchAnalysis?.similarity_score === 'number' ? matchAnalysis.similarity_score : null,
+                            typeof scoreSnapshot?.overall_score === 'number' ? scoreSnapshot.overall_score : null
                           )
 
                           const keywordCoverageValue = resolveNumeric(
                             match.keyword_coverage,
-                            (match as any)?.match_analysis?.keyword_coverage,
-                            (match as any)?.score_snapshot?.keyword_coverage
+                            typeof matchAnalysis?.keyword_coverage === 'number' ? matchAnalysis.keyword_coverage : null,
+                            typeof scoreSnapshot?.keyword_coverage === 'number' ? scoreSnapshot.keyword_coverage : null
                           )
 
                           const getScoreColor = (score: number | null) => {
@@ -2200,9 +2229,40 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         </div>
       )}
 
-      {showCoverLetterGenerator && resumeDataForCoverLetter && (
+      {showCoverLetterGenerator && resumeDataForCoverLetter && isRecord(resumeDataForCoverLetter) && 
+        typeof resumeDataForCoverLetter.name === 'string' &&
+        typeof resumeDataForCoverLetter.title === 'string' &&
+        Array.isArray(resumeDataForCoverLetter.sections) ? (
         <CoverLetterGenerator
-          resumeData={resumeDataForCoverLetter}
+          resumeData={{
+            name: resumeDataForCoverLetter.name,
+            title: resumeDataForCoverLetter.title,
+            email: typeof resumeDataForCoverLetter.email === 'string' ? resumeDataForCoverLetter.email : undefined,
+            phone: typeof resumeDataForCoverLetter.phone === 'string' ? resumeDataForCoverLetter.phone : undefined,
+            location: typeof resumeDataForCoverLetter.location === 'string' ? resumeDataForCoverLetter.location : undefined,
+            summary: typeof resumeDataForCoverLetter.summary === 'string' ? resumeDataForCoverLetter.summary : undefined,
+            sections: resumeDataForCoverLetter.sections.map((s: unknown) => {
+              if (!isRecord(s) || typeof s.id !== 'string' || typeof s.title !== 'string' || !Array.isArray(s.bullets)) {
+                return { id: '', title: '', bullets: [] };
+              }
+              return {
+                id: s.id,
+                title: s.title,
+                bullets: s.bullets.map((b: unknown) => {
+                  if (!isRecord(b) || typeof b.id !== 'string' || typeof b.text !== 'string') {
+                    return { id: '', text: '', params: undefined };
+                  }
+                  return {
+                    id: b.id,
+                    text: b.text,
+                    params: isRecord(b.params) ? b.params as Record<string, unknown> : undefined
+                  };
+                }),
+                params: isRecord(s.params) ? s.params as Record<string, unknown> : undefined
+              };
+            }),
+            fieldsVisible: isRecord(resumeDataForCoverLetter.fieldsVisible) ? resumeDataForCoverLetter.fieldsVisible as Record<string, boolean> : undefined
+          }}
           onClose={() => setShowCoverLetterGenerator(false)}
           onCoverLetterChange={handleCoverLetterGenerated}
           initialJobDescription={job?.content || ''}
@@ -2232,7 +2292,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
             if (onUpdate) onUpdate()
           }}
         />
-      )}
+      ) : null}
     </div>
   )
 }
