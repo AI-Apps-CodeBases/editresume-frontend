@@ -34,6 +34,7 @@ function SignupPageContent() {
   const [error, setError] = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
+  const queryString = searchParams.toString()
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -175,7 +176,7 @@ function SignupPageContent() {
 
       <p className="mt-8 text-center text-sm text-text-secondary">
         Already have an account?{' '}
-        <Link href="/auth/login" className="font-semibold text-text-primary underline-offset-4 hover:underline">
+        <Link href={`/auth/login${queryString ? `?${queryString}` : ''}`} className="font-semibold text-text-primary underline-offset-4 hover:underline">
           Sign in
         </Link>
       </p>

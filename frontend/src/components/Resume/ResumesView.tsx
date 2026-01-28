@@ -5,6 +5,7 @@ import { useModal } from '@/contexts/ModalContext'
 import config from '@/lib/config'
 import { FileTextIcon, LockIcon } from '@/components/Icons'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
+import { Skeleton, SkeletonResumeCard } from '@/components/Shared/Skeleton'
 
 interface Resume {
   id: number
@@ -140,10 +141,29 @@ export default function ResumesView({ onBack }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white mx-auto"></div>
-          <p className="mt-4 text-white text-xl">Loading...</p>
+      <div className="min-h-full bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex flex-col">
+        <div className="bg-white border-b shadow-sm sticky top-0 z-20 flex-shrink-0">
+          <div className="w-full px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Skeleton variant="rounded" height={40} width={140} />
+                <div className="flex items-center gap-3">
+                  <Skeleton variant="circular" width={28} height={28} />
+                  <Skeleton variant="rounded" height={28} width={180} />
+                </div>
+              </div>
+              <Skeleton variant="rounded" height={32} width={80} />
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 w-full px-6 py-8">
+          <div className="bg-white rounded-[28px] border border-border-subtle shadow-card p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonResumeCard key={i} />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     )

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { versionControlService, ResumeVersion, ResumeVersionData } from '@/lib/services/versionControl'
 import { useAuth } from '@/contexts/AuthContext'
 import { shouldPromptAuthentication } from '@/lib/guestAuth'
+import { Skeleton, SkeletonText } from '@/components/Shared/Skeleton'
 
 interface VersionControlPanelProps {
   resumeId?: number
@@ -186,9 +187,13 @@ export default function VersionControlPanel({
 
       <div className="p-4">
         {loading ? (
-          <div className="text-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-2">Loading...</p>
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="p-4 bg-white rounded-lg border border-gray-200">
+                <Skeleton variant="rounded" height={20} width="60%" className="mb-2" />
+                <SkeletonText lines={2} />
+              </div>
+            ))}
           </div>
         ) : versions.length === 0 ? (
           <div className="text-center py-8 text-gray-500">

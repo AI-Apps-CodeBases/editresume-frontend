@@ -9,6 +9,12 @@ export default function StickyNav() {
   const [isScrolled, setIsScrolled] = useState(false)
   const { user, isAuthenticated, logout } = useAuth()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [nextPath, setNextPath] = useState('/')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setNextPath(`${window.location.pathname}${window.location.search}`)
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -126,13 +132,13 @@ export default function StickyNav() {
           ) : (
             <>
               <Link
-                href="/auth/login"
+                href={`/auth/login?next=${encodeURIComponent(nextPath)}`}
                 className="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
               >
                 Sign In
               </Link>
               <Link
-                href="/auth/signup"
+                href={`/auth/signup?next=${encodeURIComponent(nextPath)}`}
                 className="button-primary text-sm"
               >
                 Get Started

@@ -168,7 +168,7 @@ export default function TopNavigationBar({
               <button
                 id="upload-resume-button"
                 onClick={onUploadResume}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-300 text-gray-700 bg-transparent hover:bg-gray-50 rounded-lg transition-all duration-200 touch-target"
               >
                 <Upload className="w-4 h-4" />
                 <span>Upload Resume</span>
@@ -181,7 +181,7 @@ export default function TopNavigationBar({
             <Tooltip text="Save your current resume to your account" color="gray" position="bottom">
               <button
                 onClick={onSaveResume}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-primary-50/50 rounded-lg transition-all duration-200 touch-target"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-300 text-gray-700 bg-transparent hover:bg-gray-50 rounded-lg transition-all duration-200 touch-target"
               >
                 <Save className="w-4 h-4" />
                 <span>Save Resume</span>

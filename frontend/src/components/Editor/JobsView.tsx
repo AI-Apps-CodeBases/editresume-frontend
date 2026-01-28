@@ -8,6 +8,7 @@ import JobDescriptionParser from './JobDescriptionParser'
 import { BriefcaseIcon, FolderIcon, LockIcon, BookmarkIcon, CheckIcon, XIcon, CalendarIcon, HandshakeIcon, EditIcon } from '@/components/Icons'
 import { StarRating } from '@/components/Shared/StarRating'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
+import { Skeleton, SkeletonTable } from '@/components/Shared/Skeleton'
 
 interface JobResumeSummary {
   id: number
@@ -257,10 +258,27 @@ export default function JobsView({ onBack }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white mx-auto"></div>
-          <p className="mt-4 text-white text-xl">Loading...</p>
+      <div className="min-h-full bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex flex-col">
+        <div className="bg-white border-b shadow-sm sticky top-0 z-20 flex-shrink-0">
+          <div className="w-full px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Skeleton variant="rounded" height={40} width={140} />
+                <div className="flex items-center gap-3">
+                  <Skeleton variant="circular" width={28} height={28} />
+                  <Skeleton variant="rounded" height={28} width={200} />
+                </div>
+              </div>
+              <Skeleton variant="rounded" height={32} width={80} />
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 w-full px-6 py-8">
+          <div className="space-y-6">
+            <div className="bg-white rounded-[28px] border border-border-subtle shadow-card p-6">
+              <SkeletonTable rows={5} cols={6} />
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -354,7 +372,7 @@ export default function JobsView({ onBack }: Props) {
             <div className="flex items-center gap-4">
               <button
                 onClick={onBack}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold flex items-center gap-2"
+                className="px-4 py-2 border border-gray-300 text-gray-700 bg-transparent rounded-lg hover:bg-gray-50 transition-all font-semibold flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -363,12 +381,12 @@ export default function JobsView({ onBack }: Props) {
               </button>
               <div className="flex items-center gap-3">
                 <BriefcaseIcon size={28} color="#0f62fe" />
-                <h1 className="text-2xl font-bold text-gray-900">Saved Job Descriptions</h1>
+                <h1 className="text-2xl font-black text-slate-900">Saved Job Descriptions</h1>
               </div>
             </div>
             <button
               onClick={fetchData}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="text-sm border border-gray-300 text-gray-700 bg-transparent hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium transition-all"
             >
               Refresh
             </button>
@@ -386,7 +404,7 @@ export default function JobsView({ onBack }: Props) {
                 <div className="flex justify-center mb-4">
                   <FolderIcon size={64} color="#0f62fe" className="opacity-60" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">No jobs saved yet</h3>
+                <h3 className="text-xl font-black text-slate-900 mb-2">No jobs saved yet</h3>
                 <p className="text-gray-600">Save jobs from LinkedIn using the extension.</p>
               </div>
             ) : (
@@ -558,7 +576,7 @@ export default function JobsView({ onBack }: Props) {
                                     const versionQuery = bestMatch.resume_version_id ? `&resumeVersionId=${bestMatch.resume_version_id}` : ''
                                     window.location.href = `/editor?resumeId=${bestMatch.resume_id}${versionQuery}&jdId=${jd.id}`
                                   }}
-                                  className="text-xs px-4 py-2 border border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition-all"
+                                  className="text-xs px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 shadow-md transition-all"
                                 >
                                   Optimize Resume
                                 </button>

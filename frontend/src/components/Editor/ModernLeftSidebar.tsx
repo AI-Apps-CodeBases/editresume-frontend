@@ -3,7 +3,8 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import Tooltip from '@/components/Shared/Tooltip'
-import { FileEdit, Briefcase, FileText, Palette, ChevronDown, ChevronRight, Hash } from 'lucide-react'
+import { FileEdit, Briefcase, FileText, Palette, ChevronDown, ChevronRight, Hash, Settings, User } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface ModernLeftSidebarProps {
   onViewChange?: (view: 'editor' | 'jobs' | 'resumes') => void
@@ -45,6 +46,7 @@ export default function ModernLeftSidebar({
   const isAuthenticated = isAuthenticatedProp ?? authIsAuthenticated
   const [collapsed, setCollapsed] = useState(false)
   const [sectionsExpanded, setSectionsExpanded] = useState(true)
+  const [libraryExpanded, setLibraryExpanded] = useState(true)
 
   const handleCollapseToggle = () => {
     const newCollapsed = !collapsed
@@ -154,33 +156,55 @@ export default function ModernLeftSidebar({
                   )
                 })}
                 <div className="px-3 pt-4 pb-1">
-                  <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Library</p>
+                  <button
+                    onClick={() => setLibraryExpanded(!libraryExpanded)}
+                    className="flex items-center gap-2 w-full text-[11px] font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary transition-colors"
+                  >
+                    {libraryExpanded ? (
+                      <ChevronDown className="w-3 h-3" />
+                    ) : (
+                      <ChevronRight className="w-3 h-3" />
+                    )}
+                    <span>Library</span>
+                  </button>
                 </div>
-                {libraryItems.map((item) => {
-                  const isDisabled = item.requiresAuth && !isAuthenticated
-                  const isActive = currentView === item.id
-                  const IconComponent = item.icon
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => !isDisabled && handleItemClick(item.id)}
-                      disabled={isDisabled}
-                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-200 touch-target ${
-                        isActive
-                          ? 'bg-gradient-to-r from-primary-500/10 to-primary-50/50 text-primary-700 border-l-4 border-primary-500 shadow-sm'
-                          : isDisabled
-                          ? 'opacity-50 text-text-muted cursor-not-allowed'
-                          : 'text-text-secondary hover:bg-primary-50/50 hover:shadow-sm hover:-translate-y-0.5'
-                      }`}
+                <AnimatePresence>
+                  {libraryExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      className="overflow-hidden"
                     >
-                      <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium">{item.title}</div>
-                        <div className={`text-xs ${isActive ? 'text-primary-600' : 'text-text-muted'}`}>{item.description}</div>
-                      </div>
-                    </button>
-                  )
-                })}
+                      {libraryItems.map((item) => {
+                        const isDisabled = item.requiresAuth && !isAuthenticated
+                        const isActive = currentView === item.id
+                        const IconComponent = item.icon
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => !isDisabled && handleItemClick(item.id)}
+                            disabled={isDisabled}
+                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-200 touch-target ${
+                              isActive
+                                ? 'bg-gradient-to-r from-primary-500/10 to-primary-50/50 text-primary-700 border-l-4 border-primary-500 shadow-sm'
+                                : isDisabled
+                                ? 'opacity-50 text-text-muted cursor-not-allowed'
+                                : 'text-text-secondary hover:bg-primary-50/50 hover:shadow-sm hover:-translate-y-0.5'
+                            }`}
+                          >
+                            <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium">{item.title}</div>
+                              <div className={`text-xs ${isActive ? 'text-primary-600' : 'text-text-muted'}`}>{item.description}</div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {secondaryItems.length > 0 && (
@@ -206,29 +230,24 @@ export default function ModernLeftSidebar({
                 </div>
               )}
             </div>
-            <div className="border-t border-border-subtle p-3 space-y-2 bg-gradient-to-t from-primary-50/20 to-transparent">
-              <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200 surface-card">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-sm" style={{ background: 'var(--gradient-accent)' }}>
-                  {(userName || user?.name)?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="text-sm font-semibold text-text-primary truncate">
-                    {userName || user?.name || user?.email || 'Guest'}
-                  </div>
-                  <div className="text-xs text-text-muted">
-                    {user?.isPremium ? 'Pro Plan' : 'Free Plan'}
-                  </div>
-                </div>
+            <div className="border-t border-border-subtle p-3 space-y-1 bg-gradient-to-t from-primary-50/20 to-transparent mt-auto">
+              <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200">
+                <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-text-secondary">Profile</span>
+              </Link>
+              <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200">
+                <Settings className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-text-secondary">Settings</span>
               </Link>
               {isAuthenticated && onLogout && (
                 <button
                   onClick={onLogout}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 touch-target hover:shadow-sm"
-                  title="Logout"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 touch-target hover:shadow-sm"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
+                  <span className="font-medium">Logout</span>
                 </button>
               )}
             </div>
@@ -240,7 +259,10 @@ export default function ModernLeftSidebar({
 
   if (collapsed) {
     return (
-      <div className="hidden lg:flex w-16 border-r border-border-subtle flex flex-col h-full bg-white/80 backdrop-blur-sm">
+      <motion.div 
+        initial={false}
+        className="hidden lg:flex w-16 border-r border-border-subtle flex flex-col h-full bg-white/80 backdrop-blur-sm"
+      >
         <div className="flex flex-col items-center py-4 gap-4 flex-1">
           <Tooltip text="Expand sidebar" color="gray" position="right">
             <button
@@ -280,19 +302,29 @@ export default function ModernLeftSidebar({
           })}
 
         </div>
-        <div className="border-t border-border-subtle p-2">
-          <div className="w-full p-2" title={userName || user?.email || 'Profile'}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold mx-auto shadow-sm" style={{ background: 'var(--gradient-accent)' }}>
-              {userName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-            </div>
-          </div>
+        <div className="border-t border-border-subtle p-2 space-y-1 mt-auto">
+          <Tooltip text="Profile" color="gray" position="right">
+            <Link href="/profile" className="w-full flex items-center justify-center p-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200">
+              <User className="w-5 h-5 text-gray-600" />
+            </Link>
+          </Tooltip>
+          <Tooltip text="Settings" color="gray" position="right">
+            <Link href="/profile" className="w-full flex items-center justify-center p-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200">
+              <Settings className="w-5 h-5 text-gray-600" />
+            </Link>
+          </Tooltip>
         </div>
-      </div>
+      </motion.div>
     )
   }
 
   return (
-    <div className="hidden lg:flex w-56 border-r border-border-subtle flex flex-col h-full bg-white/90 backdrop-blur-sm">
+    <motion.div 
+      initial={false}
+      animate={{ width: 240 }}
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      className="hidden lg:flex w-60 border-r border-border-subtle flex flex-col h-full bg-white/90 backdrop-blur-sm"
+    >
       {/* Header */}
       <div className="p-4 border-b border-border-subtle bg-gradient-to-r from-primary-50/20 to-transparent">
         <div className="flex items-center justify-between">
@@ -395,33 +427,55 @@ export default function ModernLeftSidebar({
           )}
 
           <div className="px-2 pt-4 pb-2">
-            <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Library</p>
+            <button
+              onClick={() => setLibraryExpanded(!libraryExpanded)}
+              className="flex items-center gap-2 w-full text-[11px] font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary transition-colors"
+            >
+              {libraryExpanded ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronRight className="w-3 h-3" />
+              )}
+              <span>Library</span>
+            </button>
           </div>
-          {libraryItems.map((item) => {
-            const isDisabled = item.requiresAuth && !isAuthenticated
-            const isActive = currentView === item.id
-            const IconComponent = item.icon
-            return (
-              <button
-                key={item.id}
-                onClick={() => !isDisabled && handleItemClick(item.id)}
-                disabled={isDisabled}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 touch-target ${
-                  isActive
-                    ? 'bg-gradient-to-r from-primary-500/10 to-primary-50/50 text-primary-700 border-l-4 border-primary-500 shadow-sm'
-                    : isDisabled
-                    ? 'opacity-50 text-text-muted cursor-not-allowed'
-                    : 'text-text-secondary hover:bg-primary-50/50 hover:shadow-sm hover:-translate-y-0.5'
-                }`}
+          <AnimatePresence>
+            {libraryExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className="overflow-hidden"
               >
-                <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{item.title}</div>
-                  <div className={`text-xs ${isActive ? 'text-primary-600' : 'text-text-muted'}`}>{item.description}</div>
-                </div>
-              </button>
-            )
-          })}
+                {libraryItems.map((item) => {
+                  const isDisabled = item.requiresAuth && !isAuthenticated
+                  const isActive = currentView === item.id
+                  const IconComponent = item.icon
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => !isDisabled && handleItemClick(item.id)}
+                      disabled={isDisabled}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 touch-target ${
+                        isActive
+                          ? 'bg-gradient-to-r from-primary-500/10 to-primary-50/50 text-primary-700 border-l-4 border-primary-500 shadow-sm'
+                          : isDisabled
+                          ? 'opacity-50 text-text-muted cursor-not-allowed'
+                          : 'text-text-secondary hover:bg-primary-50/50 hover:shadow-sm hover:-translate-y-0.5'
+                      }`}
+                    >
+                      <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">{item.title}</div>
+                        <div className={`text-xs ${isActive ? 'text-primary-600' : 'text-text-muted'}`}>{item.description}</div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
 
@@ -450,20 +504,15 @@ export default function ModernLeftSidebar({
         )}
       </div>
 
-      {/* Profile Section */}
-      <div className="border-t border-border-subtle p-3 bg-gradient-to-t from-primary-50/20 to-transparent space-y-2">
-        <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200 surface-card">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-sm" style={{ background: 'var(--gradient-accent)' }}>
-            {(userName || user?.name)?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-          </div>
-          <div className="flex-1 min-w-0 text-left">
-            <div className="text-sm font-semibold text-text-primary truncate">
-              {userName || user?.name || user?.email || 'Guest'}
-            </div>
-            <div className="text-xs text-text-muted">
-              {user?.isPremium ? 'Pro Plan' : 'Free Plan'}
-            </div>
-          </div>
+      {/* Profile & Settings Section - Bottom */}
+      <div className="border-t border-border-subtle p-3 bg-gradient-to-t from-primary-50/20 to-transparent space-y-1 mt-auto">
+        <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200">
+          <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
+          <span className="text-sm font-medium text-text-secondary">Profile</span>
+        </Link>
+        <Link href="/profile" className="w-full flex items-center gap-3 px-3 py-2 hover:bg-primary-50/50 rounded-lg transition-all duration-200">
+          <Settings className="w-4 h-4 text-gray-500 flex-shrink-0" />
+          <span className="text-sm font-medium text-text-secondary">Settings</span>
         </Link>
         {isAuthenticated && onLogout && (
           <button
@@ -477,6 +526,6 @@ export default function ModernLeftSidebar({
           </button>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

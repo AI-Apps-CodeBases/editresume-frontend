@@ -10,9 +10,12 @@ function LoadingView({ message }: { message: string }) {
   return (
     <div className="editor-shell flex min-h-screen flex-col bg-body-gradient text-text-primary pt-4">
       <div className="flex flex-1 items-center justify-center px-[10%]">
-        <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)]">
-          <div className="mb-4 text-4xl animate-pulse">📄</div>
-          <p className="text-sm font-semibold text-text-muted">{message}</p>
+        <div className="rounded-[28px] border border-border-subtle bg-white px-10 py-8 text-center shadow-[0_22px_40px_rgba(15,23,42,0.08)] max-w-md w-full">
+          <div className="mb-4 flex justify-center">
+            <div className="w-16 h-16 bg-gray-200 rounded-lg animate-pulse"></div>
+          </div>
+          <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4 mx-auto mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2 mx-auto"></div>
         </div>
       </div>
     </div>

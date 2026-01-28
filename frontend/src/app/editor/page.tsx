@@ -16,7 +16,6 @@ import TemplateSelector from '@/components/Resume/TemplateSelector'
 import AuthModal from '@/components/Shared/Auth/AuthModal'
 import OnboardingSlideshow from '@/components/OnboardingSlideshow'
 import ModernEditorLayout from '@/components/Editor/ModernEditorLayout'
-import ResumeUploadSuggestionModal from '@/components/Editor/ResumeUploadSuggestionModal'
 import JDUploadSuggestionModal from '@/components/Editor/JDUploadSuggestionModal'
 import EnhancedATSScoreWidget from '@/components/AI/EnhancedATSScoreWidget'
 import JobDescriptionMatcher from '@/components/AI/JobDescriptionMatcher'
@@ -218,7 +217,6 @@ const EditorPageContent = () => {
   const searchParams = useSearchParams()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [showResumeUploadSuggestion, setShowResumeUploadSuggestion] = useState(false)
   const [showJDUploadSuggestion, setShowJDUploadSuggestion] = useState(false)
   const [showExportUpgradePrompt, setShowExportUpgradePrompt] = useState(false)
   const [exportUpgradeData, setExportUpgradeData] = useState<{
@@ -1350,7 +1348,7 @@ const EditorPageContent = () => {
   // Show JD suggestion popup when resume is loaded but no JD exists
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (showJDUploadSuggestion || showResumeUploadSuggestion || showOnboarding) return
+    if (showJDUploadSuggestion || showOnboarding) return
     
     const hasResume = !isResumeEmpty(resumeData)
     const hasJD = localStorage.getItem('deepLinkedJD') || localStorage.getItem('activeJobDescriptionId')
@@ -1364,7 +1362,7 @@ const EditorPageContent = () => {
       }, 1000)
       return () => clearTimeout(timer)
     }
-  }, [resumeData, showJDUploadSuggestion, showResumeUploadSuggestion, showOnboarding])
+  }, [resumeData, showJDUploadSuggestion, showOnboarding])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -2962,11 +2960,7 @@ const EditorPageContent = () => {
                   localStorage.getItem('activeJobDescriptionId')
                 )
                 
-                if (resumeEmpty) {
-                  setTimeout(() => {
-                    setShowResumeUploadSuggestion(true)
-                  }, 300)
-                } else if (!hasJD) {
+                if (!resumeEmpty && !hasJD) {
                   setTimeout(() => {
                     setShowJDUploadSuggestion(true)
                   }, 300)
@@ -2988,11 +2982,7 @@ const EditorPageContent = () => {
                   localStorage.getItem('activeJobDescriptionId')
                 )
                 
-                if (resumeEmpty) {
-                  setTimeout(() => {
-                    setShowResumeUploadSuggestion(true)
-                  }, 300)
-                } else if (!hasJD) {
+                if (!resumeEmpty && !hasJD) {
                   setTimeout(() => {
                     setShowJDUploadSuggestion(true)
                   }, 300)
@@ -3006,31 +2996,6 @@ const EditorPageContent = () => {
             if (typeof window !== 'undefined') {
               localStorage.setItem('onboardingDisabled', 'true')
             }
-          }}
-        />
-      )}
-
-      {showResumeUploadSuggestion && (
-        <ResumeUploadSuggestionModal
-          isOpen={showResumeUploadSuggestion}
-          onClose={() => {
-            setShowResumeUploadSuggestion(false)
-            // Check if resume exists and no JD - show JD popup
-            setTimeout(() => {
-              const hasResume = !isResumeEmpty(resumeData)
-              const hasJD = typeof window !== 'undefined' && (
-                localStorage.getItem('deepLinkedJD') || 
-                localStorage.getItem('activeJobDescriptionId')
-              )
-              const hasSeenJDHint = typeof window !== 'undefined' && localStorage.getItem('hasSeenJDHint') === 'true'
-              
-              if (hasResume && !hasJD && !hasSeenJDHint) {
-                setShowJDUploadSuggestion(true)
-              }
-            }, 500)
-          }}
-          onUpload={() => {
-            router.push('/upload')
           }}
         />
       )}

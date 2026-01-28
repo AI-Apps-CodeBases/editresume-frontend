@@ -9,6 +9,11 @@ import CoverLetterGenerator from '@/components/AI/CoverLetterGenerator'
 import { BookmarkIcon, EditIcon, CalendarIcon, BriefcaseIcon, HandshakeIcon, CheckIcon, XIcon, MailIcon, DocumentIcon, ChartIcon, FileTextIcon } from '@/components/Icons'
 import { StarRating } from '@/components/Shared/StarRating'
 import { deduplicateSections, sortSectionsByDefaultOrder } from '@/utils/sectionDeduplication'
+import { Skeleton, SkeletonCard, SkeletonText } from '@/components/Shared/Skeleton'
+
+type UnknownRecord = Record<string, unknown>
+const isRecord = (value: unknown): value is UnknownRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 interface JobResumeSummary {
   id: number
@@ -50,9 +55,9 @@ interface JobDescription {
   follow_up_date?: string
   importance?: number // 0-5 stars
   created_at?: string
-  extracted_keywords?: any
-  priority_keywords?: any
-  high_frequency_keywords?: any
+  extracted_keywords?: unknown
+  priority_keywords?: unknown
+  high_frequency_keywords?: unknown
   ats_insights?: {
     score_snapshot?: {
       overall_score?: number
@@ -131,8 +136,14 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const [editingLetterContent, setEditingLetterContent] = useState('')
   const [showUploadResumeModal, setShowUploadResumeModal] = useState(false)
   const [showCoverLetterGenerator, setShowCoverLetterGenerator] = useState(false)
-  const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<any>(null)
+  const [resumeDataForCoverLetter, setResumeDataForCoverLetter] = useState<unknown>(null)
   const [selectedCoverLetterId, setSelectedCoverLetterId] = useState<number | null>(null)
+
+  const isJobCoverLetter = (value: unknown): value is JobCoverLetter =>
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof (value as { id: unknown }).id === 'number'
 
   const fetchJobDetails = useCallback(async () => {
     if (!user?.email) return
@@ -158,8 +169,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
           })
           if (coverLetterRes.ok) {
             const coverLetterData = await coverLetterRes.json()
-            if (coverLetterData && Array.isArray(coverLetterData)) {
-              letters = coverLetterData.filter((l: any) => l && l.id)
+            if (Array.isArray(coverLetterData)) {
+              letters = coverLetterData.filter(isJobCoverLetter)
             }
           }
         } catch (e) {
@@ -167,8 +178,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         }
         
         // Fallback to data.cover_letters if direct fetch failed
-        if (letters.length === 0 && data.cover_letters && Array.isArray(data.cover_letters)) {
-          letters = data.cover_letters.filter((l: any) => l && l.id)
+        if (letters.length === 0 && Array.isArray(data.cover_letters)) {
+          letters = data.cover_letters.filter(isJobCoverLetter)
         }
         
         // Always update cover letters from fetch (only called on initial load or explicit refresh)
@@ -246,12 +257,13 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
-  const sanitizeKeywordValue = useCallback((value: any): string | null => {
+  const sanitizeKeywordValue = useCallback((value: unknown): string | null => {
     if (!value) return null
     if (typeof value === 'string') return value.trim()
     if (typeof value === 'object' && value !== null) {
-      if (typeof value.keyword === 'string') return value.keyword.trim()
-      if (typeof value.name === 'string') return value.name.trim()
+      const record = value as Record<string, unknown>
+      if (typeof record.keyword === 'string') return record.keyword.trim()
+      if (typeof record.name === 'string') return record.name.trim()
       if (Array.isArray(value)) {
         for (const entry of value) {
           const candidate = sanitizeKeywordValue(entry)
@@ -276,8 +288,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     if (!job) return []
     const extracted = job.extracted_keywords
     const rawSkills: string[] = []
-    if (extracted && Array.isArray(extracted.technical_keywords)) {
-      rawSkills.push(...extracted.technical_keywords)
+    if (isRecord(extracted) && Array.isArray(extracted.technical_keywords)) {
+      rawSkills.push(...extracted.technical_keywords.filter((kw): kw is string => typeof kw === 'string'))
     }
     if (Array.isArray(job.priority_keywords)) {
       rawSkills.push(...job.priority_keywords)
@@ -294,11 +306,11 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     if (!job) return []
     const extracted = job.extracted_keywords
     const rawKeywords: string[] = []
-    if (extracted && Array.isArray(extracted.general_keywords)) {
-      rawKeywords.push(...extracted.general_keywords)
+    if (isRecord(extracted) && Array.isArray(extracted.general_keywords)) {
+      rawKeywords.push(...extracted.general_keywords.filter((kw): kw is string => typeof kw === 'string'))
     }
     if (Array.isArray(job.high_frequency_keywords)) {
-      job.high_frequency_keywords.forEach((item: any) => {
+      job.high_frequency_keywords.forEach((item: unknown) => {
         const keyword = sanitizeKeywordValue(item)
         if (keyword) rawKeywords.push(keyword)
       })
@@ -312,7 +324,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     return Array.from(new Set(cleaned)).slice(0, 30)
   }, [job, sanitizeKeywordValue])
 
-  const updateJobField = async (field: string, value: any) => {
+  const updateJobField = async (field: string, value: unknown) => {
     if (!user?.email || !job) return
     
     setSaving(true)
@@ -644,24 +656,25 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
-  const handleUploadResumeForMatch = useCallback((data: any) => {
+  const handleUploadResumeForMatch = useCallback((data: unknown) => {
      if (!job) {
        return
      }
  
      // Use professional deduplication utility
-     const sections = Array.isArray(data?.sections) ? data.sections : []
+     const record = (typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null)
+     const sections = Array.isArray(record?.sections) ? record.sections : []
      const deduplicatedSections = deduplicateSections(sections)
      const sortedSections = sortSectionsByDefaultOrder(deduplicatedSections)
      
  
      const normalizedResume = {
-       name: data?.name || '',
-       title: data?.title || '',
-       email: data?.email || '',
-       phone: data?.phone || '',
-       location: data?.location || '',
-       summary: data?.summary || '',
+       name: typeof record?.name === 'string' ? record.name : '',
+       title: typeof record?.title === 'string' ? record.title : '',
+       email: typeof record?.email === 'string' ? record.email : '',
+       phone: typeof record?.phone === 'string' ? record.phone : '',
+       location: typeof record?.location === 'string' ? record.location : '',
+       summary: typeof record?.summary === 'string' ? record.summary : '',
        sections: sortedSections
      }
  
@@ -680,7 +693,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
          const uploadToken = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
          const payload = {
            resume: normalizedResume,
-           template: data?.template || 'tech'
+           template: typeof record?.template === 'string' ? record.template : 'tech'
          }
          window.sessionStorage.setItem(`uploadedResume:${uploadToken}`, JSON.stringify(payload))
 
@@ -703,10 +716,27 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white mx-auto"></div>
-          <p className="mt-4 text-white text-xl">Loading...</p>
+      <div className="min-h-screen bg-gradient-to-br from-primary via-blue-600 to-purple-600">
+        <div className="bg-white border-b shadow-sm sticky top-0 z-20">
+          <div className="w-full px-6 py-5">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1 space-y-3">
+                <Skeleton variant="rounded" height={36} width="60%" />
+                <Skeleton variant="rounded" height={20} width="40%" />
+              </div>
+              <Skeleton variant="circular" width={40} height={40} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl shadow-lg p-8 m-6">
+          <div className="space-y-6">
+            <SkeletonCard />
+            <SkeletonCard />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -719,7 +749,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
           <div className="flex justify-center mb-4">
             <XIcon size={64} color="#ef4444" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Job Not Found</h2>
+          <h2 className="text-2xl font-black text-slate-900 mb-4">Job Not Found</h2>
           <button
             onClick={onBack}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
@@ -734,10 +764,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   const bestMatch: JobResumeSummary | null = job.best_resume_version
     || (job.resume_versions && job.resume_versions.length > 0 ? job.resume_versions[0] : null)
 
-  const scoreSnapshot =
-    job.ats_insights && typeof job.ats_insights === 'object'
-      ? (job.ats_insights as any).score_snapshot ?? null
-      : null
+  const scoreSnapshot = job.ats_insights?.score_snapshot ?? null
 
   const overallScore =
     (bestMatch?.score ?? null) !== null
@@ -796,18 +823,36 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     }
   }
 
-  const buildHighFrequencyList = (data: any): Array<{ keyword: string; count: number }> => {
+  const isKeywordMatched = useCallback((keyword: string, matchedKeywords?: string[], missingKeywords?: string[]): boolean | null => {
+    if (!matchedKeywords && !missingKeywords) return null
+    const lowerKeyword = keyword.toLowerCase()
+    if (matchedKeywords && matchedKeywords.some(k => k.toLowerCase() === lowerKeyword)) {
+      return true
+    }
+    if (missingKeywords && missingKeywords.some(k => k.toLowerCase() === lowerKeyword)) {
+      return false
+    }
+    return null
+  }, [])
+
+  const buildHighFrequencyList = (data: unknown): Array<{ keyword: string; count: number }> => {
     if (!data) return []
     if (Array.isArray(data)) {
       return data
-        .map((item: any) => {
+        .map((item: unknown) => {
           if (!item) return null
           if (typeof item === 'string') return { keyword: item, count: 1 }
           if (Array.isArray(item)) return { keyword: item[0], count: item[1] ?? 1 }
           if (typeof item === 'object') {
+            const rec = item as Record<string, unknown>
             return {
-              keyword: item.keyword ?? item.term ?? '',
-              count: item.frequency ?? item.count ?? 1
+              keyword: (typeof rec.keyword === 'string' ? rec.keyword : typeof rec.term === 'string' ? rec.term : '') ?? '',
+              count:
+                typeof rec.frequency === 'number'
+                  ? rec.frequency
+                  : typeof rec.count === 'number'
+                    ? rec.count
+                    : 1
             }
           }
           return null
@@ -815,7 +860,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         .filter((entry): entry is { keyword: string; count: number } => !!entry && !!entry.keyword)
     }
     if (typeof data === 'object') {
-      return Object.entries(data).map(([keyword, count]) => ({
+      return Object.entries(data as Record<string, unknown>).map(([keyword, count]) => ({
         keyword,
         count: typeof count === 'number' ? count : 1
       }))
@@ -831,9 +876,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
     return []
   }
 
-  const buildPriorityKeywords = (data: any): string[] => {
+  const buildPriorityKeywords = (data: unknown): string[] => {
     if (!data) return []
-    if (Array.isArray(data)) return data
+    if (Array.isArray(data)) return data.filter((v): v is string => typeof v === 'string')
     if (typeof data === 'string') {
       try {
         const parsed = JSON.parse(data)
@@ -843,7 +888,9 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       }
     }
     if (typeof data === 'object') {
-      return Object.values(data).flatMap((value) => (Array.isArray(value) ? value : []))
+      return Object.values(data as Record<string, unknown>).flatMap((value) =>
+        Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []
+      )
     }
     return []
   }
@@ -869,7 +916,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 </button>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h1 className="text-3xl font-bold text-gray-900">
+                    <h1 className="text-3xl font-black text-slate-900">
                       {job.title}
                     </h1>
                     {job.max_salary && (
@@ -954,18 +1001,20 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
           
           <div className="flex items-center justify-between border-b border-gray-200">
             <div className="flex gap-1">
-              {[
-                { id: 'overview', label: 'Overview', icon: DocumentIcon },
-                { id: 'notes', label: 'Notes', icon: EditIcon },
-                { id: 'resume', label: 'Resume Versions', icon: FileTextIcon },
-                { id: 'analysis', label: 'Analysis', icon: ChartIcon },
-                { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
-              ].map(tab => {
+              {(
+                [
+                  { id: 'overview', label: 'Overview', icon: DocumentIcon },
+                  { id: 'notes', label: 'Notes', icon: EditIcon },
+                  { id: 'resume', label: 'Resume Versions', icon: FileTextIcon },
+                  { id: 'analysis', label: 'Analysis', icon: ChartIcon },
+                  { id: 'coverLetters', label: 'Cover Letters', icon: MailIcon },
+                ] as const
+              ).map((tab) => {
                 const IconComponent = tab.icon
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
+                    onClick={() => setActiveTab(tab.id)}
                     className={`inline-flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors relative ${
                       activeTab === tab.id
                         ? 'text-gray-900'
@@ -1002,7 +1051,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Job Information</h3>
+                  <h3 className="text-lg font-black text-slate-900 mb-4">Job Information</h3>
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-semibold text-gray-600">Company</label>
@@ -1059,7 +1108,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Match Dashboard</h3>
+                  <h3 className="text-lg font-black text-slate-900 mb-4">Match Dashboard</h3>
                   {overallScore !== null ? (
                     <>
                       <div className="grid grid-cols-3 gap-4">
@@ -1263,73 +1312,95 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 <div className="space-y-5">
                   {(allTechnicalSkills.length > 0 || highlightedKeywords.length > 0) && (
                     <div className="bg-white border border-gray-200 rounded-xl p-6">
-                      <h3 className="text-lg font-bold text-gray-900 mb-4">Keyword Analysis</h3>
+                      <h3 className="text-lg font-black text-slate-900 mb-4">Keyword Analysis</h3>
                       <div className="space-y-5">
-                        {allTechnicalSkills.length > 0 && (
-                          <div>
-                            <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                              <span className="text-base">⚙️</span>
-                              Hard Skills
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {allTechnicalSkills.map((skill) => (
-                                <span
-                                  key={skill}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
-                                >
-                                  {formatKeywordDisplay(skill)}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
                         {(() => {
                           const extracted = job.extracted_keywords
                           const softSkills: string[] = []
-                          if (extracted && Array.isArray(extracted.soft_skills)) {
-                            softSkills.push(...extracted.soft_skills.map(sanitizeKeywordValue).filter(Boolean).map((s: string) => s.toLowerCase()))
+                          if (isRecord(extracted) && Array.isArray(extracted.soft_skills)) {
+                            softSkills.push(...extracted.soft_skills.map(sanitizeKeywordValue).filter((s): s is string => typeof s === 'string').map((s) => s.toLowerCase()))
                           }
                           const uniqueSoftSkills = Array.from(new Set(softSkills)).slice(0, 15)
                           
-                          return uniqueSoftSkills.length > 0 ? (
-                            <div>
-                              <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                                <span className="text-base">💬</span>
-                                Soft Skills
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {uniqueSoftSkills.map((skill) => (
-                                  <span
-                                    key={skill}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200"
-                                  >
-                                    {formatKeywordDisplay(skill)}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null
-                        })()}
+                          const getChipStyles = (category: 'hard-skill' | 'tool' | 'soft-skill') => {
+                            switch (category) {
+                              case 'hard-skill':
+                                return 'bg-blue-50 text-blue-700 border-blue-200'
+                              case 'tool':
+                                return 'bg-purple-50 text-purple-700 border-purple-200'
+                              case 'soft-skill':
+                                return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              default:
+                                return 'bg-blue-50 text-blue-700 border-blue-200'
+                            }
+                          }
 
-                        {highlightedKeywords.length > 0 && (
-                          <div>
-                            <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                              <span className="text-base">🛠️</span>
-                              Tools & Software
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {highlightedKeywords.slice(0, 20).map((keyword) => (
-                                <span
-                                  key={keyword}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200"
-                                >
-                                  {formatKeywordDisplay(keyword)}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                          const renderKeywordChip = (keyword: string, category: 'hard-skill' | 'tool' | 'soft-skill') => {
+                            const isMatched = isKeywordMatched(keyword, bestMatch?.matched_keywords, bestMatch?.missing_keywords)
+                            const chipStyles = getChipStyles(category)
+                            
+                            return (
+                              <span
+                                key={keyword}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${chipStyles} inline-flex items-center gap-1.5`}
+                              >
+                                {isMatched === true && (
+                                  <CheckIcon size={12} color="currentColor" className="flex-shrink-0" />
+                                )}
+                                {isMatched === false && (
+                                  <XIcon size={12} color="currentColor" className="flex-shrink-0" />
+                                )}
+                                {formatKeywordDisplay(keyword)}
+                              </span>
+                            )
+                          }
+
+                          return (
+                            <>
+                              {allTechnicalSkills.length > 0 && (
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                    <span className="text-base">⚙️</span>
+                                    Hard Skills
+                                  </div>
+                                  <div className="flex flex-wrap gap-3">
+                                    {allTechnicalSkills.map((skill) => 
+                                      renderKeywordChip(skill, 'hard-skill')
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {uniqueSoftSkills.length > 0 && (
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                    <span className="text-base">💬</span>
+                                    Soft Skills
+                                  </div>
+                                  <div className="flex flex-wrap gap-3">
+                                    {uniqueSoftSkills.map((skill) => 
+                                      renderKeywordChip(skill, 'soft-skill')
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {highlightedKeywords.length > 0 && (
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                    <span className="text-base">🛠️</span>
+                                    Tools & Software
+                                  </div>
+                                  <div className="flex flex-wrap gap-3">
+                                    {highlightedKeywords.slice(0, 20).map((keyword) => 
+                                      renderKeywordChip(keyword, 'tool')
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     </div>
                   )}
@@ -1337,7 +1408,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                   {job.content && (
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-lg font-bold text-gray-900">Job Description</h3>
+                        <h3 className="text-lg font-black text-slate-900">Job Description</h3>
                       </div>
                       <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 max-h-[420px] overflow-y-auto">
                         <pre className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">{job.content}</pre>
@@ -1351,7 +1422,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
           {activeTab === 'notes' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-bold text-gray-900">Notes</h3>
+              <h3 className="text-lg font-black text-slate-900">Notes</h3>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -1361,7 +1432,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               <button
                 onClick={saveNotes}
                 disabled={saving}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+                className="px-6 py-2 border border-indigo-600 text-indigo-600 bg-transparent rounded-lg font-semibold hover:bg-indigo-50 disabled:opacity-50 transition-all"
               >
                 {saving ? 'Saving...' : 'Save Notes'}
               </button>
@@ -1373,7 +1444,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-6">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Match This Job With a Resume</h3>
+                    <h3 className="text-xl font-black text-slate-900 mb-2">Match This Job With a Resume</h3>
                     <p className="text-sm text-gray-600">
                       Choose one of your master resumes to open the editor with this job description loaded on the right.
                     </p>
@@ -1442,14 +1513,14 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                         }
                         window.location.href = `/editor?resumeId=${selectedResumeId}&jdId=${job.id}`
                       }}
-                      className="flex-1 min-w-[200px] px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      className="flex-1 min-w-[200px] px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 shadow-md disabled:opacity-50 transition-all"
                       disabled={!selectedResumeId}
                     >
                       Optimize for Job Description
                     </button>
                     <button
                       onClick={() => setShowUploadResumeModal(true)}
-                      className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors"
+                      className="px-6 py-3 border border-gray-300 text-gray-700 bg-transparent rounded-lg font-semibold hover:bg-gray-50 transition-all"
                     >
                       Upload Resume to Match
                     </button>
@@ -1459,7 +1530,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900">Saved Matches</h3>
+                  <h3 className="text-lg font-black text-slate-900">Saved Matches</h3>
                   {bestMatch && (
                     <span className="text-xs text-gray-500">
                       Highest score recorded on {bestMatch.updated_at ? new Date(bestMatch.updated_at).toLocaleDateString() : 'N/A'}
@@ -1500,16 +1571,26 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                             return null
                           }
 
+                          const matchRecord = match as unknown as Record<string, unknown>
+                          const matchAnalysis =
+                            typeof matchRecord.match_analysis === 'object' && matchRecord.match_analysis !== null
+                              ? (matchRecord.match_analysis as Record<string, unknown>)
+                              : null
+                          const scoreSnapshot =
+                            typeof matchRecord.score_snapshot === 'object' && matchRecord.score_snapshot !== null
+                              ? (matchRecord.score_snapshot as Record<string, unknown>)
+                              : null
+
                           const matchScore = resolveNumeric(
                             match.score,
-                            (match as any)?.match_analysis?.similarity_score,
-                            (match as any)?.score_snapshot?.overall_score
+                            typeof matchAnalysis?.similarity_score === 'number' ? matchAnalysis.similarity_score : null,
+                            typeof scoreSnapshot?.overall_score === 'number' ? scoreSnapshot.overall_score : null
                           )
 
                           const keywordCoverageValue = resolveNumeric(
                             match.keyword_coverage,
-                            (match as any)?.match_analysis?.keyword_coverage,
-                            (match as any)?.score_snapshot?.keyword_coverage
+                            typeof matchAnalysis?.keyword_coverage === 'number' ? matchAnalysis.keyword_coverage : null,
+                            typeof scoreSnapshot?.keyword_coverage === 'number' ? scoreSnapshot.keyword_coverage : null
                           )
 
                           const getScoreColor = (score: number | null) => {
@@ -1616,7 +1697,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                                         const versionQuery = match.resume_version_id ? `&resumeVersionId=${match.resume_version_id}` : ''
                                         window.location.href = `/editor?resumeId=${match.resume_id}${versionQuery}&jdId=${job.id}`
                                       }}
-                                      className="text-xs px-4 py-2 border border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition-all"
+                                      className="text-xs px-4 py-2 border border-gray-300 text-gray-700 bg-transparent rounded-lg font-medium hover:bg-gray-50 transition-all"
                                     >
                                       Open in Editor
                                     </button>
@@ -1687,7 +1768,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                                           })
                                         }
                                       }}
-                                      className="p-2 text-text-muted hover:text-text-primary hover:bg-gray-100 rounded-lg transition-colors"
+                                      className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                                       title="Export PDF"
                                     >
                                       <FileTextIcon size={18} color="currentColor" />
@@ -1766,7 +1847,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                         <BriefcaseIcon size={40} color="#6b7280" />
                       </div>
                     </div>
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2">No saved matches yet</h4>
+                    <h4 className="text-lg font-black text-slate-900 mb-2">No saved matches yet</h4>
                     <p className="text-sm text-gray-600 mb-6">Select a resume above to create a job-specific version and see your ATS score.</p>
                     <button
                       onClick={() => {
@@ -1775,7 +1856,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                           setSelectedResumeId(firstResume.id)
                         }
                       }}
-                      className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                      className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 shadow-md transition-all"
                     >
                       Start Matching
                     </button>
@@ -1787,11 +1868,11 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
           {activeTab === 'analysis' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-bold text-gray-900">ATS Analysis & Keywords</h3>
+              <h3 className="text-lg font-black text-slate-900">ATS Analysis & Keywords</h3>
               
               {bestMatch && (
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-blue-200">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4">Top Match Score: {bestMatch.score}%</h4>
+                  <h4 className="text-lg font-black text-slate-900 mb-4">Top Match Score: {bestMatch.score}%</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-semibold text-gray-600">Matched Resume</label>
@@ -1812,7 +1893,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
               {highFrequencyList.length > 0 && (
                 <div>
-                  <h4 className="text-md font-bold text-gray-900 mb-4">High Frequency Keywords</h4>
+                  <h4 className="text-md font-black text-slate-900 mb-4">High Frequency Keywords</h4>
                   <div className="space-y-2">
                     {highFrequencyList
                       .sort((a, b) => b.count - a.count)
@@ -1843,7 +1924,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
               {priorityKeywordsList.length > 0 && (
                 <div>
-                  <h4 className="text-md font-bold text-gray-900 mb-3">Priority Keywords</h4>
+                  <h4 className="text-md font-black text-slate-900 mb-3">Priority Keywords</h4>
                   <div className="flex flex-wrap gap-2">
                     {priorityKeywordsList.map((keyword: string) => (
                       <span
@@ -1859,7 +1940,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
 
               {job.resume_versions && job.resume_versions.length > 0 && (
                 <div>
-                  <h4 className="text-md font-bold text-gray-900 mb-3">All Matched Versions ({job.resume_versions.length})</h4>
+                  <h4 className="text-md font-black text-slate-900 mb-3">All Matched Versions ({job.resume_versions.length})</h4>
                   <div className="space-y-3">
                     {job.resume_versions.map((match, idx) => (
                       <div key={match.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 bg-gray-50 rounded-lg">
@@ -1917,7 +1998,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 <div>
                     <div className="flex items-center gap-2 mb-2">
                       <MailIcon size={28} color="#0f62fe" />
-                      <h2 className="text-2xl font-bold text-gray-900">Cover Letters</h2>
+                      <h2 className="text-2xl font-black text-slate-900">Cover Letters</h2>
                     </div>
                     <p className="text-gray-600">
                       Generate cover letters using AI or manage your saved versions. Each version is saved separately and can be exported.
@@ -1925,7 +2006,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 </div>
                   <button
                     onClick={handleOpenCoverLetterGenerator}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-colors shadow-lg text-lg"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 shadow-md transition-all text-lg"
                   >
                     <span>🤖</span>
                     <span>Generate Cover Letter with AI</span>
@@ -1936,7 +2017,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
               <div className="bg-white border-2 border-gray-300 rounded-xl p-6 shadow-lg" style={{ minHeight: '200px' }}>
                 <div className="flex items-center justify-between border-b-2 border-gray-300 pb-4 mb-4">
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2">
                       <DocumentIcon size={24} color="#0f62fe" />
                       <span>Saved Cover Letters</span>
                     </h3>
@@ -1960,7 +2041,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                       <p className="text-sm text-gray-600 mb-8">Generate your first cover letter using AI to get started.</p>
                       <button
                         onClick={handleOpenCoverLetterGenerator}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 shadow-md transition-all inline-flex items-center gap-2"
                       >
                         <span>🤖</span>
                         <span>Generate Cover Letter with AI</span>
@@ -2130,7 +2211,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Upload Resume to Match</h2>
+                <h2 className="text-xl font-black text-slate-900">Upload Resume to Match</h2>
                 <p className="text-sm text-gray-500">We will parse your resume and open the editor with this job loaded.</p>
               </div>
               <button
@@ -2148,9 +2229,40 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
         </div>
       )}
 
-      {showCoverLetterGenerator && resumeDataForCoverLetter && (
+      {showCoverLetterGenerator && resumeDataForCoverLetter && isRecord(resumeDataForCoverLetter) && 
+        typeof resumeDataForCoverLetter.name === 'string' &&
+        typeof resumeDataForCoverLetter.title === 'string' &&
+        Array.isArray(resumeDataForCoverLetter.sections) ? (
         <CoverLetterGenerator
-          resumeData={resumeDataForCoverLetter}
+          resumeData={{
+            name: resumeDataForCoverLetter.name,
+            title: resumeDataForCoverLetter.title,
+            email: typeof resumeDataForCoverLetter.email === 'string' ? resumeDataForCoverLetter.email : undefined,
+            phone: typeof resumeDataForCoverLetter.phone === 'string' ? resumeDataForCoverLetter.phone : undefined,
+            location: typeof resumeDataForCoverLetter.location === 'string' ? resumeDataForCoverLetter.location : undefined,
+            summary: typeof resumeDataForCoverLetter.summary === 'string' ? resumeDataForCoverLetter.summary : undefined,
+            sections: resumeDataForCoverLetter.sections.map((s: unknown) => {
+              if (!isRecord(s) || typeof s.id !== 'string' || typeof s.title !== 'string' || !Array.isArray(s.bullets)) {
+                return { id: '', title: '', bullets: [] };
+              }
+              return {
+                id: s.id,
+                title: s.title,
+                bullets: s.bullets.map((b: unknown) => {
+                  if (!isRecord(b) || typeof b.id !== 'string' || typeof b.text !== 'string') {
+                    return { id: '', text: '', params: undefined };
+                  }
+                  return {
+                    id: b.id,
+                    text: b.text,
+                    params: isRecord(b.params) ? b.params as Record<string, unknown> : undefined
+                  };
+                }),
+                params: isRecord(s.params) ? s.params as Record<string, unknown> : undefined
+              };
+            }),
+            fieldsVisible: isRecord(resumeDataForCoverLetter.fieldsVisible) ? resumeDataForCoverLetter.fieldsVisible as Record<string, boolean> : undefined
+          }}
           onClose={() => setShowCoverLetterGenerator(false)}
           onCoverLetterChange={handleCoverLetterGenerated}
           initialJobDescription={job?.content || ''}
@@ -2180,7 +2292,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
             if (onUpdate) onUpdate()
           }}
         />
-      )}
+      ) : null}
     </div>
   )
 }

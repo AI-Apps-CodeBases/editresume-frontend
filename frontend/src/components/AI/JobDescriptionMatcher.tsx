@@ -10,7 +10,7 @@ import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import Tooltip from '@/components/Shared/Tooltip';
 import { deriveJobMetadataFromText } from '@/lib/utils/jobDescriptionParser';
 import { calculateEnhancedATSScore } from '@/lib/atsScoring.enhanced';
-import type { ExtensionKeywordData, LegacyATSScoreResult } from '@/lib/atsScoring.types';
+import type { ExtensionKeywordData, LegacyATSScoreResult, ResumeData } from '@/lib/atsScoring.types';
 import { useSavedJobs } from '@/features/jobs/hooks/useSavedJobs';
 import type { Job } from '@/features/jobs/types';
 import { 
@@ -23,17 +23,51 @@ import {
   ArrowUp,
   ArrowDown,
   X,
-  Info
+  Info,
+  XCircle
 } from 'lucide-react';
 
 const USE_ENHANCED_ATS_SCORING = true;
 
+type UnknownRecord = Record<string, unknown>;
+type KeywordWithWeight = { keyword: string; weight: number; isRequired?: boolean };
+type HighFrequencyKeyword = { keyword: string; frequency: number; importance: string; weight: number };
+
+const isRecord = (value: unknown): value is UnknownRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const asArray = <T = unknown>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
+const getVisibleBulletsText = (bulletsValue: unknown): string[] => {
+  const bullets = asArray<unknown>(bulletsValue);
+  const texts: string[] = [];
+  for (const bullet of bullets) {
+    if (!isRecord(bullet)) continue;
+    const params = bullet.params;
+    const visible = isRecord(params) ? params.visible : undefined;
+    if (visible === false) continue;
+    const text = bullet.text;
+    if (typeof text === 'string' && text.trim()) {
+      texts.push(text);
+    }
+  }
+  return texts;
+};
+
+const buildKeywordRegex = (keyword: string): RegExp => {
+  const hasSpecialChars = /[\/\-_]/g.test(keyword);
+  const escaped = escapeRegExp(keyword);
+  return hasSpecialChars ? new RegExp(escaped, 'i') : new RegExp(`\\b${escaped}\\b`, 'i');
+};
+
 function calculateLegacyATSScore(
-  resumeData: any,
+  resumeData: unknown,
   jobDescription: string,
-  keywordBundle: any
+  keywordBundle: unknown
 ): LegacyATSScoreResult | null {
-  if (!resumeData || !keywordBundle) return null;
+  if (!isRecord(resumeData) || !isRecord(keywordBundle)) return null;
+  const extractedKeywordsPayload = keywordBundle.extractedKeywordsPayload;
+  if (!isRecord(extractedKeywordsPayload)) return null;
 
   const keywordSet = new Set<string>();
   const addKeyword = (value: string) => {
@@ -42,13 +76,18 @@ function calculateLegacyATSScore(
     }
   };
 
-  keywordBundle.extractedKeywordsPayload.general_keywords.forEach(addKeyword);
-  keywordBundle.extractedKeywordsPayload.technical_keywords.forEach(addKeyword);
-  keywordBundle.highFrequencyKeywords.forEach((item: any) => addKeyword(item.keyword));
-  if (keywordBundle.atsInsights) {
-    keywordBundle.atsInsights.action_verbs?.forEach(addKeyword);
-    keywordBundle.atsInsights.metrics?.forEach(addKeyword);
-    keywordBundle.atsInsights.industry_terms?.forEach(addKeyword);
+  asArray<string>(extractedKeywordsPayload.general_keywords).forEach(addKeyword);
+  asArray<string>(extractedKeywordsPayload.technical_keywords).forEach(addKeyword);
+  for (const item of asArray<unknown>(keywordBundle.highFrequencyKeywords)) {
+    if (!isRecord(item)) continue;
+    const keyword = item.keyword;
+    if (typeof keyword === 'string') addKeyword(keyword);
+  }
+  const atsInsights = keywordBundle.atsInsights;
+  if (isRecord(atsInsights)) {
+    asArray<string>(atsInsights.action_verbs).forEach(addKeyword);
+    asArray<string>(atsInsights.metrics).forEach(addKeyword);
+    asArray<string>(atsInsights.industry_terms).forEach(addKeyword);
   }
 
   const totalKeywords = keywordSet.size;
@@ -64,17 +103,19 @@ function calculateLegacyATSScore(
     }
   };
 
-  appendText(resumeData.title);
-  appendText(resumeData.summary);
-  if (resumeData.sections && Array.isArray(resumeData.sections)) {
-    resumeData.sections.forEach((section: any) => {
-      appendText(section.title);
-      if (section.bullets && Array.isArray(section.bullets)) {
-        section.bullets
-          .filter((bullet: any) => bullet?.params?.visible !== false)
-          .forEach((bullet: any) => appendText(bullet?.text));
-      }
-    });
+  const resumeTitle1 = typeof resumeData.title === 'string' ? resumeData.title : '';
+  const resumeSummary1 = typeof resumeData.summary === 'string' ? resumeData.summary : '';
+  appendText(resumeTitle1);
+  appendText(resumeSummary1);
+
+  const sections = asArray<unknown>(resumeData.sections);
+  for (const section of sections) {
+    if (!isRecord(section)) continue;
+    const title = section.title;
+    if (typeof title === 'string') appendText(title);
+    for (const text of getVisibleBulletsText(section.bullets)) {
+      appendText(text);
+    }
   }
 
   const resumeText = resumeFragments.join(' ').replace(/\s+/g, ' ').trim();
@@ -86,14 +127,7 @@ function calculateLegacyATSScore(
   const missingKeywords: string[] = [];
 
   keywordSet.forEach((keyword) => {
-    const hasSpecialChars = /[\/\-_]/g.test(keyword);
-    let pattern: RegExp;
-    if (hasSpecialChars) {
-      pattern = new RegExp(escapeRegExp(keyword), 'i');
-    } else {
-      pattern = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i');
-    }
-    if (pattern.test(resumeText)) {
+    if (buildKeywordRegex(keyword).test(resumeText)) {
       matchedKeywords.push(keyword);
     } else {
       missingKeywords.push(keyword);
@@ -105,9 +139,10 @@ function calculateLegacyATSScore(
     : 0;
 
   let sectionScore = 0;
-  const sections = resumeData.sections || [];
+  const sectionsForChecks = sections;
   const requiredSections = ['experience', 'work', 'education', 'skills'];
-  const sectionTitles = sections.map((s: any) => s.title?.toLowerCase() || '');
+  const sectionTitles = sectionsForChecks
+    .map((s) => (isRecord(s) && typeof s.title === 'string' ? s.title.toLowerCase() : ''));
   
   let foundSections = 0;
   requiredSections.forEach((reqSection) => {
@@ -119,28 +154,35 @@ function calculateLegacyATSScore(
   sectionScore = (foundSections / requiredSections.length) * 100;
   
   let sectionQualityScore = 0;
-  if (sections.length > 0) {
-    const sectionsWithContent = sections.filter((s: any) => {
-      const bullets = s.bullets || [];
-      const visibleBullets = bullets.filter((b: any) => b?.params?.visible !== false);
-      return visibleBullets.length > 0;
-    }).length;
-    sectionQualityScore = (sectionsWithContent / sections.length) * 100;
+  if (sectionsForChecks.length > 0) {
+    let sectionsWithContent = 0;
+    for (const s of sectionsForChecks) {
+      if (!isRecord(s)) continue;
+      if (getVisibleBulletsText(s.bullets).length > 0) {
+        sectionsWithContent += 1;
+      }
+    }
+    sectionQualityScore = (sectionsWithContent / sectionsForChecks.length) * 100;
   }
   
   const combinedSectionScore = (sectionScore + sectionQualityScore) / 2;
 
   let contentQualityScore = 50;
   
-  if (resumeData.summary && resumeData.summary.trim().length > 50) {
+  const resumeSummary2 = typeof resumeData.summary === 'string' ? resumeData.summary : '';
+  const resumeEmail = typeof resumeData.email === 'string' ? resumeData.email : '';
+  const resumePhone = typeof resumeData.phone === 'string' ? resumeData.phone : '';
+  const resumeTitle2 = typeof resumeData.title === 'string' ? resumeData.title : '';
+  
+  if (resumeSummary2 && resumeSummary2.trim().length > 50) {
     contentQualityScore += 10;
   }
   
-  if (resumeData.email || resumeData.phone) {
+  if (resumeEmail || resumePhone) {
     contentQualityScore += 5;
   }
   
-  if (resumeData.title && resumeData.title.trim().length > 0) {
+  if (resumeTitle2 && resumeTitle2.trim().length > 0) {
     contentQualityScore += 5;
   }
   
@@ -195,69 +237,102 @@ function calculateLegacyATSScore(
   };
 }
 
-function convertExtensionDataToEnhancedFormat(extractedKeywords: any): ExtensionKeywordData | undefined {
-  if (!extractedKeywords) return undefined;
+function convertExtensionDataToEnhancedFormat(extractedKeywords: unknown): ExtensionKeywordData | undefined {
+  if (!isRecord(extractedKeywords)) return undefined;
 
-  const convertArray = (arr: any[]): Array<{ keyword: string; weight: number; isRequired?: boolean }> => {
-    if (!Array.isArray(arr)) return [];
-    return arr.map((item: any) => {
-      if (typeof item === 'string') {
-        return { keyword: item, weight: 5 };
-      }
-      if (item.keyword) {
-        return {
-          keyword: item.keyword,
-          weight: item.weight || item.frequency || 5,
-          isRequired: item.isRequired || item.importance === 'high',
-        };
+  const convertArray = (arr: unknown): KeywordWithWeight[] => {
+    const items = asArray<unknown>(arr);
+    return items.map((item): KeywordWithWeight => {
+      if (typeof item === 'string') return { keyword: item, weight: 5 };
+      if (isRecord(item) && typeof item.keyword === 'string') {
+        const weight =
+          typeof item.weight === 'number'
+            ? item.weight
+            : typeof item.frequency === 'number'
+              ? item.frequency
+              : 5;
+        const isRequired =
+          typeof item.isRequired === 'boolean'
+            ? item.isRequired
+            : item.importance === 'high';
+        return { keyword: item.keyword, weight, isRequired };
       }
       return { keyword: String(item), weight: 5 };
     });
   };
 
-  const technicalKeywords = convertArray(extractedKeywords.technical_keywords || []);
-  const matchingKeywords = convertArray(extractedKeywords.matching_keywords || []);
-  const missingKeywords = convertArray(extractedKeywords.missing_keywords || []);
+  const technicalKeywords = convertArray(extractedKeywords.technical_keywords);
+  const matchingKeywords = convertArray(extractedKeywords.matching_keywords);
+  const missingKeywords = convertArray(extractedKeywords.missing_keywords);
 
-  const highFrequencyKeywords = Array.isArray(extractedKeywords.high_frequency_keywords)
-    ? extractedKeywords.high_frequency_keywords.map((item: any) => {
-        const keyword = typeof item === 'string' ? item : item.keyword;
-        const frequency = typeof item === 'object' ? (item.frequency || 1) : 1;
-        const importance = typeof item === 'object' ? (item.importance || 'medium') : 'medium';
-        let weight = typeof item === 'object' ? (item.weight || 5) : 5;
-        
-        if (frequency) {
-          weight = Math.min(10, Math.max(1, Math.round(frequency / 10)));
-        }
-        if (importance === 'high') {
-          weight = Math.max(weight, 8);
-        }
-        
-        return { keyword, frequency, importance, weight };
-      })
-    : [];
+  const highFrequencyKeywords = asArray<unknown>(extractedKeywords.high_frequency_keywords)
+    .map((item) => {
+      const keyword =
+        typeof item === 'string'
+          ? item
+          : isRecord(item) && typeof item.keyword === 'string'
+            ? item.keyword
+            : null;
+      if (!keyword) return null;
+
+      const frequency =
+        isRecord(item) && typeof item.frequency === 'number' ? item.frequency : 1;
+      const importanceRaw =
+        isRecord(item) && typeof item.importance === 'string' ? item.importance : 'medium';
+      const importance: 'high' | 'medium' | 'low' =
+        importanceRaw === 'high' || importanceRaw === 'low' ? importanceRaw : 'medium';
+      let weight =
+        isRecord(item) && typeof item.weight === 'number' ? item.weight : 5;
+
+      if (frequency) {
+        weight = Math.min(10, Math.max(1, Math.round(frequency / 10)));
+      }
+      if (importance === 'high') {
+        weight = Math.max(weight, 8);
+      }
+
+      return { keyword, frequency, importance, weight };
+    })
+    .filter((v): v is { keyword: string; frequency: number; importance: 'high' | 'medium' | 'low'; weight: number } => v !== null);
 
   return {
     technicalKeywords: technicalKeywords.length > 0 ? technicalKeywords : undefined,
     matchingKeywords: matchingKeywords.length > 0 ? matchingKeywords : undefined,
     missingKeywords: missingKeywords.length > 0 ? missingKeywords : undefined,
-    highFrequencyKeywords: highFrequencyKeywords.length > 0 ? highFrequencyKeywords : undefined,
+    highFrequencyKeywords:
+      highFrequencyKeywords.length > 0
+        ? highFrequencyKeywords
+        : undefined,
   };
 }
 
 type ATSScoreResult = LegacyATSScoreResult | (LegacyATSScoreResult & {
-  breakdown: any;
+  breakdown: unknown;
   recommendations: string[];
   matchLevel: string;
 });
 
+const isResumeData = (value: unknown): value is ResumeData => {
+  if (!isRecord(value)) return false;
+  return (
+    (typeof value.name === 'string' || value.name === undefined) &&
+    (typeof value.title === 'string' || value.title === undefined) &&
+    (typeof value.email === 'string' || value.email === undefined) &&
+    (typeof value.phone === 'string' || value.phone === undefined) &&
+    (typeof value.location === 'string' || value.location === undefined) &&
+    (typeof value.summary === 'string' || value.summary === undefined) &&
+    (Array.isArray(value.sections) || value.sections === undefined)
+  );
+};
+
 function calculateATSScore(
-  resumeData: any,
+  resumeData: unknown,
   jobDescription: string,
-  keywordBundle: any,
+  keywordBundle: unknown,
   extensionData?: ExtensionKeywordData
 ): ATSScoreResult | null {
   if (USE_ENHANCED_ATS_SCORING) {
+    if (!isResumeData(resumeData)) return null;
     const enhancedResult = calculateEnhancedATSScore(resumeData, jobDescription, extensionData);
     
     const legacyResult = calculateLegacyATSScore(resumeData, jobDescription, keywordBundle);
@@ -326,7 +401,7 @@ interface JobMatchResult {
       quality_weight?: number;
     };
   };
-  rule_engine?: any;
+  rule_engine?: unknown;
   rule_adjustments?: {
     total_adjustment?: number;
     base_score?: number;
@@ -993,19 +1068,20 @@ const getMissingKeywordsInBullet = (bulletText: string, missingKeywords: string[
 const mergeMetadata = (base: JobMetadata | null, updates: JobMetadata | null): JobMetadata | null => {
   if (!updates) return base;
   const merged: JobMetadata = { ...(base || {}) };
+  const mergedRecord = merged as unknown as Record<string, unknown>;
   (Object.keys(updates) as (keyof JobMetadata)[]).forEach((key) => {
     const updateValue = updates[key];
     if (Array.isArray(updateValue)) {
       if (updateValue.length > 0) {
-        (merged as any)[key] = updateValue;
+        mergedRecord[key as string] = updateValue;
       }
     } else if (updateValue && typeof updateValue === 'object') {
-      (merged as any)[key] = {
-        ...(merged as any)[key],
+      mergedRecord[key as string] = {
+        ...(mergedRecord[key as string] as UnknownRecord | undefined),
         ...updateValue,
       };
     } else if (updateValue !== undefined && updateValue !== null && updateValue !== '') {
-      (merged as any)[key] = updateValue;
+      mergedRecord[key as string] = updateValue;
     }
   });
   return merged;
@@ -1357,53 +1433,82 @@ const extractKeyPhrases = (text: string): string[] => {
 };
 
 // Transform saved keywords from extension format to Match JD display format
-const transformSavedKeywords = (savedKeywords: any) => {
-  if (!savedKeywords) return null;
+type SavedKeywordItem = string | { keyword?: unknown; frequency?: unknown; importance?: unknown };
+type SavedKeywordsDisplay = {
+  success: true;
+  technical_keywords: unknown[];
+  general_keywords: unknown[];
+  soft_skills: unknown[];
+  priority_keywords: unknown[];
+  total_keywords: number;
+  high_intensity_keywords?: Array<{ keyword: string; frequency: number; importance: string }>;
+  high_priority_keywords?: string[];
+};
+
+const getKeywordString = (value: unknown): string | null => {
+  if (typeof value === 'string') return value;
+  if (isRecord(value) && typeof value.keyword === 'string') return value.keyword;
+  return null;
+};
+
+const getPriorityKeywordsFromMatchResult = (value: unknown): unknown[] => {
+  if (!isRecord(value)) return [];
+  return asArray<unknown>(value.priority_keywords);
+};
+
+const transformSavedKeywords = (savedKeywords: unknown): SavedKeywordsDisplay | UnknownRecord | null => {
+  if (!isRecord(savedKeywords)) return null;
   
   // If already in the expected format (has high_intensity_keywords), return as-is
-  if (savedKeywords.high_intensity_keywords || savedKeywords.success) {
+  if ('high_intensity_keywords' in savedKeywords || savedKeywords.success) {
     return savedKeywords;
   }
   
   // Transform from extension format
-  const transformed: any = {
+  const transformed: SavedKeywordsDisplay = {
     success: true,
-    technical_keywords: savedKeywords.technical_keywords || [],
-    general_keywords: savedKeywords.general_keywords || [],
-    soft_skills: savedKeywords.soft_skills || [],
-    priority_keywords: savedKeywords.priority_keywords || [],
-    total_keywords: savedKeywords.total_keywords || 0,
+    technical_keywords: asArray(savedKeywords.technical_keywords),
+    general_keywords: asArray(savedKeywords.general_keywords),
+    soft_skills: asArray(savedKeywords.soft_skills),
+    priority_keywords: asArray(savedKeywords.priority_keywords),
+    total_keywords: typeof savedKeywords.total_keywords === 'number' ? savedKeywords.total_keywords : 0,
   };
   
   // Transform high_frequency_keywords to high_intensity_keywords format
-  if (savedKeywords.high_frequency_keywords && Array.isArray(savedKeywords.high_frequency_keywords)) {
-    transformed.high_intensity_keywords = savedKeywords.high_frequency_keywords.map((kw: any) => {
-      if (typeof kw === 'string') {
-        return { keyword: kw, frequency: 1, importance: 'medium' };
-      }
-      if (typeof kw === 'object' && kw.keyword) {
-        return {
-          keyword: kw.keyword,
-          frequency: kw.frequency || 1,
-          importance: kw.importance || 'medium'
-        };
-      }
-      return null;
-    }).filter(Boolean);
+  const highFrequency = asArray<SavedKeywordItem>(savedKeywords.high_frequency_keywords);
+  if (highFrequency.length > 0) {
+    transformed.high_intensity_keywords = highFrequency
+      .map((kw) => {
+        const keyword = getKeywordString(kw);
+        if (!keyword) return null;
+        const frequency = isRecord(kw) && typeof kw.frequency === 'number' ? kw.frequency : 1;
+        const importance = isRecord(kw) && typeof kw.importance === 'string' ? kw.importance : 'medium';
+        return { keyword, frequency, importance };
+      })
+      .filter((v): v is { keyword: string; frequency: number; importance: string } => v !== null);
     
     // Also create high_priority_keywords from priority_keywords and technical_keywords
     const highPriority = new Set<string>();
-    (savedKeywords.priority_keywords || []).forEach((kw: string) => highPriority.add(kw.toLowerCase()));
-    (savedKeywords.technical_keywords || []).forEach((kw: string) => highPriority.add(kw.toLowerCase()));
+    for (const kw of asArray<unknown>(savedKeywords.priority_keywords)) {
+      const k = getKeywordString(kw);
+      if (k) highPriority.add(k.toLowerCase());
+    }
+    for (const kw of asArray<unknown>(savedKeywords.technical_keywords)) {
+      const k = getKeywordString(kw);
+      if (k) highPriority.add(k.toLowerCase());
+    }
     transformed.high_priority_keywords = Array.from(highPriority);
   } else {
     // Fallback: create high_intensity_keywords from priority_keywords
-    transformed.high_intensity_keywords = (savedKeywords.priority_keywords || []).map((kw: string, idx: number) => ({
+    const priority = asArray<unknown>(savedKeywords.priority_keywords)
+      .map(getKeywordString)
+      .filter((v): v is string => !!v);
+    transformed.high_intensity_keywords = priority.map((kw, idx) => ({
       keyword: kw,
-      frequency: (savedKeywords.priority_keywords || []).length - idx,
-      importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low'
+      frequency: priority.length - idx,
+      importance: idx < 5 ? 'high' : idx < 10 ? 'medium' : 'low',
     }));
-    transformed.high_priority_keywords = savedKeywords.priority_keywords || [];
+    transformed.high_priority_keywords = priority;
   }
   
   return transformed;
@@ -1411,56 +1516,46 @@ const transformSavedKeywords = (savedKeywords: any) => {
 
 
 // Extract all keywords from saved extracted_keywords (from extension)
-const extractAllSavedKeywords = (savedKeywords: any): string[] => {
-  if (!savedKeywords) return [];
+const extractAllSavedKeywords = (savedKeywords: unknown): string[] => {
+  if (!isRecord(savedKeywords)) return [];
   
   const allKeywords = new Set<string>();
   
   // Extract from technical_keywords
-  if (Array.isArray(savedKeywords.technical_keywords)) {
-    savedKeywords.technical_keywords.forEach((kw: any) => {
-      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
-      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
-    });
-  }
+  asArray<unknown>(savedKeywords.technical_keywords).forEach((kw) => {
+    const k = getKeywordString(kw);
+    if (k) allKeywords.add(k.toLowerCase());
+  });
   
   // Extract from general_keywords
-  if (Array.isArray(savedKeywords.general_keywords)) {
-    savedKeywords.general_keywords.forEach((kw: any) => {
-      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
-      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
-    });
-  }
+  asArray<unknown>(savedKeywords.general_keywords).forEach((kw) => {
+    const k = getKeywordString(kw);
+    if (k) allKeywords.add(k.toLowerCase());
+  });
   
   // Extract from priority_keywords
-  if (Array.isArray(savedKeywords.priority_keywords)) {
-    savedKeywords.priority_keywords.forEach((kw: any) => {
-      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
-      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
-    });
-  }
+  asArray<unknown>(savedKeywords.priority_keywords).forEach((kw) => {
+    const k = getKeywordString(kw);
+    if (k) allKeywords.add(k.toLowerCase());
+  });
   
   // Extract from high_frequency_keywords
-  if (Array.isArray(savedKeywords.high_frequency_keywords)) {
-    savedKeywords.high_frequency_keywords.forEach((kw: any) => {
-      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
-      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
-    });
-  }
+  asArray<unknown>(savedKeywords.high_frequency_keywords).forEach((kw) => {
+    const k = getKeywordString(kw);
+    if (k) allKeywords.add(k.toLowerCase());
+  });
   
   // Extract from soft_skills
-  if (Array.isArray(savedKeywords.soft_skills)) {
-    savedKeywords.soft_skills.forEach((kw: any) => {
-      if (typeof kw === 'string') allKeywords.add(kw.toLowerCase());
-      else if (kw?.keyword) allKeywords.add(kw.keyword.toLowerCase());
-    });
-  }
+  asArray<unknown>(savedKeywords.soft_skills).forEach((kw) => {
+    const k = getKeywordString(kw);
+    if (k) allKeywords.add(k.toLowerCase());
+  });
   
   return Array.from(allKeywords);
 };
 
 // Check which saved keywords are in the resume text
-const findMissingKeywordsFromSaved = (savedKeywords: any, resumeText: string): { matched: string[], missing: string[] } => {
+const findMissingKeywordsFromSaved = (savedKeywords: unknown, resumeText: string): { matched: string[], missing: string[] } => {
   const allSavedKeywords = extractAllSavedKeywords(savedKeywords);
   if (allSavedKeywords.length === 0) {
     return { matched: [], missing: [] };
@@ -1495,11 +1590,12 @@ const findMissingKeywordsFromSaved = (savedKeywords: any, resumeText: string): {
 };
 
 // Transform EnhancedATSChecker response to JobMatchResult format
-const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: string, savedKeywords?: any, resumeText?: string): JobMatchResult => {
+const transformEnhancedATSResponse = (enhancedATSResult: unknown, jobDescription: string, savedKeywords?: unknown, resumeText?: string): JobMatchResult => {
   // Extract TF-IDF analysis from the response
   // The structure depends on whether industry_standard method was used
-  const details = enhancedATSResult.details || {};
-  const tfidfAnalysis = details.tfidf_analysis || {};
+  const details = isRecord(enhancedATSResult) && isRecord(enhancedATSResult.details) ? enhancedATSResult.details : {};
+  const tfidfAnalysisRaw = isRecord(details.tfidf_analysis) ? details.tfidf_analysis : {};
+  const tfidfAnalysis: UnknownRecord = tfidfAnalysisRaw;
   
   // If we have saved keywords from extension, use them directly instead of TF-IDF results
   let matchingKeywords: string[] = [];
@@ -1517,23 +1613,25 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
     const missingKeywordsWithWeights = savedKeywordMatch.missing
       .map((kw: string) => {
         // Find this keyword in TF-IDF analysis to get its weight
-        const tfidfKw = tfidfAnalysis.missing_keywords?.find((mk: any) => {
-          const mkStr = typeof mk === 'string' ? mk : mk.keyword;
+        const tfidfKw = asArray<unknown>(tfidfAnalysis.missing_keywords).find((mk) => {
+          const mkStr = typeof mk === 'string' ? mk : isRecord(mk) && typeof mk.keyword === 'string' ? mk.keyword : null;
           return mkStr?.toLowerCase() === kw.toLowerCase();
         });
-        const weight = typeof tfidfKw === 'object' && tfidfKw?.weight ? tfidfKw.weight : 0;
+        const weight = isRecord(tfidfKw) && typeof tfidfKw.weight === 'number' ? tfidfKw.weight : 0;
         return { keyword: kw, weight };
       })
-      .filter((kw: any) => kw.weight > 0.01) // Only keywords that will meaningfully impact score
-      .sort((a: any, b: any) => b.weight - a.weight) // Sort by weight (most impactful first)
+      .filter((kw) => kw.weight > 0.01) // Only keywords that will meaningfully impact score
+      .sort((a, b) => b.weight - a.weight) // Sort by weight (most impactful first)
       .slice(0, 40) // Limit to top 40 most impactful
-      .map((kw: any) => kw.keyword);
+      .map((kw) => kw.keyword);
     
     missingKeywords = missingKeywordsWithWeights;
     
     // Identify technical keywords from saved set
-    const savedTechnicalKeywords = Array.isArray(savedKeywords.technical_keywords) 
-      ? savedKeywords.technical_keywords.map((kw: any) => typeof kw === 'string' ? kw.toLowerCase() : kw?.keyword?.toLowerCase()).filter(Boolean)
+    const savedTechnicalKeywords = isRecord(savedKeywords)
+      ? asArray<unknown>(savedKeywords.technical_keywords)
+          .map((kw) => getKeywordString(kw)?.toLowerCase())
+          .filter((v): v is string => !!v)
       : [];
     
     matchingKeywords.forEach((kw) => {
@@ -1549,19 +1647,25 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
     });
   } else {
     // Fallback to TF-IDF results if no saved keywords
-    const matchingKeywordsRaw = tfidfAnalysis.matching_keywords || [];
-    const missingKeywordsRaw = tfidfAnalysis.missing_keywords || [];
+    const matchingKeywordsRaw = asArray<unknown>(tfidfAnalysis.matching_keywords);
+    const missingKeywordsRaw = asArray<unknown>(tfidfAnalysis.missing_keywords);
     
     // Convert to string arrays - handle both object and string formats
-    matchingKeywords = matchingKeywordsRaw.map((kw: any) => {
-      if (typeof kw === 'string') return kw;
-      return kw.keyword || (typeof kw === 'object' ? JSON.stringify(kw) : String(kw));
-    }).filter((kw: string) => kw && kw.trim().length > 0);
+    matchingKeywords = matchingKeywordsRaw
+      .map((kw) => {
+        if (typeof kw === 'string') return kw;
+        if (isRecord(kw) && typeof kw.keyword === 'string') return kw.keyword;
+        return typeof kw === 'object' ? JSON.stringify(kw) : String(kw);
+      })
+      .filter((kw): kw is string => !!kw && kw.trim().length > 0);
     
-    missingKeywords = missingKeywordsRaw.map((kw: any) => {
-      if (typeof kw === 'string') return kw;
-      return kw.keyword || (typeof kw === 'object' ? JSON.stringify(kw) : String(kw));
-    }).filter((kw: string) => kw && kw.trim().length > 0);
+    missingKeywords = missingKeywordsRaw
+      .map((kw) => {
+        if (typeof kw === 'string') return kw;
+        if (isRecord(kw) && typeof kw.keyword === 'string') return kw.keyword;
+        return typeof kw === 'object' ? JSON.stringify(kw) : String(kw);
+      })
+      .filter((kw): kw is string => !!kw && kw.trim().length > 0);
     
     // Extract technical keywords using a heuristic
     const technicalKeywords = ['python', 'java', 'javascript', 'react', 'aws', 'docker', 'kubernetes', 
@@ -1587,7 +1691,10 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
   }
   
   // Get the overall score - use API score directly (single source of truth)
-  const overallScore = enhancedATSResult.score || 0;
+  const overallScore =
+    isRecord(enhancedATSResult) && typeof enhancedATSResult.score === 'number'
+      ? enhancedATSResult.score
+      : 0;
   
   // Calculate technical score (percentage of technical keywords matched)
   const totalTechnical = technicalMatches.length + technicalMissing.length;
@@ -1597,9 +1704,12 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
   
   // Calculate total job keywords
   // If using saved keywords, use the count from saved set; otherwise use TF-IDF count
+  const tfidfTotal = isRecord(tfidfAnalysis) && typeof tfidfAnalysis.total_job_keywords === 'number'
+    ? tfidfAnalysis.total_job_keywords
+    : null;
   const totalJobKeywords = savedKeywords 
     ? (matchingKeywords.length + missingKeywords.length)
-    : (tfidfAnalysis.total_job_keywords || (matchingKeywords.length + missingKeywords.length) || 0);
+    : (tfidfTotal ?? ((matchingKeywords.length + missingKeywords.length) || 0));
   
   // Don't show TF-IDF suggestions when using saved keywords from extension
   // Only use extension keywords for consistency
@@ -1607,17 +1717,22 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
   // Only show TF-IDF suggestions if we don't have saved keywords (fallback mode)
   if (!savedKeywords && tfidfAnalysis.missing_keywords) {
     // Extract TF-IDF missing keywords with significant weight (will impact score)
-    const tfidfMissingRaw = tfidfAnalysis.missing_keywords || [];
+    const tfidfMissingRaw = asArray<unknown>(tfidfAnalysis.missing_keywords);
     const tfidfMissing = tfidfMissingRaw
-      .map((kw: any) => {
+      .map((kw) => {
         if (typeof kw === 'string') return { keyword: kw.toLowerCase(), weight: 0.01 };
-        return { keyword: (kw.keyword || String(kw)).toLowerCase(), weight: kw.weight || 0.01 };
+        if (isRecord(kw)) {
+          const keyword = typeof kw.keyword === 'string' ? kw.keyword : String(kw);
+          const weight = typeof kw.weight === 'number' ? kw.weight : 0.01;
+          return { keyword: keyword.toLowerCase(), weight };
+        }
+        return { keyword: String(kw).toLowerCase(), weight: 0.01 };
       })
-      .filter((kw: any) => kw.keyword && kw.keyword.trim().length > 0)
-      .filter((kw: any) => kw.weight > 0.01) // Only keywords that will impact score
-      .sort((a: any, b: any) => b.weight - a.weight) // Sort by weight
-      .slice(0, 15) // Limit to top 15
-      .map((kw: any) => kw.keyword);
+      .filter((kw) => kw.keyword && kw.keyword.trim().length > 0)
+      .filter((kw) => kw.weight > 0.01)
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 15)
+      .map((kw) => kw.keyword);
     
     tfidfSuggestions = tfidfMissing;
   }
@@ -1636,20 +1751,28 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
   };
   
   // Extract score breakdown if available
-  const scoreBreakdown = details.score_breakdown || {};
-  const ruleEngine = enhancedATSResult.rule_engine;
-  const ruleAdjustments = enhancedATSResult.rule_adjustments;
+  const scoreBreakdown = isRecord(details.score_breakdown) ? details.score_breakdown : {};
+  const ruleEngine = isRecord(enhancedATSResult) ? enhancedATSResult.rule_engine : undefined;
+  const ruleAdjustments = isRecord(enhancedATSResult) ? enhancedATSResult.rule_adjustments : undefined;
+  const success = isRecord(enhancedATSResult) && enhancedATSResult.success !== false;
+  const aiImprovements = isRecord(enhancedATSResult) ? enhancedATSResult.ai_improvements : undefined;
 
   return {
-    success: enhancedATSResult.success !== false,
+    success,
     match_analysis,
     keyword_suggestions: {
       tfidf_suggestions: tfidfSuggestions, // Additional TF-IDF keywords similar to JD
     },
-    improvement_suggestions: enhancedATSResult.ai_improvements?.map((imp: any) => ({
-      category: imp.category || 'General',
-      suggestion: imp.specific_suggestion || imp.description || imp.title || ''
-    })) || [],
+    improvement_suggestions: asArray<unknown>(aiImprovements).map((imp) => {
+      if (!isRecord(imp)) return { category: 'General', suggestion: '' };
+      return {
+        category: typeof imp.category === 'string' ? imp.category : 'General',
+        suggestion: typeof imp.specific_suggestion === 'string' ? imp.specific_suggestion
+          : typeof imp.description === 'string' ? imp.description
+          : typeof imp.title === 'string' ? imp.title
+          : ''
+      };
+    }),
     analysis_summary: {
       overall_match: overallScore >= 80 ? 'Excellent' : 
                     overallScore >= 60 ? 'Good' : 
@@ -1659,7 +1782,7 @@ const transformEnhancedATSResponse = (enhancedATSResult: any, jobDescription: st
     },
     score_breakdown: scoreBreakdown,
     rule_engine: ruleEngine,
-    rule_adjustments: ruleAdjustments,
+    rule_adjustments: isRecord(ruleAdjustments) ? ruleAdjustments as { total_adjustment?: number; base_score?: number; final_score?: number } : undefined,
   };
 };
 
@@ -1729,7 +1852,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [selectedJobMetadata, setSelectedJobMetadata] = useState<JobMetadata | null>(null);
   const [currentJDInfo, setCurrentJDInfo] = useState<{ company?: string, title?: string, easy_apply_url?: string, url?: string } | null>(null);
-  const [extractedKeywords, setExtractedKeywords] = useState<any>(null);
+  const [extractedKeywords, setExtractedKeywords] = useState<unknown>(null);
   const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
   const [keywordComparison, setKeywordComparison] = useState<{matched: string[], missing: string[]} | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -1840,11 +1963,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
     // Skip extraction if we already have saved keywords from extension
     // Check for both extension format (technical_keywords array) and API format (various fields)
-    const hasSavedKeywords = extractedKeywords && (
-      (extractedKeywords.technical_keywords && extractedKeywords.technical_keywords.length > 0) ||
-      (extractedKeywords.general_keywords && extractedKeywords.general_keywords.length > 0) ||
-      (extractedKeywords.priority_keywords && extractedKeywords.priority_keywords.length > 0) ||
-      (extractedKeywords.high_frequency_keywords && extractedKeywords.high_frequency_keywords.length > 0)
+    const hasSavedKeywords = isRecord(extractedKeywords) && (
+      (asArray<unknown>(extractedKeywords.technical_keywords).length > 0) ||
+      (asArray<unknown>(extractedKeywords.general_keywords).length > 0) ||
+      (asArray<unknown>(extractedKeywords.priority_keywords).length > 0) ||
+      (asArray<unknown>(extractedKeywords.high_frequency_keywords).length > 0)
     );
     if (hasSavedKeywords) {
       console.log('Using saved keywords from extension, skipping re-extraction');
@@ -1992,7 +2115,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
           matching: normalized?.match_analysis?.matching_keywords || [],
           missing: normalized?.match_analysis?.missing_keywords || [],
           high_frequency: selectedJobMetadata?.high_frequency_keywords || [],
-          priority: (normalized as any)?.priority_keywords || []
+          priority: getPriorityKeywordsFromMatchResult(normalized)
         };
         localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
         
@@ -2061,10 +2184,10 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     (matchResult?.match_analysis?.technical_missing || []).forEach((kw) => register(kw, 'ats'));
     
     // extractedKeywords should be validated against JD text to prevent cross-user contamination
-    if (Array.isArray(extractedKeywords?.technical_keywords)) {
-      extractedKeywords.technical_keywords.forEach((kw: any) => {
-        const keyword = typeof kw === 'string' ? kw : kw?.keyword;
-        if (keyword && typeof keyword === 'string') {
+    if (isRecord(extractedKeywords)) {
+      asArray<unknown>(extractedKeywords.technical_keywords).forEach((kw) => {
+        const keyword = typeof kw === 'string' ? kw : isRecord(kw) && typeof kw.keyword === 'string' ? kw.keyword : null;
+        if (keyword) {
           register(keyword, 'jd', true); // Validate in JD
         }
       });
@@ -2527,12 +2650,12 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
     
     // Get all potential keywords from JD
     const allPotentialKeywords = new Set<string>();
-    const technical = extractedKeywords.technical_keywords || [];
-    const highFreq = extractedKeywords.high_frequency_keywords || [];
-    const priority = extractedKeywords.priority_keywords || [];
+    const technical = isRecord(extractedKeywords) ? asArray<unknown>(extractedKeywords.technical_keywords) : [];
+    const highFreq = isRecord(extractedKeywords) ? asArray<unknown>(extractedKeywords.high_frequency_keywords) : [];
+    const priority = isRecord(extractedKeywords) ? asArray<unknown>(extractedKeywords.priority_keywords) : [];
     
-    technical.forEach((kw: any) => {
-      const keyword = typeof kw === 'string' ? kw : (kw?.keyword || kw);
+    technical.forEach((kw) => {
+      const keyword = typeof kw === 'string' ? kw : (isRecord(kw) && typeof kw.keyword === 'string' ? kw.keyword : String(kw));
       if (keyword) allPotentialKeywords.add(keyword.toLowerCase());
     });
     highFreq.forEach((item: any) => {
@@ -2873,7 +2996,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
               matching: normalizedMatchData?.match_analysis?.matching_keywords || [],
               missing: normalizedMatchData?.match_analysis?.missing_keywords || [],
               high_frequency: selectedJobMetadata?.high_frequency_keywords || [],
-              priority: (normalizedMatchData as any)?.priority_keywords || []
+              priority: getPriorityKeywordsFromMatchResult(normalizedMatchData)
             };
             localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
             localStorage.setItem('currentJDText', jobDescription);
@@ -3014,12 +3137,17 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [generatedBullets, setGeneratedBullets] = useState<string[]>([]);
   const [generatedKeywords, setGeneratedKeywords] = useState<string[]>([]); // Store keywords used to generate bullets
   const [showWorkExpSelector, setShowWorkExpSelector] = useState(false);
+  const [accordionExpanded, setAccordionExpanded] = useState({
+    criticalMissing: true,
+    found: true,
+    bonus: false
+  });
   const [workExpEntries, setWorkExpEntries] = useState<Array<{ sectionId: string, bulletId: string, companyName: string, jobTitle: string, dateRange: string, sectionTitle: string, sectionType: 'work' | 'project' }>>([]);
   const [selectedBulletIndices, setSelectedBulletIndices] = useState<Set<number>>(new Set<number>());
   const [bulletAssignments, setBulletAssignments] = useState<Map<number, string>>(new Map<number, string>());
   const [showSaveNameModal, setShowSaveNameModal] = useState(false);
   const [resumeSaveName, setResumeSaveName] = useState('');
-  const [updatedResumeData, setUpdatedResumeData] = useState<any>(null);
+  const [updatedResumeData, setUpdatedResumeData] = useState<unknown>(null);
   const [manualKeywordInput, setManualKeywordInput] = useState('');
   
   // New state for redesigned UI
@@ -4306,7 +4434,7 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
             matching: normalizedResult?.match_analysis?.matching_keywords || [],
             missing: normalizedResult?.match_analysis?.missing_keywords || [],
             high_frequency: selectedJobMetadata?.high_frequency_keywords || [],
-            priority: (normalizedResult as any)?.priority_keywords || []
+            priority: getPriorityKeywordsFromMatchResult(normalizedResult)
           };
           localStorage.setItem('currentJDKeywords', JSON.stringify(jdKeywords));
           localStorage.setItem('currentJDText', jobDescription);
@@ -4742,8 +4870,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               </div>
 
-              {/* Keywords Content - Combined Missing and Matched */}
-              <div className="space-y-4">
+              {/* Keywords Content - Accordion Sections */}
+              <div className="space-y-3">
                 {(() => {
                   const companyName = currentJDInfo?.company || selectedJobMetadata?.company || null;
                   const filteredMissing = filterIrrelevantKeywords(matchResult.match_analysis.missing_keywords, companyName);
@@ -4759,7 +4887,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     })
                     .slice(0, 30);
                   
-                  if (visibleMissing.length === 0 && visibleMatched.length === 0) {
+                  const bonusKeywords = (matchResult.keyword_suggestions?.tfidf_suggestions || []).slice(0, 20);
+                  
+                  if (visibleMissing.length === 0 && visibleMatched.length === 0 && bonusKeywords.length === 0) {
                     return (
                       <div className="text-center py-8 text-gray-500 text-sm">
                         {keywordSearchFilter ? 'No keywords match your search' : 'No keywords available'}
@@ -4769,187 +4899,136 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
                   const technicalKeywordsList = technicalKeywordOptions.map(opt => opt.keyword);
                   const categorized = categorizeKeywords(visibleMissing, jobDescription, technicalKeywordsList);
+                  const criticalMissing = categorized.highImpact;
+                  
+                  const renderKeywordChip = (keyword: string, isSelected: boolean, color: 'red' | 'green' | 'purple', index: number, jdCount: number) => {
+                    const usageCount = keywordUsageCounts.get(keyword) || 0;
+                    const colorClasses = {
+                      red: isSelected ? 'bg-red-600 text-white shadow-md scale-105' : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-sm',
+                      green: isSelected ? 'bg-green-600 text-white shadow-md scale-105' : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:shadow-sm',
+                      purple: isSelected ? 'bg-purple-600 text-white shadow-md scale-105' : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 hover:shadow-sm'
+                    };
+                    
+                    return (
+                      <Tooltip
+                        key={`keyword-${color}-${index}`}
+                        text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
+                        color={color === 'red' ? 'red' : color === 'green' ? 'green' : 'purple'}
+                        position="top"
+                      >
+                        <button
+                          data-keyword-chip
+                          onClick={() => {
+                            const newSelected = new Set(selectedKeywords);
+                            if (isSelected) {
+                              newSelected.delete(keyword);
+                            } else {
+                              newSelected.add(keyword);
+                            }
+                            setSelectedKeywords(newSelected);
+                          }}
+                          className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${colorClasses[color]}`}
+                        >
+                          {keyword}
+                          {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
+                        </button>
+                      </Tooltip>
+                    );
+                  };
                   
                   return (
-                    <div className="space-y-4">
-                      {/* Missing Keywords */}
-                      {visibleMissing.length > 0 && (
-                        <div>
-                          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <span className="w-1 h-4 bg-red-500 rounded"></span>
-                            Missing Keywords ({visibleMissing.length})
-                          </div>
-                          <div className="space-y-3">
-                            {categorized.highImpact.length > 0 && (
-                              <div>
-                                <div className="text-xs font-medium text-gray-600 mb-1.5">High Impact ({categorized.highImpact.length})</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {categorized.highImpact.map((keyword, index) => {
-                                    const usageCount = keywordUsageCounts.get(keyword) || 0;
-                                    const jdCount = countKeywordInJD(keyword, jobDescription);
-                                    const isSelected = selectedKeywords.has(keyword);
-                                    return (
-                                      <Tooltip
-                                        key={`missing-high-${index}`}
-                                        text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
-                                        color="blue"
-                                        position="top"
-                                      >
-                                        <button
-                                          data-keyword-chip
-                                          onClick={() => {
-                                            const newSelected = new Set(selectedKeywords);
-                                            if (isSelected) {
-                                              newSelected.delete(keyword);
-                                            } else {
-                                              newSelected.add(keyword);
-                                            }
-                                            setSelectedKeywords(newSelected);
-                                          }}
-                                          className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${
-                                            isSelected
-                                              ? 'bg-red-600 text-white shadow-md scale-105'
-                                              : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-sm'
-                                          }`}
-                                        >
-                                          {keyword}
-                                          {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
-                                        </button>
-                                      </Tooltip>
-                                    );
-                                  })}
-                                </div>
-                              </div>
+                    <div className="space-y-2">
+                      {/* Critical Missing - Accordion */}
+                      {criticalMissing.length > 0 && (
+                        <div className="border border-red-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setAccordionExpanded({ ...accordionExpanded, criticalMissing: !accordionExpanded.criticalMissing })}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-red-50 hover:bg-red-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <XCircle className="w-4 h-4 text-red-600" />
+                              <span className="text-sm font-semibold text-red-900">Critical Missing</span>
+                              <span className="text-xs text-red-600 bg-red-200 px-2 py-0.5 rounded-full">{criticalMissing.length}</span>
+                            </div>
+                            {accordionExpanded.criticalMissing ? (
+                              <ChevronUp className="w-4 h-4 text-red-600" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-red-600" />
                             )}
-                            {categorized.skillsTools.length > 0 && (
-                              <div>
-                                <div className="text-xs font-medium text-gray-600 mb-1.5">Skills & Tools ({categorized.skillsTools.length})</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {categorized.skillsTools.map((keyword, index) => {
-                                    const usageCount = keywordUsageCounts.get(keyword) || 0;
-                                    const jdCount = countKeywordInJD(keyword, jobDescription);
-                                    const isSelected = selectedKeywords.has(keyword);
-                                    return (
-                                      <Tooltip
-                                        key={`missing-skills-${index}`}
-                                        text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
-                                        color="blue"
-                                        position="top"
-                                      >
-                                        <button
-                                          data-keyword-chip
-                                          onClick={() => {
-                                            const newSelected = new Set(selectedKeywords);
-                                            if (isSelected) {
-                                              newSelected.delete(keyword);
-                                            } else {
-                                              newSelected.add(keyword);
-                                            }
-                                            setSelectedKeywords(newSelected);
-                                          }}
-                                          className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${
-                                            isSelected
-                                              ? 'bg-red-600 text-white shadow-md scale-105'
-                                              : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-sm'
-                                          }`}
-                                        >
-                                          {keyword}
-                                          {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
-                                        </button>
-                                      </Tooltip>
-                                    );
-                                  })}
-                                </div>
+                          </button>
+                          {accordionExpanded.criticalMissing && (
+                            <div className="p-4 bg-white">
+                              <div className="flex flex-wrap gap-1.5">
+                                {criticalMissing.map((keyword, index) => {
+                                  const jdCount = countKeywordInJD(keyword, jobDescription);
+                                  return renderKeywordChip(keyword, selectedKeywords.has(keyword), 'red', index, jdCount);
+                                })}
                               </div>
-                            )}
-                            {categorized.other.length > 0 && (
-                              <div>
-                                <div className="text-xs font-medium text-gray-600 mb-1.5">Other ({categorized.other.length})</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {categorized.other.map((keyword, index) => {
-                                    const usageCount = keywordUsageCounts.get(keyword) || 0;
-                                    const jdCount = countKeywordInJD(keyword, jobDescription);
-                                    const isSelected = selectedKeywords.has(keyword);
-                                    return (
-                                      <Tooltip
-                                        key={`missing-other-${index}`}
-                                        text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
-                                        color="blue"
-                                        position="top"
-                                      >
-                                        <button
-                                          data-keyword-chip
-                                          onClick={() => {
-                                            const newSelected = new Set(selectedKeywords);
-                                            if (isSelected) {
-                                              newSelected.delete(keyword);
-                                            } else {
-                                              newSelected.add(keyword);
-                                            }
-                                            setSelectedKeywords(newSelected);
-                                          }}
-                                          className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${
-                                            isSelected
-                                              ? 'bg-red-600 text-white shadow-md scale-105'
-                                              : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-sm'
-                                          }`}
-                                        >
-                                          {keyword}
-                                          {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
-                                        </button>
-                                      </Tooltip>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       )}
                       
-                      {/* Matched Keywords */}
+                      {/* Found - Accordion */}
                       {visibleMatched.length > 0 && (
-                        <div>
-                          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <span className="w-1 h-4 bg-green-500 rounded"></span>
-                            Matched Keywords ({visibleMatched.length})
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {visibleMatched.map((keyword, index) => {
-                              const usageCount = keywordUsageCounts.get(keyword) || 0;
-                              const jdCount = countKeywordInJD(keyword, jobDescription);
-                              const isSelected = selectedKeywords.has(keyword);
-                              return (
-                                <Tooltip
-                                  key={`matched-${index}`}
-                                  text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
-                                  color="green"
-                                  position="top"
-                                >
-                                  <button
-                                    data-keyword-chip
-                                    onClick={() => {
-                                      const newSelected = new Set(selectedKeywords);
-                                      if (isSelected) {
-                                        newSelected.delete(keyword);
-                                      } else {
-                                        newSelected.add(keyword);
-                                      }
-                                      setSelectedKeywords(newSelected);
-                                    }}
-                                    className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${
-                                      isSelected
-                                        ? 'bg-green-600 text-white shadow-md scale-105'
-                                        : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:shadow-sm'
-                                    }`}
-                                  >
-                                    {keyword}
-                                    {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
-                                  </button>
-                                </Tooltip>
-                              );
-                            })}
-                          </div>
+                        <div className="border border-green-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setAccordionExpanded({ ...accordionExpanded, found: !accordionExpanded.found })}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-green-50 hover:bg-green-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-semibold text-green-900">Found</span>
+                              <span className="text-xs text-green-600 bg-green-200 px-2 py-0.5 rounded-full">{visibleMatched.length}</span>
+                            </div>
+                            {accordionExpanded.found ? (
+                              <ChevronUp className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-green-600" />
+                            )}
+                          </button>
+                          {accordionExpanded.found && (
+                            <div className="p-4 bg-white">
+                              <div className="flex flex-wrap gap-1.5">
+                                {visibleMatched.map((keyword, index) => {
+                                  const jdCount = countKeywordInJD(keyword, jobDescription);
+                                  return renderKeywordChip(keyword, selectedKeywords.has(keyword), 'green', index, jdCount);
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Bonus Keywords - Accordion */}
+                      {bonusKeywords.length > 0 && (
+                        <div className="border border-purple-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setAccordionExpanded({ ...accordionExpanded, bonus: !accordionExpanded.bonus })}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-purple-50 hover:bg-purple-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Info className="w-4 h-4 text-purple-600" />
+                              <span className="text-sm font-semibold text-purple-900">Bonus Keywords</span>
+                              <span className="text-xs text-purple-600 bg-purple-200 px-2 py-0.5 rounded-full">{bonusKeywords.length}</span>
+                            </div>
+                            {accordionExpanded.bonus ? (
+                              <ChevronUp className="w-4 h-4 text-purple-600" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-purple-600" />
+                            )}
+                          </button>
+                          {accordionExpanded.bonus && (
+                            <div className="p-4 bg-white">
+                              <p className="text-xs text-gray-600 mb-2">Similar keywords that could boost your score</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {bonusKeywords.map((keyword: string, index: number) => {
+                                  const jdCount = countKeywordInJD(keyword, jobDescription);
+                                  return renderKeywordChip(keyword, selectedKeywords.has(keyword), 'purple', index, jdCount);
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -4957,9 +5036,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 })()}
               </div>
 
-              {/* Floating Action Button */}
+              {/* Sticky AI Improve Button */}
               {selectedKeywords.size > 0 && (
-                <div className="sticky bottom-0 mt-4 pt-4 bg-white border-t border-gray-200 -mx-4 -mb-4 px-4 pb-4">
+                <div className="sticky bottom-0 left-0 right-0 mt-4 pt-4 bg-white border-t-2 border-indigo-200 shadow-lg -mx-4 -mb-4 px-4 pb-4 z-20">
                   <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                     <Tooltip text="Generate AI-powered bullet points using the selected keywords and add them to your work experience" color="blue" position="top">
                       <button
