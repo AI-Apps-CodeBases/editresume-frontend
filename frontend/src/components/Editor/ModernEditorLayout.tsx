@@ -7,6 +7,7 @@ import RightPanel from './RightPanel'
 import JobsView from './JobsView'
 import ResumesView from '@/components/Resume/ResumesView'
 import Tooltip from '@/components/Shared/Tooltip'
+import WelcomeHero from './WelcomeHero'
 import config from '@/lib/config'
 
 interface ModernEditorLayoutProps {
@@ -61,6 +62,20 @@ interface ModernEditorLayoutProps {
   onShareResume?: () => void
   onSelectJobDescriptionId?: (id: number | null) => void
   onShowHelp?: () => void
+}
+
+const isResumeEmpty = (resume: {
+  name: string
+  sections?: Array<{
+    bullets?: Array<{ text?: string }>
+  }>
+}): boolean => {
+  if (!resume) return true
+  if (resume.name?.trim()) return false
+  if (!resume.sections || resume.sections.length === 0) return true
+  return !resume.sections.some(section => 
+    section.bullets?.some(bullet => bullet.text?.trim())
+  )
 }
 
 export default function ModernEditorLayout({
@@ -319,9 +334,8 @@ export default function ModernEditorLayout({
 
   const getScoreColor = (score?: number | null) => {
     if (score === null || score === undefined) return 'text-gray-500'
-    if (score >= 80) return 'text-green-600'
-    if (score >= 60) return 'text-yellow-600'
-    if (score >= 40) return 'text-orange-600'
+    if (score >= 71) return 'text-emerald-600'
+    if (score >= 41) return 'text-amber-600'
     return 'text-red-600'
   }
 
@@ -361,39 +375,51 @@ export default function ModernEditorLayout({
         onShowHelp={onShowHelp}
       />
 
-      {/* Mobile ATS Score Gauge - Fixed Top Right */}
+      {/* Mobile ATS Score Gauge - Premium Semi-Circular */}
       {currentView === 'editor' && mobileEditorMode === 'editor' && (
         <div className="lg:hidden fixed top-16 right-2 z-50 pointer-events-none">
           <div className="pointer-events-auto">
-            <div className={`bg-white/95 backdrop-blur-md rounded-xl border shadow-lg w-14 h-14 flex items-center justify-center ${
+            <div className={`bg-white/95 backdrop-blur-md rounded-xl border shadow-lg w-20 h-12 flex items-center justify-center ${
               mobileATSScore !== null ? getScoreColor(mobileATSScore).replace('text-', 'border-') : 'border-gray-200'
-            }`}>
+            } ${isMobileAnalyzing ? 'animate-pulse' : ''}`}>
               {isMobileAnalyzing ? (
-                <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                <div className={`w-5 h-5 border-2 ${getScoreColor(mobileATSScore).replace('text-', 'border-')} border-t-transparent rounded-full animate-spin`} />
               ) : (
                 <div className="relative w-full h-full flex items-center justify-center">
-                  <svg viewBox="0 0 36 36" className="w-10 h-10 transform -rotate-90">
+                  <svg viewBox="0 0 120 70" className="w-full h-full">
                     <path
-                      className="text-gray-200"
-                      stroke="currentColor"
-                      strokeWidth="3"
+                      d="M 10 60 A 50 50 0 0 1 110 60"
                       fill="none"
-                      d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                      stroke="currentColor"
+                      strokeWidth="8"
+                      className="text-gray-200"
+                      strokeLinecap="round"
                     />
                     {mobileATSScore !== null && (
-                      <path
-                        className={getScoreColor(mobileATSScore).replace('text-', 'stroke-')}
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeWidth="3"
-                        fill="none"
-                        strokeDasharray={`${mobileATSScore}, 100`}
-                        d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
-                      />
+                      <>
+                        <defs>
+                          <linearGradient id={`mobile-gauge-gradient-${mobileATSScore}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor={mobileATSScore >= 71 ? '#10b981' : mobileATSScore >= 41 ? '#f59e0b' : '#ef4444'} />
+                            <stop offset="100%" stopColor={mobileATSScore >= 71 ? '#059669' : mobileATSScore >= 41 ? '#d97706' : '#dc2626'} />
+                          </linearGradient>
+                        </defs>
+                        <path
+                          d="M 10 60 A 50 50 0 0 1 110 60"
+                          fill="none"
+                          stroke={`url(#mobile-gauge-gradient-${mobileATSScore})`}
+                          strokeWidth="8"
+                          strokeLinecap="round"
+                          strokeDasharray={`${(mobileATSScore / 100) * 157}, 157`}
+                          style={{
+                            filter: isMobileAnalyzing ? 'drop-shadow(0 0 8px currentColor)' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                            transition: 'stroke-dasharray 0.8s cubic-bezier(0.4, 0, 0.2, 1)'
+                          }}
+                        />
+                      </>
                     )}
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={`text-[10px] font-bold ${getScoreColor(mobileATSScore)}`}>
+                  <div className="absolute inset-0 flex items-center justify-center pb-1">
+                    <span className={`text-sm font-black ${getScoreColor(mobileATSScore)}`}>
                       {mobileATSScore !== null ? Math.round(mobileATSScore) : '--'}
                     </span>
                   </div>
@@ -431,7 +457,7 @@ export default function ModernEditorLayout({
           focusMode || previewMode === 'fullscreen'
             ? 'flex justify-center' 
             : 'lg:flex-[60]'
-        } ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-0' : ''}`}>
+        } ${leftSidebarCollapsed && !showLeftDrawer ? 'lg:ml-16' : 'lg:ml-60'}`}>
           <div className={`w-full h-full transition-all duration-300 ease-in-out ${
             focusMode || previewMode === 'fullscreen' ? 'max-w-[800px]' : ''
           }`}>
@@ -465,26 +491,33 @@ export default function ModernEditorLayout({
               </div>
 
 
-              <div className="origin-top-left lg:origin-top-left lg:scale-100 scale-[0.5] w-[200%] lg:w-full">
-                <VisualResumeEditor
-                  data={resumeData}
-                  onChange={onResumeUpdate || (() => {})}
-                  template={template}
-                  onAddContent={onAddContent}
-                  roomId={roomId}
-                  onAddComment={onAddComment}
-                  onResolveComment={onResolveComment}
-                  onDeleteComment={onDeleteComment}
-                  onCreateRoom={onCreateRoom}
-                  onJoinRoom={onJoinRoom}
-                  onLeaveRoom={onLeaveRoom}
-                  isConnected={isConnected}
-                  activeUsers={activeUsers}
-                  onViewChange={onViewChange}
-                  onAIImprove={onAIImprove}
-                  hideSidebar={true}
+              {isResumeEmpty(resumeData) ? (
+                <WelcomeHero
+                  onUploadResume={onUploadResume}
+                  onCreateResume={onNewResume}
                 />
-              </div>
+              ) : (
+                <div className="origin-top-left lg:origin-top-left lg:scale-100 scale-[0.5] w-[200%] lg:w-full">
+                  <VisualResumeEditor
+                    data={resumeData}
+                    onChange={onResumeUpdate || (() => {})}
+                    template={template}
+                    onAddContent={onAddContent}
+                    roomId={roomId}
+                    onAddComment={onAddComment}
+                    onResolveComment={onResolveComment}
+                    onDeleteComment={onDeleteComment}
+                    onCreateRoom={onCreateRoom}
+                    onJoinRoom={onJoinRoom}
+                    onLeaveRoom={onLeaveRoom}
+                    isConnected={isConnected}
+                    activeUsers={activeUsers}
+                    onViewChange={onViewChange}
+                    onAIImprove={onAIImprove}
+                    hideSidebar={true}
+                  />
+                </div>
+              )}
             </div>
           ) : currentView === 'jobs' ? (
             <div className="h-full overflow-y-auto">
@@ -556,7 +589,7 @@ export default function ModernEditorLayout({
             <div className={`hidden lg:block overflow-hidden h-full transition-all duration-300 ease-in-out ${
               focusMode || previewMode === 'fullscreen'
                 ? 'w-0 opacity-0 pointer-events-none overflow-hidden' 
-                : 'lg:flex-[40] opacity-100'
+                : 'lg:flex-[48] opacity-100'
             }`}>
               <RightPanel 
                 activeTab={activeRightTab} 

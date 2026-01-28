@@ -23,7 +23,8 @@ import {
   ArrowUp,
   ArrowDown,
   X,
-  Info
+  Info,
+  XCircle
 } from 'lucide-react';
 
 const USE_ENHANCED_ATS_SCORING = true;
@@ -3014,6 +3015,11 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
   const [generatedBullets, setGeneratedBullets] = useState<string[]>([]);
   const [generatedKeywords, setGeneratedKeywords] = useState<string[]>([]); // Store keywords used to generate bullets
   const [showWorkExpSelector, setShowWorkExpSelector] = useState(false);
+  const [accordionExpanded, setAccordionExpanded] = useState({
+    criticalMissing: true,
+    found: true,
+    bonus: false
+  });
   const [workExpEntries, setWorkExpEntries] = useState<Array<{ sectionId: string, bulletId: string, companyName: string, jobTitle: string, dateRange: string, sectionTitle: string, sectionType: 'work' | 'project' }>>([]);
   const [selectedBulletIndices, setSelectedBulletIndices] = useState<Set<number>>(new Set<number>());
   const [bulletAssignments, setBulletAssignments] = useState<Map<number, string>>(new Map<number, string>());
@@ -4742,8 +4748,8 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 </div>
               </div>
 
-              {/* Keywords Content - Combined Missing and Matched */}
-              <div className="space-y-4">
+              {/* Keywords Content - Accordion Sections */}
+              <div className="space-y-3">
                 {(() => {
                   const companyName = currentJDInfo?.company || selectedJobMetadata?.company || null;
                   const filteredMissing = filterIrrelevantKeywords(matchResult.match_analysis.missing_keywords, companyName);
@@ -4759,7 +4765,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                     })
                     .slice(0, 30);
                   
-                  if (visibleMissing.length === 0 && visibleMatched.length === 0) {
+                  const bonusKeywords = (matchResult.keyword_suggestions?.tfidf_suggestions || []).slice(0, 20);
+                  
+                  if (visibleMissing.length === 0 && visibleMatched.length === 0 && bonusKeywords.length === 0) {
                     return (
                       <div className="text-center py-8 text-gray-500 text-sm">
                         {keywordSearchFilter ? 'No keywords match your search' : 'No keywords available'}
@@ -4769,187 +4777,136 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
 
                   const technicalKeywordsList = technicalKeywordOptions.map(opt => opt.keyword);
                   const categorized = categorizeKeywords(visibleMissing, jobDescription, technicalKeywordsList);
+                  const criticalMissing = categorized.highImpact;
+                  
+                  const renderKeywordChip = (keyword: string, isSelected: boolean, color: 'red' | 'green' | 'purple', index: number, jdCount: number) => {
+                    const usageCount = keywordUsageCounts.get(keyword) || 0;
+                    const colorClasses = {
+                      red: isSelected ? 'bg-red-600 text-white shadow-md scale-105' : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-sm',
+                      green: isSelected ? 'bg-green-600 text-white shadow-md scale-105' : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:shadow-sm',
+                      purple: isSelected ? 'bg-purple-600 text-white shadow-md scale-105' : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 hover:shadow-sm'
+                    };
+                    
+                    return (
+                      <Tooltip
+                        key={`keyword-${color}-${index}`}
+                        text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
+                        color={color === 'red' ? 'red' : color === 'green' ? 'green' : 'purple'}
+                        position="top"
+                      >
+                        <button
+                          data-keyword-chip
+                          onClick={() => {
+                            const newSelected = new Set(selectedKeywords);
+                            if (isSelected) {
+                              newSelected.delete(keyword);
+                            } else {
+                              newSelected.add(keyword);
+                            }
+                            setSelectedKeywords(newSelected);
+                          }}
+                          className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${colorClasses[color]}`}
+                        >
+                          {keyword}
+                          {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
+                        </button>
+                      </Tooltip>
+                    );
+                  };
                   
                   return (
-                    <div className="space-y-4">
-                      {/* Missing Keywords */}
-                      {visibleMissing.length > 0 && (
-                        <div>
-                          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <span className="w-1 h-4 bg-red-500 rounded"></span>
-                            Missing Keywords ({visibleMissing.length})
-                          </div>
-                          <div className="space-y-3">
-                            {categorized.highImpact.length > 0 && (
-                              <div>
-                                <div className="text-xs font-medium text-gray-600 mb-1.5">High Impact ({categorized.highImpact.length})</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {categorized.highImpact.map((keyword, index) => {
-                                    const usageCount = keywordUsageCounts.get(keyword) || 0;
-                                    const jdCount = countKeywordInJD(keyword, jobDescription);
-                                    const isSelected = selectedKeywords.has(keyword);
-                                    return (
-                                      <Tooltip
-                                        key={`missing-high-${index}`}
-                                        text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
-                                        color="blue"
-                                        position="top"
-                                      >
-                                        <button
-                                          data-keyword-chip
-                                          onClick={() => {
-                                            const newSelected = new Set(selectedKeywords);
-                                            if (isSelected) {
-                                              newSelected.delete(keyword);
-                                            } else {
-                                              newSelected.add(keyword);
-                                            }
-                                            setSelectedKeywords(newSelected);
-                                          }}
-                                          className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${
-                                            isSelected
-                                              ? 'bg-red-600 text-white shadow-md scale-105'
-                                              : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-sm'
-                                          }`}
-                                        >
-                                          {keyword}
-                                          {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
-                                        </button>
-                                      </Tooltip>
-                                    );
-                                  })}
-                                </div>
-                              </div>
+                    <div className="space-y-2">
+                      {/* Critical Missing - Accordion */}
+                      {criticalMissing.length > 0 && (
+                        <div className="border border-red-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setAccordionExpanded({ ...accordionExpanded, criticalMissing: !accordionExpanded.criticalMissing })}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-red-50 hover:bg-red-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <XCircle className="w-4 h-4 text-red-600" />
+                              <span className="text-sm font-semibold text-red-900">Critical Missing</span>
+                              <span className="text-xs text-red-600 bg-red-200 px-2 py-0.5 rounded-full">{criticalMissing.length}</span>
+                            </div>
+                            {accordionExpanded.criticalMissing ? (
+                              <ChevronUp className="w-4 h-4 text-red-600" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-red-600" />
                             )}
-                            {categorized.skillsTools.length > 0 && (
-                              <div>
-                                <div className="text-xs font-medium text-gray-600 mb-1.5">Skills & Tools ({categorized.skillsTools.length})</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {categorized.skillsTools.map((keyword, index) => {
-                                    const usageCount = keywordUsageCounts.get(keyword) || 0;
-                                    const jdCount = countKeywordInJD(keyword, jobDescription);
-                                    const isSelected = selectedKeywords.has(keyword);
-                                    return (
-                                      <Tooltip
-                                        key={`missing-skills-${index}`}
-                                        text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
-                                        color="blue"
-                                        position="top"
-                                      >
-                                        <button
-                                          data-keyword-chip
-                                          onClick={() => {
-                                            const newSelected = new Set(selectedKeywords);
-                                            if (isSelected) {
-                                              newSelected.delete(keyword);
-                                            } else {
-                                              newSelected.add(keyword);
-                                            }
-                                            setSelectedKeywords(newSelected);
-                                          }}
-                                          className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${
-                                            isSelected
-                                              ? 'bg-red-600 text-white shadow-md scale-105'
-                                              : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-sm'
-                                          }`}
-                                        >
-                                          {keyword}
-                                          {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
-                                        </button>
-                                      </Tooltip>
-                                    );
-                                  })}
-                                </div>
+                          </button>
+                          {accordionExpanded.criticalMissing && (
+                            <div className="p-4 bg-white">
+                              <div className="flex flex-wrap gap-1.5">
+                                {criticalMissing.map((keyword, index) => {
+                                  const jdCount = countKeywordInJD(keyword, jobDescription);
+                                  return renderKeywordChip(keyword, selectedKeywords.has(keyword), 'red', index, jdCount);
+                                })}
                               </div>
-                            )}
-                            {categorized.other.length > 0 && (
-                              <div>
-                                <div className="text-xs font-medium text-gray-600 mb-1.5">Other ({categorized.other.length})</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {categorized.other.map((keyword, index) => {
-                                    const usageCount = keywordUsageCounts.get(keyword) || 0;
-                                    const jdCount = countKeywordInJD(keyword, jobDescription);
-                                    const isSelected = selectedKeywords.has(keyword);
-                                    return (
-                                      <Tooltip
-                                        key={`missing-other-${index}`}
-                                        text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
-                                        color="blue"
-                                        position="top"
-                                      >
-                                        <button
-                                          data-keyword-chip
-                                          onClick={() => {
-                                            const newSelected = new Set(selectedKeywords);
-                                            if (isSelected) {
-                                              newSelected.delete(keyword);
-                                            } else {
-                                              newSelected.add(keyword);
-                                            }
-                                            setSelectedKeywords(newSelected);
-                                          }}
-                                          className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${
-                                            isSelected
-                                              ? 'bg-red-600 text-white shadow-md scale-105'
-                                              : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-sm'
-                                          }`}
-                                        >
-                                          {keyword}
-                                          {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
-                                        </button>
-                                      </Tooltip>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       )}
                       
-                      {/* Matched Keywords */}
+                      {/* Found - Accordion */}
                       {visibleMatched.length > 0 && (
-                        <div>
-                          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <span className="w-1 h-4 bg-green-500 rounded"></span>
-                            Matched Keywords ({visibleMatched.length})
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {visibleMatched.map((keyword, index) => {
-                              const usageCount = keywordUsageCounts.get(keyword) || 0;
-                              const jdCount = countKeywordInJD(keyword, jobDescription);
-                              const isSelected = selectedKeywords.has(keyword);
-                              return (
-                                <Tooltip
-                                  key={`matched-${index}`}
-                                  text={`This keyword appears ${jdCount} time${jdCount !== 1 ? 's' : ''} in the job description`}
-                                  color="green"
-                                  position="top"
-                                >
-                                  <button
-                                    data-keyword-chip
-                                    onClick={() => {
-                                      const newSelected = new Set(selectedKeywords);
-                                      if (isSelected) {
-                                        newSelected.delete(keyword);
-                                      } else {
-                                        newSelected.add(keyword);
-                                      }
-                                      setSelectedKeywords(newSelected);
-                                    }}
-                                    className={`px-2.5 py-1 text-xs rounded-2xl font-medium transition-all duration-200 ${
-                                      isSelected
-                                        ? 'bg-green-600 text-white shadow-md scale-105'
-                                        : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:shadow-sm'
-                                    }`}
-                                  >
-                                    {keyword}
-                                    {usageCount > 0 && <span className="ml-1 opacity-75">({usageCount})</span>}
-                                  </button>
-                                </Tooltip>
-                              );
-                            })}
-                          </div>
+                        <div className="border border-green-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setAccordionExpanded({ ...accordionExpanded, found: !accordionExpanded.found })}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-green-50 hover:bg-green-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-semibold text-green-900">Found</span>
+                              <span className="text-xs text-green-600 bg-green-200 px-2 py-0.5 rounded-full">{visibleMatched.length}</span>
+                            </div>
+                            {accordionExpanded.found ? (
+                              <ChevronUp className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-green-600" />
+                            )}
+                          </button>
+                          {accordionExpanded.found && (
+                            <div className="p-4 bg-white">
+                              <div className="flex flex-wrap gap-1.5">
+                                {visibleMatched.map((keyword, index) => {
+                                  const jdCount = countKeywordInJD(keyword, jobDescription);
+                                  return renderKeywordChip(keyword, selectedKeywords.has(keyword), 'green', index, jdCount);
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Bonus Keywords - Accordion */}
+                      {bonusKeywords.length > 0 && (
+                        <div className="border border-purple-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setAccordionExpanded({ ...accordionExpanded, bonus: !accordionExpanded.bonus })}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-purple-50 hover:bg-purple-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Info className="w-4 h-4 text-purple-600" />
+                              <span className="text-sm font-semibold text-purple-900">Bonus Keywords</span>
+                              <span className="text-xs text-purple-600 bg-purple-200 px-2 py-0.5 rounded-full">{bonusKeywords.length}</span>
+                            </div>
+                            {accordionExpanded.bonus ? (
+                              <ChevronUp className="w-4 h-4 text-purple-600" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-purple-600" />
+                            )}
+                          </button>
+                          {accordionExpanded.bonus && (
+                            <div className="p-4 bg-white">
+                              <p className="text-xs text-gray-600 mb-2">Similar keywords that could boost your score</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {bonusKeywords.map((keyword: string, index: number) => {
+                                  const jdCount = countKeywordInJD(keyword, jobDescription);
+                                  return renderKeywordChip(keyword, selectedKeywords.has(keyword), 'purple', index, jdCount);
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -4957,9 +4914,9 @@ export default function JobDescriptionMatcher({ resumeData, onMatchResult, onRes
                 })()}
               </div>
 
-              {/* Floating Action Button */}
+              {/* Sticky AI Improve Button */}
               {selectedKeywords.size > 0 && (
-                <div className="sticky bottom-0 mt-4 pt-4 bg-white border-t border-gray-200 -mx-4 -mb-4 px-4 pb-4">
+                <div className="sticky bottom-0 left-0 right-0 mt-4 pt-4 bg-white border-t-2 border-indigo-200 shadow-lg -mx-4 -mb-4 px-4 pb-4 z-20">
                   <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                     <Tooltip text="Generate AI-powered bullet points using the selected keywords and add them to your work experience" color="blue" position="top">
                       <button

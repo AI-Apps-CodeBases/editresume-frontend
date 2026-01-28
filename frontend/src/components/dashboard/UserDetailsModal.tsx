@@ -135,7 +135,10 @@ export function UserDetailsModal({ userId, isOpen, onClose }: UserDetailsModalPr
                 <div className="p-6">
                     {loading ? (
                         <div className="flex items-center justify-center py-12">
-                            <div className="text-gray-500">Loading...</div>
+                            <div className="space-y-2">
+                              <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                              <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
+                            </div>
                         </div>
                     ) : error ? (
                         <div className="flex items-center justify-center py-12">

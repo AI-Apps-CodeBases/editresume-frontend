@@ -64,17 +64,36 @@ export default function MatchScoreWidget({
   }
 
   const getScoreColor = (s: number) => {
-    if (s >= 80) return { bg: 'text-green-500', text: 'text-green-600', bgLight: 'bg-green-50/80', border: 'border-green-200' }
-    if (s >= 60) return { bg: 'text-primary-600', text: 'text-primary-700', bgLight: 'bg-primary-50/80', border: 'border-primary-200' }
-    if (s >= 40) return { bg: 'text-yellow-500', text: 'text-yellow-600', bgLight: 'bg-yellow-50/80', border: 'border-yellow-200' }
-    return { bg: 'text-red-500', text: 'text-red-600', bgLight: 'bg-red-50/80', border: 'border-red-200' }
+    if (s >= 71) return { 
+      bg: 'text-emerald-500', 
+      stroke: 'stroke-emerald-500',
+      text: 'text-emerald-600', 
+      bgLight: 'bg-emerald-50/80', 
+      border: 'border-emerald-200',
+      gradient: 'from-emerald-500 to-emerald-600'
+    }
+    if (s >= 41) return { 
+      bg: 'text-amber-500', 
+      stroke: 'stroke-amber-500',
+      text: 'text-amber-600', 
+      bgLight: 'bg-amber-50/80', 
+      border: 'border-amber-200',
+      gradient: 'from-amber-500 to-amber-600'
+    }
+    return { 
+      bg: 'text-red-500', 
+      stroke: 'stroke-red-500',
+      text: 'text-red-600', 
+      bgLight: 'bg-red-50/80', 
+      border: 'border-red-200',
+      gradient: 'from-red-500 to-red-600'
+    }
   }
 
   const getScoreLabel = (s: number) => {
-    if (s >= 80) return 'Excellent'
-    if (s >= 60) return 'Strong'
-    if (s >= 40) return 'Fair'
-    return 'Needs Work'
+    if (s >= 71) return 'Excellent'
+    if (s >= 41) return 'Good'
+    return 'Needs Improvement'
   }
 
   const scoreColor = score !== null ? getScoreColor(score) : null
@@ -101,33 +120,40 @@ export default function MatchScoreWidget({
         }}
       >
         {isMinimized ? (
-          // Minimized view - just score circle
+          // Minimized view - premium semi-circular gauge
           <div className="w-full h-full flex items-center justify-center p-2 lg:p-3 cursor-pointer group"
             onClick={() => setIsMinimized(false)}
           >
-            <div className="relative w-full h-full flex items-center justify-center">
-              <svg viewBox="0 0 36 36" className="w-10 h-10 lg:w-14 lg:h-14 transform -rotate-90">
+            <div className={`relative w-full h-full flex items-center justify-center ${isAnalyzing ? 'animate-pulse' : ''}`}>
+              <svg viewBox="0 0 120 70" className="w-full h-full">
+                {/* Background arc */}
                 <path
-                  className="text-gray-200"
-                  stroke="currentColor"
-                  strokeWidth="3"
+                  d="M 10 60 A 50 50 0 0 1 110 60"
                   fill="none"
-                  d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  className="text-gray-200"
+                  strokeLinecap="round"
                 />
+                {/* Progress arc */}
                 {score !== null && (
                   <path
-                    className={scoreColor?.bg}
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeWidth="3"
+                    d="M 10 60 A 50 50 0 0 1 110 60"
                     fill="none"
-                    strokeDasharray={`${score}, 100`}
-                    d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    className={scoreColor?.stroke}
+                    strokeLinecap="round"
+                    strokeDasharray={`${(score / 100) * 157}, 157`}
+                    style={{
+                      filter: isAnalyzing ? 'drop-shadow(0 0 8px currentColor)' : 'none',
+                      transition: 'stroke-dasharray 0.5s ease-out, filter 0.3s ease-out'
+                    }}
                   />
                 )}
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className={`text-[10px] lg:text-xs font-bold ${scoreColor?.text}`}>
+              <div className="absolute inset-0 flex items-center justify-center pb-2">
+                <span className={`text-sm lg:text-base font-black ${scoreColor?.text}`}>
                   {score !== null ? Math.round(score) : '--'}
                 </span>
               </div>
@@ -141,34 +167,48 @@ export default function MatchScoreWidget({
           <div className="p-4">
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
-              <div className="flex items-start gap-3 flex-1 min-w-0">
-                {/* Score Circle */}
-                <div className="relative flex-shrink-0">
-                  <svg viewBox="0 0 36 36" className="w-12 h-12 transform -rotate-90">
+              <div className="flex items-start gap-4 flex-1 min-w-0">
+                {/* Premium Semi-Circular Gauge */}
+                <div className={`relative flex-shrink-0 ${isAnalyzing ? 'animate-pulse' : ''}`}>
+                  <svg viewBox="0 0 200 120" className="w-24 h-14">
+                    {/* Background arc */}
                     <path
-                      className="text-gray-200"
-                      stroke="currentColor"
-                      strokeWidth="3"
+                      d="M 20 100 A 80 80 0 0 1 180 100"
                       fill="none"
-                      d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
+                      stroke="currentColor"
+                      strokeWidth="12"
+                      className="text-gray-200"
+                      strokeLinecap="round"
                     />
+                    {/* Progress arc with gradient effect */}
                     {score !== null && (
-                      <path
-                        className={scoreColor?.bg}
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeWidth="3"
-                        fill="none"
-                        strokeDasharray={`${score}, 100`}
-                        d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32"
-                      />
+                      <>
+                        <defs>
+                          <linearGradient id={`gauge-gradient-${score}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor={score >= 71 ? '#10b981' : score >= 41 ? '#f59e0b' : '#ef4444'} />
+                            <stop offset="100%" stopColor={score >= 71 ? '#059669' : score >= 41 ? '#d97706' : '#dc2626'} />
+                          </linearGradient>
+                        </defs>
+                        <path
+                          d="M 20 100 A 80 80 0 0 1 180 100"
+                          fill="none"
+                          stroke={`url(#gauge-gradient-${score})`}
+                          strokeWidth="12"
+                          strokeLinecap="round"
+                          strokeDasharray={`${(score / 100) * 251.2}, 251.2`}
+                          style={{
+                            filter: isAnalyzing ? 'drop-shadow(0 0 12px currentColor)' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                            transition: 'stroke-dasharray 0.8s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s ease-out'
+                          }}
+                        />
+                      </>
                     )}
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="absolute inset-0 flex items-center justify-center pb-1">
                     {isAnalyzing ? (
-                      <div className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                      <div className={`w-5 h-5 border-2 ${scoreColor?.stroke} border-t-transparent rounded-full animate-spin`} />
                     ) : (
-                      <span className={`text-xs font-bold ${scoreColor?.text}`}>
+                      <span className={`text-2xl font-black ${scoreColor?.text}`}>
                         {score !== null ? Math.round(score) : '--'}
                       </span>
                     )}
