@@ -456,7 +456,14 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
   }
 
   const handleOpenCoverLetterGenerator = async () => {
-    if (!user?.email) return
+    if (!user?.email) {
+      await showAlert({
+        title: 'Sign In Required',
+        message: 'Please sign in to generate cover letters',
+        type: 'warning'
+      })
+      return
+    }
     
     try {
       const res = await fetch(`${config.apiBase}/api/resumes?user_email=${encodeURIComponent(user.email)}`)
@@ -469,7 +476,7 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
             const resumeVersionRes = await fetch(`${config.apiBase}/api/resume/version/${latestResume.latest_version_id}?user_email=${encodeURIComponent(user.email)}`)
             if (resumeVersionRes.ok) {
               const versionData = await resumeVersionRes.json()
-              setResumeDataForCoverLetter(versionData.version?.resume_data || {
+              const resumeData = versionData.version?.resume_data || {
                 name: '',
                 title: '',
                 email: '',
@@ -477,7 +484,8 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
                 location: '',
                 summary: '',
                 sections: []
-              })
+              }
+              setResumeDataForCoverLetter(resumeData)
               setShowCoverLetterGenerator(true)
             } else {
               setResumeDataForCoverLetter({
@@ -529,6 +537,11 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       }
     } catch (e) {
       console.error('Failed to load resume data:', e)
+      await showAlert({
+        title: 'Error',
+        message: 'Failed to load resume data. You can still generate a cover letter with manual input.',
+        type: 'warning'
+      })
       setResumeDataForCoverLetter({
         name: '',
         title: '',
@@ -2234,13 +2247,13 @@ export default function JobDetailView({ jobId, onBack, onUpdate }: Props) {
       )}
 
       {showCoverLetterGenerator && resumeDataForCoverLetter && isRecord(resumeDataForCoverLetter) && 
-        typeof resumeDataForCoverLetter.name === 'string' &&
-        typeof resumeDataForCoverLetter.title === 'string' &&
+        (typeof resumeDataForCoverLetter.name === 'string' || resumeDataForCoverLetter.name === undefined) &&
+        (typeof resumeDataForCoverLetter.title === 'string' || resumeDataForCoverLetter.title === undefined) &&
         Array.isArray(resumeDataForCoverLetter.sections) ? (
         <CoverLetterGenerator
           resumeData={{
-            name: resumeDataForCoverLetter.name,
-            title: resumeDataForCoverLetter.title,
+            name: typeof resumeDataForCoverLetter.name === 'string' ? resumeDataForCoverLetter.name : '',
+            title: typeof resumeDataForCoverLetter.title === 'string' ? resumeDataForCoverLetter.title : '',
             email: typeof resumeDataForCoverLetter.email === 'string' ? resumeDataForCoverLetter.email : undefined,
             phone: typeof resumeDataForCoverLetter.phone === 'string' ? resumeDataForCoverLetter.phone : undefined,
             location: typeof resumeDataForCoverLetter.location === 'string' ? resumeDataForCoverLetter.location : undefined,
