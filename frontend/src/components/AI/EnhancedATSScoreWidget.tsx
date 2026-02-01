@@ -139,6 +139,44 @@ export default function EnhancedATSScoreWidget({
         prevScore = atsResult.score
       }
 
+      // Get extracted_keywords from localStorage if available
+      let extractedKeywords: any = undefined
+      if (typeof window !== 'undefined' && jobDescription) {
+        try {
+          // Try to get from currentJDKeywords (set by JobDescriptionMatcher)
+          const savedKeywords = localStorage.getItem('currentJDKeywords')
+          if (savedKeywords) {
+            const parsed = JSON.parse(savedKeywords)
+            // Build extracted_keywords payload from saved keywords
+            const highFrequency = (parsed.high_frequency || []).map((item: any) => {
+              if (typeof item === 'string') return { keyword: item, importance: 'medium' }
+              return {
+                keyword: item.keyword || item,
+                importance: item.importance || 'medium',
+                frequency: item.frequency || 1
+              }
+            })
+            
+            extractedKeywords = {
+              technical_keywords: parsed.matching || [],
+              matching_keywords: parsed.matching || [],
+              missing_keywords: parsed.missing || [],
+              high_frequency_keywords: highFrequency,
+              priority_keywords: parsed.priority || [],
+              total_keywords: (parsed.matching?.length || 0) + (parsed.missing?.length || 0)
+            }
+          } else {
+            // Fallback: try to get from extractedKeywords (from extension)
+            const savedExtracted = localStorage.getItem('extractedKeywords')
+            if (savedExtracted) {
+              extractedKeywords = JSON.parse(savedExtracted)
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load extracted keywords:', e)
+        }
+      }
+
       const response = await fetch(`${config.apiBase}/api/ai/enhanced_ats_score${sessionId ? `?session_id=${sessionId}` : ''}`, {
         method: 'POST',
         headers,
@@ -147,7 +185,8 @@ export default function EnhancedATSScoreWidget({
           job_description: jobDescription,
           target_role: targetRole,
           industry: industry,
-          previous_score: prevScore
+          previous_score: prevScore,
+          extracted_keywords: extractedKeywords  // Include extracted_keywords for semantic analysis
         }),
       })
 
