@@ -229,7 +229,7 @@ async def get_enhanced_ats_score(
             (payload.job_description and payload.job_description.strip()) or
             (payload.extracted_keywords and payload.extracted_keywords.get("total_keywords", 0) > 0)
         )
-        result = ats_service.get_enhanced_ats_score(
+        result = await ats_service.get_enhanced_ats_score(
             resume_data_to_use,  # Still pass for structure analysis
             payload.job_description,
             resume_text=resume_text_to_use,  # Pass extracted text for more accurate scoring

@@ -5,6 +5,7 @@ it means that change broke existing functionality. DO NOT modify these tests unl
 the behavior change is intentional and documented.
 """
 import pytest
+import asyncio
 
 # Import services directly - database is already mocked in conftest.py
 from app.services.enhanced_ats_service import EnhancedATSChecker
@@ -81,14 +82,16 @@ class TestATSScoreRegression:
         - Optimize application performance
         """
     
-    def test_ats_score_returns_valid_range(self, enhanced_ats_checker, sample_resume_data):
+    @pytest.mark.asyncio
+    async def test_ats_score_returns_valid_range(self, enhanced_ats_checker, sample_resume_data):
         """Regression: ATS score must always be between 0 and 100."""
-        result = enhanced_ats_checker.get_enhanced_ats_score(sample_resume_data)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(sample_resume_data)
         
         assert result["success"] is True
         assert 0 <= result["score"] <= 100, f"Score {result['score']} is outside valid range"
     
-    def test_invisible_bullets_excluded_from_scoring(self, enhanced_ats_checker, sample_resume_data):
+    @pytest.mark.asyncio
+    async def test_invisible_bullets_excluded_from_scoring(self, enhanced_ats_checker, sample_resume_data):
         """Regression: Bullets with visible=False must be excluded from ATS scoring."""
         # Add invisible bullet
         sample_resume_data["sections"][0]["bullets"].append({
@@ -102,12 +105,13 @@ class TestATSScoreRegression:
         assert "This hidden bullet should not affect score" not in text
         
         # Score should not be affected by invisible content
-        result = enhanced_ats_checker.get_enhanced_ats_score(sample_resume_data)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(sample_resume_data)
         assert result["success"] is True
     
-    def test_tfidf_method_used_when_job_description_provided(self, enhanced_ats_checker, sample_resume_data, sample_job_description):
+    @pytest.mark.asyncio
+    async def test_tfidf_method_used_when_job_description_provided(self, enhanced_ats_checker, sample_resume_data, sample_job_description):
         """Regression: When JD is provided, must use TF-IDF (industry standard) method."""
-        result = enhanced_ats_checker.get_enhanced_ats_score(
+        result = await enhanced_ats_checker.get_enhanced_ats_score(
             sample_resume_data,
             job_description=sample_job_description,
             use_industry_standard=True
@@ -116,9 +120,10 @@ class TestATSScoreRegression:
         assert result["success"] is True
         assert result["method"] == "industry_standard_tfidf", "Should use TF-IDF when JD provided"
     
-    def test_comprehensive_method_used_without_job_description(self, enhanced_ats_checker, sample_resume_data):
+    @pytest.mark.asyncio
+    async def test_comprehensive_method_used_without_job_description(self, enhanced_ats_checker, sample_resume_data):
         """Regression: Without JD, must use comprehensive scoring method."""
-        result = enhanced_ats_checker.get_enhanced_ats_score(
+        result = await enhanced_ats_checker.get_enhanced_ats_score(
             sample_resume_data,
             job_description=None,
             use_industry_standard=False
@@ -127,7 +132,8 @@ class TestATSScoreRegression:
         assert result["success"] is True
         assert result["method"] in ["comprehensive", "industry_standard_tfidf"], "Should use comprehensive method"
     
-    def test_text_extraction_handles_special_characters(self, enhanced_ats_checker):
+    @pytest.mark.asyncio
+    async def test_text_extraction_handles_special_characters(self, enhanced_ats_checker):
         """Regression: Text extraction must handle special characters without crashing."""
         resume_with_special = {
             "name": "José García",
@@ -151,10 +157,11 @@ class TestATSScoreRegression:
         assert "C++" in text or "C#" in text or "Node.js" in text
         
         # Should calculate score
-        result = enhanced_ats_checker.get_enhanced_ats_score(resume_with_special)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(resume_with_special)
         assert result["success"] is True
     
-    def test_empty_resume_handled_gracefully(self, enhanced_ats_checker):
+    @pytest.mark.asyncio
+    async def test_empty_resume_handled_gracefully(self, enhanced_ats_checker):
         """Regression: Empty resume must not crash, should return valid response."""
         empty_resume = {
             "name": "",
@@ -162,30 +169,33 @@ class TestATSScoreRegression:
             "sections": []
         }
         
-        result = enhanced_ats_checker.get_enhanced_ats_score(empty_resume)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(empty_resume)
         
         # Should handle gracefully, not crash
         assert "success" in result
         assert "score" in result
         assert 0 <= result["score"] <= 100
     
-    def test_ats_score_includes_suggestions(self, enhanced_ats_checker, sample_resume_data):
+    @pytest.mark.asyncio
+    async def test_ats_score_includes_suggestions(self, enhanced_ats_checker, sample_resume_data):
         """Regression: ATS score response must include suggestions list."""
-        result = enhanced_ats_checker.get_enhanced_ats_score(sample_resume_data)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(sample_resume_data)
         
         assert result["success"] is True
         assert "suggestions" in result
         assert isinstance(result["suggestions"], list)
     
-    def test_ats_score_includes_details(self, enhanced_ats_checker, sample_resume_data):
+    @pytest.mark.asyncio
+    async def test_ats_score_includes_details(self, enhanced_ats_checker, sample_resume_data):
         """Regression: ATS score response must include details dictionary."""
-        result = enhanced_ats_checker.get_enhanced_ats_score(sample_resume_data)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(sample_resume_data)
         
         assert result["success"] is True
         assert "details" in result
         assert isinstance(result["details"], dict)
     
-    def test_keyword_matching_with_extension_data(self, enhanced_ats_checker, sample_resume_data, sample_job_description):
+    @pytest.mark.asyncio
+    async def test_keyword_matching_with_extension_data(self, enhanced_ats_checker, sample_resume_data, sample_job_description):
         """Regression: ATS scoring must work with extracted keywords from extension."""
         extracted_keywords = {
             "technical_keywords": ["Python", "React", "PostgreSQL"],
@@ -193,7 +203,7 @@ class TestATSScoreRegression:
             "total_keywords": 5
         }
         
-        result = enhanced_ats_checker.get_enhanced_ats_score(
+        result = await enhanced_ats_checker.get_enhanced_ats_score(
             sample_resume_data,
             job_description=sample_job_description,
             extracted_keywords=extracted_keywords,
@@ -283,14 +293,15 @@ class TestAPIResponseStructureRegression:
         """Create ATSChecker instance for testing."""
         return ATSChecker()
     
-    def test_enhanced_ats_response_structure(self, enhanced_ats_checker):
+    @pytest.mark.asyncio
+    async def test_enhanced_ats_response_structure(self, enhanced_ats_checker):
         """Regression: Enhanced ATS API response must have expected structure."""
         resume = {
             "name": "Test",
             "sections": [{"id": "1", "title": "Skills", "bullets": []}]
         }
         
-        result = enhanced_ats_checker.get_enhanced_ats_score(resume)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(resume)
         
         # Frontend expects these fields
         required_fields = ["success", "score", "suggestions", "details", "method"]
@@ -325,14 +336,16 @@ class TestEdgeCasesRegression:
         """Create EnhancedATSChecker instance for testing."""
         return EnhancedATSChecker()
     
-    def test_resume_with_only_name(self, enhanced_ats_checker):
+    @pytest.mark.asyncio
+    async def test_resume_with_only_name(self, enhanced_ats_checker):
         """Regression: Resume with only name must not crash."""
         minimal_resume = {"name": "John Doe"}
         
-        result = enhanced_ats_checker.get_enhanced_ats_score(minimal_resume)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(minimal_resume)
         assert result["success"] is True
     
-    def test_resume_with_none_values(self, enhanced_ats_checker):
+    @pytest.mark.asyncio
+    async def test_resume_with_none_values(self, enhanced_ats_checker):
         """Regression: Resume with None values must be handled."""
         resume_with_none = {
             "name": "Test",
@@ -342,10 +355,11 @@ class TestEdgeCasesRegression:
         }
         
         # Should not crash
-        result = enhanced_ats_checker.get_enhanced_ats_score(resume_with_none)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(resume_with_none)
         assert "success" in result
     
-    def test_very_long_resume_text(self, enhanced_ats_checker):
+    @pytest.mark.asyncio
+    async def test_very_long_resume_text(self, enhanced_ats_checker):
         """Regression: Very long resume text must not cause issues."""
         long_text = "Python " * 1000  # 6000+ characters
         long_resume = {
@@ -354,6 +368,6 @@ class TestEdgeCasesRegression:
             "sections": [{"id": "1", "title": "Skills", "bullets": []}]
         }
         
-        result = enhanced_ats_checker.get_enhanced_ats_score(long_resume)
+        result = await enhanced_ats_checker.get_enhanced_ats_score(long_resume)
         assert result["success"] is True
 

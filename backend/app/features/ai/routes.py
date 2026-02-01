@@ -1875,7 +1875,7 @@ async def improve_ats_score_bulk(payload: EnhancedATSPayload):
         # Get current ATS score
         # Automatically use industry-standard TF-IDF when job description is provided
         use_tfidf = bool(payload.job_description and payload.job_description.strip())
-        current_result = enhanced_ats_checker.get_enhanced_ats_score(
+        current_result = await enhanced_ats_checker.get_enhanced_ats_score(
             resume_data, payload.job_description, use_industry_standard=use_tfidf
         )
         current_score = current_result.get("score", 0)
@@ -1952,7 +1952,7 @@ async def improve_ats_score_bulk(payload: EnhancedATSPayload):
         # Calculate new ATS score
         # Automatically use industry-standard TF-IDF when job description is provided
         use_tfidf = bool(payload.job_description and payload.job_description.strip())
-        new_result = enhanced_ats_checker.get_enhanced_ats_score(
+        new_result = await enhanced_ats_checker.get_enhanced_ats_score(
             improved_resume, payload.job_description, use_industry_standard=use_tfidf
         )
         new_score = new_result.get("score", current_score)

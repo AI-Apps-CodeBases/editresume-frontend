@@ -30,9 +30,9 @@ class ResumeMatchingService:
         self._repository = repository or ResumeMatchRepository(session)
         self._ats_checker = ats_checker or EnhancedATSChecker()
 
-    def analyze_fit(self, resume_id: int, job_id: int, user_id: int) -> ATSScore:
+    async def analyze_fit(self, resume_id: int, job_id: int, user_id: int) -> ATSScore:
         job, resume, resume_data = self._load_resume_job(resume_id, job_id, user_id)
-        ats_result = self._ats_checker.get_enhanced_ats_score(
+        ats_result = await self._ats_checker.get_enhanced_ats_score(
             resume_data, job.description or ""
         )
         details: dict[str, dict] = ats_result.get("details", {})
@@ -47,12 +47,12 @@ class ResumeMatchingService:
             suggestions=list(ats_result.get("suggestions", []) or []),
         )
 
-    def build_match_summary(
+    async def build_match_summary(
         self, resume_id: int, job_id: int, user_id: int
     ) -> tuple[ResumeJobMatch, ATSScore, dict]:
         job, resume, resume_data = self._load_resume_job(resume_id, job_id, user_id)
 
-        ats_score = self.analyze_fit(resume.id, job.id, user_id)
+        ats_score = await self.analyze_fit(resume.id, job.id, user_id)
         resume_text = self._ats_checker.extract_text_from_resume(resume_data).lower()
         resume_tokens = set(resume_text.split())
 

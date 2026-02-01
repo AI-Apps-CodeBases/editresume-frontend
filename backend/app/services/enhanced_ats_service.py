@@ -1241,7 +1241,7 @@ class EnhancedATSChecker:
             "suggestions": list(set(all_suggestions)),
         }
 
-    def get_enhanced_ats_score(
+    async def get_enhanced_ats_score(
         self,
         resume_data: dict,
         job_description: str = None,
@@ -1310,21 +1310,13 @@ class EnhancedATSChecker:
 
                     # Only run agent if we have keyword data
                     if keyword_matches or missing_keywords:
-                        # Run async agent analysis (sync wrapper)
-                        try:
-                            loop = asyncio.get_event_loop()
-                        except RuntimeError:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-
-                        semantic_analysis = loop.run_until_complete(
-                            ats_scoring_agent.analyze_semantic_quality(
-                                resume_data=resume_data,
-                                job_description=job_description,
-                                extracted_keywords=extracted_keywords,
-                                keyword_matches=keyword_matches,
-                                missing_keywords=missing_keywords,
-                            )
+                        # Use await directly since we're now in an async context
+                        semantic_analysis = await ats_scoring_agent.analyze_semantic_quality(
+                            resume_data=resume_data,
+                            job_description=job_description,
+                            extracted_keywords=extracted_keywords,
+                            keyword_matches=keyword_matches,
+                            missing_keywords=missing_keywords,
                         )
 
                         # Apply semantic adjustment (30% of adjustment to prevent over-correction)
